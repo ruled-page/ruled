@@ -1611,3 +1611,69 @@ table.fields input.narrow {
     display: none;
   }
 }
+
+/* Dropdown editor for enum fields ------------------------------------------------ */
+
+.enum-editor {
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.enum-filter {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0 8px;
+  font: inherit;
+  outline: none;
+  min-height: 24px;
+}
+
+.enum-options {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 232px;
+  overflow-y: auto;
+}
+
+.enum-options li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.enum-options li.active {
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.enum-options li svg {
+  color: var(--green);
+}
+
+.enum-options li.empty {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.enum-clear {
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+  padding: 6px 10px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.enum-clear:hover {
+  background: var(--bg-3);
+}

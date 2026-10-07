@@ -20,6 +20,7 @@ import { parseClipboardText } from '../state/clipboard';
 import { alignment, displayText, editText, exactText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
+import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { ObjectsOverlay } from './ObjectsOverlay';
 
 const FONT_STACK = 'Calibri, Carlito, "Aptos Narrow", "Segoe UI", system-ui, sans-serif';
@@ -165,20 +166,25 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const blocked = view.blockedAt(row, view.visibleCols[gc - 1]);
       const locked = blocked !== undefined && blocked.kind !== 'tableHeader';
       const label = !!schema?.isLabel(sheetIndex, row, view.visibleCols[gc - 1]);
+      // Enum fields edit with a dropdown; clicking the selected cell opens it.
+      const field = schema && !readOnly ? schema.fieldAt(sheetIndex, row, view.visibleCols[gc - 1])?.field : undefined;
+      const options = field?.type === 'enum' && field.values?.length ? field.values : undefined;
+      const asEnum = (cell: EnumCell): EnumCell =>
+        options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
       if (!rec) {
         const mergedStyle = merge ? styles[view.get(merge.r1, merge.c1)?.style ?? 0] : undefined;
         const bg = mergedStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
-        return {
+        return asEnum({
           kind: GridCellKind.Text,
           data: '',
           displayData: '',
           allowOverlay: !readOnly,
           span,
           themeOverride: bg ? { bgCell: bg } : undefined,
-        };
+        });
       }
       const { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
-      return {
+      return asEnum({
         kind: GridCellKind.Text,
         data: editText(rec, style, date1904),
         displayData: text,
@@ -188,7 +194,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         allowWrapping: style.wrap,
         span,
         themeOverride: label && !style.fill ? { ...cellTheme(style, color, false, false), bgCell: LABEL_FILL } : cellTheme(style, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
-      };
+      });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion],
@@ -201,6 +207,20 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const row = view.visibleRows[args.row];
       const col = view.visibleCols[args.col - 1];
       const { ctx, rect } = args;
+      if (args.highlighted && enumOptionsOf(args.cell)) {
+        // Dropdown chevron on selected enum cells, like Excel's list validation.
+        const cx = rect.x + rect.width - 10;
+        const cy = rect.y + rect.height / 2 + 1;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx - 3.5, cy - 2);
+        ctx.lineTo(cx, cy + 1.5);
+        ctx.lineTo(cx + 3.5, cy - 2);
+        ctx.strokeStyle = '#5F6368';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
       const rec = view.get(row, col);
       if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch | CellFlag.Stale)) {
         ctx.save();
@@ -386,6 +406,10 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
   );
 
   const rowHeight = useCallback((gr: number) => view.rowHeight(view.visibleRows[gr]), [view]);
+  const provideEditor = useCallback(
+    (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
+    [],
+  );
   const theme = useMemo(
     () => (view.info.showGridLines ? THEME : { ...THEME, borderColor: 'transparent', horizontalBorderColor: 'transparent' }),
     [view],
@@ -405,6 +429,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         onCellEdited={onCellEdited}
         onCellActivated={onCellActivated}
         keybindings={{ paste: false }}
+        provideEditor={provideEditor}
         onDelete={onDelete}
         fillHandle
         allowedFillDirections="orthogonal"

@@ -95,7 +95,9 @@ export const priceListSchema = defineSchema({
 - **Constraints**: labels fixed by the schema, read-only fields and cells
   outside the schema's tables can't be edited (configurable per sheet).
   Typed and pasted input is stored as the field's type, so `007` in a text
-  field stays text and `12` in a percent field means 12%.
+  field stays text and `12` in a percent field means 12%. Enum fields edit with
+  a dropdown: Enter, typing or clicking the selected cell opens it, typing
+  filters it, and arrow keys and Enter pick a value.
 - **Records** can be inserted or deleted from the toolbar, and a new one can be
   started in the empty row (or column) after a table. New records take the
   calculated fields and number formats of the record before them, as in an
