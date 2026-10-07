@@ -3,6 +3,7 @@ import type { Finding, FindingKind } from '../core/types';
 import type { WorkbookStore } from '../state/store';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
+import { isNarrow } from '../state/viewport';
 
 type GroupId = 'kept' | 'recalc' | 'limits';
 
@@ -43,8 +44,10 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
     store.setActive(i);
     const rect = f.where ? parseRange(f.where.split(',')[0].trim()) : null;
     if (rect && store.sheets[i].info.kind === 'worksheet') {
+      store.reveal(i, rect.r1, rect.c1);
       store.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
     }
+    if (isNarrow()) store.set('panel', null);
   };
   const calc = store.calc;
   const duration = (ms: number) =>

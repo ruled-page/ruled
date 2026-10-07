@@ -97,6 +97,7 @@ body {
 }
 
 .portal-header nav a {
+  white-space: nowrap;
   color: var(--p-brand-muted);
   text-decoration: none;
   padding: 4px 0;

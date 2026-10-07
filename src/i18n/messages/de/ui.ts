@@ -92,6 +92,7 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.goTo': 'Gehe zu Zelle',
   'formulaBar.goToTitle': 'Ausgewählte Zelle. Geben Sie einen Bezug ein und drücken Sie die Eingabetaste, um dorthin zu wechseln.',
   'formulaBar.notARef': '„{{ref}}“ ist keine Zelle und kein Bereich auf einem Blatt dieser Arbeitsmappe.',
+  'formulaBar.cellMenu': 'Zellmenü',
   'formulaBar.contents': 'Zellinhalt',
   'formulaBar.checking': 'Wird geprüft…',
   'formulaBar.titledPrompt': '{{title}}: {{prompt}}',

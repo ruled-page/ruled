@@ -268,6 +268,13 @@ bar, sheet, side panel and sheet tabs, since Tab stays in the grid as it
 does in Excel. Ctrl+/ (⌘/ on a Mac) lists every shortcut. Dialogs keep the
 focus inside, close with Escape and hand the focus back.
 
+On a phone the editor keeps the grid in view: the toolbar's actions scroll
+sideways in one row, the side panel opens over the sheet when asked for
+(going to a problem closes it and shows the cell), a cell's note or problem
+appears under the formula bar since nothing hovers on touch, and the ⋯ button
+there opens the cell menu, as there is no right-click. A tap selects a cell
+and a second tap edits it; the formula bar edits it too.
+
 Screen readers hear each cell as it is shown (the value, not the formula,
 which the formula bar has), followed by any schema problem the grid marks in
 colour, e.g. "twelve, error: Expected a number."; loading, messages and

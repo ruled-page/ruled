@@ -9,6 +9,7 @@ import { Tabs } from './Tabs';
 import { Trans } from 'react-i18next';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
+import { isNarrow } from '../state/viewport';
 
 function IssuesBody({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -27,8 +28,9 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
   const { errors, warnings, pending } = ctl.summary();
   const go = (i: Issue) => {
     if (i.sheet < 0 || i.row === undefined || i.col === undefined) return;
-    store.setActive(i.sheet);
-    store.setSelection({ row: i.row, col: i.col, rects: [{ r1: i.row, c1: i.col, r2: i.row, c2: i.col }] });
+    store.reveal(i.sheet, i.row, i.col);
+    // On a phone the panel covers the sheet: get out of the way of the cell.
+    if (isNarrow()) store.set('panel', null);
   };
   return (
     <div className="report-body">
@@ -102,6 +104,7 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     const pos = parseA1(ref);
     if (sheet < 0 || !pos) return;
     store.reveal(sheet, pos.row, pos.col);
+    if (isNarrow()) store.set('panel', null);
   };
   const time = (at: number) => t.date(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const empty = <span className="muted">{t('changes.empty')}</span>;

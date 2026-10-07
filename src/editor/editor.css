@@ -497,6 +497,24 @@
   background: transparent;
 }
 
+.wbe .cell-menu-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  border-inline-start: 1px solid var(--wbe-border);
+  background: transparent;
+  color: var(--wbe-text-muted);
+  cursor: pointer;
+}
+
+.wbe .cell-menu-btn:hover {
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text);
+}
+
 .wbe .formula-input:focus {
   box-shadow: inset 0 -2px 0 var(--wbe-accent);
 }
@@ -1907,17 +1925,27 @@
     padding-inline-start: 0;
   }
 
-/* Icon-only buttons; each has a title. */
+/* Icon-only buttons; the label stays for screen readers. */
 
 .wbe .toolbar .btn .label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 
 @media (max-width: 980px) {
 .wbe .toggle span,
 .wbe .chip .label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
 .wbe .file-name {
@@ -1942,22 +1970,93 @@
   }
 }
 
+/* Phones: the side panel covers the sheet (not the toolbar or formula bar),
+   the toolbar's actions scroll sideways in one row, and a cell's note gets
+   its own line under the formula bar, as there is no hovering on touch. */
 @media (max-width: 720px) {
+.wbe .workspace {
+    position: relative;
+  }
+
 .wbe .report {
     position: absolute;
-    inset-inline-end: 0;
-    top: 0;
-    bottom: 0;
+    inset: 0;
+    width: auto;
     z-index: 20;
-    box-shadow: var(--wbe-shadow);
+    border-inline-start: 0;
+  }
+
+.wbe .toolbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+.wbe .brand {
+    width: 100%;
+  }
+
+.wbe .file-name {
+    max-width: none;
+    flex: 1;
+    min-width: 0;
+  }
+
+.wbe .toolbar-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+.wbe .toolbar-actions > * {
+    flex-shrink: 0;
+  }
+
+.wbe .formula-bar {
+    height: auto;
+    min-height: 34px;
+    flex-wrap: wrap;
+  }
+
+.wbe .formula-bar > .name-box,
+.wbe .formula-bar > .fx,
+.wbe .formula-bar > .formula-input,
+.wbe .formula-bar > .cell-menu-btn {
+    height: 34px;
+  }
+
+.wbe .name-box {
+    width: 72px;
   }
 
 .wbe .cell-note {
-    display: none;
+    order: 10;
+    flex: 1 0 100%;
+    max-width: none;
+    margin: 0;
+    border-radius: 0;
+    white-space: normal;
   }
 
-.wbe .toggle span {
-    display: none;
+.wbe .modal,
+.wbe .modal-wide {
+    width: auto;
+    max-width: calc(100vw - 24px);
+    padding: 16px;
+  }
+
+.wbe .shortcuts table {
+    table-layout: fixed;
+  }
+
+.wbe .shortcuts th,
+.wbe .shortcuts td {
+    overflow-wrap: anywhere;
+  }
+
+.wbe .designer-foot {
+    flex-wrap: wrap;
   }
 }
 

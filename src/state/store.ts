@@ -44,6 +44,7 @@ import {
   type Translations,
   type Translator,
 } from '../i18n';
+import { isNarrow } from './viewport';
 
 export interface Toast {
   id: number;
@@ -1668,7 +1669,8 @@ export class WorkbookStore {
       v.constraint = (row, col) => ctl.readOnlyReason(i, row, col);
     });
     ctl.validate();
-    if (ctl.summary().errors) this.panel = 'issues';
+    // On a phone the panel would cover the sheet; the schema chip opens it.
+    if (ctl.summary().errors && !isNarrow()) this.panel = 'issues';
     this.notify();
   }
 

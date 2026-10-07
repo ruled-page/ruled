@@ -165,6 +165,19 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
           <span>{note.text}</span>
         </div>
       )}
+      {/* The right-click menu, for touch screens (and anyone who looks for it here). */}
+      <button
+        className="cell-menu-btn"
+        aria-label={t('formulaBar.cellMenu')}
+        title={t('formulaBar.cellMenu')}
+        aria-haspopup="menu"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          store.set('menu', { x: r.right, y: r.bottom, kind: 'cell' });
+        }}
+      >
+        <Icon name="more" />
+      </button>
     </div>
   );
 }
