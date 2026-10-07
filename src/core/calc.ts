@@ -1,5 +1,6 @@
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import { DetailedCellError, HyperFormula, type RawCellContent, type SerializedNamedExpression } from 'hyperformula';
+import { registerExcelFunctions } from './excelFunctions';
 import { engineFormula, stripFunctionPrefixes } from './formula';
 import type { CellContent } from './types';
 
@@ -12,6 +13,7 @@ let probe: HyperFormula | undefined;
  * it inherits from the cells it references.
  */
 export function unsupportedReason(fileFormula: string): string | undefined {
+  registerExcelFunctions();
   registered ??= new Set(HyperFormula.getRegisteredFunctionNames('enGB'));
   let tokens;
   try {
@@ -124,6 +126,7 @@ export class CalcEngine {
       undoLimit: 0,
     };
 
+    registerExcelFunctions();
     const data: Record<string, RawCellContent[][]> = {};
     for (const s of sheets) if (s) data[s.name] = s.rows;
 

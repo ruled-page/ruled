@@ -169,6 +169,32 @@ matches none, and 2 when it can't be read. `examples/schemas/` has the demo
 schemas as JSON. Schemas loaded from JSON have no code hooks; code that
 needs them imports the schemas as modules instead.
 
+## Checking it on real files
+
+`workbook-verify` (from `npm run build:node`) round-trips workbooks through
+the editor and reports what, if anything, was lost:
+
+```
+node dist-node/verify.js path/to/workbooks --out verify-out --structure
+```
+
+For each .xlsx/.xlsm it checks that saving without edits gives back the same
+bytes; edits a few cells in a copy and checks they read back, that every other
+cell and formula is unchanged, and that charts, pivots, pictures and every
+other part are byte for byte the same; has openpyxl read the edits when a
+Python with it is available (an independent reader); reports how many of the
+file's formulas the engine calculates exactly as Excel saved them, listing
+the ones it doesn't; and with `--structure` inserts a row and checks every
+reference still works. `verify-out/` gets the edited copies, `report.md` and
+`report.json`. The report ends with the one step that needs desktop Excel:
+opening the copies there.
+
+Calculation accuracy is also tested with a catalogue of 117 formulas and the
+results Excel gives (`tests/calc-accuracy.test.ts`). It found that
+HyperFormula's INT, MOD, ROUND, ROUNDUP, ROUNDDOWN, TEXT and DATEDIF differ
+from Excel and that RANK and RANK.EQ were missing; the editor replaces them
+with Excel-exact versions (`src/core/excelFunctions.ts`).
+
 ## Sharing it on Cloudflare Pages
 
 The app is static (everything runs in the browser), so it deploys to

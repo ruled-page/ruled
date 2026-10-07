@@ -61,6 +61,7 @@
     "react-dom": "^18.0.0"
   },
   "bin": {
-    "workbook-check": "./dist-node/cli.js"
+    "workbook-check": "./dist-node/cli.js",
+    "workbook-verify": "./dist-node/verify.js"
   }
 }
