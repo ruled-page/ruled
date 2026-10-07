@@ -168,7 +168,13 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const label = !!schema?.isLabel(sheetIndex, row, view.visibleCols[gc - 1]);
       // Enum fields edit with a dropdown; clicking the selected cell opens it.
       const field = schema && !readOnly ? schema.fieldAt(sheetIndex, row, view.visibleCols[gc - 1])?.field : undefined;
-      const options = field?.type === 'enum' && field.values?.length ? field.values : undefined;
+      let options: readonly string[] | undefined = field?.type === 'enum' && field.values?.length ? field.values : undefined;
+      if (!options && !readOnly && view.info.listValidations.length) {
+        // Excel's own list validations get the same dropdown.
+        const dv = store.listAt(sheetIndex, row, view.visibleCols[gc - 1]);
+        if (dv?.inCellDropdown) options = store.listOptions(dv);
+        if (!options?.length) options = undefined;
+      }
       const asEnum = (cell: EnumCell): EnumCell =>
         options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
       if (!rec) {

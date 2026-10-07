@@ -2,6 +2,7 @@ import { toA1 } from '../core/refs';
 import { VT, type DisplayStyle } from '../core/types';
 import { isDateStyle, type CellRecord } from '../state/format';
 import type { SheetView } from '../state/sheetView';
+import { listOptions, listValidationAt } from '../state/validation';
 import { cellText, type Pos } from './binding';
 import type { FieldSchema, FieldType, SheetSchema, TableSchema, WorkbookSchema } from './types';
 
@@ -47,10 +48,20 @@ function decimalsOf(n: number): number {
   return dot < 0 || s.includes('e') ? 0 : s.length - dot - 1;
 }
 
-/** Guesses a field's definition from the cells under its label. */
-export function inferField(label: string, cells: (CellRecord | null)[], styles: DisplayStyle[], used: Set<string>): FieldSchema {
+/**
+ * Guesses a field's definition from the cells under its label. `listValues`
+ * are the choices of an Excel list validation on the column, if it has one.
+ */
+export function inferField(label: string, cells: (CellRecord | null)[], styles: DisplayStyle[], used: Set<string>, listValues?: readonly string[]): FieldSchema {
   const filled = cells.filter((c): c is CellRecord => !isEmpty(c));
   const field: FieldSchema = { key: toKey(label, used), label, type: 'text' };
+  if (listValues?.length) {
+    // The workbook already says what's allowed.
+    field.type = 'enum';
+    field.values = [...listValues];
+    if (filled.length && filled.length === cells.length) field.required = true;
+    return field;
+  }
   if (!filled.length) return field;
   const formulas = filled.filter((c) => c.f !== undefined).length;
   if (formulas === filled.length) field.formula = 'require';
@@ -145,6 +156,8 @@ export function inferTable(
   at: Pos,
   orientation: 'rows' | 'columns',
   fixed: boolean,
+  /** All sheets, to read Excel list validations whose values live elsewhere. */
+  views: SheetView[] = [view],
 ): TableSchema {
   const byRow = orientation === 'rows';
   const place = (recordPos: number, fieldPos: number): Pos =>
@@ -174,7 +187,10 @@ export function inferTable(
       const p = place(r + 1, labelOffset + f);
       return view.get(p.row, p.col);
     });
-    return inferField(label, cells, styles, used);
+    const first = place(1, labelOffset + f);
+    const dv = listValidationAt(view.info, first.row, first.col);
+    const listValues = dv ? listOptions(dv, views, styles, false) : undefined;
+    return inferField(label, cells, styles, used, listValues);
   });
   const table: TableSchema = { key, at: toA1(at.row, at.col), orientation, fields };
   if (fixed) {
@@ -221,7 +237,7 @@ export function generateSchema(views: SheetView[], styles: DisplayStyle[], name:
       cellsRest > 0 &&
       numericRest / cellsRest >= 0.9;
     const key = toKey(view.info.name, new Set());
-    sheets.push({ name: view.info.name, tables: [inferTable(view, styles, key, found.at, 'rows', fixed)] });
+    sheets.push({ name: view.info.name, tables: [inferTable(view, styles, key, found.at, 'rows', fixed, views)] });
   }
   const id = name.toLowerCase().replace(/\.[a-z]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'schema';
   return { id, name: name.replace(/\.[a-z]+$/i, ''), sheets };

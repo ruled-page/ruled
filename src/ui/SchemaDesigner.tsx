@@ -224,7 +224,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
       return;
     }
     const fixed = changes.fixed ?? !!table.records?.labels;
-    const next = inferTable(view, store.styles, table.key, at, changes.orientation ?? table.orientation ?? 'rows', fixed);
+    const next = inferTable(view, store.styles, table.key, at, changes.orientation ?? table.orientation ?? 'rows', fixed, store.sheets);
     edit((d) => {
       d.sheets[si].tables![ti] = { ...next, checks: table.checks };
     });

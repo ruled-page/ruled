@@ -347,7 +347,77 @@ async function schemaSamples() {
   }
 }
 
+/**
+ * public/samples/orders.xlsx: Excel's own list validations, with no schema.
+ * Covers an inline list, a range on another sheet, a defined name, each
+ * alert style, and a non-list rule.
+ */
+async function validationSample() {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Orders');
+  const lists = wb.addWorksheet('Lists');
+  const products = ['Widget', 'Gadget', 'Gizmo', 'Doohickey', 'Thingamajig'];
+  const regions = ['North', 'South', 'East', 'West'];
+  lists.getCell('A1').value = 'Products';
+  lists.getCell('C1').value = 'Regions';
+  products.forEach((p, i) => (lists.getCell(`A${i + 2}`).value = p));
+  regions.forEach((r, i) => (lists.getCell(`C${i + 2}`).value = r));
+  lists.getColumn(1).width = 14;
+  lists.getColumn(3).width = 12;
+  wb.definedNames.add(`Lists!$C$2:$C$${regions.length + 1}`, 'Regions');
+
+  ws.columns = [
+    { header: 'Order', width: 10 },
+    { header: 'Customer', width: 14 },
+    { header: 'Product', width: 14 },
+    { header: 'Region', width: 10 },
+    { header: 'Status', width: 12 },
+    { header: 'Qty', width: 8 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  const rand = rng(11);
+  const statuses = ['Open', 'Shipped', 'Delivered', 'Cancelled'];
+  const customers = ['Acme Ltd', 'Globex', 'Initech', 'Umbrella'];
+  for (let i = 0; i < 12; i++) {
+    const r = i + 2;
+    ws.getCell(`A${r}`).value = 5001 + i;
+    ws.getCell(`B${r}`).value = customers[Math.floor(rand() * customers.length)];
+    ws.getCell(`C${r}`).value = products[Math.floor(rand() * products.length)];
+    ws.getCell(`D${r}`).value = regions[Math.floor(rand() * regions.length)];
+    ws.getCell(`E${r}`).value = statuses[Math.floor(rand() * statuses.length)];
+    ws.getCell(`F${r}`).value = 1 + Math.floor(rand() * 40);
+  }
+  // One rule per column range: ExcelJS's per-cell merging sorts addresses as
+  // text ("B10" before "B2") and writes overlapping ranges.
+  // Customer: inline list, warning alert (the value can be kept anyway).
+  ws.dataValidations.add('B2:B60', {
+    type: 'list', allowBlank: true, formulae: [`"${customers.join(',')}"`],
+    showErrorMessage: true, errorStyle: 'warning', errorTitle: 'New customer?', error: "That customer isn't on the list.",
+  });
+  // Product: a range on another sheet.
+  ws.dataValidations.add('C2:C60', {
+    type: 'list', allowBlank: true, formulae: [`Lists!$A$2:$A$${products.length + 1}`],
+    showErrorMessage: true, errorTitle: 'Unknown product', error: 'Pick a product from the list on the Lists sheet.',
+  });
+  // Region: a defined name, information alert.
+  ws.dataValidations.add('D2:D60', {
+    type: 'list', allowBlank: true, formulae: ['Regions'], showErrorMessage: true, errorStyle: 'information',
+    error: "That region isn't one of the usual four.",
+  });
+  // Status: inline list, stop alert, with an input message.
+  ws.dataValidations.add('E2:E60', {
+    type: 'list', allowBlank: true, formulae: [`"${statuses.join(',')}"`],
+    showErrorMessage: true, errorTitle: 'Status', error: 'Choose Open, Shipped, Delivered or Cancelled.',
+    showInputMessage: true, promptTitle: 'Status', prompt: 'Where the order is up to.',
+  });
+  // Qty: a whole-number rule; kept in the file but not enforced by the editor.
+  ws.dataValidations.add('F2:F60', { type: 'whole', operator: 'between', allowBlank: true, formulae: [1, 1000], showErrorMessage: true });
+  await wb.xlsx.writeFile(join(outDir, 'orders.xlsx'));
+  console.log('Wrote orders.xlsx');
+}
+
 await pivotSample();
 await schemaSamples();
+await validationSample();
 if (!process.argv.includes('--no-big')) await bigSample();
 void readFileSync;

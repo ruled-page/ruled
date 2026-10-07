@@ -8,6 +8,11 @@ export const SAMPLES = [
     detail: 'Charts, a chart sheet, a table, validation, notes, pictures, and a few formulas this editor can’t calculate.',
   },
   {
+    file: 'orders.xlsx',
+    title: 'Order log',
+    detail: 'Excel’s own dropdown lists: inline, from another sheet and from a named range, with stop, warning and information alerts.',
+  },
+  {
     file: 'pivot.xlsx',
     title: 'Pivot table',
     detail: 'A pivot table plus filled-down formulas, which Excel stores in a compact shared form.',

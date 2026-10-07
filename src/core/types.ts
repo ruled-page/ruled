@@ -99,6 +99,30 @@ export interface BlockedRegion extends Rect {
 
 export interface MergeRange extends Rect {}
 
+/** Where an Excel list validation gets its allowed values. */
+export type ListSource =
+  | { kind: 'values'; values: string[] }
+  /** A range, possibly on another sheet; read live so edits to it show up. */
+  | { kind: 'range'; sheet: number; rect: Rect }
+  /** A formula such as OFFSET or INDIRECT that this editor can't resolve. */
+  | { kind: 'unsupported'; formula: string };
+
+/** An Excel "list" data validation rule on a sheet. */
+export interface ListValidation {
+  rects: Rect[];
+  source: ListSource;
+  allowBlank: boolean;
+  /** False when Excel's "In-cell dropdown" option is off. */
+  inCellDropdown: boolean;
+  /** Whether Excel shows an alert for values not in the list. */
+  showError: boolean;
+  errorStyle: 'stop' | 'warning' | 'information';
+  errorTitle?: string;
+  error?: string;
+  promptTitle?: string;
+  prompt?: string;
+}
+
 export interface SheetInfo {
   index: number;
   name: string;
@@ -118,6 +142,7 @@ export interface SheetInfo {
   frozenCols: number;
   frozenRows: number;
   merges: MergeRange[];
+  listValidations: ListValidation[];
   blocked: BlockedRegion[];
   objects: SheetObject[];
   protected: boolean;

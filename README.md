@@ -17,6 +17,12 @@ back as .xlsx without losing what the editor can't display.
   pictures, sparklines and everything else stay byte-for-byte as they were.
 - "What's in this file" lists everything the editor keeps but can't show,
   and the editor asks before any edit would replace a formula with a value.
+- Excel's own list validations get a dropdown, whether the list is typed
+  into the rule, a range on any sheet, or a named range (read live, so
+  editing the source list updates the dropdown). Typed values are checked
+  with the rule's stop, warning or information alert, as in Excel; pasted
+  values aren't, also as in Excel. Other validation types are kept in the
+  file but not enforced.
 - Optional **schemas** describe the workbooks a consumer expects. A workbook
   that matches one is validated and constrained by it; one that matches none
   opens as a plain spreadsheet with a warning. Schemas can be written in
@@ -114,6 +120,9 @@ Everything except the hook functions is JSON, so the **schema designer**
 (toolbar → Schemas) can generate a schema from the open workbook, edit it in a
 form or as JSON, test it against the workbook, apply it, and export or import
 `.schema.json` files. Exporting a schema written in code leaves its hooks out.
+Columns with an Excel list validation are generated as enum fields with the
+list's values. Where a schema enum field and an Excel list cover the same
+cell, the schema wins.
 
 ## How it works
 
@@ -168,6 +177,8 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 - No row/column insert or delete, sorting, filtering, or adding/renaming
   sheets. Cut is copy then clear, not a move that updates references.
 - Pasted dates are read US-style (`3/4/2026` is 4 March) unless ISO.
+- List validations whose source is a formula (OFFSET, INDIRECT…) have no
+  dropdown and aren't checked.
 - HyperFormula is GPLv3 or commercially licensed.
 - Whole workbooks are held in memory; files much past a few million cells
   would need streaming parsing and a lazily built engine.

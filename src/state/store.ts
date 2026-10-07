@@ -10,10 +10,12 @@ import {
   type EditOp,
   type EditResult,
   type Finding,
+  type ListValidation,
   type Rect,
 } from '../core/types';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { displayText, exactText } from './format';
+import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
 
 export interface Toast {
@@ -108,6 +110,7 @@ export class WorkbookStore {
   private clip?: Clip;
   private queue: Promise<unknown> = Promise.resolve();
   private toastSeq = 0;
+  private readonly listCache = new WeakMap<ListValidation, { version: number; options: string[] | undefined }>();
 
   constructor(options: StoreOptions = {}) {
     this.options = options;
@@ -409,6 +412,7 @@ export class WorkbookStore {
     if (reason) return this.toast('warn', reason);
     const prepared = this.schema?.prepareInput(this.active, row, col, text) ?? { text };
     if ('reject' in prepared) return this.toast('warn', prepared.reject);
+    if (!(await this.passesList(row, col, text))) return;
     const rec = view.get(row, col);
     if (rec?.flags && rec.flags & CellFlag.Formula && !text.startsWith('=') && !(await this.okToReplace(1))) return;
     await this.edit({ type: 'input', sheet: this.active, row, col, text: prepared.text });
@@ -495,6 +499,45 @@ export class WorkbookStore {
     };
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     await this.edit({ type: 'fill', sheet: this.active, src, dst });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Excel list validations
+
+  /** The list validation at a cell, unless a schema field there defines its own values. */
+  listAt(sheet: number, row: number, col: number): ListValidation | undefined {
+    const view = this.sheets[sheet];
+    if (!view?.info.listValidations.length) return undefined;
+    if (this.schema?.fieldAt(sheet, row, col)?.field.type === 'enum') return undefined;
+    return listValidationAt(view.info, row, col);
+  }
+
+  /** A list's allowed values, re-read when its source sheet changes. */
+  listOptions(dv: ListValidation): string[] | undefined {
+    const version = dv.source.kind === 'range' ? (this.sheets[dv.source.sheet]?.version ?? 0) : -1;
+    const hit = this.listCache.get(dv);
+    if (hit && hit.version === version) return hit.options;
+    const options = listOptions(dv, this.sheets, this.styles, this.date1904);
+    this.listCache.set(dv, { version, options });
+    return options;
+  }
+
+  /** Applies a list validation's alert to typed text, as Excel does. Resolves false to reject. */
+  private async passesList(row: number, col: number, text: string): Promise<boolean> {
+    const dv = this.listAt(this.active, row, col);
+    if (!dv || !dv.showError || text === '' || text.startsWith('=')) return true;
+    const options = this.listOptions(dv);
+    if (!options || listAllows(options, text.replace(/^'/, ''))) return true;
+    const message = dv.error ?? DEFAULT_LIST_ERROR;
+    if (dv.errorStyle === 'stop') {
+      this.toast('error', dv.errorTitle ? `${dv.errorTitle}: ${message}` : message);
+      return false;
+    }
+    if (dv.errorStyle === 'warning') {
+      return this.confirm({ title: dv.errorTitle ?? 'Not in the list', body: `${message} Keep this value anyway?`, confirmLabel: 'Keep value' });
+    }
+    this.toast('info', message);
+    return true;
   }
 
   // ---------------------------------------------------------------------------

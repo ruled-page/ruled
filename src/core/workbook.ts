@@ -2,6 +2,7 @@ import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { StyleBook } from './styles';
 import type { Anchor, BlockedRegion, Finding, Rect, SheetInfo, SheetObject } from './types';
+import { parseListValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
 
@@ -158,6 +159,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
   const findings: Finding[] = [];
   const sheetNodes = children(child(wb, 'sheets'), 'sheet');
   const sheetNames = sheetNodes.map((s) => attr(s, 'name') ?? '');
+  const sheetIndexByName = new Map(sheetNames.map((n, i) => [n.toLowerCase(), i]));
 
   const names: DefinedName[] = children(child(wb, 'definedNames'), 'definedName').map((d) => {
     const local = attr(d, 'localSheetId');
@@ -195,6 +197,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       frozenCols: 0,
       frozenRows: 0,
       merges: [],
+      listValidations: [],
       blocked: [],
       objects: [],
       protected: false,
@@ -340,15 +343,24 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         sheet: name,
       });
     }
-    const dvCount =
-      children(child(meta, 'dataValidations'), 'dataValidation').length +
-      countMatches(xml.slice(scan.sheetDataEnd), /<x14:dataValidation\b/g);
+    const validations = parseListValidations(meta, { sheetIndex: sheetIndexByName, ownSheet: index, names });
+    info.listValidations = validations.lists;
+    const dvCount = validations.lists.length + validations.other;
     if (dvCount) {
+      const unresolved = validations.lists.filter((l) => l.source.kind === 'unsupported').length;
+      const parts: string[] = [];
+      if (validations.lists.length) {
+        parts.push(
+          `${plural(validations.lists.length, 'list rule')} show a dropdown and check typed values as Excel does` +
+            (unresolved ? ` (${unresolved} use a formula this editor can't resolve, so they have no dropdown)` : ''),
+        );
+      }
+      if (validations.other) parts.push(`${plural(validations.other, 'other rule')} (numbers, dates, text length or custom) are kept in the file but not enforced here`);
       findings.push({
         kind: 'dataValidation',
         severity: 'info',
         title: 'Data validation',
-        detail: `${plural(dvCount, 'validation rule')}. Kept in the file, but not enforced while editing here.`,
+        detail: `${parts.join('; ')}. Pasted values aren't checked, as in Excel.`,
         sheet: name,
       });
     }

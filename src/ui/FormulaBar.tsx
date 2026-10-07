@@ -17,7 +17,16 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
     return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text: issues.map((i) => i.message).join(' ') };
   }
   if (ctl?.isPending(store.active, sel.row, sel.col)) return { tone: 'info', text: 'Checking…' };
-  const describe = ctl?.describe(store.active, sel.row, sel.col);
+  let describe = ctl?.describe(store.active, sel.row, sel.col);
+  const dv = describe ? undefined : store.listAt(store.active, sel.row, sel.col);
+  if (dv) {
+    const options = store.listOptions(dv);
+    describe = dv.prompt
+      ? `${dv.promptTitle ? dv.promptTitle + ': ' : ''}${dv.prompt}`
+      : options
+        ? `Choose from the list: ${options.slice(0, 8).join(', ')}${options.length > 8 ? '…' : ''}`
+        : `Excel restricts this cell to a list (${(dv.source as { formula?: string }).formula ?? ''}) that this editor can't read.`;
+  }
   const rec = view.get(sel.row, sel.col);
   if (!rec) return describe ? { tone: 'field', text: describe } : null;
   const why = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
