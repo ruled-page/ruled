@@ -12,7 +12,8 @@
     "pages:dev": "npm run build && wrangler pages dev --port 8788",
     "deploy": "npm run build && wrangler pages deploy --branch main --commit-dirty=true",
     "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone",
-    "build:node": "vite build -c vite.node.config.ts"
+    "build:node": "vite build -c vite.node.config.ts",
+    "e2e": "playwright test"
   },
   "author": "",
   "license": "ISC",
@@ -29,6 +30,8 @@
     "react-responsive-carousel": "^3.2.23"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",

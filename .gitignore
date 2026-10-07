@@ -7,3 +7,5 @@ public/samples/big.xlsx
 .wrangler
 dist-lib
 dist-node
+test-results
+playwright-report
