@@ -25,6 +25,8 @@ export class SheetView {
   private colLimit = 0;
   readonly colWidths = new Map<number, number>();
   private readonly mergesByRow = new Map<number, MergeRange[]>();
+  /** Extra read-only rules, e.g. from a schema. */
+  constraint?: (row: number, col: number) => string | undefined;
   version = 0;
 
   constructor(info: SheetInfo, grid: SheetGrid | null) {
@@ -134,7 +136,7 @@ export class SheetView {
     if (this.info.protected) return 'This sheet is protected in Excel, so it is read-only here.';
     const m = this.mergeAt(row, col);
     if (m && (m.r1 !== row || m.c1 !== col)) return 'Part of a merged cell. Edit its top-left cell.';
-    return this.blockedAt(row, col)?.reason;
+    return this.blockedAt(row, col)?.reason ?? this.constraint?.(row, col);
   }
 
   colWidth(col: number): number {

@@ -19,6 +19,29 @@ export const SAMPLES = [
   },
 ];
 
+export const SCHEMA_SAMPLES = [
+  {
+    file: 'price-list.xlsx',
+    title: 'Price list',
+    detail: 'Records as rows. Types, patterns, a pick list, an async catalogue check, and a lookup that fills new rows.',
+  },
+  {
+    file: 'forecast.xlsx',
+    title: 'Quarterly forecast',
+    detail: 'Records as columns, with calculated rows and a rule that quarters follow on from each other.',
+  },
+  {
+    file: 'budget.xlsx',
+    title: 'Half-year budget',
+    detail: 'A fixed grid of categories by month, a sign-off cell and an async check against a budget service.',
+  },
+  {
+    file: 'price-list-old.xlsx',
+    title: 'Price list, old layout',
+    detail: 'One renamed column, so the schema doesn’t match and the file opens as a plain spreadsheet.',
+  },
+];
+
 export async function openSample(store: WorkbookStore, file: string): Promise<void> {
   const res = await fetch(`${import.meta.env.BASE_URL}samples/${file}`);
   const bytes = res.ok ? await res.arrayBuffer() : new ArrayBuffer(0);
@@ -47,7 +70,27 @@ export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
           </span>
           <span className="muted">.xlsx or .xlsm, processed entirely in your browser</span>
         </button>
-        <h2>Or try a sample</h2>
+        <h2>Samples checked by a schema</h2>
+        <ul className="samples-list">
+          {SCHEMA_SAMPLES.map((s) => (
+            <li key={s.file}>
+              <button onClick={() => void openSample(store, s.file)}>
+                <Icon name="schema" />
+                <span>
+                  <strong>{s.title}</strong>
+                  <span>{s.detail}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="muted small schema-note">
+          {store.schemas.length} schema{store.schemas.length === 1 ? ' is' : 's are'} registered.{' '}
+          <button className="link" onClick={() => store.set('designerOpen', true)}>
+            Manage, import or create schemas
+          </button>
+        </p>
+        <h2>Plain workbooks</h2>
         <ul className="samples-list">
           {SAMPLES.map((s) => (
             <li key={s.file}>

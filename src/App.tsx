@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { WorkbookStore } from './state/store';
-import { Banner, SheetTabs, StatusBar, Toolbar } from './ui/Chrome';
+import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from './ui/Chrome';
 import { FormulaBar } from './ui/FormulaBar';
 import { Icon } from './ui/icons';
 import { ConfirmDialog, Toasts } from './ui/Overlays';
-import { ReportPanel } from './ui/ReportPanel';
+import { SchemaDesigner } from './ui/SchemaDesigner';
 import { SheetGrid } from './ui/SheetGrid';
+import { SidePanel } from './ui/SidePanel';
 import { Welcome } from './ui/Welcome';
 
 function isTextField(el: EventTarget | null): boolean {
@@ -26,7 +27,7 @@ export function App({ store }: { store: WorkbookStore }) {
       if (key === 's') {
         e.preventDefault();
         void store.download();
-      } else if (!isTextField(e.target) && !store.confirmRequest) {
+      } else if (!isTextField(e.target) && !store.confirmRequest && !store.designerOpen) {
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
           void store.undo();
@@ -57,7 +58,7 @@ export function App({ store }: { store: WorkbookStore }) {
 
   return (
     <div
-      className={`app ${store.reportOpen ? 'with-report' : ''}`}
+      className={`app ${store.panel ? 'with-report' : ''}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('Files')) {
           e.preventDefault();
@@ -84,6 +85,7 @@ export function App({ store }: { store: WorkbookStore }) {
           e.target.value = '';
         }}
       />
+      {ready && <SchemaBanner store={store} />}
       {ready && <Banner store={store} />}
       {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
       <div className="workspace">
@@ -105,7 +107,13 @@ export function App({ store }: { store: WorkbookStore }) {
             </div>
           )}
           {ready && view.info.kind === 'worksheet' && (
-            <SheetGrid store={store} view={view} dataVersion={view.version * 31 + store.styles.length} selection={selection} />
+            <SheetGrid
+              store={store}
+              view={view}
+              dataVersion={view.version * 31 + store.styles.length}
+              schemaVersion={store.schemaVersion}
+              selection={selection}
+            />
           )}
           {ready && view.info.kind !== 'worksheet' && (
             <div className="center-state">
@@ -119,7 +127,7 @@ export function App({ store }: { store: WorkbookStore }) {
             </div>
           )}
         </main>
-        {store.reportOpen && ready && <ReportPanel store={store} />}
+        {ready && <SidePanel store={store} />}
       </div>
       {ready && <SheetTabs store={store} />}
       <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
@@ -129,6 +137,7 @@ export function App({ store }: { store: WorkbookStore }) {
           <p>Drop to open</p>
         </div>
       )}
+      {store.designerOpen && <SchemaDesigner store={store} />}
       <ConfirmDialog store={store} />
       <Toasts store={store} />
     </div>

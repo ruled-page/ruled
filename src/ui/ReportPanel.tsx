@@ -1,7 +1,6 @@
 import { parseA1, parseRange } from '../core/refs';
 import type { Finding, FindingKind } from '../core/types';
 import type { WorkbookStore } from '../state/store';
-import { Icon } from './icons';
 
 const GROUPS: { title: string; blurb: string; kinds: FindingKind[] }[] = [
   {
@@ -24,7 +23,8 @@ const GROUPS: { title: string; blurb: string; kinds: FindingKind[] }[] = [
   },
 ];
 
-export function ReportPanel({ store }: { store: WorkbookStore }) {
+/** The "What's in this file" list: what the editor keeps but can't show, and its limits. */
+export function ReportBody({ store }: { store: WorkbookStore }) {
   const go = (f: Finding) => {
     if (!f.sheet) return;
     const i = store.sheets.findIndex((s) => s.info.name === f.sheet);
@@ -38,17 +38,8 @@ export function ReportPanel({ store }: { store: WorkbookStore }) {
   const calc = store.calc;
 
   return (
-    <aside className="report" aria-label="What's in this file">
-      <div className="report-head">
-        <div>
-          <h2>What's in this file</h2>
-          <p>Nothing listed here is removed when you save.</p>
-        </div>
-        <button className="btn icon ghost" onClick={() => store.set('reportOpen', false)} aria-label="Close">
-          <Icon name="close" />
-        </button>
-      </div>
       <div className="report-body">
+        <p className="report-lede">Nothing listed here is removed when you save.</p>
         {GROUPS.map((g) => {
           const items = store.findings
             .filter((f) => g.kinds.includes(f.kind))
@@ -139,6 +130,5 @@ export function ReportPanel({ store }: { store: WorkbookStore }) {
           {calc ? `; formulas checked in ${calc.buildMs.toLocaleString()} ms` : ''}.
         </p>
       </div>
-    </aside>
   );
 }

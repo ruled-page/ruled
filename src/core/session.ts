@@ -10,6 +10,7 @@ import {
   type EngineValue,
   type EngineWrite,
 } from './calc';
+import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
 import { displayFormula, isVolatile, makeShifter } from './formula';
 import { parseInput } from './input';
@@ -566,6 +567,7 @@ export class WorkbookSession {
 
   apply(op: EditOp): EditResult {
     this.ensureEngine();
+    if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
     const writes = new Map<string, Write>();
     const warnings: string[] = [];
     const newStyles: { index: number; style: DisplayStyle }[] = [];
@@ -630,6 +632,16 @@ export class WorkbookSession {
       }
       case 'restore': {
         for (const c of op.cells) put({ ...c });
+        break;
+      }
+      case 'inputs': {
+        for (const c of op.cells) {
+          const cur = this.current(op.sheet, c.row, c.col);
+          const parsed = parseInput(c.text, this.model.styles.get(cur.style).numFmt);
+          if (parsed.error) warnings.push(parsed.error);
+          const content = parsed.error ? { kind: 'string' as const, value: c.text } : parsed.content;
+          put({ sheet: op.sheet, row: c.row, col: c.col, content, style: styleFor(cur.style, parsed.numFmt) });
+        }
         break;
       }
     }

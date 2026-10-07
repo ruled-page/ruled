@@ -230,7 +230,11 @@ export type EditOp =
   /** Drag-fill from the source into the destination, extending series. */
   | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
   /** Put cells back to an exact earlier state (undo/redo). */
-  | { type: 'restore'; cells: CellSnapshot[] };
+  | { type: 'restore'; cells: CellSnapshot[] }
+  /** Text for scattered cells, parsed like typed input (used by schema hooks). */
+  | { type: 'inputs'; sheet: number; cells: { row: number; col: number; text: string }[] }
+  /** Several operations applied in order and undone as one. */
+  | { type: 'batch'; ops: EditOp[] };
 
 export interface EditResult {
   updates: CellUpdate[];

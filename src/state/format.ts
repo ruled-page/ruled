@@ -31,8 +31,26 @@ export function isDateStyle(style: DisplayStyle): boolean {
 
 const OPTS = { throws: false, leap1900: true, nbsp: false } as const;
 
+const tidy = (n: number) => parseFloat(n.toPrecision(15));
+const isPercent = (pattern: string) => /%/.test(pattern.replace(/"[^"]*"/g, ''));
+
+/**
+ * The value with every stored digit (to Excel's 15 significant digits),
+ * keeping percentages as percentages. Dates and text are unaffected.
+ */
+export function exactText(rec: CellRecord, style: DisplayStyle, grouping: boolean): string | undefined {
+  if (rec.t !== VT.Number || isDate(style.numFmt)) return undefined;
+  const n = rec.n ?? 0;
+  if (isPercent(style.numFmt)) return `${tidy(n * 100)}%`;
+  return grouping ? tidy(n).toLocaleString(undefined, { maximumFractionDigits: 15 }) : String(tidy(n));
+}
+
 /** The text Excel would show for a cell, and the colour its number format asks for. */
-export function displayText(rec: CellRecord, style: DisplayStyle, date1904: boolean): { text: string; color?: string } {
+export function displayText(rec: CellRecord, style: DisplayStyle, date1904: boolean, exact = false): { text: string; color?: string } {
+  if (exact) {
+    const text = exactText(rec, style, true);
+    if (text !== undefined) return { text };
+  }
   switch (rec.t) {
     case VT.Number: {
       const pattern = style.numFmt || 'General';
@@ -97,7 +115,7 @@ export function editText(rec: CellRecord | null, style: DisplayStyle, date1904: 
   if (rec.f !== undefined) return '=' + rec.f.replace(/_xlfn\.(?:_xlws\.)?|_xlws\./gi, '');
   if (rec.t === VT.Number) {
     if (isDate(style.numFmt)) return displayText(rec, style, date1904).text;
-    if (/%/.test(style.numFmt) && !/"[^"]*%[^"]*"/.test(style.numFmt)) return `${+((rec.n ?? 0) * 100).toPrecision(15)}%`;
+    if (isPercent(style.numFmt)) return `${tidy((rec.n ?? 0) * 100)}%`;
     return String(rec.n ?? '');
   }
   if (rec.t === VT.String) {

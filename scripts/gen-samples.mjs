@@ -225,6 +225,129 @@ async function bigSample(rowCount = 100_000) {
   console.log(`Wrote big.xlsx (${rowCount.toLocaleString()} rows)`);
 }
 
+/**
+ * Workbooks for the example schemas in src/demo/schemas.ts. Each has a few
+ * deliberate problems so validation has something to show.
+ */
+async function schemaSamples() {
+  const money = '"$"#,##0.00';
+
+  const priceList = async (file, categoryHeader) => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Prices');
+    ws.columns = [
+      { header: 'SKU', width: 12 },
+      { header: 'Description', width: 30 },
+      { header: categoryHeader, width: 12 },
+      { header: 'Unit price', width: 12, style: { numFmt: money } },
+      { header: 'Price inc. tax', width: 14, style: { numFmt: money } },
+      { header: 'Effective from', width: 14, style: { numFmt: 'yyyy-mm-dd' } },
+      { header: 'Active', width: 8 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    const items = [
+      ['SKU-1001', 'Steel bracket, small', 'Hardware', 4.5],
+      ['SKU-1002', 'Steel bracket, large', 'Hardware', 7.25],
+      ['SKU-1003', 'Mounting kit', 'Hardware', 19.99],
+      ['SKU-1004', 'Inventory app, annual licence', 'Software', 240],
+      ['SKU-1005', 'Inventory app, monthly licence', 'Software', 24],
+      ['SKU-1006', 'Installation (per hour)', 'Services', 85],
+      ['SKU-1003', 'Mounting kit (duplicate entry)', 'Hardware', 19.99],
+      ['SKU-1008', 'Cable ties, pack of 100', 'Hardware', 6.5],
+      ['SKU-1009', 'Training session', 'Services', 450],
+      ['SKU-1010', '', 'Services', 120],
+      ['SKU-1011', 'Wall anchors, pack of 50', 'Hardwear', 8.75],
+      ['SKU-1012', 'Support plan, gold', 'Services', 1200.125],
+      ['SKU-1013', 'Legacy adaptor', 'Hardware', 3.2],
+      ['SKU-1014', 'Reporting add-on', 'Software', 60],
+    ];
+    items.forEach(([sku, desc, cat, price], i) => {
+      const r = i + 2;
+      ws.getCell(`A${r}`).value = sku;
+      ws.getCell(`B${r}`).value = desc || null;
+      ws.getCell(`C${r}`).value = cat;
+      ws.getCell(`D${r}`).value = price;
+      ws.getCell(`E${r}`).value = { formula: `D${r}*1.2`, result: Math.round(price * 1.2 * 1e6) / 1e6 };
+      ws.getCell(`F${r}`).value = new Date(Date.UTC(2026, i % 12, 1));
+      ws.getCell(`G${r}`).value = i % 5 !== 4;
+    });
+    const notes = wb.addWorksheet('Notes');
+    notes.getCell('A1').value = 'Anything on this sheet is free text; the schema only describes the Prices sheet.';
+    await wb.xlsx.writeFile(join(outDir, file));
+    console.log(`Wrote ${file}`);
+  };
+  await priceList('price-list.xlsx', 'Category');
+  await priceList('price-list-old.xlsx', 'Group');
+
+  {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Forecast');
+    ws.getColumn(1).width = 14;
+    const labels = ['Period', 'Revenue', 'Cost', 'Margin', 'Margin %'];
+    labels.forEach((l, i) => {
+      ws.getCell(i + 1, 1).value = l;
+      ws.getCell(i + 1, 1).font = { bold: true };
+    });
+    const quarters = [
+      ['2026-Q1', 120000, 70000],
+      ['2026-Q2', 135000, 76000],
+      ['2026-Q4', 150000, 81000],
+      ['2027-Q1', 158000, -5],
+    ];
+    quarters.forEach(([period, revenue, cost], i) => {
+      const c = i + 2;
+      const col = String.fromCharCode(64 + c);
+      ws.getColumn(c).width = 13;
+      ws.getCell(1, c).value = period;
+      ws.getCell(1, c).font = { bold: true };
+      ws.getCell(2, c).value = revenue;
+      ws.getCell(3, c).value = cost;
+      ws.getCell(4, c).value = { formula: `${col}2-${col}3`, result: revenue - cost };
+      ws.getCell(5, c).value = { formula: `IF(${col}2=0,0,${col}4/${col}2)`, result: revenue ? (revenue - cost) / revenue : 0 };
+      for (const r of [2, 3, 4]) ws.getCell(r, c).numFmt = '#,##0';
+      ws.getCell(5, c).numFmt = '0.0%';
+    });
+    await wb.xlsx.writeFile(join(outDir, 'forecast.xlsx'));
+    console.log('Wrote forecast.xlsx');
+  }
+
+  {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Budget');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const lines = {
+      Salaries: [42000, 42000, 43500, 43500, 43500, 45000],
+      Rent: [6500, 6500, 6500, 6500, 6500, 6500],
+      Marketing: [8000, 12000, 9500, 7000, 15000, 11000],
+      Travel: [2500, 3100, 6200, 1800, 2400, 4900],
+      Equipment: [1200, 0, 3400, 950, 0, 2200.5],
+    };
+    ws.getColumn(1).width = 14;
+    ws.getCell('A1').value = 'Category';
+    ws.getCell('A1').font = { bold: true };
+    months.forEach((m, i) => {
+      ws.getCell(1, i + 2).value = m;
+      ws.getCell(1, i + 2).font = { bold: true };
+      ws.getColumn(i + 2).width = 11;
+    });
+    Object.entries(lines).forEach(([label, values], r) => {
+      ws.getCell(r + 2, 1).value = label;
+      values.forEach((v, i) => {
+        ws.getCell(r + 2, i + 2).value = v;
+        ws.getCell(r + 2, i + 2).numFmt = '#,##0.00';
+      });
+    });
+    const total = Object.values(lines).flat().reduce((a, b) => a + b, 0);
+    ws.getCell('A8').value = 'Approved by';
+    ws.getCell('A9').value = 'Total';
+    ws.getCell('B9').value = { formula: 'SUM(B2:G6)', result: total };
+    ws.getCell('B9').numFmt = '#,##0.00';
+    await wb.xlsx.writeFile(join(outDir, 'budget.xlsx'));
+    console.log('Wrote budget.xlsx');
+  }
+}
+
 await pivotSample();
+await schemaSamples();
 if (!process.argv.includes('--no-big')) await bigSample();
 void readFileSync;

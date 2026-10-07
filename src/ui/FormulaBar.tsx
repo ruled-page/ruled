@@ -6,11 +6,20 @@ import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 
-function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone: 'info' | 'warn' | 'lock' | 'edit'; text: string } | null {
+type Tone = 'info' | 'warn' | 'lock' | 'edit' | 'error' | 'field';
+
+function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
   const readOnly = view.readOnlyReason(sel.row, sel.col);
   if (readOnly) return { tone: 'lock', text: readOnly };
+  const ctl = store.schema;
+  const issues = ctl?.cellIssues(store.active, sel.row, sel.col) ?? [];
+  if (issues.length) {
+    return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text: issues.map((i) => i.message).join(' ') };
+  }
+  if (ctl?.isPending(store.active, sel.row, sel.col)) return { tone: 'info', text: 'Checking…' };
+  const describe = ctl?.describe(store.active, sel.row, sel.col);
   const rec = view.get(sel.row, sel.col);
-  if (!rec) return null;
+  if (!rec) return describe ? { tone: 'field', text: describe } : null;
   const why = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
   if (rec.flags & CellFlag.Stale) {
     return {
@@ -24,6 +33,7 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
   if (rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) {
     return { tone: 'info', text: `${why ?? "This editor can't calculate this formula."} Showing Excel's saved value.` };
   }
+  if (describe) return { tone: 'field', text: describe };
   if (rec.flags & CellFlag.Edited) return { tone: 'edit', text: 'Changed in this session.' };
   return null;
 }
@@ -78,7 +88,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
       />
       {note && (
         <div className={`cell-note tone-${note.tone}`} title={note.text}>
-          <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' ? 'warn' : 'info'} size={14} />
+          <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : 'info'} size={14} />
           <span>{note.text}</span>
         </div>
       )}

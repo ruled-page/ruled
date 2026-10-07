@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import { CellFlag, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
-import { alignment, displayText, editText } from '../state/format';
+import { alignment, displayText, editText, exactText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { ObjectsOverlay } from './ObjectsOverlay';
@@ -26,6 +26,8 @@ const FONT_STACK = 'Calibri, Carlito, "Aptos Narrow", "Segoe UI", system-ui, san
 const EDITED_FILL = '#FFF4CE';
 /** Background for pivot tables and array formulas, which cannot be edited here. */
 const LOCKED_FILL = '#F2F4F7';
+/** Background for labels fixed by a schema. */
+const LABEL_FILL = '#EAF2EC';
 
 const THEME: Partial<Theme> = {
   accentColor: '#1E7145',
@@ -85,10 +87,12 @@ interface Props {
   view: SheetView;
   /** Changes whenever cell data or styles change, so the grid redraws. */
   dataVersion: number;
+  /** Changes whenever schema issues change, so markers redraw. */
+  schemaVersion: number;
   selection: Selection;
 }
 
-export function SheetGrid({ store, view, dataVersion, selection }: Props) {
+export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }: Props) {
   const ref = useRef<DataEditorRef>(null);
   const host = useRef<HTMLDivElement>(null);
   const [colVersion, setColVersion] = useState(0);
@@ -96,6 +100,9 @@ export function SheetGrid({ store, view, dataVersion, selection }: Props) {
   const styles = store.styles;
   const date1904 = store.date1904;
   const highlight = store.highlightEdits;
+  const numbers = store.numbers;
+  const schema = store.schema;
+  const sheetIndex = view.info.index;
   const rowHeaderWidth = Math.max(40, String(view.visibleRows[view.rowCount - 1] + 1).length * 8 + 16);
 
   const frozen = useMemo(() => {
@@ -157,9 +164,10 @@ export function SheetGrid({ store, view, dataVersion, selection }: Props) {
       const readOnly = view.readOnlyReason(row, view.visibleCols[gc - 1]);
       const blocked = view.blockedAt(row, view.visibleCols[gc - 1]);
       const locked = blocked !== undefined && blocked.kind !== 'tableHeader';
+      const label = !!schema?.isLabel(sheetIndex, row, view.visibleCols[gc - 1]);
       if (!rec) {
         const mergedStyle = merge ? styles[view.get(merge.r1, merge.c1)?.style ?? 0] : undefined;
-        const bg = mergedStyle?.fill ?? (locked ? LOCKED_FILL : undefined);
+        const bg = mergedStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
         return {
           kind: GridCellKind.Text,
           data: '',
@@ -169,41 +177,64 @@ export function SheetGrid({ store, view, dataVersion, selection }: Props) {
           themeOverride: bg ? { bgCell: bg } : undefined,
         };
       }
-      const { text, color } = displayText(rec, style, date1904);
+      const { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
       return {
         kind: GridCellKind.Text,
         data: editText(rec, style, date1904),
         displayData: text,
-        copyData: text,
+        copyData: numbers.copy === 'raw' ? (exactText(rec, style, false) ?? text) : text,
         allowOverlay: !readOnly,
         contentAlign: alignment(rec, style),
         allowWrapping: style.wrap,
         span,
-        themeOverride: cellTheme(style, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
+        themeOverride: label && !style.fill ? { ...cellTheme(style, color, false, false), bgCell: LABEL_FILL } : cellTheme(style, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, highlight, frozen],
+    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion],
   );
 
   const drawCell = useCallback<DrawCellCallback>(
     (args, drawContent) => {
       drawContent();
       if (args.col === 0) return;
-      const rec = view.get(view.visibleRows[args.row], view.visibleCols[args.col - 1]);
-      if (!rec || !(rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch | CellFlag.Stale))) return;
+      const row = view.visibleRows[args.row];
+      const col = view.visibleCols[args.col - 1];
       const { ctx, rect } = args;
+      const rec = view.get(row, col);
+      if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch | CellFlag.Stale)) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(rect.x + 1, rect.y + 1);
+        ctx.lineTo(rect.x + 8, rect.y + 1);
+        ctx.lineTo(rect.x + 1, rect.y + 8);
+        ctx.closePath();
+        ctx.fillStyle = rec.flags & CellFlag.Stale ? '#E8A33D' : '#8A94A6';
+        ctx.fill();
+        ctx.restore();
+      }
+      if (!schema) return;
+      const issues = schema.cellIssues(sheetIndex, row, col);
+      const right = rect.x + rect.width - 1;
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(rect.x + 1, rect.y + 1);
-      ctx.lineTo(rect.x + 8, rect.y + 1);
-      ctx.lineTo(rect.x + 1, rect.y + 8);
-      ctx.closePath();
-      ctx.fillStyle = rec.flags & CellFlag.Stale ? '#E8A33D' : '#8A94A6';
-      ctx.fill();
+      if (issues.length) {
+        ctx.beginPath();
+        ctx.moveTo(right, rect.y + 1);
+        ctx.lineTo(right - 8, rect.y + 1);
+        ctx.lineTo(right, rect.y + 9);
+        ctx.closePath();
+        ctx.fillStyle = issues.some((i) => i.severity === 'error') ? '#D92D20' : '#F79009';
+        ctx.fill();
+      } else if (schema.isPending(sheetIndex, row, col)) {
+        ctx.beginPath();
+        ctx.arc(right - 4, rect.y + 5, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#2E90FA';
+        ctx.fill();
+      }
       ctx.restore();
     },
-    [view],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, schema, schemaVersion, sheetIndex],
   );
 
   // Grid selection <-> sheet selection. Grid column 0 is the row-number column.

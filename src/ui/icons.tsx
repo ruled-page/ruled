@@ -15,6 +15,12 @@ const PATHS: Record<string, string> = {
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
   formula: 'M14 4h-2a3 3 0 0 0-3 3v13M6 10h7M15 13l5 6M20 13l-5 6',
   eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  schema: 'M4 5h6v5H4zM14 14h6v5h-6zM7 10v6.5h7M14 7.5h3.5V14',
+  upload: 'M12 21V9M7 14l5-5 5 5M4 3h16',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
 };
 
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {

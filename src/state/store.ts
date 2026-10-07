@@ -1,4 +1,8 @@
+import { mergeEditResults } from '../core/editResult';
 import { inRect } from '../core/refs';
+import { bindSchema, type Binding } from '../schema/binding';
+import { SchemaController } from '../schema/controller';
+import type { FieldValue, NumberOptions, WorkbookSchema } from '../schema/types';
 import {
   CellFlag,
   type CalcReport,
@@ -9,7 +13,7 @@ import {
   type Rect,
 } from '../core/types';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
-import { displayText } from './format';
+import { displayText, exactText } from './format';
 import { SheetView } from './sheetView';
 
 export interface Toast {
@@ -24,6 +28,22 @@ export interface ConfirmRequest {
   confirmLabel: string;
   resolve: (ok: boolean) => void;
 }
+
+export interface StoreOptions {
+  /** Schemas to try, in order, against each workbook that is opened. */
+  schemas?: WorkbookSchema[];
+  /** Default number display; a matching schema can override it. */
+  numbers?: NumberOptions;
+}
+
+export interface SchemaMismatch {
+  /** The schema that came closest, if any of its sheets were found. */
+  name?: string;
+  problems: string[];
+  tried: number;
+}
+
+export type Panel = 'issues' | 'report';
 
 export interface Selection {
   /** Active cell, in sheet coordinates. */
@@ -67,10 +87,19 @@ export class WorkbookStore {
   redoStack: EditResult[] = [];
   toasts: Toast[] = [];
   confirmRequest?: ConfirmRequest;
-  reportOpen = false;
+  panel: Panel | null = null;
+  designerOpen = false;
   bannerDismissed = false;
   highlightEdits = true;
+  /** The user's override for exact numbers; undefined follows the schema or defaults. */
+  exactNumbers?: boolean;
+  schemas: WorkbookSchema[];
+  schema?: SchemaController;
+  schemaMismatch?: SchemaMismatch;
+  /** Changes whenever schema issues change, so the grid redraws its markers. */
+  schemaVersion = 0;
   version = 0;
+  private readonly options: StoreOptions;
 
   private worker?: Worker;
   private seq = 0;
@@ -79,6 +108,22 @@ export class WorkbookStore {
   private clip?: Clip;
   private queue: Promise<unknown> = Promise.resolve();
   private toastSeq = 0;
+
+  constructor(options: StoreOptions = {}) {
+    this.options = options;
+    this.schemas = [...(options.schemas ?? [])];
+  }
+
+  get reportOpen(): boolean {
+    return this.panel === 'report';
+  }
+
+  /** Number display in effect: defaults, then the schema's, then the user's toggle. */
+  get numbers(): Required<NumberOptions> {
+    const base: Required<NumberOptions> = { display: 'formatted', copy: 'formatted', ...this.options.numbers, ...this.schema?.schema.numbers };
+    if (this.exactNumbers === undefined) return base;
+    return this.exactNumbers ? { display: 'full', copy: 'raw' } : { display: 'formatted', copy: 'formatted' };
+  }
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -129,6 +174,7 @@ export class WorkbookStore {
       this.calc = msg.report;
       this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...msg.report.findings];
       for (const u of msg.report.updates) this.sheets[u.sheet]?.apply(u);
+      this.schema?.validate();
       this.notify();
       return;
     }
@@ -170,8 +216,10 @@ export class WorkbookStore {
       redoStack: [],
       editedCount: 0,
       bannerDismissed: false,
-      reportOpen: false,
+      panel: null,
       clip: undefined,
+      schema: undefined,
+      schemaMismatch: undefined,
     });
     this.selections.clear();
     this.notify();
@@ -190,6 +238,7 @@ export class WorkbookStore {
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
       this.stage = '';
+      this.bindSchemas();
     } catch (err) {
       if ((err as Error).message === 'Superseded') return;
       this.status = 'error';
@@ -216,6 +265,22 @@ export class WorkbookStore {
   }
 
   async download(): Promise<void> {
+    if (this.schema) {
+      this.busy = true;
+      this.notify();
+      const check = await this.schema.checkBeforeSave();
+      this.busy = false;
+      this.notify();
+      if (!check.ok) {
+        if (!check.canOverride) {
+          this.set('panel', 'issues');
+          this.toast('error', `Not saved. ${check.message}`);
+          return;
+        }
+        const go = await this.confirm({ title: 'Save with errors?', body: `${check.message} Save the file anyway?`, confirmLabel: 'Save anyway' });
+        if (!go) return;
+      }
+    }
     const saved = await this.save();
     if (!saved) return;
     const type = /\.xlsm$/i.test(saved.fileName)
@@ -233,8 +298,12 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Editing
 
-  /** Runs an edit after any in-flight one, applies its results and records undo. */
-  private edit(op: EditOp, record: 'undo' | 'none' = 'undo'): Promise<EditResult | undefined> {
+  /**
+   * Runs an edit after any in-flight one, applies its results and records
+   * undo. "merge" folds the result into the previous undo step, for edits
+   * made by schema logic in response to the user's edit.
+   */
+  private edit(op: EditOp, record: 'undo' | 'none' | 'merge' = 'undo'): Promise<EditResult | undefined> {
     const run = async () => {
       this.busy = true;
       this.notify();
@@ -242,10 +311,20 @@ export class WorkbookStore {
         const res = await this.request({ type: 'edit', op } as Omit<WorkerRequest, 'id'>);
         if (res.type !== 'edited') return undefined;
         const r = res.result;
+        const ctl = this.schema;
+        // Schema logic sees each edited cell's value from before the edit.
+        const before = record === 'undo' && ctl ? r.redo.map((c) => ({ sheet: c.sheet, row: c.row, col: c.col, before: ctl.valueAt(c.sheet, c.row, c.col) as FieldValue })) : [];
         this.applyResult(r);
         if (record === 'undo' && r.undo.length) {
           this.undoStack.push(r);
           this.redoStack = [];
+        } else if (record === 'merge' && r.undo.length) {
+          const last = this.undoStack.pop();
+          this.undoStack.push(last ? mergeEditResults([last, r]) : r);
+        }
+        if (ctl) {
+          if (record === 'undo' && before.length) void ctl.afterEdit(before);
+          else ctl.validate();
         }
         return r;
       } catch (err) {
@@ -328,9 +407,11 @@ export class WorkbookStore {
     if (!view) return;
     const reason = view.readOnlyReason(row, col);
     if (reason) return this.toast('warn', reason);
+    const prepared = this.schema?.prepareInput(this.active, row, col, text) ?? { text };
+    if ('reject' in prepared) return this.toast('warn', prepared.reject);
     const rec = view.get(row, col);
     if (rec?.flags && rec.flags & CellFlag.Formula && !text.startsWith('=') && !(await this.okToReplace(1))) return;
-    await this.edit({ type: 'input', sheet: this.active, row, col, text });
+    await this.edit({ type: 'input', sheet: this.active, row, col, text: prepared.text });
   }
 
   async clear(rects: Rect[]): Promise<void> {
@@ -345,7 +426,9 @@ export class WorkbookStore {
     const view = this.view;
     if (!view) return;
     const rec = view.get(rect.r1, rect.c1);
-    const first = rec ? displayText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904).text : '';
+    const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
+    const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
+    const first = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
     this.clip = { sheet: this.active, rect, first };
   }
 
@@ -383,6 +466,15 @@ export class WorkbookStore {
       grid = [];
       for (let r = 0; r < selH; r++) grid.push(Array.from({ length: selW }, (_, c) => values[r % h][c % w] ?? ''));
     }
+    if (this.schema) {
+      for (let i = 0; i < grid.length; i++) {
+        for (let j = 0; j < grid[i].length; j++) {
+          const prepared = this.schema.prepareInput(this.active, dst.r1 + i, dst.c1 + j, grid[i][j]);
+          if ('reject' in prepared) return this.toast('warn', `Nothing was pasted. ${prepared.reject}`);
+          grid[i][j] = prepared.text;
+        }
+      }
+    }
     const keeps = (row: number, col: number) => (grid[row - dst.r1]?.[col - dst.c1] ?? '').startsWith('=');
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', `Pasting ${rectCells(dst).toLocaleString()} cells…`);
@@ -403,6 +495,93 @@ export class WorkbookStore {
     };
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     await this.edit({ type: 'fill', sheet: this.active, src, dst });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Schemas
+
+  /** Tries each registered schema against the open workbook; the first that fits applies. */
+  bindSchemas(): void {
+    for (const v of this.sheets) v.constraint = undefined;
+    this.schema = undefined;
+    this.schemaMismatch = undefined;
+    if (this.status !== 'ready' || !this.schemas.length) return this.notify();
+    let closest: { name: string; problems: string[]; found: number } | undefined;
+    for (const s of this.schemas) {
+      const r = bindSchema(s, this.sheets);
+      if (r.binding) {
+        this.attachSchema(r.binding);
+        return;
+      }
+      if (r.found > 0 && (!closest || r.found > closest.found || (r.found === closest.found && r.problems.length < closest.problems.length))) {
+        closest = { name: s.name, problems: r.problems, found: r.found };
+      }
+    }
+    this.schemaMismatch = { name: closest?.name, problems: closest?.problems ?? [], tried: this.schemas.length };
+    this.notify();
+  }
+
+  private attachSchema(binding: Binding): void {
+    const ctl = new SchemaController(binding, {
+      views: () => this.sheets,
+      styles: () => this.styles,
+      date1904: () => this.date1904,
+      followUp: async (op) => {
+        await this.edit(op, 'merge');
+      },
+      changed: () => {
+        this.schemaVersion++;
+        this.notify();
+      },
+    });
+    this.schema = ctl;
+    this.sheets.forEach((v, i) => {
+      v.constraint = (row, col) => ctl.readOnlyReason(i, row, col);
+    });
+    ctl.validate();
+    if (ctl.summary().errors) this.panel = 'issues';
+    this.notify();
+  }
+
+  /** Adds a schema, replacing any with the same id, and re-checks the open workbook. */
+  registerSchema(schema: WorkbookSchema): void {
+    // Newest first, so a schema just applied takes priority over older ones that also fit.
+    this.schemas = [schema, ...this.schemas.filter((s) => s.id !== schema.id)];
+    this.bindSchemas();
+  }
+
+  removeSchema(id: string): void {
+    this.schemas = this.schemas.filter((s) => s.id !== id);
+    this.bindSchemas();
+  }
+
+  /** The schema table record under the active cell, when records there can be added or removed. */
+  get recordTarget() {
+    const sel = this.selection;
+    return this.schema?.recordAt(this.active, sel.row, sel.col);
+  }
+
+  async insertRecord(): Promise<void> {
+    const target = this.recordTarget;
+    if (!target || !this.schema) return;
+    const op = this.schema.insertRecord(target.table, target.record);
+    if (typeof op === 'string') return this.toast('warn', op);
+    await this.edit(op);
+  }
+
+  async deleteRecords(): Promise<void> {
+    const target = this.recordTarget;
+    if (!target || !this.schema) return;
+    const t = target.table;
+    const rect = this.selection.rects[0];
+    const span = (pos: { row: number; col: number }) => t.locate(pos.row, pos.col);
+    const a = rect ? span({ row: rect.r1, col: rect.c1 }) : undefined;
+    const b = rect ? span({ row: rect.r2, col: rect.c2 }) : undefined;
+    const first = a?.kind === 'field' ? a.record : target.record;
+    const last = b?.kind === 'field' ? b.record : target.record;
+    const op = this.schema.deleteRecords(t, Math.min(first, last), Math.max(first, last));
+    if (typeof op === 'string') return this.toast('warn', op);
+    await this.edit(op);
   }
 
   // ---------------------------------------------------------------------------
@@ -434,8 +613,8 @@ export class WorkbookStore {
     this.notify();
   }
 
-  set<K extends 'reportOpen' | 'bannerDismissed' | 'highlightEdits'>(key: K, value: WorkbookStore[K]): void {
-    this[key] = value;
+  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen'>(key: K, value: WorkbookStore[K]): void {
+    (this as unknown as Record<string, unknown>)[key] = value;
     this.notify();
   }
 }
