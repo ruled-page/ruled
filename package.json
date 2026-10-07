@@ -8,7 +8,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "samples": "node scripts/gen-samples.mjs"
+    "samples": "node scripts/gen-samples.mjs",
+    "pages:dev": "npm run build && wrangler pages dev --port 8788",
+    "deploy": "npm run build && wrangler pages deploy --branch main --commit-dirty=true"
   },
   "author": "",
   "license": "ISC",
@@ -31,7 +33,8 @@
     "exceljs": "^4.4.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wrangler": "^4.148.0"
   },
   "type": "module",
   "private": true

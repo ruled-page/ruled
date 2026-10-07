@@ -1,0 +1,8 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Cloudflare Pages project for sharing the app. `npm run deploy` builds
+  // and uploads dist/ as the production deployment.
+  "name": "workbook-editor-poc",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-10-07"
+}
