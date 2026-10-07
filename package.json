@@ -1,11 +1,38 @@
 {
   "name": "fake-spreadsheet",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Proof of concept: edit .xlsx workbooks in the browser and save them back without losing charts, pivots or formulas",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "samples": "node scripts/gen-samples.mjs"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@borgar/fx": "^5.1.3",
+    "@glideapps/glide-data-grid": "^6.0.3",
+    "fflate": "^0.8.3",
+    "hyperformula": "^3.4.0",
+    "lodash": "^4.18.1",
+    "marked": "^4.3.0",
+    "numfmt": "^3.2.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-responsive-carousel": "^3.2.23"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "exceljs": "^4.4.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  },
+  "type": "module",
+  "private": true
 }
