@@ -54,3 +54,14 @@ test.describe('a workbook checked by a schema', () => {
     await expect(page.getByRole('tab', { name: "What's in this file" })).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+test('the banner about a file no schema matches can be dismissed', async ({ page }) => {
+  await openSample(page, 'Price list, old layout');
+  const banner = page.getByRole('status').filter({ hasText: "so it's open as a plain spreadsheet" });
+  await expect(banner).toBeVisible();
+  await banner.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(banner).toHaveCount(0);
+  // It comes back for the next workbook that doesn't match.
+  await openSample(page, 'Price list, old layout');
+  await expect(banner).toBeVisible();
+});

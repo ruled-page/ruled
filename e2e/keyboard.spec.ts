@@ -25,13 +25,46 @@ test.describe('with only a keyboard', () => {
     await expect(nameBox(page)).toBeFocused();
   });
 
-  test('Ctrl+G goes to a cell', async ({ page }) => {
-    await page.keyboard.press('Control+g');
+  test('Shift+F6 reaches the name box, which goes to a cell', async ({ page }) => {
+    await page.keyboard.press('Shift+F6');
     await expect(nameBox(page)).toBeFocused();
     await page.keyboard.type('C3');
     await page.keyboard.press('Enter');
     await expect(grid(page)).toHaveCount(1);
     await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('0.5');
+  });
+
+  test('fills down from the cell menu, as dragging the fill handle would', async ({ page }) => {
+    await goTo(page, 'C2:C3');
+    await page.keyboard.press('Shift+F10');
+    await page.getByRole('menuitem', { name: 'Fill down' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(shown(page, 'C3')).toHaveText('3');
+    await expect(shown(page, 'D3')).toHaveText('12');
+  });
+
+  test('leaves the browser its own shortcuts: reload, bookmark, find next, history', async ({ page }) => {
+    // Runs after the editor's own listener, so it sees whether the editor took the key.
+    await page.evaluate(() => {
+      (window as unknown as { taken: string[] }).taken = [];
+      window.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) (window as unknown as { taken: string[] }).taken.push(`${e.ctrlKey ? 'Ctrl+' : ''}${e.metaKey ? 'Meta+' : ''}${e.key}`);
+      });
+    });
+    for (const key of ['Control+r', 'Meta+r', 'Control+d', 'Meta+d', 'Control+g', 'Meta+g', 'Meta+y']) await page.keyboard.press(key);
+    expect(await page.evaluate(() => (window as unknown as { taken: string[] }).taken)).toEqual([]);
+    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('Item');
+  });
+
+  test('⌘G finds the next match, and ⇧⌘G the one before, while finding', async ({ page }) => {
+    await page.keyboard.press('Control+f');
+    await page.keyboard.type('s');
+    await page.keyboard.press('Enter');
+    await expect(nameBox(page)).toHaveValue('A2');
+    await page.keyboard.press('Control+g');
+    await expect(nameBox(page)).toHaveValue('A3');
+    await page.keyboard.press('Control+Shift+g');
+    await expect(nameBox(page)).toHaveValue('A2');
   });
 
   test('Enter edits a cell, Escape cancels, typing replaces', async ({ page }) => {
@@ -51,10 +84,8 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Shift+F10');
     const menu = page.getByRole('menu');
     await expect(menu.getByRole('menuitem', { name: 'Cut' })).toBeFocused();
-    // Cut, Copy, Paste, then the first row item.
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
+    // Cut, Copy, Paste, Fill down, Fill right, then the first row item.
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown');
     await expect(menu.getByRole('menuitem', { name: 'Insert 1 row above' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(menu).toBeHidden();
@@ -70,13 +101,6 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toBeHidden();
     await expect(grid(page)).toHaveCount(1);
-  });
-
-  test('Ctrl+D fills down, as dragging the fill handle would', async ({ page }) => {
-    await goTo(page, 'C2:C3');
-    await page.keyboard.press('Control+d');
-    await expect(shown(page, 'C3')).toHaveText('3');
-    await expect(shown(page, 'D3')).toHaveText('12');
   });
 
   test('sets a column width from the menu', async ({ page }) => {

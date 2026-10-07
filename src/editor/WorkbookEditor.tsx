@@ -8,7 +8,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
-import { mod, shortcutKey } from '../ui/keys';
+import { APPLE, mod, shortcutKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { copyTheme, themeStyle } from './theme';
 import { I18nextProvider, Trans } from 'react-i18next';
@@ -167,10 +167,9 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
         return;
       }
       if (store.status !== 'ready') return;
-      if (key === 'g' && !store.designerOpen) {
-        e.preventDefault();
-        root.current.querySelector<HTMLInputElement>('.name-box')?.focus();
-      } else if (key === 's' && store.features.save) {
+      // Browser shortcuts are taken only for the same job (save, find, undo…), never
+      // for another: ⌘R still reloads, ⌘D still bookmarks, ⌘G still finds the next match.
+      if (key === 's' && store.features.save) {
         e.preventDefault();
         void store.download();
       } else if (key === 'f' && !store.designerOpen) {
@@ -180,12 +179,9 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
           void store.undo();
-        } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        } else if ((key === 'z' && e.shiftKey) || (key === 'y' && !APPLE)) {
           e.preventDefault();
           void store.redo();
-        } else if ((key === 'd' || key === 'r') && !e.shiftKey && !e.altKey) {
-          e.preventDefault();
-          void store.fillDown(key === 'r');
         }
       }
     };

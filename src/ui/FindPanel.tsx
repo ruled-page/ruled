@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toA1 } from '../core/refs';
 import type { FindQuery, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { shortcutKey } from './keys';
 import { useDialog } from './useDialog';
 import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
@@ -57,6 +58,19 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
   const close = () => store.set('findOpen', false);
   // Escape closes it and the focus goes back to the grid; Tab can still leave it for the sheet.
   useDialog(panel, true, close, { initial: input });
+
+  // ⌘G and ⇧⌘G (Ctrl+G elsewhere) find the next and previous match, as they do in the browser's own find.
+  const step = useRef(go);
+  step.current = go;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || shortcutKey(e) !== 'g') return;
+      e.preventDefault();
+      step.current(e.shiftKey ? -1 : 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const current = hits[at];
 
   return (

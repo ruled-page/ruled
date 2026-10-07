@@ -260,13 +260,20 @@ English.
 ### Keyboard and screen readers
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows
-and Tab move, typing replaces a cell, Enter edits it, Ctrl+D and Ctrl+R fill
-down and right, Shift+F10 (or the menu key) opens the cell menu with
-insert, delete, column width, sort and filter, Ctrl+G goes to a cell, and
-F6 (Ctrl+F6 where the browser keeps F6) moves between the toolbar, formula
-bar, sheet, side panel and sheet tabs, since Tab stays in the grid as it
-does in Excel. Ctrl+/ (⌘/ on a Mac) lists every shortcut. Dialogs keep the
-focus inside, close with Escape and hand the focus back.
+and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
+menu key) opens the cell menu with fill down and right, insert, delete,
+column width, sort and filter. F6 (Ctrl+F6 where the browser keeps F6) moves
+between the toolbar, formula bar, sheet, side panel and sheet tabs, since Tab
+stays in the grid as it does in Excel; typing a cell such as B4 in the
+formula bar's name box goes there. Ctrl+/ (⌘/ on a Mac) lists every shortcut.
+Dialogs keep the focus inside, close with Escape and hand the focus back.
+
+The editor takes a browser shortcut only for the same job: Ctrl+S saves,
+Ctrl+F finds, Ctrl+Z undoes, and Ctrl+G finds the next match while its find
+panel is open. It never repurposes one, so Ctrl+R still reloads the page and
+Ctrl+D still bookmarks it (Excel's fill down and fill right are in the cell
+menu instead), and on a Mac ⌘Y is left to the browser's history (redo is
+⇧⌘Z).
 
 On a phone the editor keeps the grid in view: the toolbar's actions scroll
 sideways in one row, the side panel opens over the sheet when asked for

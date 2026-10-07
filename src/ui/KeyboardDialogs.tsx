@@ -2,7 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { mod } from './keys';
+import { mod, redoKey } from './keys';
 import { useDialog } from './useDialog';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
@@ -17,7 +17,6 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [t('keys.arrows'), t('shortcuts.moveCells')],
         [t('keys.tab'), t('shortcuts.moveRightLeft')],
         [t('keys.shiftArrows'), t('shortcuts.extend')],
-        [m('G'), t('shortcuts.goTo')],
         [t('keys.f6'), t('shortcuts.regions')],
       ],
     },
@@ -28,9 +27,8 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [t('keys.enter'), t('shortcuts.enter')],
         [t('keys.escape'), t('shortcuts.escape')],
         [t('keys.delete'), t('shortcuts.clear')],
-        [m('Z', 'Y'), t('shortcuts.undoRedo')],
+        [`${m('Z')}, ${redoKey(t)}`, t('shortcuts.undoRedo')],
         [m('X', 'C', 'V'), t('shortcuts.clipboard')],
-        [m('D', 'R'), t('shortcuts.fill')],
       ],
     },
     {
@@ -38,6 +36,7 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
       keys: [
         [t('keys.menu'), t('shortcuts.menu')],
         [m('F'), t('shortcuts.find')],
+        [m('G'), t('shortcuts.findNext')],
         [m('S'), t('shortcuts.save')],
         [m('/'), t('shortcuts.list')],
       ],

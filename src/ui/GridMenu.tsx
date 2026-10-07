@@ -39,6 +39,8 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.cut'), hint: mod(t, 'X'), onSelect: () => void store.copySelection(true), disabled: locked },
     { label: t('menu.copy'), hint: mod(t, 'C'), onSelect: () => void store.copySelection(false) },
     { label: t('menu.paste'), hint: mod(t, 'V'), onSelect: () => void store.pasteFromClipboard(), disabled: locked },
+    { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: locked },
+    { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: locked },
     { separator: true },
     ...(menu.kind === 'column' || (wholeCols && !wholeRows) ? colItems : menu.kind === 'row' || wholeRows ? rowItems : [...rowItems, { separator: true } as const, ...colItems]),
     { separator: true },

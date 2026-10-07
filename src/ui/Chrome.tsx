@@ -155,6 +155,12 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
 export function SchemaBanner({ store }: { store: WorkbookStore }) {
   const t = useT();
   const m = store.schemaMismatch;
+  if (store.schemaBannerDismissed) return null;
+  const dismiss = (
+    <button className="btn icon ghost" onClick={() => store.set('schemaBannerDismissed', true)} aria-label={t('banner.dismiss')}>
+      <Icon name="close" />
+    </button>
+  );
   if (!m && store.schemaNote) {
     return (
       <div className="banner" role="status">
@@ -162,6 +168,7 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
         <div className="banner-text">
           <p>{t.text(store.schemaNote)}</p>
         </div>
+        {dismiss}
       </div>
     );
   }
@@ -186,9 +193,12 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
           </ul>
         )}
       </div>
-      <button className="link" onClick={() => store.set('designerOpen', true)}>
-        {t('banner.openDesigner')}
-      </button>
+      {store.features.schemas && (
+        <button className="link" onClick={() => store.set('designerOpen', true)}>
+          {t('banner.openDesigner')}
+        </button>
+      )}
+      {dismiss}
     </div>
   );
 }
