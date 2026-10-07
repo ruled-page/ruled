@@ -393,11 +393,12 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       });
     }
     if (child(meta, 'autoFilter')) {
+      info.autoFilter = parseRange(attr(child(meta, 'autoFilter'), 'ref') ?? '') ?? undefined;
       findings.push({
         kind: 'autoFilter',
         severity: 'info',
         title: 'Filter',
-        detail: 'Kept in the file. Rows hidden by the filter stay hidden here, but the filter buttons are not shown.',
+        detail: "Kept in the file. Rows it hides stay hidden here. Filtering in this editor only changes what you see; the file's filter is saved as it was.",
         sheet: name,
       });
     }

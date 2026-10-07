@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
+import { FilterPicker } from '../ui/FilterPicker';
+import { FindPanel } from '../ui/FindPanel';
 import { FormulaBar } from '../ui/FormulaBar';
+import { GridMenu } from '../ui/GridMenu';
 import { Icon } from '../ui/icons';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
 import { SchemaDesigner } from '../ui/SchemaDesigner';
@@ -76,6 +79,9 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
       if (key === 's' && store.features.save) {
         e.preventDefault();
         void store.download();
+      } else if (key === 'f' && !store.designerOpen) {
+        e.preventDefault();
+        store.set('findOpen', true);
       } else if (!isTextField(e.target) && !store.confirmRequest && !store.designerOpen) {
         if (key === 'z' && !e.shiftKey) {
           e.preventDefault();
@@ -181,6 +187,7 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
                 </p>
               </div>
             )}
+            {ready && store.findOpen && <FindPanel store={store} />}
           </main>
           {ready && <SidePanel store={store} />}
         </div>
@@ -193,6 +200,8 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
           </div>
         )}
         {store.designerOpen && <SchemaDesigner store={store} />}
+        {ready && <GridMenu store={store} />}
+        {ready && <FilterPicker store={store} />}
         <ConfirmDialog store={store} />
         <Toasts store={store} />
       </div>

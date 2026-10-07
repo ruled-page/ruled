@@ -13,13 +13,15 @@ import {
   type GridKeyEventArgs,
   type GridMouseEventArgs,
   type GridSelection,
+  type CellClickedEventArgs,
+  type HeaderClickedEventArgs,
   type Item,
   type Rectangle,
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { colToLetters } from '../core/refs';
+import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
 import { effectiveStyle } from '../state/cellStyle';
@@ -147,7 +149,7 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-type Highlights = NonNullable<DataEditorProps['highlightRegions']>;
+type Highlights = NonNullable<DataEditorProps['highlightRegions']>[number][];
 
 export function SheetGrid({
   store,
@@ -466,6 +468,7 @@ export function SheetGrid({
     [view, rowStart, rows],
   );
 
+  const cutRange = store.cutRange;
   // The selection, clipped to this pane. When the active cell is in the other
   // pane, this one shows its part of the selection as a highlight instead.
   const { gridSelection, highlights } = useMemo(() => {
@@ -483,17 +486,20 @@ export function SheetGrid({
     const gr = at(selection.row);
     const gc = Math.max(0, view.gridCol(selection.col)) + 1;
     const empty = { columns: CompactSelection.empty(), rows: CompactSelection.empty() };
+    // A cut waiting to be pasted gets a dashed outline.
+    const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
+    const marks: Highlights = cut ? [{ color: 'rgba(30, 113, 69, 0.06)', range: cut, style: 'dashed' }] : [];
     if (gr < rowStart || gr > last) {
-      const marks: Highlights = rects.map((range) => ({ color: 'rgba(30, 113, 69, 0.10)', range, style: 'solid-outline' }));
+      marks.push(...rects.map((range) => ({ color: 'rgba(30, 113, 69, 0.10)', range, style: 'solid-outline' as const })));
       return { gridSelection: { current: undefined, ...empty } as GridSelection, highlights: marks.length ? marks : undefined };
     }
     const cell = { x: gc, y: gr - rowStart, width: 1, height: 1 };
     const [first, ...rest] = rects;
     return {
       gridSelection: { current: { cell: [gc, gr - rowStart], range: first ?? cell, rangeStack: rest }, ...empty } as GridSelection,
-      highlights: undefined,
+      highlights: marks.length ? marks : undefined,
     };
-  }, [view, selection, rowStart, rows]);
+  }, [view, selection, rowStart, rows, cutRange]);
 
   const onSelectionChange = useCallback(
     (sel: GridSelection) => {
@@ -526,21 +532,79 @@ export function SheetGrid({
     [store, view, toSheetRect, rowStart],
   );
 
-  // Remember what was copied, so pasting it back carries formulas.
+  // Remember what was copied, so pasting it back carries formulas. A cut
+  // only marks the cells: like Excel, pasting it moves them, and references follow.
   useEffect(() => {
-    const onCopy = () => {
+    const inEditorField = () => {
       const active = document.activeElement;
-      if (active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest('.gdg-clip-region, .dvn-scroller')) return;
+      return !!active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest('.gdg-clip-region, .dvn-scroller');
+    };
+    const onCopy = () => {
+      if (inEditorField()) return;
       const first = store.selection.rects[0];
       if (first) store.noteCopy(first);
     };
+    const onCut = (e: ClipboardEvent) => {
+      if (inEditorField() || !host.current?.contains(document.activeElement)) return;
+      const first = store.selection.rects[0];
+      if (!first || !e.clipboardData) return;
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', store.selectionText(first));
+      store.noteCopy(first, true);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && store.cutRange && host.current?.contains(document.activeElement)) store.cancelCut();
+    };
     window.addEventListener('copy', onCopy, true);
-    window.addEventListener('cut', onCopy, true);
+    window.addEventListener('cut', onCut, true);
+    window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('copy', onCopy, true);
-      window.removeEventListener('cut', onCopy, true);
+      window.removeEventListener('cut', onCut, true);
+      window.removeEventListener('keydown', onKey);
     };
   }, [store]);
+
+  // Scroll to cells that find or the change list point at.
+  const reveal = store.revealSeq;
+  useEffect(() => {
+    if (!reveal) return;
+    const gr = view.gridRow(selection.row) - rowStart;
+    const gc = view.gridCol(selection.col) + 1;
+    if (gr >= 0 && gr < rows && gc > 0) ref.current?.scrollTo(gc, gr, 'both', 40, 40);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
+
+  const onCellContextMenu = useCallback(
+    ([gc, gr]: Item, e: CellClickedEventArgs) => {
+      e.preventDefault();
+      const row = view.visibleRows[gr + rowStart];
+      const col = gc === 0 ? view.visibleCols[0] : view.visibleCols[gc - 1];
+      const sel = store.selection;
+      const inside = sel.rects.some((r) => inRect(r, row, gc === 0 ? r.c1 : col));
+      // Right-clicking outside the selection selects what was clicked first, as Excel does.
+      if (!inside) {
+        const rect = gc === 0 ? { r1: row, r2: row, c1: 0, c2: Math.max(view.info.maxCol, 0) } : { r1: row, r2: row, c1: col, c2: col };
+        store.setSelection({ row, col, rects: [rect] });
+      }
+      store.set('menu', { x: e.bounds.x + e.localEventX, y: e.bounds.y + e.localEventY, kind: gc === 0 ? 'row' : 'cell' });
+    },
+    [store, view, rowStart],
+  );
+
+  const onHeaderContextMenu = useCallback(
+    (gc: number, e: HeaderClickedEventArgs) => {
+      e.preventDefault();
+      if (gc === 0) return;
+      const col = view.visibleCols[gc - 1];
+      const sel = store.selection;
+      if (!sel.rects.some((r) => col >= r.c1 && col <= r.c2 && r.r1 === 0)) {
+        store.setSelection({ row: 0, col, rects: [{ r1: 0, r2: Math.max(view.info.maxRow, 0), c1: col, c2: col }] });
+      }
+      store.set('menu', { x: e.bounds.x + e.localEventX, y: e.bounds.y + e.localEventY, kind: 'column' });
+    },
+    [store, view],
+  );
 
   // Glide reads pastes through navigator.clipboard.read(), which makes
   // browsers ask for clipboard permission. The paste event already carries
@@ -645,7 +709,9 @@ export function SheetGrid({
         onGridSelectionChange={onSelectionChange}
         onCellEdited={onCellEdited}
         onCellActivated={onCellActivated}
-        keybindings={{ paste: false }}
+        keybindings={{ paste: false, cut: false }}
+        onCellContextMenu={onCellContextMenu}
+        onHeaderContextMenu={onHeaderContextMenu}
         provideEditor={provideEditor}
         onDelete={onDelete}
         fillHandle

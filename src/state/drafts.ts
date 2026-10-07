@@ -1,4 +1,8 @@
+import type { StructuralOp } from '../core/refTransform';
 import type { EditOp } from '../core/types';
+
+/** One step of a draft: a cell edit, or a structural change. */
+export type DraftOp = EditOp | { type: 'structure'; op: StructuralOp };
 
 /**
  * Unsaved edits kept in IndexedDB so they survive a closed tab or a crash.
@@ -10,7 +14,7 @@ export interface Draft {
   fileName: string;
   updatedAt: number;
   editedCount: number;
-  ops: EditOp[];
+  ops: DraftOp[];
 }
 
 const DB_NAME = 'workbook-editor-drafts';

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { parseA1, toA1 } from '../core/refs';
+import type { CellChange } from '../core/types';
 import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
@@ -94,16 +95,13 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     const sheet = store.sheets.findIndex((s) => s.info.name === sheetName);
     const pos = parseA1(ref);
     if (sheet < 0 || !pos) return;
-    store.setActive(sheet);
-    store.setSelection({ row: pos.row, col: pos.col, rects: [{ r1: pos.row, c1: pos.col, r2: pos.row, c2: pos.col }] });
+    store.reveal(sheet, pos.row, pos.col);
   };
   const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
     <div className="report-body">
       <p className="report-lede schema-lede">
-        {changes.length
-          ? `${changes.length.toLocaleString()} cell${changes.length === 1 ? '' : 's'} differ from the file as it was opened.`
-          : 'Nothing has changed since the file was opened.'}
+        {changes.length ? summarize(changes) : 'Nothing has changed since the file was opened.'}
       </p>
       {changes.length > 0 && (
         <div className="changes-table">
@@ -122,8 +120,16 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
                     {store.sheets.length > 1 ? `${c.sheet}!` : ''}
                     {c.ref}
                   </td>
-                  <td>{c.before === '' ? <span className="muted">(empty)</span> : c.before}</td>
-                  <td>{c.formatOnly ? <span className="muted">format only</span> : c.after === '' ? <span className="muted">(empty)</span> : c.after}</td>
+                  {c.note ? (
+                    <td colSpan={2} className="change-note">
+                      {c.note}
+                    </td>
+                  ) : (
+                    <>
+                      <td>{c.before === '' ? <span className="muted">(empty)</span> : c.before}</td>
+                      <td>{c.formatOnly ? <span className="muted">format only</span> : c.after === '' ? <span className="muted">(empty)</span> : c.after}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -149,6 +155,16 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
       </section>
     </div>
   );
+}
+
+/** "3 cells differ from the file as it was opened, and 1 change to rows or columns." */
+function summarize(changes: CellChange[]): string {
+  const structural = changes.filter((c) => c.note).length;
+  const cells = changes.length - structural;
+  const parts = [];
+  if (cells) parts.push(`${cells.toLocaleString()} cell${cells === 1 ? '' : 's'} differ from the file as it was opened`);
+  if (structural) parts.push(`${structural.toLocaleString()} change${structural === 1 ? '' : 's'} to rows, columns or where cells are`);
+  return `${parts.join(', and ')}.`;
 }
 
 export function SidePanel({ store }: { store: WorkbookStore }) {

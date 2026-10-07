@@ -16,7 +16,7 @@ import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
 import { displayFormula, engineFormula, isVolatile, makeShifter } from './formula';
 import { parseInput } from './input';
-import { cellKey, inRect, MAX_COLS, MAX_ROWS, toA1 } from './refs';
+import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from './refs';
 import { findCell } from './sheetScanner';
 import {
   CellFlag,
@@ -39,7 +39,9 @@ import {
   type SheetGrid,
 } from './types';
 import { readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
-import { removeMacros, writeWorkbook } from './writer';
+import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
+import { restructure } from './restructure';
+import { refMapFor, type StructuralOp } from './refTransform';
 import { OoxmlPackage, type PackageLimits } from './zip';
 
 export interface OpenOptions {
@@ -238,7 +240,8 @@ export class WorkbookSession {
   readonly fileName: string;
   readonly model: WorkbookModel;
   private readonly pkg: OoxmlPackage;
-  private readonly originalBytes: Uint8Array;
+  /** The file as opened; null after a structural change, when the session is built from a package. */
+  private readonly originalBytes: Uint8Array | null;
   private readonly timings: Record<string, number>;
   private engine?: CalcEngine;
   private report?: CalcReport;
@@ -258,13 +261,21 @@ export class WorkbookSession {
   readonly locale: string;
   /** Remove the VBA project when saving (macro policy "remove"). */
   private stripMacros = false;
+  /** What the structural change that made this session broke, to tell the user. */
+  readonly structureWarnings: string[] = [];
+  /**
+   * What changed before the last structural change, carried to where those
+   * cells are now: the change list, the cells to mark as edited, and a
+   * description of each structural change.
+   */
+  private baked: { changes: CellChange[]; keys: Set<number>[]; structure: CellChange[] };
 
   /** The name the saved file should have; macro-free files can't keep .xlsm. */
   get saveFileName(): string {
     return this.stripMacros ? this.fileName.replace(/\.xlsm$/i, '.xlsx') : this.fileName;
   }
 
-  private constructor(pkg: OoxmlPackage, bytes: Uint8Array, fileName: string, model: WorkbookModel, timings: Record<string, number>, locale: string) {
+  private constructor(pkg: OoxmlPackage, bytes: Uint8Array | null, fileName: string, model: WorkbookModel, timings: Record<string, number>, locale: string) {
     this.locale = locale;
     this.pkg = pkg;
     this.originalBytes = bytes;
@@ -278,6 +289,7 @@ export class WorkbookSession {
     this.newFormulaFlags = Array.from({ length: n }, () => new Map());
     this.stale = Array.from({ length: n }, () => new Set());
     this.sheetIndex = new Map(model.sheets.map((s, i) => [s.info.name.toLowerCase(), i]));
+    this.baked = { changes: [], keys: Array.from({ length: n }, () => new Set()), structure: [] };
   }
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
@@ -324,11 +336,33 @@ export class WorkbookSession {
   }
 
   get editedCount(): number {
-    return this.edits.reduce((n, m) => n + m.size, 0);
+    let n = this.baked.changes.length + this.baked.structure.length;
+    this.edits.forEach((m, s) => {
+      for (const key of m.keys()) if (!this.baked.keys[s].has(key)) n++;
+    });
+    return n;
   }
 
-  /** Every cell that differs from the file as opened: what it held, and what it holds now. */
+  /**
+   * Every cell that differs from the file as opened (what it held, and what
+   * it holds now), and every structural change, described.
+   */
   changes(): CellChange[] {
+    const own = this.ownChanges();
+    if (!this.baked.changes.length && !this.baked.structure.length) return own;
+    // A cell changed before a structural change and again since: it was what the file held, it is what it holds now.
+    const merged = new Map(this.baked.changes.map((c) => [`${c.sheet}!${c.ref}`, c]));
+    for (const c of own) {
+      const key = `${c.sheet}!${c.ref}`;
+      const earlier = merged.get(key);
+      if (!earlier) merged.set(key, c);
+      else if (earlier.before === c.after && !c.formatOnly) merged.delete(key);
+      else merged.set(key, { ...c, before: earlier.before, formatOnly: earlier.before === c.after || undefined });
+    }
+    return [...this.baked.structure, ...merged.values()];
+  }
+
+  private ownChanges(): CellChange[] {
     const out: CellChange[] = [];
     this.edits.forEach((edits, s) => {
       const name = this.model.sheets[s].info.name;
@@ -399,6 +433,7 @@ export class WorkbookSession {
       f |= this.calcFlags[sheet].get(key) ?? 0;
     }
     if (this.stale[sheet].has(key)) f |= CellFlag.Stale;
+    if (this.baked.keys[sheet].has(key)) f |= CellFlag.Edited;
     return f;
   }
 
@@ -802,6 +837,34 @@ export class WorkbookSession {
         warnings.push(...this.planFillWrites(op.sheet, op.src, op.dst, put));
         break;
       }
+      case 'sort': {
+        const { rect } = op;
+        const merged = this.sheet(op.sheet).info.merges.find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
+        if (merged) return this.emptyResult(`Sorting would move part of the merged cell ${rangeToA1(merged)}. Unmerge it, or sort around it.`);
+        const top = op.header ? rect.r1 + 1 : rect.r1;
+        const rows = Array.from({ length: Math.max(0, rect.r2 - top + 1) }, (_, i) => top + i);
+        const order = rows
+          .map((row, i) => ({ row, i, keys: op.keys.map((k) => this.cellValue(op.sheet, row, k.col)) }))
+          .sort((a, b) => {
+            for (let k = 0; k < op.keys.length; k++) {
+              const d = compareForSort(a.keys[k], b.keys[k], op.keys[k].descending);
+              if (d) return d;
+            }
+            return a.i - b.i;
+          });
+        let lost = 0;
+        order.forEach((from, i) => {
+          const row = top + i;
+          if (from.row === row) return;
+          for (let col = rect.c1; col <= rect.c2; col++) {
+            const r = this.copiedContent(op.sheet, from.row, col, row, col);
+            if (r.lost) lost++;
+            put({ sheet: op.sheet, row, col, content: r.content, style: r.style });
+          }
+        });
+        if (lost) warnings.push(`${lost} formula${lost === 1 ? '' : 's'} couldn't be adjusted for ${lost === 1 ? 'its' : 'their'} new row and ${lost === 1 ? 'was' : 'were'} kept as values.`);
+        break;
+      }
       case 'restore': {
         for (const c of op.cells) put({ ...c });
         break;
@@ -985,12 +1048,21 @@ export class WorkbookSession {
   /** The workbook as .xlsx bytes. Unchanged workbooks come back byte for byte. */
   save(): Uint8Array {
     if (this.editedCount === 0) {
-      if (!this.stripMacros) return this.originalBytes;
+      if (!this.stripMacros && this.originalBytes) return this.originalBytes;
       const pkg = this.pkg.clone();
-      removeMacros(pkg, this.model.workbookPath);
+      if (this.stripMacros) removeMacros(pkg, this.model.workbookPath);
       return pkg.toBytes();
     }
-    return writeWorkbook({
+    return writeWorkbook(this.saveInput());
+  }
+
+  /** The workbook with every edit written in, as a package. */
+  private savedPackage(): OoxmlPackage {
+    return this.edits.some((m) => m.size) ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
+  }
+
+  private saveInput(): SaveInput {
+    return {
       stripMacros: this.stripMacros,
       pkg: this.pkg.clone(),
       model: this.model,
@@ -1003,6 +1075,102 @@ export class WorkbookSession {
       recalculated: this.values.map((m, s) =>
         new Set([...m.keys()].filter((k) => !this.edits[s].has(k) && !this.newFormulaFlags[s].has(k))),
       ),
-    });
+    };
   }
+
+  // ---------------------------------------------------------------------------
+  // Structural changes
+
+  /**
+   * The workbook after inserting or deleting rows or columns, or moving
+   * cells, as a new session. The current state is written out, the change is
+   * applied to every part that refers to the moved cells, and the result is
+   * opened. This session is left as it was, so undo can return to it.
+   */
+  restructure(op: StructuralOp): WorkbookSession {
+    const pkg = this.savedPackage();
+    const { broken } = restructure(pkg, readWorkbook(pkg, this.locale), op);
+    const next = new WorkbookSession(pkg, null, this.fileName, readWorkbook(pkg, this.locale), {}, this.locale);
+    next.stripMacros = this.stripMacros;
+    if (broken) {
+      next.structureWarnings.push(
+        `${broken.toLocaleString()} formula${broken === 1 ? ' now shows' : 's now show'} #REF! because ${broken === 1 ? 'it' : 'they'} used cells that were deleted or pasted over.`,
+      );
+    }
+
+    // Changes so far follow their cells; changes to cells that were deleted go.
+    const map = refMapFor(op);
+    const names = this.model.sheets.map((m) => m.info.name);
+    const index = (name: string) => names.findIndex((n) => n === name);
+    for (const c of this.changes()) {
+      const s = index(c.sheet);
+      const at = parseA1(c.ref);
+      if (c.note || s < 0 || !at) {
+        if (c.note) next.baked.structure.push(c);
+        continue;
+      }
+      const to = map.range(s, { r1: at.row, c1: at.col, r2: at.row, c2: at.col });
+      if (to) next.baked.changes.push({ ...c, sheet: names[to.sheet], ref: toA1(to.rect.r1, to.rect.c1) });
+    }
+    this.model.sheets.forEach((_m, s) => {
+      for (const key of new Set([...this.edits[s].keys(), ...this.baked.keys[s]])) {
+        const row = Math.floor(key / MAX_COLS);
+        const col = key % MAX_COLS;
+        const to = map.range(s, { r1: row, c1: col, r2: row, c2: col });
+        if (to) next.baked.keys[to.sheet].add(cellKey(to.rect.r1, to.rect.c1));
+      }
+    });
+    next.baked.structure.push(describeStructure(op, names));
+    return next;
+  }
+
+  /** Every cell whose state differs from the file the session was built from, for redrawing all of it. */
+  stateUpdates(): CellUpdate[] {
+    const out: CellUpdate[] = [];
+    this.model.sheets.forEach((_m, s) => {
+      const keys = new Set([...this.edits[s].keys(), ...this.values[s].keys(), ...this.calcFlags[s].keys(), ...this.stale[s], ...this.baked.keys[s]]);
+      for (const key of keys) out.push(this.update(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
+    });
+    return out;
+  }
+
+  /** The engine's report, if it has been built. */
+  get calcReport(): CalcReport | undefined {
+    return this.report;
+  }
+}
+
+/**
+ * Excel's sort order: numbers, then text (ignoring case), then logicals, then
+ * errors, reversed when descending; blank cells always go last.
+ */
+export function compareForSort(a: EngineValue, b: EngineValue, descending: boolean): number {
+  const blankA = a === null || a === '';
+  const blankB = b === null || b === '';
+  if (blankA || blankB) return blankA === blankB ? 0 : blankA ? 1 : -1;
+  const rank = (v: EngineValue) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : typeof v === 'boolean' ? 2 : 3);
+  let d = rank(a) - rank(b);
+  if (!d) {
+    if (typeof a === 'number' && typeof b === 'number') d = a - b;
+    else if (typeof a === 'string' && typeof b === 'string') d = a.localeCompare(b, undefined, { sensitivity: 'base', numeric: false });
+    else if (typeof a === 'boolean' && typeof b === 'boolean') d = Number(a) - Number(b);
+  }
+  return descending ? -d : d;
+}
+
+/** A structural change in words, for the change list. */
+function describeStructure(op: StructuralOp, names: string[]): CellChange {
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+  if (op.type === 'move') {
+    const h = op.src.r2 - op.src.r1;
+    const w = op.src.c2 - op.src.c1;
+    const dst = rangeToA1({ r1: op.row, c1: op.col, r2: op.row + h, c2: op.col + w });
+    const where = op.toSheet !== op.sheet ? `${names[op.toSheet]}!${dst}` : dst;
+    return { sheet: names[op.sheet], ref: rangeToA1(op.src), before: '', after: '', note: `Moved to ${where}` };
+  }
+  const rows = op.type === 'insertRows' || op.type === 'deleteRows';
+  const end = op.at + op.count - 1;
+  const ref = rows ? `${op.at + 1}:${end + 1}` : `${colToLetters(op.at)}:${colToLetters(end)}`;
+  const verb = op.type.startsWith('insert') ? 'Inserted' : 'Deleted';
+  return { sheet: names[op.sheet], ref, before: '', after: '', note: `${verb} ${plural(op.count, rows ? 'row' : 'column')}` };
 }

@@ -248,6 +248,14 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
           </>
         )}
       </span>
+      {view?.filter && (
+        <span className="status-filter">
+          Filtered: {view.filteredCount.toLocaleString()} row{view.filteredCount === 1 ? '' : 's'} hidden
+          <button className="link" onClick={() => store.clearFilter()}>
+            Show all
+          </button>
+        </span>
+      )}
       {stats && (
         <span className="status-stats">
           {stats.nums > 0 && <span>Average: {fmt(stats.sum / stats.nums)}</span>}

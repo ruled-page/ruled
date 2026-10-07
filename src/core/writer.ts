@@ -27,6 +27,11 @@ type Patch =
 
 /** Writes the edited workbook, changing only the parts that must change. */
 export function writeWorkbook(input: SaveInput): Uint8Array {
+  return buildPackage(input).toBytes();
+}
+
+/** The edited workbook as a package, before it is zipped. */
+export function buildPackage(input: SaveInput): OoxmlPackage {
   const { pkg, model } = input;
 
   model.sheets.forEach((m, s) => {
@@ -58,7 +63,7 @@ export function writeWorkbook(input: SaveInput): Uint8Array {
     if (stylesRel && xml) pkg.setText(stylesRel.target, appendStyles(xml, model));
   }
 
-  return pkg.toBytes();
+  return pkg;
 }
 
 function sheetPatches(m: SheetModel, s: number, input: SaveInput): Map<number, Patch> {

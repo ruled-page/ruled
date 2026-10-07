@@ -1,11 +1,13 @@
 import { mergeEditResults } from '../core/editResult';
+import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
-import { inRect, toA1 } from '../core/refs';
+import { inRect, MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
 import type { FieldValue, NumberOptions, WorkbookSchema } from '../schema/types';
 import {
   CellFlag,
+  VT,
   type CalcReport,
   type DisplayStyle,
   type CellChange,
@@ -19,9 +21,10 @@ import {
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
-import { deleteDraft, fileKey, loadDraft, saveDraft } from './drafts';
+import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
-import { displayText, exactText } from './format';
+import { parseClipboardText } from './clipboard';
+import { displayText, editText, exactText } from './format';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
 
@@ -142,7 +145,13 @@ interface Clip {
   sheet: number;
   rect: Rect;
   first: string;
+  /** Cut rather than copied: pasting moves the cells, once. */
+  cut?: boolean;
 }
+
+/** An undoable step: cell edits, undone by restoring cells, or a structural change, undone in the worker. */
+export type UndoEntry = EditResult | { structure: string };
+const isStructure = (e: UndoEntry): e is { structure: string } => 'structure' in e;
 
 type Pending = { resolve: (r: WorkerResponse) => void; reject: (e: Error) => void };
 
@@ -159,6 +168,35 @@ interface FormulaList {
   ready: Promise<string[] | undefined>;
 }
 
+export interface FindQuery {
+  text: string;
+  matchCase: boolean;
+  /** The whole cell must match, not just part of it. */
+  wholeCell: boolean;
+  /** Search what cells show, or what they contain (formulas as typed). */
+  lookIn: 'values' | 'formulas';
+  scope: 'sheet' | 'workbook';
+}
+
+/** A structural change in words, for the history and undo. */
+function describeStructure(op: StructuralOp, sheets: SheetView[]): string {
+  const n = (count: number, one: string) => `${count} ${one}${count === 1 ? '' : 's'}`;
+  switch (op.type) {
+    case 'insertRows':
+      return `Inserted ${n(op.count, 'row')}`;
+    case 'deleteRows':
+      return `Deleted ${n(op.count, 'row')}`;
+    case 'insertCols':
+      return `Inserted ${n(op.count, 'column')}`;
+    case 'deleteCols':
+      return `Deleted ${n(op.count, 'column')}`;
+    case 'move':
+      return op.toSheet === op.sheet ? `Moved ${rangeLabel(op.src)}` : `Moved ${rangeLabel(op.src)} to ${sheets[op.toSheet]?.info.name ?? 'another sheet'}`;
+  }
+}
+
+const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
+
 export class WorkbookStore {
   status: 'empty' | 'loading' | 'ready' | 'error' = 'empty';
   stage = '';
@@ -174,11 +212,16 @@ export class WorkbookStore {
   selections = new Map<number, Selection>();
   editedCount = 0;
   busy = false;
-  undoStack: EditResult[] = [];
-  redoStack: EditResult[] = [];
+  undoStack: UndoEntry[] = [];
+  redoStack: UndoEntry[] = [];
   toasts: Toast[] = [];
   confirmRequest?: ConfirmRequest;
   panel: Panel | null = null;
+  /** The grid's right-click menu, while open: where, and whether it was opened on a column or row heading. */
+  menu?: { x: number; y: number; kind: 'cell' | 'column' | 'row' };
+  /** The value picker for filtering a column, while open. */
+  filterPicker?: { col: number; x: number; y: number };
+  findOpen = false;
   designerOpen = false;
   bannerDismissed = false;
   highlightEdits = true;
@@ -193,7 +236,7 @@ export class WorkbookStore {
   /** The latest list of changed cells, refreshed while the Changes panel is open. */
   changeList: CellChange[] = [];
   private draftKey?: string;
-  private draftOps: EditOp[] = [];
+  private draftOps: DraftOp[] = [];
   private draftTimer?: ReturnType<typeof setTimeout>;
   version = 0;
   private readonly options: StoreOptions;
@@ -442,7 +485,21 @@ export class WorkbookStore {
       void deleteDraft(key);
       return;
     }
-    await this.edit({ type: 'batch', ops: draft.ops }, 'undo', { label: 'Restored unsaved changes', replay: true });
+    // Cell edits replay as batches between structural changes, which replay on their own.
+    let batch: EditOp[] = [];
+    const flush = async () => {
+      if (batch.length) await this.edit({ type: 'batch', ops: batch }, 'undo', { label: 'Restored unsaved changes', replay: true });
+      batch = [];
+    };
+    for (const op of draft.ops) {
+      if (op.type === 'structure') {
+        await flush();
+        await this.restructure(op.op, { replay: true });
+      } else {
+        batch.push(op);
+      }
+    }
+    await flush();
   }
 
   private scheduleDraft(): void {
@@ -603,7 +660,8 @@ export class WorkbookStore {
           this.redoStack = [];
         } else if (record === 'merge' && r.undo.length) {
           const last = this.undoStack.pop();
-          this.undoStack.push(last ? mergeEditResults([last, r]) : r);
+          if (last && isStructure(last)) this.undoStack.push(last, r);
+          else this.undoStack.push(last ? mergeEditResults([last, r]) : r);
         }
         if (r.undo.length) {
           this.recordHistory(op, record, r, opts.label);
@@ -634,7 +692,7 @@ export class WorkbookStore {
       label ??
       (record === 'merge'
         ? 'Filled in by business logic'
-        : ({ input: 'Edit', pasteText: 'Paste', copy: 'Paste', fill: 'Fill', clear: 'Clear', restore: 'Undo or redo', inputs: 'Edit', batch: 'Edit' } as const)[op.type]);
+        : ({ input: 'Edit', pasteText: 'Paste', copy: 'Paste', fill: 'Fill', clear: 'Clear', restore: 'Undo or redo', inputs: 'Edit', sort: 'Sort', batch: 'Edit' } as const)[op.type]);
     const refs = r.redo.slice(0, 5).map((c) => `${this.sheets[c.sheet]?.info.name ?? '?'}!${toA1(c.row, c.col)}`);
     this.history.push({ at: Date.now(), user: this.options.user, action, cells: r.redo.length, refs });
   }
@@ -657,6 +715,12 @@ export class WorkbookStore {
     await this.queue;
     const entry = this.undoStack.pop();
     if (!entry) return;
+    if (isStructure(entry)) {
+      if (await this.swapStructure('undoStructure', `Undo: ${entry.structure}`)) this.redoStack.push(entry);
+      else this.undoStack = [];
+      this.notify();
+      return;
+    }
     this.goTo(entry.undo[0]?.sheet);
     await this.edit({ type: 'restore', cells: entry.undo }, 'none', { label: 'Undo' });
     this.redoStack.push(entry);
@@ -667,9 +731,352 @@ export class WorkbookStore {
     await this.queue;
     const entry = this.redoStack.pop();
     if (!entry) return;
+    if (isStructure(entry)) {
+      if (await this.swapStructure('redoStructure', `Redo: ${entry.structure}`)) this.undoStack.push(entry);
+      this.notify();
+      return;
+    }
     this.goTo(entry.redo[0]?.sheet);
     await this.edit({ type: 'restore', cells: entry.redo }, 'none', { label: 'Redo' });
     this.undoStack.push(entry);
+    this.notify();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Structural changes: inserting and deleting rows and columns, moving cells
+
+  /**
+   * Inserts or deletes rows or columns, or moves cells, with every reference
+   * to the cells that move following them. The worker rebuilds the workbook,
+   * so all the sheets are reloaded here. Resolves false if it was refused.
+   */
+  restructure(op: StructuralOp, opts: { replay?: boolean } = {}): Promise<boolean> {
+    const run = async () => {
+      if (this.status !== 'ready') return false;
+      this.busy = true;
+      this.notify();
+      try {
+        const res = await this.request({ type: 'structure', op } as Omit<WorkerRequest, 'id'>);
+        if (res.type !== 'restructured') return false;
+        this.adoptWorkbook(res);
+        const label = describeStructure(op, this.sheets);
+        this.undoStack.push({ structure: label });
+        this.redoStack = [];
+        this.history.push({ at: Date.now(), user: this.options.user, action: label, cells: 0, refs: [] });
+        this.draftOps.push({ type: 'structure', op });
+        this.scheduleDraft();
+        if (!opts.replay) this.selectAfter(op);
+        for (const w of res.warnings) this.toast('warn', w);
+        if (this.panel === 'changes') void this.refreshChanges();
+        return true;
+      } catch (err) {
+        if ((err as Error).message !== 'Superseded') this.toast('error', (err as Error).message);
+        return false;
+      } finally {
+        this.busy = false;
+        this.notify();
+      }
+    };
+    const p = this.queue.then(run, run);
+    this.queue = p;
+    return p;
+  }
+
+  private async swapStructure(type: 'undoStructure' | 'redoStructure', label: string): Promise<boolean> {
+    try {
+      this.busy = true;
+      this.notify();
+      const res = await this.request({ type } as Omit<WorkerRequest, 'id'>);
+      if (res.type !== 'restructured') return false;
+      this.adoptWorkbook(res);
+      this.history.push({ at: Date.now(), user: this.options.user, action: label, cells: 0, refs: [] });
+      if (this.panel === 'changes') void this.refreshChanges();
+      return true;
+    } catch (err) {
+      this.toast('error', (err as Error).message);
+      return false;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** Replaces every sheet's view with the worker's rebuilt workbook, keeping the active sheet and selections. */
+  private adoptWorkbook(res: Extract<WorkerResponse, { type: 'restructured' }>): void {
+    const r = res.result;
+    this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
+    this.styles = r.styles;
+    this.date1904 = r.date1904;
+    this.findings = res.report ? [...r.findings.filter((f) => f.kind !== 'formulaEngine'), ...res.report.findings] : r.findings;
+    this.calc = res.report;
+    for (const u of res.updates) this.sheets[u.sheet]?.apply(u);
+    this.editedCount = res.editedCount;
+    this.active = Math.min(this.active, this.sheets.length - 1);
+    this.dataVersion++;
+    this.formulaLists.clear();
+    this.cfRuns.clear();
+    this.clip = undefined;
+    this.bindSchemas();
+    this.refreshConditionalFormats(this.active);
+  }
+
+  /** Selects what a structural change made or left, as Excel does. */
+  private selectAfter(op: StructuralOp): void {
+    const view = this.sheets[op.type === 'move' ? op.toSheet : op.sheet];
+    if (!view) return;
+    const lastCol = Math.max(view.info.maxCol, 0);
+    const lastRow = Math.max(view.info.maxRow, 0);
+    const sel = this.selection;
+    let rect: Rect;
+    if (op.type === 'move') {
+      rect = { r1: op.row, c1: op.col, r2: op.row + op.src.r2 - op.src.r1, c2: op.col + op.src.c2 - op.src.c1 };
+      this.active = op.toSheet;
+    } else if (op.type === 'insertRows') {
+      rect = { r1: op.at, r2: op.at + op.count - 1, c1: 0, c2: lastCol };
+    } else if (op.type === 'insertCols') {
+      rect = { r1: 0, r2: lastRow, c1: op.at, c2: op.at + op.count - 1 };
+    } else if (op.type === 'deleteRows') {
+      rect = { r1: op.at, r2: op.at, c1: sel.col, c2: sel.col };
+    } else {
+      rect = { r1: sel.row, r2: sel.row, c1: op.at, c2: op.at };
+    }
+    this.setSelection({ row: rect.r1, col: op.type === 'insertRows' ? sel.col : rect.c1, rects: [rect] });
+  }
+
+  /** Inserts as many rows as the selection spans, above or below it. */
+  insertRows(where: 'above' | 'below'): Promise<boolean> {
+    const r = this.selection.rects[0] ?? { r1: this.selection.row, r2: this.selection.row, c1: 0, c2: 0 };
+    return this.restructure({ type: 'insertRows', sheet: this.active, at: where === 'above' ? r.r1 : r.r2 + 1, count: r.r2 - r.r1 + 1 });
+  }
+
+  deleteRows(): Promise<boolean> {
+    const r = this.selection.rects[0] ?? { r1: this.selection.row, r2: this.selection.row, c1: 0, c2: 0 };
+    return this.restructure({ type: 'deleteRows', sheet: this.active, at: r.r1, count: r.r2 - r.r1 + 1 });
+  }
+
+  /** Inserts as many columns as the selection spans, left or right of it. */
+  insertCols(where: 'left' | 'right'): Promise<boolean> {
+    const r = this.selection.rects[0] ?? { r1: 0, r2: 0, c1: this.selection.col, c2: this.selection.col };
+    return this.restructure({ type: 'insertCols', sheet: this.active, at: where === 'left' ? r.c1 : r.c2 + 1, count: r.c2 - r.c1 + 1 });
+  }
+
+  deleteCols(): Promise<boolean> {
+    const r = this.selection.rects[0] ?? { r1: 0, r2: 0, c1: this.selection.col, c2: this.selection.col };
+    return this.restructure({ type: 'deleteCols', sheet: this.active, at: r.c1, count: r.c2 - r.c1 + 1 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sorting and filtering
+
+  /**
+   * The block a sort or filter applies to: the table or filter range around
+   * the active cell, else the contiguous block of non-empty cells around it,
+   * Excel's "current region". Its first row is taken as headings.
+   */
+  dataRegion(sheet = this.active, row = this.selection.row, col = this.selection.col): Rect | undefined {
+    const view = this.sheets[sheet];
+    if (!view) return undefined;
+    const sel = this.selection.rects[0];
+    if (sel && (sel.r2 > sel.r1 || sel.c2 > sel.c1) && sel.r2 < MAX_ROWS - 1 && sel.c2 < MAX_COLS - 1) return sel;
+    const table = view.tableAt(row, col);
+    if (table) return { ...table.rect, r2: table.rect.r2 - table.totalsRows };
+    const af = view.filter?.rect ?? view.info.autoFilter;
+    if (af && inRect(af, row, col)) return af;
+    const filled = (r: number, c: number) => r >= 0 && c >= 0 && !!view.get(r, c) && view.get(r, c)!.t !== VT.None;
+    if (!filled(row, col)) return undefined;
+    const rect = { r1: row, r2: row, c1: col, c2: col };
+    // Grow while any cell just outside an edge (diagonals included) is filled.
+    for (let grew = true; grew; ) {
+      grew = false;
+      const rowHas = (r: number) => {
+        for (let c = rect.c1 - 1; c <= rect.c2 + 1; c++) if (filled(r, c)) return true;
+        return false;
+      };
+      const colHas = (c: number) => {
+        for (let r = rect.r1 - 1; r <= rect.r2 + 1; r++) if (filled(r, c)) return true;
+        return false;
+      };
+      if (rowHas(rect.r1 - 1)) (rect.r1--, (grew = true));
+      if (rowHas(rect.r2 + 1)) (rect.r2++, (grew = true));
+      if (colHas(rect.c1 - 1)) (rect.c1--, (grew = true));
+      if (colHas(rect.c2 + 1)) (rect.c2++, (grew = true));
+    }
+    return rect;
+  }
+
+  /** Sorts the data region by the active cell's column. Its first row stays put as headings. */
+  sort(descending: boolean, col = this.selection.col): Promise<EditResult | undefined> {
+    const rect = this.dataRegion();
+    if (!rect || rect.r2 <= rect.r1) {
+      this.toast('info', 'Select a cell in a block of data to sort it.');
+      return Promise.resolve(undefined);
+    }
+    return this.edit({ type: 'sort', sheet: this.active, rect, keys: [{ col, descending }], header: true }, 'undo', { label: descending ? 'Sort Z to A' : 'Sort A to Z' });
+  }
+
+  /** The text a cell shows, as filters and find compare it. */
+  shownText(view: SheetView, row: number, col: number): string {
+    const rec = view.get(row, col);
+    if (!rec) return '';
+    return displayText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904).text;
+  }
+
+  /** The values in a column of the filter range, with how many rows hold each, for picking what to show. */
+  filterChoices(col: number): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string> } | undefined {
+    const view = this.view;
+    if (!view) return undefined;
+    const rect = view.filter?.rect ?? this.dataRegion();
+    if (!rect || col < rect.c1 || col > rect.c2) return undefined;
+    const counts = new Map<string, number>();
+    for (let row = rect.r1 + 1; row <= rect.r2; row++) {
+      const text = this.shownText(view, row, col);
+      counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
+    const values = [...counts].map(([text, count]) => ({ text, count }));
+    values.sort((a, b) => (a.text === '' ? 1 : b.text === '' ? -1 : a.text.localeCompare(b.text, undefined, { numeric: true })));
+    return { rect, values, allowed: view.filter?.columns.get(col) };
+  }
+
+  /** Shows only rows whose value in `col` is one of `allowed`; undefined shows them all again. */
+  setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): void {
+    const view = this.view;
+    if (!view) return;
+    const columns = new Map(view.filter?.columns ?? []);
+    if (allowed) columns.set(col, allowed);
+    else columns.delete(col);
+    view.setFilter(view.filter?.rect ?? rect, columns, (row, c) => this.shownText(view, row, c));
+    this.notify();
+  }
+
+  clearFilter(): void {
+    const view = this.view;
+    if (!view?.filter) return;
+    view.setFilter(view.filter.rect, new Map(), () => '');
+    this.notify();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Find and replace
+
+  /** Cells matching a search, in reading order: by sheet, then row, then column. */
+  find(q: FindQuery): { sheet: number; row: number; col: number }[] {
+    if (!q.text) return [];
+    const out: { sheet: number; row: number; col: number }[] = [];
+    const needle = q.matchCase ? q.text : q.text.toLowerCase();
+    const sheets = q.scope === 'workbook' ? this.sheets.map((_, i) => i) : [this.active];
+    for (const s of sheets) {
+      const view = this.sheets[s];
+      if (view.info.kind !== 'worksheet') continue;
+      const hits: { row: number; col: number }[] = [];
+      view.forEach({ r1: 0, c1: 0, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 }, (row, col, rec) => {
+        if (rec.t === VT.None && rec.f === undefined) return;
+        let text = q.lookIn === 'formulas' ? editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904) : this.shownText(view, row, col);
+        if (!q.matchCase) text = text.toLowerCase();
+        if (q.wholeCell ? text === needle : text.includes(needle)) hits.push({ row, col });
+      });
+      hits.sort((a, b) => a.row - b.row || a.col - b.col);
+      out.push(...hits.map((h) => ({ sheet: s, ...h })));
+    }
+    return out;
+  }
+
+  /** Replaces the search text in matching cells' contents (formulas included). Resolves to how many cells changed. */
+  async replace(q: FindQuery, replacement: string, only?: { sheet: number; row: number; col: number }): Promise<number> {
+    const hits = only ? [only] : this.find({ ...q, lookIn: 'formulas' });
+    const flags = q.matchCase ? 'g' : 'gi';
+    const pattern = new RegExp(q.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    const bySheet = new Map<number, { row: number; col: number; text: string }[]>();
+    let skipped = 0;
+    for (const h of hits) {
+      const view = this.sheets[h.sheet];
+      const rec = view.get(h.row, h.col);
+      if (!rec || view.readOnlyReason(h.row, h.col)) {
+        skipped++;
+        continue;
+      }
+      const before = editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904);
+      const after = q.wholeCell ? replacement : before.replace(pattern, () => replacement);
+      if (after === before) continue;
+      const list = bySheet.get(h.sheet) ?? [];
+      list.push({ row: h.row, col: h.col, text: after });
+      bySheet.set(h.sheet, list);
+    }
+    const ops: EditOp[] = [...bySheet].map(([sheet, cells]) => ({ type: 'inputs', sheet, cells }));
+    const n = ops.reduce((k, o) => k + (o.type === 'inputs' ? o.cells.length : 0), 0);
+    if (n) await this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label: 'Replace' });
+    if (skipped) this.toast('info', `${skipped.toLocaleString()} matching cell${skipped === 1 ? " is" : 's are'} read-only here and ${skipped === 1 ? 'was' : 'were'} left as ${skipped === 1 ? 'it was' : 'they were'}.`);
+    return n;
+  }
+
+  /** Bumped to ask the grid to scroll the active cell into view. */
+  revealSeq = 0;
+
+  /** Moves to a cell, switching sheet if needed, and scrolls it into view. */
+  reveal(sheet: number, row: number, col: number): void {
+    if (sheet !== this.active) this.setActive(sheet);
+    this.revealSeq++;
+    this.setSelection({ row, col, rects: [{ r1: row, c1: col, r2: row, c2: col }] });
+  }
+
+  /** The selected cells as tab-separated text, as they are copied to the clipboard. */
+  selectionText(rect: Rect): string {
+    const view = this.view;
+    if (!view) return '';
+    const lines: string[] = [];
+    for (let row = rect.r1; row <= Math.min(rect.r2, Math.max(view.info.maxRow, rect.r1)); row++) {
+      if (view.gridRow(row) < 0) continue;
+      const cells: string[] = [];
+      for (let col = rect.c1; col <= Math.min(rect.c2, Math.max(view.info.maxCol, rect.c1)); col++) {
+        const rec = view.get(row, col);
+        const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
+        const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
+        const text = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
+        cells.push(/[\t\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+      }
+      lines.push(cells.join('\t'));
+    }
+    return lines.join('\n');
+  }
+
+  /** Copies or cuts the selection from the menu, where the keyboard's clipboard events aren't available. */
+  async copySelection(cut: boolean): Promise<void> {
+    const rect = this.selection.rects[0];
+    if (!rect) return;
+    this.noteCopy(rect, cut);
+    try {
+      await navigator.clipboard.writeText(this.selectionText(rect));
+    } catch {
+      // Pasting within this workbook still works; other apps won't see it.
+      this.toast('info', `${cut ? 'Cut' : 'Copied'} for pasting here. The browser didn't allow putting it on the clipboard for other apps; use ${cut ? '⌘X or Ctrl+X' : '⌘C or Ctrl+C'} for that.`);
+    }
+  }
+
+  /** Pastes from the menu. Browsers ask permission to read the clipboard this way; the keyboard doesn't need it. */
+  async pasteFromClipboard(): Promise<void> {
+    const sel = this.selection;
+    const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
+    let text: string | undefined;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = undefined;
+    }
+    if (text === undefined) {
+      // Without the clipboard, paste what was cut or copied here, if anything.
+      if (this.clip) return this.paste({ row: rect.r1, col: rect.c1 }, [], rect, true);
+      this.toast('warn', "The browser didn't allow reading the clipboard. Use ⌘V or Ctrl+V instead.");
+      return;
+    }
+    await this.paste({ row: rect.r1, col: rect.c1 }, parseClipboardText(text), rect);
+  }
+
+  /** The range marked by the last cut, shown with a dashed outline until it is pasted. */
+  get cutRange(): { sheet: number; rect: Rect } | undefined {
+    return this.clip?.cut ? { sheet: this.clip.sheet, rect: this.clip.rect } : undefined;
+  }
+
+  cancelCut(): void {
+    if (!this.clip?.cut) return;
+    this.clip = undefined;
     this.notify();
   }
 
@@ -723,23 +1130,30 @@ export class WorkbookStore {
     await this.edit({ type: 'clear', sheet: this.active, rects });
   }
 
-  /** Records what was copied so a paste back into the workbook can carry formulas. */
-  noteCopy(rect: Rect): void {
+  /** Records what was copied (or cut) so a paste back into the workbook can carry formulas, or move the cells. */
+  noteCopy(rect: Rect, cut = false): void {
     const view = this.view;
     if (!view) return;
     const rec = view.get(rect.r1, rect.c1);
     const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
     const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
     const first = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
-    this.clip = { sheet: this.active, rect, first };
+    this.clip = { sheet: this.active, rect, first, cut };
+    this.notify();
   }
 
-  async paste(target: { row: number; col: number }, values: readonly (readonly string[])[], selection: Rect): Promise<void> {
+  /**
+   * Pastes clipboard text, or what was cut or copied in this workbook when
+   * the text is the same (so formulas come along, and a cut moves cells).
+   * With `ownClipboard`, pastes what was cut or copied here without the text,
+   * for when the browser won't let the page read the clipboard.
+   */
+  async paste(target: { row: number; col: number }, values: readonly (readonly string[])[], selection: Rect, ownClipboard = false): Promise<void> {
     const view = this.view;
-    if (!view || !values.length) return;
     const clip = this.clip;
-    const h = values.length;
-    const w = Math.max(...values.map((v) => v.length));
+    if (!view || (!values.length && !(ownClipboard && clip))) return;
+    const h = ownClipboard && clip ? clip.rect.r2 - clip.rect.r1 + 1 : values.length;
+    const w = ownClipboard && clip ? clip.rect.c2 - clip.rect.c1 + 1 : Math.max(...values.map((v) => v.length));
     const selH = selection.r2 - selection.r1 + 1;
     const selW = selection.c2 - selection.c1 + 1;
     // Like Excel, a selection that is a whole multiple of the copied block is filled with it.
@@ -748,9 +1162,12 @@ export class WorkbookStore {
 
     const internal =
       clip &&
-      clip.rect.r2 - clip.rect.r1 + 1 === h &&
-      clip.rect.c2 - clip.rect.c1 + 1 === w &&
-      (values[0][0] ?? '') === clip.first;
+      (ownClipboard || (clip.rect.r2 - clip.rect.r1 + 1 === h && clip.rect.c2 - clip.rect.c1 + 1 === w && (values[0][0] ?? '') === clip.first));
+    if (internal && clip.cut && !tile) {
+      // Pasting a cut moves the cells, and references to them follow.
+      await this.restructure({ type: 'move', sheet: clip.sheet, src: clip.rect, toSheet: this.active, row: dst.r1, col: dst.c1 });
+      return;
+    }
     if (internal) {
       const src = this.sheets[clip.sheet];
       const keeps = (row: number, col: number) => {
@@ -1038,7 +1455,10 @@ export class WorkbookStore {
     this.notify();
   }
 
-  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen'>(key: K, value: WorkbookStore[K]): void {
+  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen' | 'menu' | 'filterPicker' | 'findOpen'>(
+    key: K,
+    value: WorkbookStore[K],
+  ): void {
     (this as unknown as Record<string, unknown>)[key] = value;
     this.notify();
   }

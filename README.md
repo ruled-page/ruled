@@ -28,6 +28,9 @@ back as .xlsx without losing what the editor can't display.
   cells. Failures raise the rule's stop, warning or information alert, and
   the formula bar shows the rule or its input message. Pasted values and
   formulas aren't checked, as in Excel.
+- Right-click a cell or heading to cut, copy and paste, insert or delete rows
+  and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F).
+  Cutting and pasting moves cells, and references to them follow.
 - Optional **schemas** describe the workbooks a consumer expects. A workbook
   that matches one is validated and constrained by it; one that matches none
   opens as a plain spreadsheet with a warning. Schemas can be written in
@@ -277,8 +280,19 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 - Glide can freeze columns but not rows, so frozen rows are a second grid
   above the scrolling one. Arrow keys and sideways scrolling carry across;
   a drag or shift-selection can't span the two.
-- No row/column insert or delete, sorting, filtering, or adding/renaming
-  sheets. Cut is copy then clear, not a move that updates references.
+- Inserting or deleting rows and columns, and moving cells with cut and
+  paste, rebuild the workbook in the worker: every reference to cells that
+  move follows them (formulas on all sheets, names, merges, validation,
+  conditional formatting, links, tables, pivot sources, charts, pictures and
+  notes), references to deleted cells become #REF!, and changes that would
+  split an array formula, a pivot table or a table's header are refused, as in
+  Excel. Each one rebuilds the calculation engine, which takes a moment on
+  large workbooks, and up to 20 can be undone. Cells moved to another sheet
+  leave merges and tables behind, so such moves are refused.
+- Sorting reorders rows as Excel does (formulas move as if copied; references
+  from elsewhere don't follow). Filtering hides rows on screen only; the file
+  keeps its own filter, as it was.
+- Sheets can't be added, renamed or deleted.
 - Pasted dates are read US-style (`3/4/2026` is 4 March) unless ISO.
 - Validation formulas run in HyperFormula, so a rule using a function it
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
@@ -289,7 +303,8 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 - Schema hooks run on the UI thread and only in the browser; nothing
   re-checks a file on a server yet. Inserting or deleting schema records
   moves cells within the table, so formulas outside the table that point
-  into it are not adjusted.
+  into it are not adjusted (inserting rows from the grid's menu does adjust
+  them).
 - The generator finds one table per sheet and its guesses are a starting
   point. The designer edits tables and fields; single cells are edited in
   its JSON view.

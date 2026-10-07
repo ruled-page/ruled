@@ -55,15 +55,50 @@ export class SheetView {
     if (rows === this.rowLimit && cols === this.colLimit) return false;
     this.rowLimit = rows;
     this.colLimit = cols;
+    this.layout();
+    return true;
+  }
+
+  private layout(): void {
     const hiddenRows = new Set(this.info.hiddenRows);
     const hiddenCols = new Set(this.info.hiddenCols);
     const vr: number[] = [];
-    for (let r = 0; r < rows; r++) if (!hiddenRows.has(r)) vr.push(r);
+    for (let r = 0; r < this.rowLimit; r++) if (!hiddenRows.has(r) && !this.filteredOut.has(r)) vr.push(r);
     const vc: number[] = [];
-    for (let c = 0; c < cols; c++) if (!hiddenCols.has(c)) vc.push(c);
+    for (let c = 0; c < this.colLimit; c++) if (!hiddenCols.has(c)) vc.push(c);
     this.visibleRows = Int32Array.from(vr);
     this.visibleCols = Int32Array.from(vc);
-    return true;
+  }
+
+  /**
+   * A filter applied in this editor: the range it covers (its first row
+   * holds the headings) and, per column, the values whose rows stay visible.
+   * It hides rows on screen only; the file's own filter is left as it was.
+   */
+  filter?: { rect: Rect; columns: Map<number, Set<string>> };
+  private readonly filteredOut = new Set<number>();
+
+  /** Shows only the rows of `rect` whose text in every filtered column is allowed; no columns clears it. */
+  setFilter(rect: Rect, columns: Map<number, Set<string>>, textAt: (row: number, col: number) => string): void {
+    this.filter = columns.size ? { rect, columns } : undefined;
+    this.filteredOut.clear();
+    if (this.filter) {
+      for (let row = rect.r1 + 1; row <= rect.r2; row++) {
+        for (const [col, allowed] of columns) {
+          if (!allowed.has(textAt(row, col))) {
+            this.filteredOut.add(row);
+            break;
+          }
+        }
+      }
+    }
+    this.layout();
+    this.version++;
+  }
+
+  /** Rows the editor's filter hides. */
+  get filteredCount(): number {
+    return this.filteredOut.size;
   }
 
   get rowCount(): number {

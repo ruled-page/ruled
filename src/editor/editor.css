@@ -1809,3 +1809,221 @@
 .wbe .enum-clear:hover {
   background: var(--bg-3);
 }
+
+/* Right-click menu ---------------------------------------------------------- */
+
+.wbe .context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.wbe .context-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wbe .context-menu button:hover:not(:disabled),
+.wbe .context-menu button:focus-visible {
+  background: var(--green-soft);
+  outline: none;
+}
+
+.wbe .context-menu button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.wbe .context-menu button.danger:not(:disabled) {
+  color: var(--red);
+}
+
+.wbe .context-menu kbd {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.wbe .menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+/* Filter picker ---------------------------------------------------------------- */
+
+.wbe .filter-picker {
+  position: fixed;
+  z-index: 60;
+  width: 280px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wbe .filter-title {
+  font-weight: 600;
+}
+
+.wbe .filter-search,
+.wbe .find-panel input:not([type]),
+.wbe .find-panel select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  font: inherit;
+  min-width: 0;
+}
+
+.wbe .filter-all,
+.wbe .filter-values label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wbe .filter-values {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.wbe .filter-values li {
+  padding: 3px 0;
+}
+
+.wbe .filter-values span:not(.filter-count) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbe .filter-count {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.wbe .filter-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.wbe .filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.wbe .filter-actions .spacer {
+  flex: 1;
+}
+
+.wbe .status-filter {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--amber);
+}
+
+.wbe .change-note {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+/* Find and replace --------------------------------------------------------------- */
+
+.wbe .find-panel {
+  position: absolute;
+  top: 8px;
+  right: 18px;
+  z-index: 30;
+  width: min(420px, calc(100% - 36px));
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.wbe .find-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.wbe .find-row input {
+  flex: 1;
+}
+
+.wbe .find-indent {
+  width: 26px;
+  flex: none;
+}
+
+.wbe .btn.small {
+  height: 28px;
+  padding: 0 8px;
+}
+
+.wbe .btn.icon.small {
+  width: 26px;
+  padding: 0;
+}
+
+.wbe .find-count {
+  min-width: 64px;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.wbe .find-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding-left: 32px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.wbe .find-options label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.wbe .find-where {
+  padding-left: 32px;
+  font-size: 12px;
+  color: var(--ink-3);
+}

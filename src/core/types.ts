@@ -301,6 +301,8 @@ export interface SheetInfo {
   notes: CellNote[];
   tables: TableInfo[];
   conditionalFormats: CfRule[];
+  /** The range of the sheet's own filter (autoFilter), if it has one. */
+  autoFilter?: Rect;
   protected: boolean;
   showGridLines: boolean;
   tabColor?: string;
@@ -400,6 +402,8 @@ export interface CellChange {
   after: string;
   /** Only the cell's format changed. */
   formatOnly?: boolean;
+  /** A change to rows, columns or where cells are, rather than to one cell; `ref` is the rows, columns or range. */
+  note?: string;
 }
 
 export interface CellSnapshot {
@@ -424,6 +428,11 @@ export type EditOp =
   | { type: 'restore'; cells: CellSnapshot[] }
   /** Text for scattered cells, parsed like typed input (used by schema hooks). */
   | { type: 'inputs'; sheet: number; cells: { row: number; col: number; text: string }[] }
+  /**
+   * Reorders the rows of `rect` by the given columns, as Excel's sort does:
+   * cells move with their formats, and formulas move as if copied.
+   */
+  | { type: 'sort'; sheet: number; rect: Rect; keys: { col: number; descending: boolean }[]; header: boolean }
   /** Several operations applied in order and undone as one. */
   | { type: 'batch'; ops: EditOp[] };
 

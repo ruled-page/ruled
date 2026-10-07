@@ -1,5 +1,6 @@
+import type { StructuralOp } from '../core/refTransform';
 import type { OpenOptions } from '../core/session';
-import type { CalcReport, CellChange, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
+import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
 
 export type WorkerRequest =
   | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions }
@@ -8,7 +9,11 @@ export type WorkerRequest =
   | { id: number; type: 'changes' }
   | { id: number; type: 'validate'; sheet: number; row: number; col: number; text: string; rule: number }
   | { id: number; type: 'listSource'; sheet: number; formula: string }
-  | { id: number; type: 'conditionalFormats'; sheet: number };
+  | { id: number; type: 'conditionalFormats'; sheet: number }
+  /** Insert or delete rows or columns, or move cells, rewriting references. */
+  | { id: number; type: 'structure'; op: StructuralOp }
+  /** Go back to, or forward to, the workbook as it was around a structural change. */
+  | { id: number; type: 'undoStructure' | 'redoStructure' };
 
 export type WorkerResponse =
   | { id: number; type: 'opened'; result: LoadResult }
@@ -20,4 +25,10 @@ export type WorkerResponse =
   | { id: number; type: 'validated'; ok: boolean }
   | { id: number; type: 'listSource'; source: ListSource | null }
   | { id: number; type: 'conditionalFormats'; result: CfResult }
+  /**
+   * After a structural change, or undoing one, the whole workbook as it now
+   * is: what the file holds, the cells that differ from it, and the engine's
+   * report if it is already built (otherwise a 'calc' message follows).
+   */
+  | { id: number; type: 'restructured'; result: LoadResult; updates: CellUpdate[]; editedCount: number; report?: CalcReport; warnings: string[] }
   | { id: number; type: 'error'; message: string };
