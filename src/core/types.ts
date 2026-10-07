@@ -332,7 +332,6 @@ export type FindingKind =
   | 'hiddenSheet'
   | 'arrayFormula'
   | 'mergedCells'
-  | 'frozenRows'
   | 'autoFilter'
   | 'richText'
   | 'cellImage'

@@ -32,11 +32,6 @@ export const core = {
     '{{count, number}} merged range span more than one row. Their value is shown in the top-left cell only; the merge is kept in the file.',
   'core.finding.mergedCells.detail_other':
     '{{count, number}} merged ranges span more than one row. Their value is shown in the top-left cell only; the merge is kept in the file.',
-  'core.finding.frozenRows.title': 'Frozen rows',
-  'core.finding.frozenRows.detail_one':
-    'Excel freezes the top {{count, number}} row on this sheet. This editor can only freeze columns; the setting is kept in the file.',
-  'core.finding.frozenRows.detail_other':
-    'Excel freezes the top {{count, number}} rows on this sheet. This editor can only freeze columns; the setting is kept in the file.',
   'core.finding.protectedSheet.title': 'Protected sheet',
   'core.finding.arrayFormulas.title': 'Array formulas',
   'core.finding.arrayFormulas.detail_one':

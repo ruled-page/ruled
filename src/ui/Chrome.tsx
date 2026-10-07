@@ -51,7 +51,10 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const ready = store.status === 'ready';
   const notable = store.findings.filter((f) => f.severity === 'warn').length;
   const target = ready ? store.recordTarget : undefined;
-  const across = target?.table.byRow === false;
+  // Tables that can grow keep their row buttons in place, so selecting a cell never moves the toolbar.
+  const growable = ready ? (store.schema?.binding.sheets.flatMap((s) => s.tables).filter((table) => !table.fixed) ?? []) : [];
+  const across = (target?.table ?? growable[0])?.byRow === false;
+  const outside = across ? t('toolbar.selectColumnFirst') : t('toolbar.selectRowFirst');
   const exact = store.numbers.display === 'full';
   return (
     <header className="toolbar">
@@ -83,12 +86,24 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             <Icon name="redo" />
           </button>
         </div>
-        {target && (
+        {growable.length > 0 && (
           <div className="btn-group">
-            <button className="btn" onClick={() => void store.insertRecord()} title={t(across ? 'toolbar.insertColumnTitle' : 'toolbar.insertRowTitle')}>
+            <button
+              className="btn"
+              disabled={!target}
+              onClick={() => void store.insertRecord()}
+              title={target ? t(across ? 'toolbar.insertColumnTitle' : 'toolbar.insertRowTitle') : outside}
+              aria-label={t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}
+            >
               <Icon name="plus" /> <span className="label">{t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}</span>
             </button>
-            <button className="btn" disabled={target.append} onClick={() => void store.deleteRecords()} title={t(across ? 'toolbar.deleteColumnTitle' : 'toolbar.deleteRowTitle')}>
+            <button
+              className="btn"
+              disabled={!target || target.append}
+              onClick={() => void store.deleteRecords()}
+              title={target ? t(across ? 'toolbar.deleteColumnTitle' : 'toolbar.deleteRowTitle') : outside}
+              aria-label={t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}
+            >
               <Icon name="minus" /> <span className="label">{t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}</span>
             </button>
           </div>
@@ -106,16 +121,18 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             <Icon name="schema" /> <span className="label">{t('toolbar.schemas')}</span>
           </button>
         )}
-        <button
-          className={`btn ${store.panel === 'report' ? 'active' : ''}`}
-          disabled={!ready}
-          onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
-          title={t('toolbar.report')}
-          aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
-        >
-          <Icon name="info" /> <span className="label">{t('toolbar.report')}</span>
-          {notable > 0 && <span className="count">{t.number(notable)}</span>}
-        </button>
+        {store.features.report && (
+          <button
+            className={`btn ${store.panel === 'report' ? 'active' : ''}`}
+            disabled={!ready}
+            onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
+            title={t('toolbar.report')}
+            aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
+          >
+            <Icon name="info" /> <span className="label">{t('toolbar.report')}</span>
+            {notable > 0 && <span className="count">{t.number(notable)}</span>}
+          </button>
+        )}
         <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: mod(t, '/') })} aria-label={t('toolbar.shortcuts')}>
           <Icon name="keyboard" />
         </button>
@@ -192,7 +209,7 @@ export function Banner({ store }: { store: WorkbookStore }) {
     return parts;
   }, [store.findings, store.calc, t]);
 
-  if (store.bannerDismissed || !summary.length) return null;
+  if (store.bannerDismissed || !summary.length || !store.features.report) return null;
   return (
     <div className="banner" role="status">
       <Icon name="info" />
@@ -292,11 +309,14 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
         {calc && !calc.off && (
           <>
             <span className="dot ok" /> {t('status.live', { count: calc.liveCells })}
-            {calc.unsupported + calc.mismatched > 0 && (
-              <button className="link" onClick={() => store.set('panel', 'report')}>
-                {t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}
-              </button>
-            )}
+            {calc.unsupported + calc.mismatched > 0 &&
+              (store.features.report ? (
+                <button className="link" onClick={() => store.set('panel', 'report')}>
+                  {t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}
+                </button>
+              ) : (
+                <span className="muted">{t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}</span>
+              ))}
           </>
         )}
       </span>

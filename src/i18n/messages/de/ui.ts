@@ -31,6 +31,8 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.deleteRow': 'Zeile löschen',
   'toolbar.deleteRowTitle': 'Ausgewählte Zeilen aus dieser Tabelle löschen',
   'toolbar.deleteColumn': 'Spalte löschen',
+  'toolbar.selectRowFirst': 'Wählen Sie eine Zeile der Tabelle aus, um Zeilen einzufügen oder zu löschen',
+  'toolbar.selectColumnFirst': 'Wählen Sie eine Spalte der Tabelle aus, um Spalten einzufügen oder zu löschen',
   'toolbar.deleteColumnTitle': 'Ausgewählte Spalten aus dieser Tabelle löschen',
   'toolbar.exact': 'Genaue Zahlen',
   'toolbar.exactTitle': 'Alle gespeicherten Stellen anzeigen und genaue Werte kopieren',

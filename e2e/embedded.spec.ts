@@ -137,3 +137,31 @@ test('every page of the portal meets the accessibility checks', async ({ page })
   await expect(page.getByRole('heading', { name: 'supplier-price-list.xlsx' })).toBeVisible();
   expect(await scan()).toEqual([]);
 });
+
+test('selecting cells never moves the toolbar, and closing the panel gives the grid the room', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openSample(page);
+  const toolbar = page.locator('.toolbar');
+  const height = async () => (await toolbar.boundingBox())!.height;
+  const before = await height();
+  // The row buttons are there, but can't be used until a row of the table is selected.
+  await expect(page.getByRole('button', { name: 'Insert row' })).toBeDisabled();
+  await goTo(page, 'B3');
+  await expect(page.getByRole('button', { name: 'Insert row' })).toBeEnabled();
+  expect(await height()).toBe(before);
+  await goTo(page, 'K20');
+  expect(await height()).toBe(before);
+
+  const workspace = (await page.locator('.wbe .workspace').boundingBox())!;
+  await page.locator('.report-head').getByRole('button', { name: 'Close' }).click();
+  const area = (await page.locator('.wbe .sheet-area').boundingBox())!;
+  expect(area.x).toBe(workspace.x);
+  expect(area.width).toBe(workspace.width);
+});
+
+test('the portal leaves out the report on what the file holds', async ({ page }) => {
+  await openSample(page);
+  await expect(page.getByRole('tab', { name: 'Checks' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: "What's in this file" })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /What's in this file/ })).toHaveCount(0);
+});

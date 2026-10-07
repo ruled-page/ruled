@@ -8,7 +8,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
-import { mod } from '../ui/keys';
+import { mod, shortcutKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { copyTheme, themeStyle } from './theme';
 import { I18nextProvider, Trans } from 'react-i18next';
@@ -115,6 +115,15 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
 
   useEffect(ensurePortal, []);
 
+  // Phone-sized layout follows the editor's own width, which in a host's layout can be less than the window's.
+  useEffect(() => {
+    const el = root.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(([entry]) => store.setNarrow(entry.contentRect.width <= 720));
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [store]);
+
   // Glide opens cell editors in one portal for the whole page; it takes the
   // theme and language of the editor being used, however the host set them.
   const themeVersion = store.themeVersion;
@@ -151,7 +160,7 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
         return;
       }
       if (!command) return;
-      const key = e.key.toLowerCase();
+      const key = shortcutKey(e);
       if (key === '/') {
         e.preventDefault();
         store.set('shortcutsOpen', true);
@@ -263,7 +272,8 @@ function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
       {ready && <Banner store={store} />}
       {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
       <div className="workspace">
-        <main
+        {/* A labelled region, not <main>: the host page has its own. */}
+        <section
           className="sheet-area"
           aria-label={ready ? t('editor.sheetLabel', { name: view.info.name }) : undefined}
           aria-describedby={ready ? `${hintId}-hint` : undefined}
@@ -302,7 +312,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
           )}
           {ready && view.info.kind !== 'worksheet' && <ChartSheet view={view} />}
           {ready && store.findOpen && <FindPanel store={store} />}
-        </main>
+        </section>
         {ready && <SidePanel store={store} />}
       </div>
       {ready && <SheetTabs store={store} />}

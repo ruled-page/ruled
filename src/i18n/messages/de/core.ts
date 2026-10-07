@@ -33,11 +33,6 @@ export const core: Record<keyof typeof en, string> = {
     '{{count, number}} verbundener Bereich erstreckt sich über mehr als eine Zeile. Sein Wert wird nur in der oberen linken Zelle angezeigt; die Verbindung bleibt in der Datei erhalten.',
   'core.finding.mergedCells.detail_other':
     '{{count, number}} verbundene Bereiche erstrecken sich über mehr als eine Zeile. Ihr Wert wird nur in der oberen linken Zelle angezeigt; die Verbindung bleibt in der Datei erhalten.',
-  'core.finding.frozenRows.title': 'Fixierte Zeilen',
-  'core.finding.frozenRows.detail_one':
-    'Excel fixiert auf diesem Blatt die oberste {{count, number}} Zeile. Dieser Editor kann nur Spalten fixieren; die Einstellung bleibt in der Datei erhalten.',
-  'core.finding.frozenRows.detail_other':
-    'Excel fixiert auf diesem Blatt die obersten {{count, number}} Zeilen. Dieser Editor kann nur Spalten fixieren; die Einstellung bleibt in der Datei erhalten.',
   'core.finding.protectedSheet.title': 'Geschütztes Tabellenblatt',
   'core.finding.arrayFormulas.title': 'Matrixformeln',
   'core.finding.arrayFormulas.detail_one':

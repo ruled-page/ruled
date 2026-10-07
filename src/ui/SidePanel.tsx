@@ -9,7 +9,6 @@ import { Tabs } from './Tabs';
 import { Trans } from 'react-i18next';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
-import { isNarrow } from '../state/viewport';
 
 function IssuesBody({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -30,7 +29,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
     if (i.sheet < 0 || i.row === undefined || i.col === undefined) return;
     store.reveal(i.sheet, i.row, i.col);
     // On a phone the panel covers the sheet: get out of the way of the cell.
-    if (isNarrow()) store.set('panel', null);
+    if (store.narrow) store.set('panel', null);
   };
   return (
     <div className="report-body">
@@ -104,7 +103,7 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     const pos = parseA1(ref);
     if (sheet < 0 || !pos) return;
     store.reveal(sheet, pos.row, pos.col);
-    if (isNarrow()) store.set('panel', null);
+    if (store.narrow) store.set('panel', null);
   };
   const time = (at: number) => t.date(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const empty = <span className="muted">{t('changes.empty')}</span>;
@@ -187,7 +186,7 @@ function summarize(t: Translator, changes: CellChange[]): string {
 export function SidePanel({ store }: { store: WorkbookStore }) {
   const t = useT();
   const panel = store.panel;
-  if (!panel) return null;
+  if (!panel || (panel === 'report' && !store.features.report)) return null;
   return (
     <aside className="report" aria-label={t('panel.label')}>
       <Tabs
@@ -195,7 +194,7 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
         tabs={[
           { id: 'issues', label: t('panel.checks') },
           { id: 'changes', label: t('panel.changes') },
-          { id: 'report', label: t('panel.report') },
+          ...(store.features.report ? [{ id: 'report' as const, label: t('panel.report') }] : []),
         ]}
         value={panel}
         onChange={(id) => store.set('panel', id)}

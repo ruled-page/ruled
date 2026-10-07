@@ -41,9 +41,11 @@ describe('kitchen-sink.xlsx', () => {
   it('reports what the editor keeps but cannot show', () => {
     const s = open('kitchen-sink.xlsx');
     const kinds = s.model.findings.map((f) => f.kind);
+    // Frozen rows are shown frozen, so there is nothing to report about them.
+    expect(kinds).not.toContain('frozenRows');
     for (const k of [
       'chart', 'chartsheet', 'table', 'conditionalFormat', 'dataValidation', 'comment', 'sparkline',
-      'image', 'shape', 'hiddenSheet', 'protection', 'arrayFormula', 'richText', 'hyperlink', 'mergedCells', 'frozenRows',
+      'image', 'shape', 'hiddenSheet', 'protection', 'arrayFormula', 'richText', 'hyperlink', 'mergedCells',
     ]) {
       expect(kinds, k).toContain(k);
     }

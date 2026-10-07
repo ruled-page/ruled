@@ -100,6 +100,15 @@ test.describe('with only a keyboard', () => {
     await expect(dialog).toBeHidden();
   });
 
+  test('⌘/ lists the shortcuts too, as do keyboards that type / with Shift', async ({ page }) => {
+    await page.keyboard.press('Meta+/');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    // A German keyboard: / is Shift+7, but the key in the US / place still counts.
+    await page.locator('canvas[data-testid="data-grid-canvas"]').first().dispatchEvent('keydown', { key: '-', code: 'Slash', metaKey: true, bubbles: true });
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  });
+
   test('Ctrl+/ lists the shortcuts and Escape gives the focus back', async ({ page }) => {
     await page.keyboard.press('Control+/');
     const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });

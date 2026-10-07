@@ -126,6 +126,13 @@ export interface EditorFeatures {
   download: boolean;
   /** Schema designer button. Default true. */
   schemas: boolean;
+  /**
+   * "What's in this file": what the workbook holds that the editor keeps but
+   * doesn't show, and how its formulas are calculated, with the banner that
+   * sums it up. Useful to people who know Excel; hosts whose users only fill
+   * in a template can turn it off. Default true.
+   */
+  report: boolean;
 }
 
 export interface StoreOptions {
@@ -349,7 +356,7 @@ export class WorkbookStore {
   constructor(options: StoreOptions = {}) {
     this.options = options;
     this.schemas = [...(options.schemas ?? [])];
-    this.features = { open: true, save: true, download: true, schemas: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }
@@ -358,6 +365,18 @@ export class WorkbookStore {
   readonly i18n: I18n;
   /** Translation functions, in the editor's current language. */
   readonly t: Translator;
+
+  /**
+   * Whether the editor is phone-sized (its own width, which in a host's layout
+   * can be narrower than the window): the side panel then covers the sheet.
+   */
+  narrow = isNarrow();
+
+  setNarrow(narrow: boolean): void {
+    if (narrow === this.narrow) return;
+    this.narrow = narrow;
+    this.notify();
+  }
 
   /** Changes the language of the editor's text while it is open. */
   setLanguage(language: string): void {
@@ -1670,7 +1689,7 @@ export class WorkbookStore {
     });
     ctl.validate();
     // On a phone the panel would cover the sheet; the schema chip opens it.
-    if (ctl.summary().errors && !isNarrow()) this.panel = 'issues';
+    if (ctl.summary().errors && !this.narrow) this.panel = 'issues';
     this.notify();
   }
 

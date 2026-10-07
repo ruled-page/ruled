@@ -34,6 +34,8 @@ export const ui = {
   'toolbar.deleteRowTitle': 'Delete the selected rows from this table',
   'toolbar.deleteColumn': 'Delete column',
   'toolbar.deleteColumnTitle': 'Delete the selected columns from this table',
+  'toolbar.selectRowFirst': 'Select a row of the table to insert or delete rows',
+  'toolbar.selectColumnFirst': 'Select a column of the table to insert or delete columns',
   'toolbar.exact': 'Exact numbers',
   'toolbar.exactTitle': 'Show every stored digit and copy exact values',
   'toolbar.highlight': 'Highlight changes',

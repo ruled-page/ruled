@@ -3,7 +3,6 @@ import type { Finding, FindingKind } from '../core/types';
 import type { WorkbookStore } from '../state/store';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
-import { isNarrow } from '../state/viewport';
 
 type GroupId = 'kept' | 'recalc' | 'limits';
 
@@ -27,7 +26,7 @@ const GROUPS: { id: GroupId; title: MessageKey; blurb: MessageKey; kinds: Findin
     id: 'limits',
     title: 'report.limitsTitle',
     blurb: 'report.limitsBlurb',
-    kinds: ['table', 'protection', 'arrayFormula', 'mergedCells', 'frozenRows', 'autoFilter', 'richText'],
+    kinds: ['table', 'protection', 'arrayFormula', 'mergedCells', 'autoFilter', 'richText'],
   },
 ];
 
@@ -47,7 +46,7 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
       store.reveal(i, rect.r1, rect.c1);
       store.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
     }
-    if (isNarrow()) store.set('panel', null);
+    if (store.narrow) store.set('panel', null);
   };
   const calc = store.calc;
   const duration = (ms: number) =>

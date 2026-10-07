@@ -54,8 +54,9 @@ export function Review({ id }: { id?: string }) {
       schemas: [supplierPriceList],
       language: i18n.language,
       theme: PORTAL_THEME,
-      // The portal chooses the file and has no use for the schema designer.
-      features: { open: false, schemas: false },
+      // The portal chooses the file, and suppliers need neither the schema designer
+      // nor the report on what the file holds beyond what they fill in.
+      features: { open: false, schemas: false, report: false },
       saveLabel: { en: 'Submit price list', de: 'Preisliste einreichen' },
       user: 'Supplier',
       // The host's save: read the values into the portal's own records and store them.

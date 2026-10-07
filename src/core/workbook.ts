@@ -324,15 +324,6 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         sheet: name,
       });
     }
-    if (info.frozenRows > 0) {
-      findings.push({
-        kind: 'frozenRows',
-        severity: 'info',
-        title: msg('core.finding.frozenRows.title'),
-        detail: msg('core.finding.frozenRows.detail', { count: info.frozenRows }),
-        sheet: name,
-      });
-    }
 
     const protection = child(meta, 'sheetProtection');
     if (protection && ['1', 'true'].includes(attr(protection, 'sheet') ?? '')) {
