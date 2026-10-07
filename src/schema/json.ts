@@ -26,6 +26,11 @@ export function schemaToJSON(schema: WorkbookSchema): string {
     schema,
     (_key, value: unknown) => {
       if (typeof value === 'function') return undefined;
+      // JSON writes functions in arrays (such as table rules) as null, so leave them out first.
+      if (Array.isArray(value) && value.some((v) => typeof v === 'function')) {
+        const rest = value.filter((v) => typeof v !== 'function');
+        return rest.length ? rest : undefined;
+      }
       if (value instanceof RegExp) return { pattern: value.source, flags: value.flags || undefined };
       return value;
     },

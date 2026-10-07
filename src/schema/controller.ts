@@ -675,9 +675,9 @@ export class SchemaController {
           });
         }
         for (const c of t.schema.checks ?? []) issues.push(...this.runCheck(t, bs, c, count));
-        t.schema.rules?.forEach((rule, i) =>
-          this.runHook(`table:${bs.sheet}:${t.schema.key}:${i}`, generation, 'table', () => rule(this.tableData(bs, t), data), bs, t),
-        );
+        t.schema.rules?.forEach((rule, i) => {
+          if (typeof rule === 'function') this.runHook(`table:${bs.sheet}:${t.schema.key}:${i}`, generation, 'table', () => rule(this.tableData(bs, t), data), bs, t);
+        });
       }
       for (const c of bs.cells) {
         const rec = bs.view.get(c.pos.row, c.pos.col);

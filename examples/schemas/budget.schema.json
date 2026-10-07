@@ -1,0 +1,108 @@
+{
+  "id": "demo.budget",
+  "name": "Half-year budget",
+  "description": "A fixed grid: the categories and months are set by the schema; only the amounts can change.",
+  "saveWithErrors": "confirm",
+  "sheets": [
+    {
+      "name": "Budget",
+      "tables": [
+        {
+          "key": "budget",
+          "at": "A1",
+          "orientation": "rows",
+          "corner": "Category",
+          "records": {
+            "labels": [
+              "Salaries",
+              "Rent",
+              "Marketing",
+              "Travel",
+              "Equipment"
+            ]
+          },
+          "fields": [
+            {
+              "key": "jan",
+              "label": "Jan",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "feb",
+              "label": "Feb",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "mar",
+              "label": "Mar",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "apr",
+              "label": "Apr",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "may",
+              "label": "May",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "jun",
+              "label": "Jun",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            }
+          ]
+        }
+      ],
+      "cells": [
+        {
+          "key": "approvedBy",
+          "ref": "B8",
+          "label": {
+            "ref": "A8",
+            "text": "Approved by"
+          },
+          "type": "text",
+          "required": true,
+          "description": "Who signed off this budget."
+        },
+        {
+          "key": "total",
+          "ref": "B9",
+          "label": {
+            "ref": "A9",
+            "text": "Total"
+          },
+          "type": "number",
+          "formula": "require",
+          "readOnly": true
+        }
+      ]
+    }
+  ]
+}

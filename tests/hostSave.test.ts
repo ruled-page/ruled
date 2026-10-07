@@ -29,7 +29,7 @@ describe('saving to the host', () => {
     expect(store.unsaved).toBe(true);
     await saveAnyway(store);
     expect(got).toBeDefined();
-    expect(got!.schema).toMatchObject({ id: schema.id, version: '3', errors: 3 });
+    expect(got!.schema).toMatchObject({ id: schema.id, version: '3', errors: 2 });
     const quarters = Object.values(got!.values!)[0].tables;
     const first = Object.values(quarters)[0][0];
     expect(Object.values(first)).toContain(1500);

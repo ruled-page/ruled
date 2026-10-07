@@ -1,10 +1,10 @@
 import { mergeEditResults } from '../core/editResult';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
-import { inRect, MAX_COLS, MAX_ROWS, parseA1, parseRange, toA1 } from '../core/refs';
+import { inRect, MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
-import type { FieldValue, JsonValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
+import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
 import {
   CellFlag,
   VT,
@@ -24,7 +24,9 @@ import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText } from './clipboard';
-import { cellJson, displayText, editText, exactText } from './format';
+import { displayText, editText, exactText } from './format';
+import { workbookReaders, type WorkbookReaders } from './readers';
+import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
 
@@ -76,7 +78,7 @@ export class SaveConflictError extends Error {
  * element's `save` event): the file itself, what changed, and its values, so
  * the host can store the file, the values, or both.
  */
-export interface SavedWorkbook {
+export interface SavedWorkbook extends WorkbookReaders {
   bytes: Uint8Array;
   fileName: string;
   /** Changes since the workbook was opened: cells, plus any rows or columns inserted or deleted, or cells moved. */
@@ -89,10 +91,6 @@ export interface SavedWorkbook {
   schema?: { id: string; name: string; version?: string; errors: number; warnings: number };
   /** The values in the shape of that schema: each table's records by field, each single cell. */
   values?: SchemaValues;
-  /** Any cell's value as JSON, e.g. cell('Data', 'B4'); dates come back as ISO text. */
-  cell(sheet: string, ref: string): JsonValue;
-  /** A range's values row by row, e.g. range('Data', 'A1:F200'); without a range, the sheet's used range. */
-  range(sheet: string, ref?: string): JsonValue[][];
 }
 
 export interface EditorFeatures {
@@ -187,15 +185,6 @@ interface FormulaList {
   version: number;
   options: string[] | undefined;
   ready: Promise<string[] | undefined>;
-}
-
-/** The custom document property that records the schema a file was saved with, as "id@version". */
-export const SCHEMA_PROPERTY = 'WorkbookSchema';
-
-function parseStamp(value: string | undefined): { id: string; version: string } | undefined {
-  if (!value) return undefined;
-  const at = value.lastIndexOf('@');
-  return at < 0 ? { id: value, version: '' } : { id: value.slice(0, at), version: value.slice(at + 1) };
 }
 
 export interface FindQuery {
@@ -698,41 +687,8 @@ export class WorkbookStore {
   }
 
   /** Readers over the workbook as it is now, for the host to pull values from on save. */
-  private readers(): Pick<SavedWorkbook, 'cell' | 'range'> {
-    const sheets = this.sheets;
-    const styles = this.styles;
-    const date1904 = this.date1904;
-    const find = (name: string) => {
-      const view = sheets.find((v) => v.info.name.toLowerCase() === name.toLowerCase());
-      if (!view) throw new Error(`There is no sheet called "${name}".`);
-      return view;
-    };
-    const value = (view: SheetView, row: number, col: number) => {
-      const rec = view.get(row, col);
-      return cellJson(rec, styles[rec?.style ?? 0] ?? styles[0], date1904);
-    };
-    return {
-      cell: (sheet, ref) => {
-        const at = parseA1(ref);
-        if (!at) throw new Error(`"${ref}" isn't a cell reference.`);
-        return value(find(sheet), at.row, at.col);
-      },
-      range: (sheet, ref) => {
-        const view = find(sheet);
-        const rect = ref ? parseRange(ref) : view.info.maxRow < 0 ? null : { r1: 0, c1: 0, r2: view.info.maxRow, c2: view.info.maxCol };
-        if (ref && !rect) throw new Error(`"${ref}" isn't a range.`);
-        if (!rect) return [];
-        const rows: JsonValue[][] = [];
-        const r2 = Math.min(rect.r2, Math.max(view.info.maxRow, rect.r1));
-        const c2 = Math.min(rect.c2, Math.max(view.info.maxCol, rect.c1));
-        for (let r = rect.r1; r <= r2; r++) {
-          const line: JsonValue[] = [];
-          for (let c = rect.c1; c <= c2; c++) line.push(value(view, r, c));
-          rows.push(line);
-        }
-        return rows;
-      },
-    };
+  private readers(): WorkbookReaders {
+    return workbookReaders(this.sheets, this.styles, this.date1904);
   }
 
   /**
@@ -1493,16 +1449,10 @@ export class WorkbookStore {
     if (this.status !== 'ready' || !this.schemas.length) return this.notify();
     let closest: { name: string; problems: string[]; found: number } | undefined;
     // A file stamped with a schema when it was saved tries that schema first.
-    const stamp = parseStamp(this.properties[SCHEMA_PROPERTY]);
-    const order = stamp ? [...this.schemas].sort((a, b) => Number(b.id === stamp.id) - Number(a.id === stamp.id)) : this.schemas;
-    for (const s of order) {
+    for (const s of stampedFirst(this.schemas, this.properties)) {
       const r = bindSchema(s, this.sheets);
       if (r.binding) {
-        if (stamp?.id === s.id && stamp.version !== (s.version ?? '')) {
-          this.schemaNote = stamp.version
-            ? `This file was last saved with version ${stamp.version} of “${s.name}”; it is checked against ${s.version ? `version ${s.version}` : 'the current version'}.`
-            : `This file was last saved with an unversioned “${s.name}” schema; it is checked against version ${s.version}.`;
-        }
+        this.schemaNote = versionNote(s, this.properties);
         this.attachSchema(r.binding);
         return;
       }
@@ -1538,8 +1488,7 @@ export class WorkbookStore {
 
   /** The stamp saving writes into the file: the applied schema's id and version, if it has a version. */
   private schemaStamp(): Record<string, string> | undefined {
-    const s = this.schema?.schema;
-    return s?.version ? { [SCHEMA_PROPERTY]: `${s.id}@${s.version}` } : undefined;
+    return stampFor(this.schema?.schema);
   }
 
   /** Adds a schema, replacing any with the same id, and re-checks the open workbook. */

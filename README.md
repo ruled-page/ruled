@@ -142,6 +142,33 @@ file. If the stored copy changed since it was opened, throw
 `SaveConflictError`: the editor keeps the user's work and offers it as a
 download. `examples/html/index.html` shows what arrives.
 
+## On a server (Node)
+
+The same core runs without a browser, so a server can re-check what users
+save, or a batch job can fill and check workbooks. `npm run build:node` builds
+`dist-node/` (the package's `./node` export and the `workbook-check` command).
+
+```ts
+import { ServerWorkbook, validateWorkbook } from 'fake-spreadsheet/node';
+
+const result = await validateWorkbook(bytes, { schemas }); // { ok, schema, errors, issues, values }
+
+const wb = ServerWorkbook.open(bytes, { fileName: 'prices.xlsx', schemas });
+await wb.set('Prices', 'A16', 'SKU-2001');   // typed as a user would; business logic runs
+const issues = await wb.issues();            // async checks finished
+const out = wb.save();                       // stamped with the schema's version
+```
+
+```
+workbook-check prices.xlsx --schema price-list.schema.json --set 'Prices!D4=12.50' --out fixed.xlsx --json
+```
+
+It prints the issues (or JSON with `--json`, values with `--values`) and exits
+0 when the workbook matches a schema with no errors, 1 when it has errors or
+matches none, and 2 when it can't be read. `examples/schemas/` has the demo
+schemas as JSON. Schemas loaded from JSON have no code hooks; code that
+needs them imports the schemas as modules instead.
+
 ## Sharing it on Cloudflare Pages
 
 The app is static (everything runs in the browser), so it deploys to
@@ -332,8 +359,8 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 - Cells are parsed into typed arrays and held in memory, so files much past
   a few million cells would need streaming parsing; the engine for live
   recalculation needs several times more memory than the cells themselves.
-- Schema hooks run on the UI thread and only in the browser; nothing
-  re-checks a file on a server yet. Inserting or deleting schema records
+- Schema hooks run on the UI thread in the browser, and in Node through
+  `ServerWorkbook`; the browser doesn't call a server itself. Inserting or deleting schema records
   moves cells within the table, so formulas outside the table that point
   into it are not adjusted (inserting rows from the grid's menu does adjust
   them).

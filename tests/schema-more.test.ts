@@ -162,3 +162,14 @@ describe('generating', () => {
     expect(bindSchema(generateSchema(views, r.styles, 'k.xlsx'), views).problems).toEqual([]);
   });
 });
+
+describe('exporting schemas written in code', () => {
+  it('leaves hooks out, including table rules, which JSON would turn into nulls', async () => {
+    const { forecastSchema } = await import('../src/demo/schemas');
+    const { schemaToJSON } = await import('../src/schema/json');
+    expect(forecastSchema.sheets[0].tables![0].rules?.length).toBeGreaterThan(0);
+    const json = schemaToJSON(forecastSchema);
+    expect(json).not.toContain('null');
+    expect(JSON.parse(json).sheets[0].tables[0].rules).toBeUndefined();
+  });
+});

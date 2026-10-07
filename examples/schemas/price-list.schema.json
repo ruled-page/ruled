@@ -1,0 +1,83 @@
+{
+  "id": "demo.price-list",
+  "name": "Price list",
+  "description": "One product per row. Type a new SKU such as SKU-2001 in the empty row under the table to see the catalogue lookup fill it in.",
+  "numbers": {
+    "display": "full",
+    "copy": "raw",
+    "paste": "strict",
+    "reviewBeforeSave": true
+  },
+  "sheets": [
+    {
+      "name": "Prices",
+      "tables": [
+        {
+          "key": "prices",
+          "at": "A1",
+          "orientation": "rows",
+          "records": {
+            "min": 1,
+            "max": 500
+          },
+          "fields": [
+            {
+              "key": "sku",
+              "label": "SKU",
+              "type": "text",
+              "required": true,
+              "unique": true,
+              "pattern": "^SKU-\\d{4}$",
+              "patternHint": "like SKU-1234"
+            },
+            {
+              "key": "description",
+              "label": "Description",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "category",
+              "label": "Category",
+              "type": "enum",
+              "values": [
+                "Hardware",
+                "Software",
+                "Services"
+              ],
+              "required": true
+            },
+            {
+              "key": "price",
+              "label": "Unit price",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2,
+              "formula": "forbid"
+            },
+            {
+              "key": "priceIncTax",
+              "label": "Price inc. tax",
+              "type": "number",
+              "formula": "require",
+              "description": "Calculated: unit price plus 20% tax."
+            },
+            {
+              "key": "from",
+              "label": "Effective from",
+              "type": "date",
+              "required": true,
+              "min": "2020-01-01"
+            },
+            {
+              "key": "active",
+              "label": "Active",
+              "type": "boolean"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

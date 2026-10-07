@@ -1,0 +1,61 @@
+{
+  "id": "demo.forecast",
+  "name": "Quarterly forecast",
+  "description": "One quarter per column. Type a period in the empty column after the table to add a quarter.",
+  "sheets": [
+    {
+      "name": "Forecast",
+      "tables": [
+        {
+          "key": "quarters",
+          "at": "A1",
+          "orientation": "columns",
+          "records": {
+            "min": 1,
+            "max": 12
+          },
+          "fields": [
+            {
+              "key": "period",
+              "label": "Period",
+              "type": "text",
+              "required": true,
+              "unique": true,
+              "pattern": "^(\\d{4})-Q([1-4])$",
+              "patternHint": "a quarter like 2027-Q1"
+            },
+            {
+              "key": "revenue",
+              "label": "Revenue",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2
+            },
+            {
+              "key": "cost",
+              "label": "Cost",
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "decimals": 2
+            },
+            {
+              "key": "margin",
+              "label": "Margin",
+              "type": "number",
+              "formula": "require"
+            },
+            {
+              "key": "marginPct",
+              "label": "Margin %",
+              "type": "percent",
+              "formula": "require",
+              "min": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

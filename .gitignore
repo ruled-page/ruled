@@ -6,3 +6,4 @@ dist
 public/samples/big.xlsx
 .wrangler
 dist-lib
+dist-node
