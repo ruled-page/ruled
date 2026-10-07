@@ -353,6 +353,8 @@ export interface LoadResult {
   findings: Finding[];
   date1904: boolean;
   timings: Record<string, number>;
+  /** Custom document properties, such as the schema the file was last saved with. */
+  properties: Record<string, string>;
 }
 
 export interface CalcSample {

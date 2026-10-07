@@ -48,6 +48,9 @@ export interface FieldSchema {
   max?: number | string;
   /** Most decimal places allowed; for percents, of the percentage (12.5% has 1). */
   decimals?: number;
+  /** Bounds on the length of text values. */
+  minLength?: number;
+  maxLength?: number;
   /** Regular expression the text form of the value must match. */
   pattern?: string;
   /** How to describe the pattern to people, e.g. "like SKU-1234". */
@@ -110,7 +113,13 @@ export type TableRule = (table: TableData, ctx: WorkbookData) => IssueInput[] | 
 export type DeclarativeRule =
   | { rule: 'monotonic'; field: string; direction: 'increasing' | 'decreasing' | 'nonIncreasing' | 'nonDecreasing'; severity?: Severity }
   | { rule: 'firstEquals'; field: string; value: number | string; severity?: Severity }
-  | { rule: 'sum'; field: string; equals?: number; max?: number; min?: number; severity?: Severity };
+  | { rule: 'sum'; field: string; equals?: number; max?: number; min?: number; severity?: Severity }
+  /** In every record, `field` compares with `other` this way (numbers, dates or text). */
+  | { rule: 'compare'; field: string; op: '<' | '<=' | '>' | '>=' | '=' | '<>'; other: string; severity?: Severity }
+  /** `field` is required in records where `when` has a value (or, with `equals`, that value). */
+  | { rule: 'requiredIf'; field: string; when: string; equals?: string | number | boolean; severity?: Severity }
+  /** No two records share the same combination of these fields' values. */
+  | { rule: 'uniqueTogether'; field: string; fields: string[]; severity?: Severity };
 
 export interface TableSchema {
   key: string;
@@ -197,6 +206,12 @@ export interface ChangeContext extends WorkbookData {
 export interface WorkbookSchema {
   id: string;
   name: string;
+  /**
+   * Saving stamps the file with the schema's id and version, so it is checked
+   * against this schema first when it is opened again, and a file saved under
+   * another version says so.
+   */
+  version?: string;
   description?: string;
   sheets: SheetSchema[];
   /** Whether sheets the schema doesn't describe can be edited. Default "editable". */
@@ -204,6 +219,12 @@ export interface WorkbookSchema {
   numbers?: NumberOptions;
   /** "block" refuses to save while errors remain; "confirm" asks first. Default "block". */
   saveWithErrors?: 'block' | 'confirm';
+  /**
+   * How long an async hook may take, in milliseconds. A check that takes longer
+   * is reported and its result ignored; business logic that takes longer
+   * changes nothing; a slow beforeSave stops the save. Default 10,000.
+   */
+  hookTimeoutMs?: number;
   /** Code hook: workbook-wide business rules; may call services. */
   validate?: (ctx: WorkbookData) => IssueInput[] | void | Promise<IssueInput[] | void>;
   /** Code hook: business logic run after each edit; may fill other cells via ctx.set. */

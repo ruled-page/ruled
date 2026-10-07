@@ -1,6 +1,7 @@
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
+import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePersons, parseThreads } from './comments';
@@ -35,6 +36,8 @@ export interface WorkbookModel {
   findings: Finding[];
   /** The workbook carries a VBA project. */
   hasMacros: boolean;
+  /** Custom document properties. */
+  properties: Record<string, string>;
 }
 
 const EMU_PER_PX = 9525;
@@ -619,5 +622,5 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     });
   }
 
-  return { workbookPath, sheets, styles, names, date1904, findings, hasMacros: vba };
+  return { workbookPath, sheets, styles, names, date1904, findings, hasMacros: vba, properties: readCustomProperties(pkg) };
 }

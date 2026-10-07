@@ -5,6 +5,7 @@ import type { ScanResult } from './sheetScanner';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { encodeOoxmlText, escapeXml, findTagEnd } from './xml';
+import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
 
 export interface SaveInput {
@@ -18,6 +19,8 @@ export interface SaveInput {
   recalculated: Set<number>[];
   /** Remove the VBA project, making the file a plain .xlsx. */
   stripMacros?: boolean;
+  /** Custom document properties to set, e.g. the schema the file was checked against. */
+  properties?: Record<string, string>;
 }
 
 type Patch =
@@ -56,6 +59,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   }
 
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
+  if (input.properties) setCustomProperties(pkg, input.properties);
 
   if (model.styles.additions.length) {
     const stylesRel = pkg.rels(model.workbookPath).find((r) => r.type === 'styles');

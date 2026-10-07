@@ -4,7 +4,7 @@ import { isDateStyle, type CellRecord } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import { listOptions, listValidationAt } from '../state/validation';
 import { cellText, type Pos } from './binding';
-import type { FieldSchema, FieldType, SheetSchema, TableSchema, WorkbookSchema } from './types';
+import type { CellSchema, FieldSchema, FieldType, SheetSchema, TableSchema, WorkbookSchema } from './types';
 
 /** How far into a sheet to look for a table's header row. */
 const SCAN_ROWS = 100;
@@ -112,27 +112,35 @@ interface Candidate {
   records: number;
 }
 
-/** Finds the largest block that looks like a header row with data under it. */
-function findTable(view: SheetView): Candidate | undefined {
+/** Finds the largest block that looks like a header row with data under it, outside `taken` cells. */
+function findTable(view: SheetView, taken: (row: number, col: number) => boolean = () => false): Candidate | undefined {
   const maxRow = Math.min(view.info.maxRow, SCAN_ROWS);
   const maxCol = Math.min(view.info.maxCol, SCAN_COLS);
+  // Headings are typed text: a formula's text result is data, not a heading.
+  const header = (r: number, c: number) => {
+    const rec = view.get(r, c);
+    return rec?.t === VT.String && rec.f === undefined && !view.mergeAt(r, c) && !taken(r, c);
+  };
   let best: Candidate | undefined;
   for (let r = 0; r <= maxRow; r++) {
     let c = 0;
     while (c <= maxCol) {
-      const rec = view.get(r, c);
-      if (!rec || rec.t !== VT.String || view.mergeAt(r, c)) {
+      if (!header(r, c)) {
         c++;
         continue;
       }
       let end = c;
-      while (end + 1 <= maxCol && view.get(r, end + 1)?.t === VT.String && !view.mergeAt(r, end + 1)) end++;
+      while (end + 1 <= maxCol && header(r, end + 1)) end++;
       if (end > c) {
         let records = 0;
         for (let rr = r + 1; rr <= view.info.maxRow + 1; rr++) {
           let any = false;
-          for (let cc = c; cc <= end && !any; cc++) any = !isEmpty(view.get(rr, cc));
-          if (!any) break;
+          let blocked = false;
+          for (let cc = c; cc <= end && !any; cc++) {
+            blocked ||= taken(rr, cc);
+            any = !isEmpty(view.get(rr, cc));
+          }
+          if (!any || blocked) break;
           records++;
         }
         const score = (end - c + 1) * (records + 1);
@@ -142,6 +150,47 @@ function findTable(view: SheetView): Candidate | undefined {
     }
   }
   return best;
+}
+
+/** Every table on a sheet: the best block first, then smaller ones that don't overlap it, top to bottom. */
+function findTables(view: SheetView): Candidate[] {
+  const found: Candidate[] = [];
+  const taken = (row: number, col: number) => found.some((t) => row >= t.at.row && row <= t.at.row + t.records && col >= t.at.col && col < t.at.col + t.width);
+  for (let k = 0; k < 8; k++) {
+    const next = findTable(view, taken);
+    // After the first, only blocks with a few rows of data count; two cells side by side is a label and its value.
+    if (!next || (found.length && (next.records < 2 || next.width < 2))) break;
+    found.push(next);
+  }
+  return found.sort((a, b) => a.at.row - b.at.row || a.at.col - b.at.col);
+}
+
+/**
+ * Single cells outside the tables that read as "Label | value", like
+ * "Report date | 2026-10-01". A text value counts when it is calculated or
+ * its label ends with a colon; otherwise two texts side by side are more
+ * likely headings.
+ */
+function findCells(view: SheetView, tables: Candidate[], styles: DisplayStyle[]): CellSchema[] {
+  const inTable = (row: number, col: number) => tables.some((t) => row >= t.at.row && row <= t.at.row + t.records && col >= t.at.col && col < t.at.col + t.width);
+  const out: CellSchema[] = [];
+  const used = new Set<string>();
+  const maxRow = Math.min(view.info.maxRow, SCAN_ROWS);
+  const maxCol = Math.min(view.info.maxCol, SCAN_COLS);
+  for (let r = 0; r <= maxRow && out.length < 40; r++) {
+    for (let c = 0; c < maxCol; c++) {
+      const label = view.get(r, c);
+      if (label?.t !== VT.String || label.f !== undefined || inTable(r, c) || view.mergeAt(r, c) || inTable(r, c + 1)) continue;
+      const value = view.get(r, c + 1);
+      if (isEmpty(value) || view.mergeAt(r, c + 1)) continue;
+      const text = (label.s ?? '').trim();
+      if (!text || (value!.t === VT.String && value!.f === undefined && !text.endsWith(':'))) continue;
+      const { label: _label, unique: _unique, ...field } = inferField(text.replace(/:$/, ''), [value], styles, used);
+      out.push({ ...field, ref: toA1(r, c + 1), label: { ref: toA1(r, c), text } });
+      c++;
+    }
+  }
+  return out;
 }
 
 /**
@@ -213,32 +262,42 @@ export function generateSchema(views: SheetView[], styles: DisplayStyle[], name:
   const sheets: SheetSchema[] = [];
   for (const view of views) {
     if (view.info.kind !== 'worksheet' || view.info.state !== 'visible') continue;
-    const found = findTable(view);
-    if (!found) continue;
-    // A first column of distinct labels over all-numeric data reads best as a fixed grid.
-    const firstCol: (CellRecord | null)[] = [];
-    let numericRest = 0;
-    let cellsRest = 0;
-    for (let r = 1; r <= found.records; r++) {
-      firstCol.push(view.get(found.at.row + r, found.at.col));
-      for (let c = 1; c < found.width; c++) {
-        const rec = view.get(found.at.row + r, found.at.col + c);
-        if (isEmpty(rec)) continue;
-        cellsRest++;
-        if (rec!.t === VT.Number) numericRest++;
-      }
-    }
-    const labelTexts = firstCol.map((c) => (c?.t === VT.String ? c.s ?? '' : ''));
-    const fixed =
-      found.width > 1 &&
-      found.records >= 2 &&
-      labelTexts.every(Boolean) &&
-      new Set(labelTexts).size === labelTexts.length &&
-      cellsRest > 0 &&
-      numericRest / cellsRest >= 0.9;
-    const key = toKey(view.info.name, new Set());
-    sheets.push({ name: view.info.name, tables: [inferTable(view, styles, key, found.at, 'rows', fixed, views)] });
+    const found = findTables(view);
+    const cells = findCells(view, found, styles);
+    if (!found.length && !cells.length) continue;
+    const used = new Set<string>();
+    const tables = found.map((t, i) => tableFor(view, styles, views, t, toKey(found.length > 1 ? `${view.info.name} ${i + 1}` : view.info.name, used)));
+    const sheet: SheetSchema = { name: view.info.name };
+    if (tables.length) sheet.tables = tables;
+    if (cells.length) sheet.cells = cells;
+    sheets.push(sheet);
   }
   const id = name.toLowerCase().replace(/\.[a-z]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'schema';
   return { id, name: name.replace(/\.[a-z]+$/i, ''), sheets };
+}
+
+/** A table definition for a block the generator found, read as a fixed grid when it looks like one. */
+function tableFor(view: SheetView, styles: DisplayStyle[], views: SheetView[], found: Candidate, key: string): TableSchema {
+  // A first column of distinct labels over all-numeric data reads best as a fixed grid.
+  const firstCol: (CellRecord | null)[] = [];
+  let numericRest = 0;
+  let cellsRest = 0;
+  for (let r = 1; r <= found.records; r++) {
+    firstCol.push(view.get(found.at.row + r, found.at.col));
+    for (let c = 1; c < found.width; c++) {
+      const rec = view.get(found.at.row + r, found.at.col + c);
+      if (isEmpty(rec)) continue;
+      cellsRest++;
+      if (rec!.t === VT.Number) numericRest++;
+    }
+  }
+  const labelTexts = firstCol.map((c) => (c?.t === VT.String ? c.s ?? '' : ''));
+  const fixed =
+    found.width > 1 &&
+    found.records >= 2 &&
+    labelTexts.every(Boolean) &&
+    new Set(labelTexts).size === labelTexts.length &&
+    cellsRest > 0 &&
+    numericRest / cellsRest >= 0.9;
+  return inferTable(view, styles, key, found.at, 'rows', fixed, views);
 }

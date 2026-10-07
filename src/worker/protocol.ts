@@ -5,7 +5,7 @@ import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, 
 export type WorkerRequest =
   | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions }
   | { id: number; type: 'edit'; op: EditOp }
-  | { id: number; type: 'save' }
+  | { id: number; type: 'save'; properties?: Record<string, string> }
   | { id: number; type: 'changes' }
   | { id: number; type: 'validate'; sheet: number; row: number; col: number; text: string; rule: number }
   | { id: number; type: 'listSource'; sheet: number; formula: string }

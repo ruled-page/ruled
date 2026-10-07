@@ -213,18 +213,27 @@ export const priceListSchema = defineSchema({
   started in the empty row (or column) after a table. New records take the
   calculated fields and number formats of the record before them, as in an
   Excel table.
-- **Checks** run as you edit: field rules, declarative table checks
-  (`monotonic`, `firstEquals`, `sum`), and code hooks at field, table, sheet
-  and workbook level. Hooks may be async; results from superseded runs are
-  dropped, and pending checks show in the grid and the issues panel.
+- **Checks** run as you edit: field rules (type, required, bounds, decimals,
+  text length, pattern, allowed values, unique), declarative table checks
+  (`monotonic`, `firstEquals`, `sum`, and per record `compare`, `requiredIf`
+  and `uniqueTogether`), and code hooks at field, table, sheet and workbook
+  level. Hooks may be async; results from superseded runs are dropped, and
+  pending checks show in the grid and the issues panel. Each async hook has
+  `hookTimeoutMs` (default 10 seconds): a slow check is reported and ignored,
+  slow business logic changes nothing, and a slow `beforeSave` stops the save.
+- **Versions**: a schema with a `version` stamps files it saves (a custom
+  document property, `WorkbookSchema = id@version`). A stamped file tries
+  that schema first when opened, and says so if it was saved under another
+  version.
 - **Business logic**: `onChange` runs after each edit and can write other cells;
   its writes are part of the same undo step. `beforeSave` can stop a save.
   Saving with errors is blocked, or asks first with `saveWithErrors: 'confirm'`.
 
 Everything except the hook functions is JSON, so the **schema designer**
-(toolbar → Schemas) can generate a schema from the open workbook, edit it in a
-form or as JSON, test it against the workbook, apply it, and export or import
-`.schema.json` files. Exporting a schema written in code leaves its hooks out.
+(toolbar → Schemas) can generate a schema from the open workbook (every table
+on each sheet, and "Label | value" cells as single cells), edit it in a form or
+as JSON, add tables and single cells by selecting them on the sheet, test it
+against the workbook, apply it, and export or import `.schema.json` files. Exporting a schema written in code leaves its hooks out.
 Columns with an Excel list validation are generated as enum fields with the
 list's values. Where a schema enum field and an Excel list cover the same
 cell, the schema wins.
@@ -315,6 +324,6 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   moves cells within the table, so formulas outside the table that point
   into it are not adjusted (inserting rows from the grid's menu does adjust
   them).
-- The generator finds one table per sheet and its guesses are a starting
-  point. The designer edits tables and fields; single cells are edited in
-  its JSON view.
+- The generator's guesses are a starting point: tables need a row of typed
+  headings, and a "Label | value" pair with a text value only counts when the
+  label ends with a colon or the value is calculated.

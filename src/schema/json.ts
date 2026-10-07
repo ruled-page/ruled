@@ -51,6 +51,8 @@ export function schemaFromJSON(text: string): WorkbookSchema {
   if (typeof s.id !== 'string' || !s.id) fail('"id" is missing.');
   if (typeof s.name !== 'string' || !s.name) fail('"name" is missing.');
   if (!Array.isArray(s.sheets) || !s.sheets.length) fail('"sheets" must list at least one sheet.');
+  if (s.version !== undefined && typeof s.version !== 'string') fail('"version" must be text, e.g. "2".');
+  if (s.hookTimeoutMs !== undefined && !(typeof s.hookTimeoutMs === 'number' && s.hookTimeoutMs > 0)) fail('"hookTimeoutMs" must be a positive number of milliseconds.');
   s.sheets.forEach((sheet, i) => {
     if (!sheet.name) fail(`sheet ${i + 1} has no name.`);
     for (const t of sheet.tables ?? []) {
@@ -71,6 +73,10 @@ export function schemaFromJSON(text: string): WorkbookSchema {
             fail(`field "${f.key}" has an invalid pattern.`);
           }
         }
+      }
+      for (const c of t.checks ?? []) {
+        const named = [c.field, ...(c.rule === 'compare' ? [c.other] : c.rule === 'requiredIf' ? [c.when] : c.rule === 'uniqueTogether' ? c.fields : [])];
+        for (const k of named) if (k !== '*' && !keys.has(k)) fail(`a "${c.rule}" check in table "${t.key}" names "${k}", which isn't one of its fields.`);
       }
     }
     for (const c of sheet.cells ?? []) {

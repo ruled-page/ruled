@@ -56,6 +56,27 @@ type Lite = { severity: Severity; message: string };
 const EPOCH = Date.UTC(1899, 11, 30);
 const DAY = 86_400_000;
 
+const DEFAULT_HOOK_TIMEOUT_MS = 10_000;
+
+/** A hook that ran past its time limit. */
+class HookTimeout extends Error {
+  constructor(ms: number) {
+    super(`didn't finish within ${ms % 1000 ? `${ms.toLocaleString()} ms` : `${(ms / 1000).toLocaleString()} second${ms === 1000 ? '' : 's'}`}`);
+  }
+}
+
+/** The hook's result, or a HookTimeout once it has run longer than `ms` (calling `onTimeout`, e.g. to abort it). */
+function withTimeout<T>(p: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new HookTimeout(ms));
+    }, ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 function isPromise<T>(v: unknown): v is Promise<T> {
   return !!v && typeof (v as Promise<T>).then === 'function';
 }
@@ -119,6 +140,11 @@ export class SchemaController {
   private hookAbort = new AbortController();
   private readonly counts = new Map<BoundTable, number>();
   private generation = 0;
+
+  /** How long async hooks may run. */
+  private get timeoutMs(): number {
+    return this.schema.hookTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS;
+  }
 
   constructor(
     readonly binding: Binding,
@@ -384,6 +410,11 @@ export class SchemaController {
       case 'text':
         break;
     }
+    if (f.minLength !== undefined || f.maxLength !== undefined) {
+      const length = (value instanceof Date ? isoDate(value) : String(value)).length;
+      if (f.minLength !== undefined && length < f.minLength) err(`At least ${f.minLength} character${f.minLength === 1 ? '' : 's'}.`);
+      if (f.maxLength !== undefined && length > f.maxLength) err(`At most ${f.maxLength} character${f.maxLength === 1 ? '' : 's'}.`);
+    }
     if (f.pattern && !regex(f.pattern).test(value instanceof Date ? isoDate(value) : String(value))) {
       err(f.patternHint ? `Should be ${f.patternHint}.` : "Doesn't match the expected format.");
     }
@@ -409,12 +440,13 @@ export class SchemaController {
       return toLite(result);
     }
     const entry: { key: string; issue: Lite | null; pending?: Promise<void>; abort: AbortController } = { key, issue: null, abort };
-    entry.pending = result.then(
+    entry.pending = withTimeout(result, this.timeoutMs, () => abort.abort()).then(
       (r) => {
         entry.issue = toLite(r);
       },
       (e: Error) => {
-        if (!abort.signal.aborted) entry.issue = { severity: 'error', message: `Check failed: ${e.message}` };
+        if (e instanceof HookTimeout) entry.issue = { severity: 'warning', message: `Couldn't be checked: the check ${e.message}.` };
+        else if (!abort.signal.aborted) entry.issue = { severity: 'error', message: `Check failed: ${e.message}` };
       },
     ).finally(() => {
       entry.pending = undefined;
@@ -466,13 +498,15 @@ export class SchemaController {
       return;
     }
     const signal = this.hookAbort.signal;
-    const p: Promise<void> = result
+    const p: Promise<void> = withTimeout(result, this.timeoutMs)
       .then(
         (r) => {
           if (generation === this.generation) this.hookResults.set(id, this.resolveIssues(r ?? [], source, bs, t));
         },
         (e) => {
-          if (generation === this.generation && !signal.aborted) this.hookResults.set(id, failed(e));
+          if (generation !== this.generation) return;
+          if (e instanceof HookTimeout) this.hookResults.set(id, this.resolveIssues([{ severity: 'warning', message: `A ${source} check ${e.message}, so its result is ignored.` }], source, bs, t));
+          else if (!signal.aborted) this.hookResults.set(id, failed(e));
         },
       )
       .finally(() => {
@@ -484,6 +518,7 @@ export class SchemaController {
   }
 
   private runCheck(t: BoundTable, bs: BoundSheet, c: DeclarativeRule, count: number): Issue[] {
+    if (c.rule === 'compare' || c.rule === 'requiredIf' || c.rule === 'uniqueTogether') return this.resolveIssues(this.recordCheck(t, c, count), 'table', bs, t);
     const fields = c.field === '*' ? t.fields.map((_, j) => j) : [t.fields.findIndex((f) => f.key === c.field)].filter((j) => j >= 0);
     const inputs: IssueInput[] = [];
     const num = (r: number, j: number) => {
@@ -518,6 +553,46 @@ export class SchemaController {
       }
     }
     return this.resolveIssues(inputs, 'table', bs, t);
+  }
+
+  /** Checks that compare fields within each record, or records with each other. */
+  private recordCheck(t: BoundTable, c: Extract<DeclarativeRule, { rule: 'compare' | 'requiredIf' | 'uniqueTogether' }>, count: number): IssueInput[] {
+    const out: IssueInput[] = [];
+    const label = (key: string) => {
+      const f = t.fields.find((x) => x.key === key);
+      return f ? `“${matchLabel(f.label)}”` : key;
+    };
+    const blank = (v: FieldValue) => v === null || v === '';
+    const comparable = (v: FieldValue) => (v instanceof Date ? v.getTime() : typeof v === 'string' ? v.toLowerCase() : v);
+    const seen = new Map<string, number>();
+    for (let r = 0; r < count; r++) {
+      const values = this.recordValues(t, r);
+      if (c.rule === 'compare') {
+        const a = values[c.field];
+        const b = values[c.other];
+        if (blank(a) || blank(b)) continue;
+        const x = comparable(a);
+        const y = comparable(b);
+        const ok = { '<': x! < y!, '<=': x! <= y!, '>': x! > y!, '>=': x! >= y!, '=': x === y, '<>': x !== y }[c.op];
+        const words = { '<': 'before', '<=': 'no later than', '>': 'after', '>=': 'no earlier than', '=': 'the same as', '<>': 'different from' }[c.op];
+        const numeric = { '<': 'less than', '<=': 'at most', '>': 'more than', '>=': 'at least', '=': 'equal to', '<>': 'different from' }[c.op];
+        if (!ok) out.push({ record: r, field: c.field, severity: c.severity, message: `Should be ${a instanceof Date ? words : numeric} ${label(c.other)}.` });
+      } else if (c.rule === 'requiredIf') {
+        const w = values[c.when];
+        const applies = c.equals === undefined ? !blank(w) : comparable(w) === comparable(c.equals as FieldValue);
+        if (applies && blank(values[c.field])) {
+          out.push({ record: r, field: c.field, severity: c.severity, message: `Required when ${label(c.when)} is ${c.equals === undefined ? 'filled in' : String(c.equals)}.` });
+        }
+      } else {
+        const parts = c.fields.map((k) => values[k]);
+        if (parts.every(blank)) continue;
+        const key = parts.map((v) => valueKey(v).toLowerCase()).join('\u0000');
+        const first = seen.get(key);
+        if (first === undefined) seen.set(key, r);
+        else out.push({ record: r, field: c.field, severity: c.severity, message: `Same ${c.fields.map(label).join(' and ')} as record ${first + 1}.` });
+      }
+    }
+    return out;
   }
 
   /** Checks the whole workbook against the schema. Async hooks report back when they finish. */
@@ -739,9 +814,10 @@ export class SchemaController {
       },
     };
     try {
-      await onChange(ctx);
+      await withTimeout(Promise.resolve(onChange(ctx)), this.timeoutMs, () => abort.abort());
     } catch (e) {
-      this.hookResults.set('onChange', [{ severity: 'error', message: `Business logic failed: ${(e as Error).message}`, sheet: -1, sheetName: '', source: 'workbook' }]);
+      const message = e instanceof HookTimeout ? `Business logic ${e.message}, so the changes it would have made weren't applied.` : `Business logic failed: ${(e as Error).message}`;
+      this.hookResults.set('onChange', [{ severity: 'error', message, sheet: -1, sheetName: '', source: 'workbook' }]);
       this.reindex();
       this.host.changed();
       return;
@@ -822,9 +898,11 @@ export class SchemaController {
     }
     if (this.schema.beforeSave) {
       try {
-        const r = await this.schema.beforeSave(this.data(new AbortController().signal));
+        const abort = new AbortController();
+        const r = await withTimeout(Promise.resolve(this.schema.beforeSave(this.data(abort.signal))), this.timeoutMs, () => abort.abort());
         if (typeof r === 'string') return { ok: false, message: r, canOverride: false };
       } catch (e) {
+        if (e instanceof HookTimeout) return { ok: false, message: `The checks before saving ${e.message}. Try saving again.`, canOverride: false };
         return { ok: false, message: `The save check failed: ${(e as Error).message}`, canOverride: false };
       }
     }

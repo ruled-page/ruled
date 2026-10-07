@@ -349,6 +349,7 @@ export class WorkbookSession {
       findings: this.model.findings,
       date1904: this.model.date1904,
       timings: this.timings,
+      properties: this.model.properties,
     };
   }
 
@@ -1183,15 +1184,18 @@ export class WorkbookSession {
   // ---------------------------------------------------------------------------
   // Saving
 
-  /** The workbook as .xlsx bytes. Unchanged workbooks come back byte for byte. */
-  save(): Uint8Array {
+  /**
+   * The workbook as .xlsx bytes, with any custom document properties given.
+   * An unchanged workbook comes back byte for byte.
+   */
+  save(properties?: Record<string, string>): Uint8Array {
     if (this.editedCount === 0) {
       if (!this.stripMacros && this.originalBytes) return this.originalBytes;
       const pkg = this.pkg.clone();
       if (this.stripMacros) removeMacros(pkg, this.model.workbookPath);
       return pkg.toBytes();
     }
-    return writeWorkbook(this.saveInput());
+    return writeWorkbook({ ...this.saveInput(), properties });
   }
 
   /** The workbook with every edit written in, as a package. */

@@ -173,6 +173,15 @@ interface FormulaList {
   ready: Promise<string[] | undefined>;
 }
 
+/** The custom document property that records the schema a file was saved with, as "id@version". */
+export const SCHEMA_PROPERTY = 'WorkbookSchema';
+
+function parseStamp(value: string | undefined): { id: string; version: string } | undefined {
+  if (!value) return undefined;
+  const at = value.lastIndexOf('@');
+  return at < 0 ? { id: value, version: '' } : { id: value.slice(0, at), version: value.slice(at + 1) };
+}
+
 export interface FindQuery {
   text: string;
   matchCase: boolean;
@@ -235,6 +244,14 @@ export class WorkbookStore {
   schemas: WorkbookSchema[];
   schema?: SchemaController;
   schemaMismatch?: SchemaMismatch;
+  /** Set when the file was last saved with another version of the schema now applied to it. */
+  schemaNote?: string;
+  /** The schema being edited in the designer, kept while the designer is closed or picking cells. */
+  schemaDraft?: WorkbookSchema;
+  /** The designer is waiting for cells to be selected on the sheet, for a new table or a single cell. */
+  designerPick?: 'table' | 'cell';
+  /** The workbook's custom document properties, as opened. */
+  properties: Record<string, string> = {};
   /** Changes whenever schema issues change, so the grid redraws its markers. */
   schemaVersion = 0;
   history: HistoryEntry[] = [];
@@ -455,6 +472,7 @@ export class WorkbookStore {
       this.styles = r.styles;
       this.findings = r.findings;
       this.date1904 = r.date1904;
+      this.properties = r.properties ?? {};
       this.timings = r.timings;
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
@@ -534,7 +552,7 @@ export class WorkbookStore {
     this.busy = true;
     this.notify();
     try {
-      const res = await this.request({ type: 'save' } as Omit<WorkerRequest, 'id'>);
+      const res = await this.request({ type: 'save', properties: this.schemaStamp() } as Omit<WorkerRequest, 'id'>);
       if (res.type !== 'saved') return undefined;
       return { bytes: res.bytes, fileName: res.fileName, changes: res.changes, history: [...this.history], editedCount: this.editedCount };
     } catch (err) {
@@ -1373,11 +1391,20 @@ export class WorkbookStore {
     for (const v of this.sheets) v.constraint = undefined;
     this.schema = undefined;
     this.schemaMismatch = undefined;
+    this.schemaNote = undefined;
     if (this.status !== 'ready' || !this.schemas.length) return this.notify();
     let closest: { name: string; problems: string[]; found: number } | undefined;
-    for (const s of this.schemas) {
+    // A file stamped with a schema when it was saved tries that schema first.
+    const stamp = parseStamp(this.properties[SCHEMA_PROPERTY]);
+    const order = stamp ? [...this.schemas].sort((a, b) => Number(b.id === stamp.id) - Number(a.id === stamp.id)) : this.schemas;
+    for (const s of order) {
       const r = bindSchema(s, this.sheets);
       if (r.binding) {
+        if (stamp?.id === s.id && stamp.version !== (s.version ?? '')) {
+          this.schemaNote = stamp.version
+            ? `This file was last saved with version ${stamp.version} of “${s.name}”; it is checked against ${s.version ? `version ${s.version}` : 'the current version'}.`
+            : `This file was last saved with an unversioned “${s.name}” schema; it is checked against version ${s.version}.`;
+        }
         this.attachSchema(r.binding);
         return;
       }
@@ -1409,6 +1436,12 @@ export class WorkbookStore {
     ctl.validate();
     if (ctl.summary().errors) this.panel = 'issues';
     this.notify();
+  }
+
+  /** The stamp saving writes into the file: the applied schema's id and version, if it has a version. */
+  private schemaStamp(): Record<string, string> | undefined {
+    const s = this.schema?.schema;
+    return s?.version ? { [SCHEMA_PROPERTY]: `${s.id}@${s.version}` } : undefined;
   }
 
   /** Adds a schema, replacing any with the same id, and re-checks the open workbook. */
@@ -1487,7 +1520,7 @@ export class WorkbookStore {
     this.notify();
   }
 
-  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen' | 'menu' | 'filterPicker' | 'findOpen'>(
+  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen' | 'menu' | 'filterPicker' | 'findOpen' | 'schemaDraft' | 'designerPick'>(
     key: K,
     value: WorkbookStore[K],
   ): void {

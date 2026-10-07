@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from 'react';
-import { parseA1 } from '../core/refs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { parseA1, toA1 } from '../core/refs';
+import { VT } from '../core/types';
 import { bindSchema } from '../schema/binding';
-import { generateSchema, inferTable } from '../schema/generate';
+import { generateSchema, inferField, inferTable } from '../schema/generate';
 import { matchLabel, schemaFromJSON, schemaToJSON, textMatches } from '../schema/json';
-import type { DeclarativeRule, FieldSchema, FieldType, SheetSchema, TableSchema, TextMatch, WorkbookSchema } from '../schema/types';
+import type { CellSchema, DeclarativeRule, FieldSchema, FieldType, SheetSchema, TableSchema, TextMatch, WorkbookSchema } from '../schema/types';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 
@@ -100,12 +101,25 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
           <option value="forbid">forbid</option>
         </select>
       </td>
-      <td>
-        <input className="narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label="Minimum" />
-      </td>
-      <td>
-        <input className="narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label="Maximum" />
-      </td>
+      {f.type === 'text' ? (
+        <>
+          <td>
+            <input className="narrow" value={f.minLength ?? ''} placeholder="length" onChange={(e) => set('minLength', numberOrUndefined(e.target.value))} aria-label="Shortest length" title="Fewest characters" />
+          </td>
+          <td>
+            <input className="narrow" value={f.maxLength ?? ''} placeholder="length" onChange={(e) => set('maxLength', numberOrUndefined(e.target.value))} aria-label="Longest length" title="Most characters" />
+          </td>
+        </>
+      ) : (
+        <>
+          <td>
+            <input className="narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label="Minimum" />
+          </td>
+          <td>
+            <input className="narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label="Maximum" />
+          </td>
+        </>
+      )}
       <td>
         <input className="narrow" value={f.decimals ?? ''} disabled={!numeric} onChange={(e) => set('decimals', numberOrUndefined(e.target.value))} aria-label="Decimal places" />
       </td>
@@ -125,24 +139,52 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
   );
 }
 
+type CompareOp = Extract<DeclarativeRule, { rule: 'compare' }>['op'];
+const OPS: CompareOp[] = ['<', '<=', '>', '>=', '=', '<>'];
+
+/** One line describing a check, as the designer lists it. */
+function describeCheck(c: DeclarativeRule): string {
+  const f = c.field === '*' ? 'every field' : c.field;
+  switch (c.rule) {
+    case 'monotonic':
+      return `${f}: ${c.direction} down the table`;
+    case 'firstEquals':
+      return `${f}: first value is ${c.value}`;
+    case 'sum':
+      return `${f}: total ${c.equals !== undefined ? `= ${c.equals}` : ''}${c.max !== undefined ? ` ≤ ${c.max}` : ''}${c.min !== undefined ? ` ≥ ${c.min}` : ''}`;
+    case 'compare':
+      return `${f} ${c.op} ${c.other} in every record`;
+    case 'requiredIf':
+      return `${f}: required when ${c.when} ${c.equals === undefined ? 'is filled in' : `is ${c.equals}`}`;
+    case 'uniqueTogether':
+      return `${c.fields.join(' + ')}: unique together`;
+  }
+}
+
 function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: TableSchema) => void }) {
   const [kind, setKind] = useState<DeclarativeRule['rule']>('monotonic');
   const [field, setField] = useState('*');
+  const [other, setOther] = useState(table.fields[1]?.key ?? table.fields[0]?.key ?? '');
+  const [op, setOp] = useState<CompareOp>('<=');
   const [param, setParam] = useState('nonIncreasing');
   const checks = table.checks ?? [];
-  const describe = (c: DeclarativeRule) => {
-    const f = c.field === '*' ? 'every field' : c.field;
-    if (c.rule === 'monotonic') return `${f}: ${c.direction} down the table`;
-    if (c.rule === 'firstEquals') return `${f}: first value is ${c.value}`;
-    return `${f}: total ${c.equals !== undefined ? `= ${c.equals}` : ''}${c.max !== undefined ? ` ≤ ${c.max}` : ''}${c.min !== undefined ? ` ≥ ${c.min}` : ''}`;
-  };
+  const perRecord = kind === 'compare' || kind === 'requiredIf' || kind === 'uniqueTogether';
+  const target = perRecord && field === '*' ? (table.fields[0]?.key ?? '') : field;
   const add = () => {
     let c: DeclarativeRule;
     if (kind === 'monotonic') c = { rule: 'monotonic', field, direction: param as 'nonIncreasing' };
     else if (kind === 'firstEquals') c = { rule: 'firstEquals', field, value: Number.isNaN(Number(param)) ? param : Number(param) };
-    else c = { rule: 'sum', field, max: Number(param) };
+    else if (kind === 'sum') c = { rule: 'sum', field, max: Number(param) };
+    else if (kind === 'compare') c = { rule: 'compare', field: target, op, other };
+    else if (kind === 'requiredIf') c = param.trim() ? { rule: 'requiredIf', field: target, when: other, equals: Number.isNaN(Number(param)) ? param.trim() : Number(param) } : { rule: 'requiredIf', field: target, when: other };
+    else c = { rule: 'uniqueTogether', field: target, fields: [target, other] };
     onChange({ ...table, checks: [...checks, c] });
   };
+  const fieldOptions = table.fields.map((f) => (
+    <option key={f.key} value={f.key}>
+      {f.key}
+    </option>
+  ));
   return (
     <div className="checks">
       <h5>Table checks</h5>
@@ -150,7 +192,7 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
       <ul>
         {checks.map((c, i) => (
           <li key={i}>
-            <span>{describe(c)}</span>
+            <span>{describeCheck(c)}</span>
             <button className="btn icon ghost" aria-label="Remove check" onClick={() => onChange({ ...table, checks: checks.filter((_, j) => j !== i) })}>
               <Icon name="trash" size={14} />
             </button>
@@ -158,34 +200,51 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
         ))}
       </ul>
       <div className="add-check">
-        <select value={kind} onChange={(e) => {
-          const k = e.target.value as DeclarativeRule['rule'];
-          setKind(k);
-          setParam(k === 'monotonic' ? 'nonIncreasing' : k === 'firstEquals' ? '100' : '0');
-        }} aria-label="Check type">
+        <select
+          value={kind}
+          onChange={(e) => {
+            const k = e.target.value as DeclarativeRule['rule'];
+            setKind(k);
+            setParam(k === 'monotonic' ? 'nonIncreasing' : k === 'firstEquals' ? '100' : k === 'sum' ? '0' : '');
+          }}
+          aria-label="Check type"
+        >
           <option value="monotonic">Values only go one way</option>
           <option value="firstEquals">First value equals</option>
           <option value="sum">Total at most</option>
+          <option value="compare">Compare two fields</option>
+          <option value="requiredIf">Required when another is set</option>
+          <option value="uniqueTogether">Unique together</option>
         </select>
-        <select value={field} onChange={(e) => setField(e.target.value)} aria-label="Field">
-          <option value="*">every field</option>
-          {table.fields.map((f) => (
-            <option key={f.key} value={f.key}>
-              {f.key}
-            </option>
-          ))}
+        <select value={perRecord ? target : field} onChange={(e) => setField(e.target.value)} aria-label="Field">
+          {!perRecord && <option value="*">every field</option>}
+          {fieldOptions}
         </select>
-        {kind === 'monotonic' ? (
+        {kind === 'monotonic' && (
           <select value={param} onChange={(e) => setParam(e.target.value)} aria-label="Direction">
             <option value="nonIncreasing">never go up</option>
             <option value="nonDecreasing">never go down</option>
             <option value="increasing">always go up</option>
             <option value="decreasing">always go down</option>
           </select>
-        ) : (
-          <input className="narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label="Value" />
         )}
-        <button className="btn" onClick={add}>
+        {(kind === 'firstEquals' || kind === 'sum') && <input className="narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label="Value" />}
+        {kind === 'compare' && (
+          <select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label="Comparison">
+            {OPS.map((o) => (
+              <option key={o}>{o}</option>
+            ))}
+          </select>
+        )}
+        {kind === 'requiredIf' && <span className="muted small">when</span>}
+        {kind === 'uniqueTogether' && <span className="muted small">with</span>}
+        {perRecord && (
+          <select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? 'When field' : 'Other field'}>
+            {fieldOptions}
+          </select>
+        )}
+        {kind === 'requiredIf' && <input className="narrow" value={param} placeholder="has any value" onChange={(e) => setParam(e.target.value)} aria-label="Equals" />}
+        <button className="btn" onClick={add} disabled={perRecord && target === other}>
           <Icon name="plus" size={14} /> Add
         </button>
       </div>
@@ -193,8 +252,152 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
   );
 }
 
+/** The sheet's single cells (a form beside or above its tables). */
+function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cells: CellSchema[]) => void }) {
+  if (!cells.length) return null;
+  const set = (i: number, patch: Partial<CellSchema>) => {
+    const next = { ...cells[i], ...patch } as CellSchema;
+    for (const k of Object.keys(patch) as (keyof CellSchema)[]) if (patch[k] === undefined || patch[k] === false || patch[k] === '') delete next[k];
+    onChange(cells.map((c, j) => (j === i ? next : c)));
+  };
+  return (
+    <div className="table-block">
+      <h5>Single cells</h5>
+      <div className="fields-wrap">
+        <table className="fields">
+          <thead>
+            <tr>
+              <th>Cell</th>
+              <th>Label cell</th>
+              <th>Label</th>
+              <th>Key</th>
+              <th>Type</th>
+              <th title="Required">Req</th>
+              <th>Min</th>
+              <th>Max</th>
+              <th>Values / pattern</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {cells.map((c, i) => {
+              const numeric = c.type === 'number' || c.type === 'integer' || c.type === 'percent';
+              return (
+                <tr key={i}>
+                  <td>
+                    <input className="mono narrow" value={c.ref} onChange={(e) => set(i, { ref: e.target.value.toUpperCase() })} aria-label="Cell" />
+                  </td>
+                  <td>
+                    <input className="mono narrow" value={c.label?.ref ?? ''} onChange={(e) => set(i, { label: e.target.value ? { ref: e.target.value.toUpperCase(), text: c.label?.text ?? '' } : undefined })} aria-label="Label cell" />
+                  </td>
+                  <td>
+                    <input value={c.label ? matchLabel(c.label.text) : ''} disabled={!c.label} onChange={(e) => set(i, { label: { ref: c.label!.ref, text: parseLabel(e.target.value) } })} aria-label="Label text" />
+                  </td>
+                  <td>
+                    <input className="mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label="Key" />
+                  </td>
+                  <td>
+                    <select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label="Type">
+                      {TYPES.map((t) => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="center">
+                    <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked })} aria-label="Required" />
+                  </td>
+                  <td>
+                    <input className="narrow" value={boundText(c.min, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { min: boundOrUndefined(e.target.value, c.type) })} aria-label="Minimum" />
+                  </td>
+                  <td>
+                    <input className="narrow" value={boundText(c.max, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { max: boundOrUndefined(e.target.value, c.type) })} aria-label="Maximum" />
+                  </td>
+                  <td>
+                    {c.type === 'enum' ? (
+                      <input value={(c.values ?? []).join(', ')} placeholder="a, b, c" onChange={(e) => set(i, { values: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} aria-label="Allowed values" />
+                    ) : (
+                      <input className="mono" value={c.pattern ?? ''} placeholder="regular expression" disabled={c.type === 'boolean'} onChange={(e) => set(i, { pattern: e.target.value || undefined })} aria-label="Pattern" />
+                    )}
+                  </td>
+                  <td>
+                    <button className="btn icon ghost" onClick={() => onChange(cells.filter((_, j) => j !== i))} aria-label="Remove cell" title="Remove cell">
+                      <Icon name="trash" size={14} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * While the designer waits for a selection on the sheet it shrinks to this
+ * bar, so the grid can be used; adding reads the table or cell from what is selected.
+ */
+function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: WorkbookSchema; kind: 'table' | 'cell' }) {
+  const view = store.view;
+  const sel = store.selection;
+  const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
+  const add = () => {
+    if (!view || view.info.kind !== 'worksheet') return;
+    const d = structuredClone(draft);
+    let sheet = d.sheets.find((s) => textMatches(s.name, view.info.name));
+    if (!sheet) {
+      sheet = { name: view.info.name };
+      d.sheets.push(sheet);
+    }
+    if (kind === 'table') {
+      const keys = new Set(d.sheets.flatMap((s) => (s.tables ?? []).map((t) => t.key)));
+      const base = view.info.name.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'table';
+      let key = base;
+      for (let n = 2; keys.has(key); n++) key = `${base}${n}`;
+      const table = inferTable(view, store.styles, key, { row: rect.r1, col: rect.c1 }, 'rows', false, store.sheets);
+      if (!table.fields.length) {
+        store.toast('warn', `There are no headings at ${toA1(rect.r1, rect.c1)}. Select from the table's heading row.`);
+        return;
+      }
+      sheet.tables = [...(sheet.tables ?? []), table];
+    } else {
+      const left = sel.col > 0 ? view.get(sel.row, sel.col - 1) : null;
+      const labelText = left?.t === VT.String ? (left.s ?? '').trim() : '';
+      const used = new Set((sheet.cells ?? []).map((c) => c.key));
+      const { label: _label, unique: _unique, ...field } = inferField(labelText.replace(/:$/, '') || toA1(sel.row, sel.col), [view.get(sel.row, sel.col)], store.styles, used);
+      const cell: CellSchema = { ...field, ref: toA1(sel.row, sel.col) };
+      if (labelText) cell.label = { ref: toA1(sel.row, sel.col - 1), text: labelText };
+      sheet.cells = [...(sheet.cells ?? []).filter((c) => c.ref !== cell.ref), cell];
+    }
+    store.set('schemaDraft', d);
+    store.set('designerPick', undefined);
+  };
+  return (
+    <div className="pick-bar" role="dialog" aria-label="Pick cells for the schema">
+      <Icon name="schema" />
+      <span>
+        {kind === 'table'
+          ? 'Select the table’s heading row (or its top-left cell) on the sheet, then add it.'
+          : 'Select the cell to check; a label just to its left is picked up too.'}
+      </span>
+      <button className="btn primary" onClick={add}>
+        Add {kind === 'table' ? `table at ${toA1(rect.r1, rect.c1)}` : `cell ${toA1(sel.row, sel.col)}`}
+      </button>
+      <button className="btn" onClick={() => store.set('designerPick', undefined)}>
+        Back
+      </button>
+    </div>
+  );
+}
+
 export function SchemaDesigner({ store }: { store: WorkbookStore }) {
-  const [draft, setDraft] = useState<WorkbookSchema | null>(() => (store.schema ? toDraft(store.schema.schema) : null));
+  // The draft lives in the store, so it survives closing the designer or picking cells on the sheet.
+  const draft = store.schemaDraft ?? null;
+  const setDraft = (d: WorkbookSchema | null) => store.set('schemaDraft', d ?? undefined);
+  useEffect(() => {
+    if (!store.schemaDraft && store.schema) store.set('schemaDraft', toDraft(store.schema.schema));
+  }, [store]);
   const [originalHadHooks, setOriginalHadHooks] = useState(() => (store.schema ? hasHooks(store.schema.schema) : false));
   const [mode, setMode] = useState<'form' | 'json'>('form');
   const [jsonText, setJsonText] = useState('');
@@ -304,6 +507,8 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   const json = useMemo(() => (draft ? schemaToJSON(draft) : ''), [draft]);
   const activeId = store.schema?.schema.id;
 
+  if (store.designerPick && draft) return <PickBar store={store} draft={draft} kind={store.designerPick} />;
+
   return (
     <div className="modal-backdrop" onMouseDown={() => store.set('designerOpen', false)}>
       <div className="designer" role="dialog" aria-modal="true" aria-labelledby="designer-title" onMouseDown={(e) => e.stopPropagation()}>
@@ -398,6 +603,17 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                         Id
                         <input className="mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
                       </label>
+                      <label>
+                        Version
+                        <input className="mono" value={draft.version ?? ''} placeholder="e.g. 2" onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title="Saved files are stamped with it; a file saved under another version says so when opened" />
+                      </label>
+                      <label>
+                        Hook time limit (s)
+                        <input className="narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
+                          const n = numberOrUndefined(e.target.value);
+                          d.hookTimeoutMs = n === undefined ? undefined : Math.round(n * 1000);
+                        })} />
+                      </label>
                       <label className="wide">
                         Description
                         <input value={draft.description ?? ''} onChange={(e) => edit((d) => void (d.description = e.target.value || undefined))} />
@@ -450,11 +666,10 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                             <Icon name="trash" size={14} />
                           </button>
                         </div>
-                        {(sheet.cells?.length ?? 0) > 0 && (
-                          <p className="muted small">
-                            Also checks {sheet.cells!.length} single cell{sheet.cells!.length === 1 ? '' : 's'} ({sheet.cells!.map((c) => c.ref).join(', ')}); edit those in the JSON view.
-                          </p>
-                        )}
+                        <CellsEditor
+                          cells={sheet.cells ?? []}
+                          onChange={(cells) => edit((d) => void (d.sheets[si].cells = cells.length ? cells : undefined))}
+                        />
                         {(sheet.tables ?? []).map((table, ti) => (
                           <div key={ti} className="table-block">
                             <div className="table-head">
@@ -535,10 +750,24 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                               </table>
                             </div>
                             <ChecksEditor table={table} onChange={(t) => edit((d) => void (d.sheets[si].tables![ti] = t))} />
+                            <button className="btn ghost small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
+                              <Icon name="trash" size={14} /> Remove table
+                            </button>
                           </div>
                         ))}
                       </div>
                     ))}
+                    {ready && (
+                      <div className="pick-actions">
+                        <span className="muted small">Add from the open workbook — select cells on {store.view?.info.name ?? 'the sheet'}:</span>
+                        <button className="btn" onClick={() => store.set('designerPick', 'table')}>
+                          <Icon name="plus" size={14} /> Table from a selection…
+                        </button>
+                        <button className="btn" onClick={() => store.set('designerPick', 'cell')}>
+                          <Icon name="plus" size={14} /> Single cell…
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

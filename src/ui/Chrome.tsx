@@ -109,6 +109,16 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
 
 export function SchemaBanner({ store }: { store: WorkbookStore }) {
   const m = store.schemaMismatch;
+  if (!m && store.schemaNote) {
+    return (
+      <div className="banner" role="status">
+        <Icon name="schema" />
+        <div className="banner-text">
+          <p>{store.schemaNote}</p>
+        </div>
+      </div>
+    );
+  }
   if (!m) return null;
   return (
     <div className="banner banner-warn" role="status">
