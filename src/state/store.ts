@@ -3,7 +3,7 @@ import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
-import { inRect, MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
+import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
 import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
@@ -247,6 +247,10 @@ export class WorkbookStore {
   /** The value picker for filtering a column, while open. */
   filterPicker?: { col: number; x: number; y: number };
   findOpen = false;
+  /** The list of keyboard shortcuts. */
+  shortcutsOpen = false;
+  /** Asking for a column's width, from the keyboard. */
+  columnWidthFor?: number;
   designerOpen = false;
   bannerDismissed = false;
   highlightEdits = true;
@@ -819,7 +823,7 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.goTo(entry.undo[0]?.sheet);
+    this.showSheet(entry.undo[0]?.sheet);
     await this.edit({ type: 'restore', cells: entry.undo }, 'none', { label: 'Undo' });
     this.redoStack.push(entry);
     this.notify();
@@ -834,7 +838,7 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.goTo(entry.redo[0]?.sheet);
+    this.showSheet(entry.redo[0]?.sheet);
     await this.edit({ type: 'restore', cells: entry.redo }, 'none', { label: 'Redo' });
     this.undoStack.push(entry);
     this.notify();
@@ -1139,11 +1143,57 @@ export class WorkbookStore {
   /** Bumped to ask the grid to scroll the active cell into view. */
   revealSeq = 0;
 
+  /** Set with a reveal when the grid should also take the keyboard focus. */
+  revealFocus = false;
+
   /** Moves to a cell, switching sheet if needed, and scrolls it into view. */
   reveal(sheet: number, row: number, col: number): void {
     if (sheet !== this.active) this.setActive(sheet);
     this.revealSeq++;
     this.setSelection({ row, col, rects: [{ r1: row, c1: col, r2: row, c2: col }] });
+  }
+
+  /** Moves the keyboard focus to the grid, at the active cell. */
+  focusGrid(): void {
+    this.revealFocus = true;
+    this.revealSeq++;
+    this.notify();
+  }
+
+  /** A column's width as shown here, in Excel's units (characters of the default font). */
+  columnWidth(col: number): number {
+    return Math.round(((this.view?.colWidth(col) ?? 64) / 7) * 100) / 100;
+  }
+
+  /** Sets how wide a column is shown. The file keeps its own widths, as with resizing by dragging. */
+  setColumnWidth(col: number, chars: number): void {
+    const view = this.view;
+    if (!view || !(chars >= 0)) return;
+    view.colWidths.set(col, Math.min(2000, Math.round(chars * 7)));
+    this.colVersion++;
+    this.notify();
+  }
+
+  /** Bumped when column widths change outside the grid. */
+  colVersion = 0;
+
+  /**
+   * Goes to a reference typed in the name box, as Excel does: a cell or range,
+   * on another sheet with "Prices!B4". The grid takes the focus, so typing
+   * goes into the cell. False when the text isn't a reference to a sheet here.
+   */
+  goTo(text: string): boolean {
+    const m = /^(?:(?:'((?:[^']|'')+)'|([^!']+))!)?([^!]+)$/.exec(text.trim());
+    if (!m) return false;
+    const name = m[1]?.replace(/''/g, "'") ?? m[2];
+    const sheet = name === undefined ? this.active : this.sheets.findIndex((s) => s.info.name.toLowerCase() === name.toLowerCase());
+    const rect = parseRange(m[3].trim());
+    if (sheet < 0 || !rect || rect.r1 < 0 || rect.r2 >= MAX_ROWS || rect.c2 >= MAX_COLS) return false;
+    if (sheet !== this.active) this.setActive(sheet);
+    this.revealFocus = true;
+    this.revealSeq++;
+    this.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
+    return true;
   }
 
   /** The selected cells as tab-separated text, as they are copied to the clipboard. */
@@ -1209,7 +1259,7 @@ export class WorkbookStore {
     this.notify();
   }
 
-  private goTo(sheet: number | undefined): void {
+  private showSheet(sheet: number | undefined): void {
     if (sheet !== undefined && sheet !== this.active) this.setActive(sheet);
   }
 
@@ -1351,6 +1401,26 @@ export class WorkbookStore {
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', `Pasting ${rectCells(dst).toLocaleString()} cells…`);
     await this.edit({ type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid });
+  }
+
+  /**
+   * Excel's Ctrl+D and Ctrl+R: copies the selection's top row down through it
+   * (or its left column across), or with one row (column) selected, the cells
+   * above (to the left). Formulas adjust as if copied; series don't extend.
+   */
+  async fillDown(across = false): Promise<void> {
+    const view = this.view;
+    const rect = this.selection.rects[0];
+    if (!view || !rect) return;
+    const single = across ? rect.c1 === rect.c2 : rect.r1 === rect.r2;
+    if (single && (across ? rect.c1 : rect.r1) === 0) return;
+    const src: Rect = across
+      ? { ...rect, c1: single ? rect.c1 - 1 : rect.c1, c2: single ? rect.c1 - 1 : rect.c1 }
+      : { ...rect, r1: single ? rect.r1 - 1 : rect.r1, r2: single ? rect.r1 - 1 : rect.r1 };
+    const dst: Rect = single ? rect : across ? { ...rect, c1: rect.c1 + 1 } : { ...rect, r1: rect.r1 + 1 };
+    const keeps = (row: number, col: number) => !!((view.get(across ? row : src.r1, across ? src.c1 : col)?.flags ?? 0) & CellFlag.Formula);
+    if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
+    await this.edit({ type: 'copy', srcSheet: this.active, src, sheet: this.active, dst }, 'undo', { label: across ? 'Fill right' : 'Fill down' });
   }
 
   async fill(src: Rect, dst: Rect): Promise<void> {
@@ -1592,7 +1662,21 @@ export class WorkbookStore {
     this.notify();
   }
 
-  set<K extends 'panel' | 'bannerDismissed' | 'highlightEdits' | 'exactNumbers' | 'designerOpen' | 'menu' | 'filterPicker' | 'findOpen' | 'schemaDraft' | 'designerPick'>(
+  set<
+    K extends
+      | 'panel'
+      | 'bannerDismissed'
+      | 'highlightEdits'
+      | 'exactNumbers'
+      | 'designerOpen'
+      | 'menu'
+      | 'filterPicker'
+      | 'findOpen'
+      | 'shortcutsOpen'
+      | 'columnWidthFor'
+      | 'schemaDraft'
+      | 'designerPick',
+  >(
     key: K,
     value: WorkbookStore[K],
   ): void {

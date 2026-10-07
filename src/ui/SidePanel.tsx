@@ -5,6 +5,7 @@ import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { ReportBody } from './ReportPanel';
+import { Tabs } from './Tabs';
 
 function IssuesBody({ store }: { store: WorkbookStore }) {
   const ctl = store.schema;
@@ -117,8 +118,14 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
               {changes.slice(0, 500).map((c) => (
                 <tr key={`${c.sheet}!${c.ref}`} onClick={() => go(c.sheet, c.ref)}>
                   <td className="mono">
-                    {store.sheets.length > 1 ? `${c.sheet}!` : ''}
-                    {c.ref}
+                    {/* The row is clickable too; the button is the same for keyboards and screen readers. */}
+                    <button className="cell-link" title="Go to this cell" onClick={(e) => {
+                      e.stopPropagation();
+                      go(c.sheet, c.ref);
+                    }}>
+                      {store.sheets.length > 1 ? `${c.sheet}!` : ''}
+                      {c.ref}
+                    </button>
                   </td>
                   {c.note ? (
                     <td colSpan={2} className="change-note">
@@ -171,24 +178,27 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
   const panel = store.panel;
   if (!panel) return null;
   return (
-    <aside className="report" aria-label={panel === 'issues' ? 'Schema issues' : "What's in this file"}>
-      <div className="report-head">
-        <div className="panel-tabs" role="tablist">
-          <button role="tab" aria-selected={panel === 'issues'} className={panel === 'issues' ? 'active' : ''} onClick={() => store.set('panel', 'issues')}>
-            Checks
-          </button>
-          <button role="tab" aria-selected={panel === 'changes'} className={panel === 'changes' ? 'active' : ''} onClick={() => store.set('panel', 'changes')}>
-            Changes
-          </button>
-          <button role="tab" aria-selected={panel === 'report'} className={panel === 'report' ? 'active' : ''} onClick={() => store.set('panel', 'report')}>
-            What's in this file
-          </button>
-        </div>
-        <button className="btn icon ghost" onClick={() => store.set('panel', null)} aria-label="Close">
-          <Icon name="close" />
-        </button>
-      </div>
-      {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : <ReportBody store={store} />}
+    <aside className="report" aria-label="Workbook details">
+      <Tabs
+        label="Workbook details"
+        tabs={[
+          { id: 'issues', label: 'Checks' },
+          { id: 'changes', label: 'Changes' },
+          { id: 'report', label: "What's in this file" },
+        ]}
+        value={panel}
+        onChange={(id) => store.set('panel', id)}
+        head={(tabs) => (
+          <div className="report-head">
+            {tabs}
+            <button className="btn icon ghost" onClick={() => store.set('panel', null)} aria-label="Close">
+              <Icon name="close" />
+            </button>
+          </div>
+        )}
+      >
+        {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : <ReportBody store={store} />}
+      </Tabs>
     </aside>
   );
 }

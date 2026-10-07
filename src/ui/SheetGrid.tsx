@@ -1,8 +1,11 @@
 import {
+  AllCellRenderers,
   CompactSelection,
-  DataEditor,
+  DataEditorCore,
   GridCellKind,
+  ImageWindowLoaderImpl,
   getMiddleCenterBias,
+  sprites,
   type DataEditorProps,
   type DataEditorRef,
   type DrawCellCallback,
@@ -17,6 +20,7 @@ import {
   type HeaderClickedEventArgs,
   type Item,
   type Rectangle,
+  type TextCell,
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
@@ -36,6 +40,20 @@ import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from '
 import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
 
 /** Everything the grid draws with, from the theme's palette. */
+/**
+ * Glide's cell renderers, with text cells read to screen readers as they are
+ * shown (6) rather than as they are edited (=B2*C2), which the formula bar
+ * gives instead, followed by any problem with them.
+ */
+const RENDERERS = AllCellRenderers.map((r) =>
+  r.kind === GridCellKind.Text
+    ? { ...r, getAccessibilityString: (c: SpokenCell) => (c.spokenNote ? `${c.displayData || 'Empty'}, ${c.spokenNote}` : c.displayData) }
+    : r,
+) as typeof AllCellRenderers;
+
+/** A cell with what a screen reader should add to its value: its problems, which the grid only marks in colour. */
+type SpokenCell = TextCell & { spokenNote?: string };
+
 function gridStyles(p: GridPalette) {
   const fontFor = (style: DisplayStyle) => `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${p.font}`;
   let measureCtx: CanvasRenderingContext2D | null = null;
@@ -134,6 +152,7 @@ export function SheetGrid({
 }: Props) {
   const ownRef = useRef<DataEditorRef>(null);
   const ref = gridRef ?? ownRef;
+  const [images] = useState(() => new ImageWindowLoaderImpl());
   const host = useRef<HTMLDivElement>(null);
   const rows = rowCount ?? view.rowCount - rowStart;
   // The grid's colours and fonts come from the theme's custom properties, read once laid out.
@@ -223,8 +242,12 @@ export function SheetGrid({
         if (dv?.inCellDropdown) options = store.listOptions(dv, row, view.visibleCols[gc - 1]);
         if (!options?.length) options = undefined;
       }
-      const asEnum = (cell: EnumCell): EnumCell =>
-        options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
+      const issues = schema?.cellIssues(sheetIndex, row, view.visibleCols[gc - 1]) ?? [];
+      const spokenNote = issues.length ? issues.map((i) => `${i.severity}: ${i.message}`).join(' ') : undefined;
+      const asEnum = (cell: EnumCell): EnumCell & SpokenCell => {
+        const spoken = spokenNote ? { ...cell, spokenNote } : cell;
+        return options ? { ...spoken, enumOptions: options, activationBehaviorOverride: 'second-click' } : spoken;
+      };
       if (!rec) {
         const baseStyle = merge ? effectiveStyle(view, styles, merge.r1, merge.c1) : effectiveStyle(view, styles, row, col, view.styleAt(row, col, null));
         const bg = baseStyle?.fill ?? (locked ? palette.lockedFill : label ? palette.labelFill : undefined);
@@ -529,7 +552,16 @@ export function SheetGrid({
       store.noteCopy(first, true);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && store.cutRange && host.current?.contains(document.activeElement)) store.cancelCut();
+      if (!host.current?.contains(document.activeElement)) return;
+      if (e.key === 'Escape' && store.cutRange) store.cancelCut();
+      // The menu key or Shift+F10 opens the right-click menu at the active cell.
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        e.preventDefault();
+        const sel = store.selection;
+        const v = store.view;
+        const at = v && ref.current?.getBounds(v.gridCol(sel.col) + 1, v.gridRow(sel.row) - rowStart);
+        if (at) store.set('menu', { x: at.x + Math.min(at.width, 24), y: at.y + at.height, kind: 'cell' });
+      }
     };
     window.addEventListener('copy', onCopy, true);
     window.addEventListener('cut', onCut, true);
@@ -539,7 +571,7 @@ export function SheetGrid({
       window.removeEventListener('cut', onCut, true);
       window.removeEventListener('keydown', onKey);
     };
-  }, [store]);
+  }, [store, ref, rowStart]);
 
   // Scroll to cells that find or the change list point at.
   const reveal = store.revealSeq;
@@ -547,7 +579,14 @@ export function SheetGrid({
     if (!reveal) return;
     const gr = view.gridRow(selection.row) - rowStart;
     const gc = view.gridCol(selection.col) + 1;
-    if (gr >= 0 && gr < rows && gc > 0) ref.current?.scrollTo(gc, gr, 'both', 40, 40);
+    if (gr >= 0 && gr < rows && gc > 0) {
+      ref.current?.scrollTo(gc, gr, 'both', 40, 40);
+      if (store.revealFocus) {
+        store.revealFocus = false;
+        // Once React has handed the grid its new active cell.
+        setTimeout(() => ref.current?.focus(), 0);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
 
@@ -673,9 +712,12 @@ export function SheetGrid({
 
   return (
     <div className={`grid-host ${className ?? ''}`} ref={host} style={hostStyle}>
-      <DataEditor
+      <DataEditorCore
         ref={ref}
         key={view.info.index}
+        renderers={RENDERERS}
+        headerIcons={sprites}
+        imageWindowLoader={images}
         columns={columns}
         rows={rows}
         getCellContent={getCellContent}

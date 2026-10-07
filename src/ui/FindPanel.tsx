@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toA1 } from '../core/refs';
 import type { FindQuery, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { useDialog } from './useDialog';
 
 /** Find, and find and replace, over the sheet or the whole workbook. */
 export function FindPanel({ store }: { store: WorkbookStore }) {
@@ -14,6 +15,7 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
   const [scope, setScope] = useState<FindQuery['scope']>('sheet');
   const [at, setAt] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const query: FindQuery = { text, matchCase, wholeCell, lookIn: replacing ? 'formulas' : lookIn, scope };
   // Matches are worked out again whenever the workbook or the search changes.
   const version = store.sheets.reduce((n, v) => n + v.version, 0) + store.active * 1e9;
@@ -50,14 +52,16 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
     store.toast('info', n ? `Replaced in ${n.toLocaleString()} cell${n === 1 ? '' : 's'}.` : 'Nothing was replaced.');
   };
   const close = () => store.set('findOpen', false);
+  // Escape closes it and the focus goes back to the grid; Tab can still leave it for the sheet.
+  useDialog(panel, true, close, { initial: input });
   const current = hits[at];
 
   return (
     <div
+      ref={panel}
       className="find-panel"
       role="search"
       onKeyDown={(e) => {
-        if (e.key === 'Escape') close();
         if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
           e.preventDefault();
           go(e.shiftKey ? -1 : 1);

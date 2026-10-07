@@ -63,6 +63,45 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
   return null;
 }
 
+/** Shows the selection; type a cell, range or Sheet!ref and press Enter to go there. */
+function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  // Set while a click is focusing it, so the click's mouseup doesn't undo the select-all.
+  const clicked = useRef(false);
+  return (
+    <input
+      className="name-box"
+      value={draft ?? name}
+      spellCheck={false}
+      aria-label="Go to cell"
+      title="Selected cell. Type a reference and press Enter to go there."
+      onMouseDown={(e) => {
+        clicked.current = document.activeElement !== e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (clicked.current) e.preventDefault();
+        clicked.current = false;
+      }}
+      onFocus={(e) => {
+        setDraft(name);
+        e.target.select();
+      }}
+      onBlur={() => setDraft(null)}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          if (store.goTo(draft ?? name)) setDraft(null);
+          else store.toast('warn', `"${draft}" isn't a cell or range on a sheet in this workbook.`);
+        }
+        if (e.key === 'Escape') {
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
 export function FormulaBar({ store, view, selection }: { store: WorkbookStore; view: SheetView; selection: Selection }) {
   const rec = view.get(selection.row, selection.col);
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
@@ -87,9 +126,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
 
   return (
     <div className="formula-bar">
-      <div className="name-box" title="Selected cell">
-        {name}
-      </div>
+      <NameBox store={store} name={name} />
       <div className={`fx ${rec?.f !== undefined ? 'is-formula' : ''}`}>
         <Icon name="formula" size={15} />
       </div>

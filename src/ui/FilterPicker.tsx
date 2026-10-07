@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
+import { useDialog } from './useDialog';
 
 /**
  * Picks which values of a column to show, like Excel's filter list. Rows are
@@ -31,14 +32,11 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     const away = (e: Event) => {
       if (!ref.current?.contains(e.target as Node)) store.set('filterPicker', undefined);
     };
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && store.set('filterPicker', undefined);
     window.addEventListener('mousedown', away, true);
-    window.addEventListener('keydown', key);
-    return () => {
-      window.removeEventListener('mousedown', away, true);
-      window.removeEventListener('keydown', key);
-    };
+    return () => window.removeEventListener('mousedown', away, true);
   }, [store, at]);
+
+  useDialog(ref, !!(at && choices), () => store.set('filterPicker', undefined), { modal: true });
 
   useEffect(() => {
     if (at && !choices) {

@@ -1,8 +1,8 @@
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
+import { MOD as mod } from './keys';
 
-const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 /** The grid's right-click menu: clipboard, rows and columns, sorting, filtering and find. */
@@ -26,6 +26,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: `Insert ${plural(cols, 'column')} left`, onSelect: () => void store.insertCols('left'), disabled: locked || cols >= MAX_COLS },
     { label: `Insert ${plural(cols, 'column')} right`, onSelect: () => void store.insertCols('right'), disabled: locked || cols >= MAX_COLS },
     { label: `Delete ${plural(cols, 'column')}`, onSelect: () => void store.deleteCols(), disabled: locked, danger: true },
+    { label: 'Column width…', onSelect: () => store.set('columnWidthFor', sel.col) },
   ];
   const filtered = !!view.filter;
   const dataItems: MenuItem[] = [

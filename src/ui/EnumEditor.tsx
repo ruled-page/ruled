@@ -1,5 +1,5 @@
 import type { GridCell, ProvideEditorComponent, TextCell } from '@glideapps/glide-data-grid';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons';
 
 /** A text cell whose field only allows a fixed list of values. */
@@ -30,6 +30,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
   const filtered = useMemo(() => filterOptions(options, filter), [options, filter]);
   const [active, setActive] = useState(() => Math.max(0, filtered.indexOf(current)));
   const list = useRef<HTMLUListElement>(null);
+  const id = useId();
 
   useEffect(() => {
     const exact = filtered.findIndex((o) => o === current);
@@ -51,9 +52,12 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
         autoFocus
         value={filter}
         placeholder={current || 'Choose a value'}
+        role="combobox"
         aria-label="Filter values"
-        aria-controls="enum-options"
-        aria-activedescendant={filtered[active] !== undefined ? `enum-option-${active}` : undefined}
+        aria-expanded="true"
+        aria-autocomplete="list"
+        aria-controls={`${id}-list`}
+        aria-activedescendant={filtered[active] !== undefined ? `${id}-${active}` : undefined}
         style={{ height: target.height }}
         onChange={(e) => setFilter(e.target.value)}
         onKeyDown={(e) => {
@@ -73,11 +77,11 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
           }
         }}
       />
-      <ul className="enum-options" id="enum-options" role="listbox" ref={list}>
+      <ul className="enum-options" id={`${id}-list`} role="listbox" aria-label="Values" ref={list}>
         {filtered.map((o, i) => (
           <li
             key={o}
-            id={`enum-option-${i}`}
+            id={`${id}-${i}`}
             role="option"
             aria-selected={i === active}
             className={i === active ? 'active' : ''}
@@ -96,10 +100,9 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
       {current && (
         <button
           className="enum-clear"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            choose('', [0, 0]);
-          }}
+          // Keeps the focus in the filter, which would otherwise close the editor.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => choose('', [0, 0])}
         >
           Clear
         </button>

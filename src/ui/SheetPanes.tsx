@@ -19,8 +19,10 @@ interface Props {
  */
 export function SheetPanes(props: Props) {
   const { store, view } = props;
-  const [colVersion, setColVersion] = useState(0);
-  const onColumnResized = useCallback(() => setColVersion((v) => v + 1), []);
+  const [resized, setResized] = useState(0);
+  const onColumnResized = useCallback(() => setResized((v) => v + 1), []);
+  // Widths change by dragging here, or through the store from the keyboard.
+  const colVersion = resized + store.colVersion;
   const top = useRef<DataEditorRef>(null);
   const bottom = useRef<DataEditorRef>(null);
   const panes = useRef<HTMLDivElement>(null);

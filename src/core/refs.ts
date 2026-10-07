@@ -50,7 +50,9 @@ export function parseA1(ref: string): { row: number; col: number } | null {
 
 /** Parses "A1:C3" (or a single cell) into a rectangle. */
 export function parseRange(ref: string): Rect | null {
-  const [a, b] = ref.split(':');
+  const parts = ref.split(':');
+  if (parts.length > 2) return null;
+  const [a, b] = parts;
   const p1 = parseA1(a);
   const p2 = b ? parseA1(b) : p1;
   if (!p1 || !p2) return null;

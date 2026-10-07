@@ -4,6 +4,7 @@ import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { MOD } from './keys';
 
 function SchemaChip({ store }: { store: WorkbookStore }) {
   const ctl = store.schema;
@@ -25,7 +26,7 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
         ? 'Checking…'
         : 'All checks pass';
   return (
-    <button className={`chip ${tone}`} onClick={() => store.set('panel', store.panel === 'issues' ? null : 'issues')} title={`Schema: ${ctl.schema.name}`}>
+    <button className={`chip ${tone}`} onClick={() => store.set('panel', store.panel === 'issues' ? null : 'issues')} title={`Schema: ${ctl.schema.name}`} aria-label={`${ctl.schema.name}: ${status}`} aria-expanded={store.panel === 'issues'}>
       <Icon name={errors || warnings ? 'warn' : 'check'} size={14} />
       <span className="label">{ctl.schema.name}</span>
       <span className="chip-status">
@@ -55,11 +56,11 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           </button>
         )}
         {ready && <SchemaChip store={store} />}
-        {store.busy && <span className="spinner" aria-label="Working" />}
+        {store.busy && <span className="spinner" role="status" aria-label="Working" />}
       </div>
       <div className="toolbar-actions">
         {store.features.open && (
-          <button className="btn" onClick={onOpen} title="Open a workbook">
+          <button className="btn" onClick={onOpen} title="Open a workbook" aria-label="Open">
             <Icon name="open" /> <span className="label">Open</span>
           </button>
         )}
@@ -90,13 +91,16 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           <span>Highlight changes</span>
         </label>
         {store.features.schemas && (
-          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title="Create, import and export schemas">
+          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title="Create, import and export schemas" aria-label="Schemas">
             <Icon name="schema" /> <span className="label">Schemas</span>
           </button>
         )}
-        <button className={`btn ${store.panel === 'report' ? 'active' : ''}`} disabled={!ready} onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')} title="What's in this file">
+        <button className={`btn ${store.panel === 'report' ? 'active' : ''}`} disabled={!ready} onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')} title="What's in this file" aria-label={notable ? `What's in this file (${notable} to note)` : "What's in this file"}>
           <Icon name="info" /> <span className="label">What's in this file</span>
           {notable > 0 && <span className="count">{notable}</span>}
+        </button>
+        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={`Keyboard shortcuts (${MOD}/)`} aria-label="Keyboard shortcuts">
+          <Icon name="keyboard" />
         </button>
         {extra}
         {store.features.save && store.hasSaveHandler && store.features.download && (
@@ -202,6 +206,7 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
           <button
             key={i}
             className={`tab ${i === store.active ? 'active' : ''}`}
+            aria-current={i === store.active ? 'true' : undefined}
             style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
             onClick={() => store.setActive(i)}
             title={bound.has(i) ? `Checked by the “${store.schema?.schema.name}” schema` : undefined}
@@ -248,7 +253,7 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
   const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
   return (
     <footer className="status-bar">
-      <span className="status-calc">
+      <span className="status-calc" role="status">
         {store.status === 'ready' && !calc && (
           <>
             <span className="spinner small" /> Building calculation engine…

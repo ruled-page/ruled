@@ -46,7 +46,7 @@
   /* Text and lines */
   --wbe-text: #1f2328;
   --wbe-text-muted: #4b5259;
-  --wbe-text-subtle: #7a828a;
+  --wbe-text-subtle: #636b74;
   --wbe-border: #e1e3e3;
   --wbe-border-strong: #d0d4d4;
   --wbe-neutral: #8a94a6;
@@ -159,6 +159,16 @@
   color: inherit;
 }
 
+/* A clear ring on whatever has the keyboard focus. The grid marks its active cell itself. */
+.wbe :where(button, a[href], input, select, textarea, summary, [tabindex]:not(canvas)):focus-visible {
+  outline: 2px solid var(--wbe-accent);
+  outline-offset: 1px;
+}
+
+.wbe canvas:focus-visible {
+  outline: none;
+}
+
 .wbe .app {
   height: 100%;
   display: flex;
@@ -259,6 +269,21 @@
 
 .wbe .changes-table tbody tr:hover {
   background: var(--wbe-accent-soft);
+}
+
+.wbe .changes-table .cell-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--wbe-accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.wbe .changes-table .cell-link:focus-visible {
+  outline: 2px solid var(--wbe-focus-ring);
+  outline-offset: 2px;
 }
 
 .wbe .history {
@@ -431,15 +456,20 @@
 .wbe .name-box {
   width: 96px;
   height: 100%;
-  display: flex;
-  align-items: center;
   padding: 0 10px;
+  border: 0;
   border-right: 1px solid var(--wbe-border);
+  background: transparent;
+  font: inherit;
   font-variant-numeric: tabular-nums;
   color: var(--wbe-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.wbe .name-box:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--wbe-focus-ring);
+  color: var(--wbe-text);
 }
 
 .wbe .fx {
@@ -464,6 +494,7 @@
   font: 14px var(--wbe-font-mono);
   outline: none;
   color: var(--wbe-text);
+  background: transparent;
 }
 
 .wbe .formula-input:focus {
@@ -783,6 +814,82 @@
   margin: 0;
   color: var(--wbe-accent);
   font-weight: 500;
+}
+
+/* Read by screen readers, not shown. */
+.wbe .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wbe .shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wbe .shortcuts table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.wbe .shortcuts caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+
+.wbe .shortcuts th,
+.wbe .shortcuts td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 8px 5px 0;
+  border-top: 1px solid var(--wbe-border);
+  font-weight: normal;
+}
+
+.wbe .shortcuts th {
+  width: 40%;
+}
+
+.wbe .shortcuts kbd {
+  font: var(--wbe-font-size-sm) var(--wbe-font-mono);
+  padding: 1px 6px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text);
+  white-space: normal;
+}
+
+.wbe .field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+
+.wbe .field input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+}
+
+.wbe .report .tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .wbe .report-body {
@@ -1861,7 +1968,7 @@
 
 .wbe .enum-filter {
   border: 0;
-  border-bottom: 1px solid var(--wbe-border);
+  border-bottom: 2px solid var(--wbe-accent);
   padding: 0 8px;
   font: inherit;
   outline: none;

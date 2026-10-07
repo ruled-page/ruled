@@ -1,14 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { themeProperty, themeStyle, type ThemeToken } from '../src/editor/theme';
+import { THEME_TOKENS, themeProperty, themeStyle } from '../src/editor/theme';
 import { DEMO_THEMES } from '../src/demo/themes';
 import { DEFAULT_PALETTE } from '../src/ui/gridPalette';
 
 const css = readFileSync('src/editor/editor.css', 'utf8');
 const rootBlock = css.slice(css.indexOf('.wbe {\n'), css.indexOf('font-family: var(--wbe-font);'));
 const declared = [...rootBlock.matchAll(/^ {2}(--wbe-[a-z0-9-]+):\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()] as const);
-const themeSource = readFileSync('src/editor/theme.ts', 'utf8');
-const tokens = [...themeSource.matchAll(/^ {2}\| '([A-Za-z0-9]+)';?$/gm)].map((m) => m[1] as ThemeToken);
+const tokens: readonly string[] = THEME_TOKENS;
 
 describe('theme tokens', () => {
   it('are declared in the stylesheet and typed for hosts, one for one', () => {

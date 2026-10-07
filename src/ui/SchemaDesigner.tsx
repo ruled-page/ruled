@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { parseA1, toA1 } from '../core/refs';
 import { VT } from '../core/types';
 import { bindSchema } from '../schema/binding';
@@ -7,6 +7,8 @@ import { matchLabel, schemaFromJSON, schemaToJSON, textMatches } from '../schema
 import type { CellSchema, DeclarativeRule, FieldSchema, FieldType, SheetSchema, TableSchema, TextMatch, WorkbookSchema } from '../schema/types';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { Tabs } from './Tabs';
+import { useDialog } from './useDialog';
 
 const TYPES: FieldType[] = ['text', 'number', 'integer', 'percent', 'date', 'boolean', 'enum'];
 
@@ -342,6 +344,8 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
   const view = store.view;
   const sel = store.selection;
   const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
+  // The sheet is where the picking happens.
+  useEffect(() => store.focusGrid(), [store]);
   const add = () => {
     if (!view || view.info.kind !== 'worksheet') return;
     const d = structuredClone(draft);
@@ -374,12 +378,20 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
     store.set('designerPick', undefined);
   };
   return (
-    <div className="pick-bar" role="dialog" aria-label="Pick cells for the schema">
+    <div
+      className="pick-bar"
+      role="dialog"
+      aria-label="Pick cells for the schema"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') store.set('designerPick', undefined);
+      }}
+    >
       <Icon name="schema" />
       <span>
         {kind === 'table'
           ? 'Select the table’s heading row (or its top-left cell) on the sheet, then add it.'
-          : 'Select the cell to check; a label just to its left is picked up too.'}
+          : 'Select the cell to check; a label just to its left is picked up too.'}{' '}
+        <span className="sr-only">F6 moves between the sheet and this bar.</span>
       </span>
       <button className="btn primary" onClick={add}>
         Add {kind === 'table' ? `table at ${toA1(rect.r1, rect.c1)}` : `cell ${toA1(sel.row, sel.col)}`}
@@ -404,6 +416,8 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   const [jsonError, setJsonError] = useState('');
   const [testResult, setTestResult] = useState<{ ok: boolean; problems: string[] } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const ready = store.status === 'ready';
 
   const edit = (fn: (d: WorkbookSchema) => void) => {
@@ -507,13 +521,23 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   const json = useMemo(() => (draft ? schemaToJSON(draft) : ''), [draft]);
   const activeId = store.schema?.schema.id;
 
-  if (store.designerPick && draft) return <PickBar store={store} draft={draft} kind={store.designerPick} />;
+  const picking = !!(store.designerPick && draft);
+  useDialog(dialog, !picking, () => store.set('designerOpen', false), { modal: true });
+  if (picking) return <PickBar store={store} draft={draft!} kind={store.designerPick!} />;
 
   return (
     <div className="modal-backdrop" onMouseDown={() => store.set('designerOpen', false)}>
-      <div className="designer" role="dialog" aria-modal="true" aria-labelledby="designer-title" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        ref={dialog}
+        className="designer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${titleId}-title`}
+        tabIndex={-1}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <header className="designer-head">
-          <h2 id="designer-title">
+          <h2 id={`${titleId}-title`}>
             <Icon name="schema" /> Schemas
           </h2>
           <button className="btn icon ghost" onClick={() => store.set('designerOpen', false)} aria-label="Close">
@@ -569,207 +593,213 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
             )}
             {draft && (
               <>
-                <div className="editor-tabs">
-                  <div className="panel-tabs" role="tablist">
-                    <button role="tab" aria-selected={mode === 'form'} className={mode === 'form' ? 'active' : ''} onClick={() => setMode('form')}>
-                      Form
-                    </button>
-                    <button role="tab" aria-selected={mode === 'json'} className={mode === 'json' ? 'active' : ''} onClick={() => {
+                <Tabs
+                  label="Edit the schema as"
+                  tabs={[
+                    { id: 'form', label: 'Form' },
+                    { id: 'json', label: 'JSON' },
+                  ]}
+                  value={mode}
+                  onChange={(next) => {
+                    if (next === 'json' && mode !== 'json') {
                       setJsonText(json);
                       setJsonError('');
-                      setMode('json');
-                    }}>
-                      JSON
-                    </button>
-                  </div>
-                  {originalHadHooks && (
-                    <p className="hint warn">This schema has code hooks (async checks, business logic). They aren't part of the JSON, so applying or exporting it here leaves them out.</p>
-                  )}
-                </div>
-
-                {mode === 'json' ? (
-                  <div className="json-editor">
-                    <textarea className="mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label="Schema JSON" />
-                    {jsonError && <p className="hint error">{jsonError}</p>}
-                  </div>
-                ) : (
-                  <div className="form">
-                    <div className="grid-form">
-                      <label>
-                        Name
-                        <input value={draft.name} onChange={(e) => edit((d) => void (d.name = e.target.value))} />
-                      </label>
-                      <label>
-                        Id
-                        <input className="mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
-                      </label>
-                      <label>
-                        Version
-                        <input className="mono" value={draft.version ?? ''} placeholder="e.g. 2" onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title="Saved files are stamped with it; a file saved under another version says so when opened" />
-                      </label>
-                      <label>
-                        Hook time limit (s)
-                        <input className="narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
-                          const n = numberOrUndefined(e.target.value);
-                          d.hookTimeoutMs = n === undefined ? undefined : Math.round(n * 1000);
-                        })} />
-                      </label>
-                      <label className="wide">
-                        Description
-                        <input value={draft.description ?? ''} onChange={(e) => edit((d) => void (d.description = e.target.value || undefined))} />
-                      </label>
-                      <label>
-                        Other sheets
-                        <select value={draft.otherSheets ?? 'editable'} onChange={(e) => edit((d) => void (d.otherSheets = e.target.value as 'editable'))}>
-                          <option value="editable">editable</option>
-                          <option value="readOnly">read-only</option>
-                        </select>
-                      </label>
-                      <label>
-                        Saving with errors
-                        <select value={draft.saveWithErrors ?? 'block'} onChange={(e) => edit((d) => void (d.saveWithErrors = e.target.value as 'block'))}>
-                          <option value="block">blocked</option>
-                          <option value="confirm">asks first</option>
-                        </select>
-                      </label>
-                      <label>
-                        Numbers
-                        <select
-                          value={draft.numbers?.display === 'full' ? 'exact' : 'formatted'}
-                          onChange={(e) => edit((d) => void (d.numbers = e.target.value === 'exact' ? { display: 'full', copy: 'raw' } : undefined))}
-                        >
-                          <option value="formatted">as formatted</option>
-                          <option value="exact">exact (every digit)</option>
-                        </select>
-                      </label>
+                    }
+                    setMode(next);
+                  }}
+                  head={(tabs) => (
+                    <div className="editor-tabs">
+                      {tabs}
+                      {originalHadHooks && (
+                        <p className="hint warn">This schema has code hooks (async checks, business logic). They aren't part of the JSON, so applying or exporting it here leaves them out.</p>
+                      )}
                     </div>
+                  )}
+                >
+                  {mode === 'json' ? (
+                    <div className="json-editor">
+                      <textarea className="mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label="Schema JSON" />
+                      {jsonError && <p className="hint error">{jsonError}</p>}
+                    </div>
+                  ) : (
+                    <div className="form">
+                      <div className="grid-form">
+                        <label>
+                          Name
+                          <input value={draft.name} onChange={(e) => edit((d) => void (d.name = e.target.value))} />
+                        </label>
+                        <label>
+                          Id
+                          <input className="mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
+                        </label>
+                        <label>
+                          Version
+                          <input className="mono" value={draft.version ?? ''} placeholder="e.g. 2" onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title="Saved files are stamped with it; a file saved under another version says so when opened" />
+                        </label>
+                        <label>
+                          Hook time limit (s)
+                          <input className="narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
+                            const n = numberOrUndefined(e.target.value);
+                            d.hookTimeoutMs = n === undefined ? undefined : Math.round(n * 1000);
+                          })} />
+                        </label>
+                        <label className="wide">
+                          Description
+                          <input value={draft.description ?? ''} onChange={(e) => edit((d) => void (d.description = e.target.value || undefined))} />
+                        </label>
+                        <label>
+                          Other sheets
+                          <select value={draft.otherSheets ?? 'editable'} onChange={(e) => edit((d) => void (d.otherSheets = e.target.value as 'editable'))}>
+                            <option value="editable">editable</option>
+                            <option value="readOnly">read-only</option>
+                          </select>
+                        </label>
+                        <label>
+                          Saving with errors
+                          <select value={draft.saveWithErrors ?? 'block'} onChange={(e) => edit((d) => void (d.saveWithErrors = e.target.value as 'block'))}>
+                            <option value="block">blocked</option>
+                            <option value="confirm">asks first</option>
+                          </select>
+                        </label>
+                        <label>
+                          Numbers
+                          <select
+                            value={draft.numbers?.display === 'full' ? 'exact' : 'formatted'}
+                            onChange={(e) => edit((d) => void (d.numbers = e.target.value === 'exact' ? { display: 'full', copy: 'raw' } : undefined))}
+                          >
+                            <option value="formatted">as formatted</option>
+                            <option value="exact">exact (every digit)</option>
+                          </select>
+                        </label>
+                      </div>
 
-                    {draft.sheets.map((sheet, si) => (
-                      <div key={si} className="sheet-block">
-                        <div className="sheet-head">
-                          <label>
-                            Sheet
-                            <input value={matchLabel(sheet.name)} onChange={(e) => edit((d) => void (d.sheets[si].name = parseLabel(e.target.value)))} />
-                          </label>
-                          <label>
-                            Cells outside its tables
-                            <select value={sheet.outside ?? 'readOnly'} onChange={(e) => edit((d) => void (d.sheets[si].outside = e.target.value as 'readOnly'))}>
-                              <option value="readOnly">read-only</option>
-                              <option value="editable">editable</option>
-                            </select>
-                          </label>
-                          <label className="inline">
-                            <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> optional
-                          </label>
-                          {!viewFor(sheet) && ready && <span className="tag tag-warn">not in this workbook</span>}
-                          <button className="btn icon ghost" aria-label="Remove sheet" title="Remove sheet" onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
-                            <Icon name="trash" size={14} />
-                          </button>
-                        </div>
-                        <CellsEditor
-                          cells={sheet.cells ?? []}
-                          onChange={(cells) => edit((d) => void (d.sheets[si].cells = cells.length ? cells : undefined))}
-                        />
-                        {(sheet.tables ?? []).map((table, ti) => (
-                          <div key={ti} className="table-block">
-                            <div className="table-head">
-                              <label>
-                                Table
-                                <input className="mono" value={table.key} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].key = e.target.value))} />
-                              </label>
-                              <label>
-                                Starts at
-                                <input className="mono narrow" value={table.at} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].at = e.target.value.toUpperCase()))} />
-                              </label>
-                              <label>
-                                Records run
-                                <select value={table.orientation ?? 'rows'} onChange={(e) => reread(si, ti, { orientation: e.target.value as 'rows' })}>
-                                  <option value="rows">down (one per row)</option>
-                                  <option value="columns">across (one per column)</option>
-                                </select>
-                              </label>
-                              <label className="inline" title="The first column (or row) holds fixed labels, so the records are fixed too">
-                                <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} /> fixed{' '}
-                                {table.orientation === 'columns' ? 'columns' : 'rows'}
-                              </label>
-                              {!table.records?.labels && (
-                                <>
-                                  <label>
-                                    Min
-                                    <input className="narrow" value={table.records?.min ?? ''} onChange={(e) => edit((d) => {
-                                      const t = d.sheets[si].tables![ti];
-                                      t.records = { ...t.records, min: numberOrUndefined(e.target.value) };
-                                    })} />
-                                  </label>
-                                  <label>
-                                    Max
-                                    <input className="narrow" value={table.records?.max ?? ''} onChange={(e) => edit((d) => {
-                                      const t = d.sheets[si].tables![ti];
-                                      t.records = { ...t.records, max: numberOrUndefined(e.target.value) };
-                                    })} />
-                                  </label>
-                                </>
-                              )}
-                              <button className="btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title="Infer the fields again from the workbook">
-                                Re-read from workbook
-                              </button>
-                            </div>
-                            {table.records?.labels && (
-                              <p className="muted small">
-                                Fixed {table.orientation === 'columns' ? 'column' : 'row'} labels: {table.records.labels.map((l) => matchLabel(l)).join(', ')}
-                              </p>
-                            )}
-                            <div className="fields-wrap">
-                              <table className="fields">
-                                <thead>
-                                  <tr>
-                                    <th>Label</th>
-                                    <th>Key</th>
-                                    <th>Type</th>
-                                    <th title="Required">Req</th>
-                                    <th title="Unique">Uniq</th>
-                                    <th title="Read-only">R/O</th>
-                                    <th>Formulas</th>
-                                    <th>Min</th>
-                                    <th>Max</th>
-                                    <th title="Decimal places">DP</th>
-                                    <th>Values / pattern</th>
-                                    <th />
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {table.fields.map((f, fi) => (
-                                    <FieldRow
-                                      key={fi}
-                                      field={f}
-                                      onChange={(nf) => edit((d) => void (d.sheets[si].tables![ti].fields[fi] = nf))}
-                                      onRemove={() => edit((d) => void d.sheets[si].tables![ti].fields.splice(fi, 1))}
-                                    />
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            <ChecksEditor table={table} onChange={(t) => edit((d) => void (d.sheets[si].tables![ti] = t))} />
-                            <button className="btn ghost small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
-                              <Icon name="trash" size={14} /> Remove table
+                      {draft.sheets.map((sheet, si) => (
+                        <div key={si} className="sheet-block">
+                          <div className="sheet-head">
+                            <label>
+                              Sheet
+                              <input value={matchLabel(sheet.name)} onChange={(e) => edit((d) => void (d.sheets[si].name = parseLabel(e.target.value)))} />
+                            </label>
+                            <label>
+                              Cells outside its tables
+                              <select value={sheet.outside ?? 'readOnly'} onChange={(e) => edit((d) => void (d.sheets[si].outside = e.target.value as 'readOnly'))}>
+                                <option value="readOnly">read-only</option>
+                                <option value="editable">editable</option>
+                              </select>
+                            </label>
+                            <label className="inline">
+                              <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> optional
+                            </label>
+                            {!viewFor(sheet) && ready && <span className="tag tag-warn">not in this workbook</span>}
+                            <button className="btn icon ghost" aria-label="Remove sheet" title="Remove sheet" onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
+                              <Icon name="trash" size={14} />
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    ))}
-                    {ready && (
-                      <div className="pick-actions">
-                        <span className="muted small">Add from the open workbook — select cells on {store.view?.info.name ?? 'the sheet'}:</span>
-                        <button className="btn" onClick={() => store.set('designerPick', 'table')}>
-                          <Icon name="plus" size={14} /> Table from a selection…
-                        </button>
-                        <button className="btn" onClick={() => store.set('designerPick', 'cell')}>
-                          <Icon name="plus" size={14} /> Single cell…
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                          <CellsEditor
+                            cells={sheet.cells ?? []}
+                            onChange={(cells) => edit((d) => void (d.sheets[si].cells = cells.length ? cells : undefined))}
+                          />
+                          {(sheet.tables ?? []).map((table, ti) => (
+                            <div key={ti} className="table-block">
+                              <div className="table-head">
+                                <label>
+                                  Table
+                                  <input className="mono" value={table.key} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].key = e.target.value))} />
+                                </label>
+                                <label>
+                                  Starts at
+                                  <input className="mono narrow" value={table.at} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].at = e.target.value.toUpperCase()))} />
+                                </label>
+                                <label>
+                                  Records run
+                                  <select value={table.orientation ?? 'rows'} onChange={(e) => reread(si, ti, { orientation: e.target.value as 'rows' })}>
+                                    <option value="rows">down (one per row)</option>
+                                    <option value="columns">across (one per column)</option>
+                                  </select>
+                                </label>
+                                <label className="inline" title="The first column (or row) holds fixed labels, so the records are fixed too">
+                                  <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} /> fixed{' '}
+                                  {table.orientation === 'columns' ? 'columns' : 'rows'}
+                                </label>
+                                {!table.records?.labels && (
+                                  <>
+                                    <label>
+                                      Min
+                                      <input className="narrow" value={table.records?.min ?? ''} onChange={(e) => edit((d) => {
+                                        const t = d.sheets[si].tables![ti];
+                                        t.records = { ...t.records, min: numberOrUndefined(e.target.value) };
+                                      })} />
+                                    </label>
+                                    <label>
+                                      Max
+                                      <input className="narrow" value={table.records?.max ?? ''} onChange={(e) => edit((d) => {
+                                        const t = d.sheets[si].tables![ti];
+                                        t.records = { ...t.records, max: numberOrUndefined(e.target.value) };
+                                      })} />
+                                    </label>
+                                  </>
+                                )}
+                                <button className="btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title="Infer the fields again from the workbook">
+                                  Re-read from workbook
+                                </button>
+                              </div>
+                              {table.records?.labels && (
+                                <p className="muted small">
+                                  Fixed {table.orientation === 'columns' ? 'column' : 'row'} labels: {table.records.labels.map((l) => matchLabel(l)).join(', ')}
+                                </p>
+                              )}
+                              <div className="fields-wrap">
+                                <table className="fields">
+                                  <thead>
+                                    <tr>
+                                      <th>Label</th>
+                                      <th>Key</th>
+                                      <th>Type</th>
+                                      <th title="Required">Req</th>
+                                      <th title="Unique">Uniq</th>
+                                      <th title="Read-only">R/O</th>
+                                      <th>Formulas</th>
+                                      <th>Min</th>
+                                      <th>Max</th>
+                                      <th title="Decimal places">DP</th>
+                                      <th>Values / pattern</th>
+                                      <th />
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {table.fields.map((f, fi) => (
+                                      <FieldRow
+                                        key={fi}
+                                        field={f}
+                                        onChange={(nf) => edit((d) => void (d.sheets[si].tables![ti].fields[fi] = nf))}
+                                        onRemove={() => edit((d) => void d.sheets[si].tables![ti].fields.splice(fi, 1))}
+                                      />
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <ChecksEditor table={table} onChange={(t) => edit((d) => void (d.sheets[si].tables![ti] = t))} />
+                              <button className="btn ghost small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
+                                <Icon name="trash" size={14} /> Remove table
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      {ready && (
+                        <div className="pick-actions">
+                          <span className="muted small">Add from the open workbook — select cells on {store.view?.info.name ?? 'the sheet'}:</span>
+                          <button className="btn" onClick={() => store.set('designerPick', 'table')}>
+                            <Icon name="plus" size={14} /> Table from a selection…
+                          </button>
+                          <button className="btn" onClick={() => store.set('designerPick', 'cell')}>
+                            <Icon name="plus" size={14} /> Single cell…
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Tabs>
 
                 {testResult && (
                   <div className={`test-result ${testResult.ok ? 'ok' : 'bad'}`}>

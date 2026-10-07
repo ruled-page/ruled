@@ -32,6 +32,18 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     private unsubscribe?: () => void;
     private lastEdited = 0;
     private lastUnsaved = false;
+    /** The editor renders in here, so its own DOM events reach the element after React has seen them. */
+    private readonly container = document.createElement('div');
+
+    constructor() {
+      super();
+      this.container.style.height = '100%';
+      // Inputs inside the editor fire the browser's change events, which
+      // bubble. Stop them here, so `change` listeners hear only the editor's.
+      this.addEventListener('change', (e) => {
+        if (e.target !== this) e.stopImmediatePropagation();
+      });
+    }
 
     /** Editor options. Setting them on a connected element re-creates the editor. */
     get options(): StoreOptions {
@@ -48,8 +60,9 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     connectedCallback(): void {
       if (!this.style.display) this.style.display = 'block';
+      if (!this.container.isConnected) this.append(this.container);
       const viaEvent = this.getAttribute('save-handler') === 'event';
-      this.handle = mount(this, {
+      this.handle = mount(this.container, {
         ...this.opts,
         onSave: viaEvent ? (file) => this.emitSave(file) : this.opts.onSave,
       });
