@@ -7,6 +7,7 @@ import {
   toRaw,
   unsupportedReason,
   valuesMatch,
+  type EngineSheet,
   type EngineValue,
   type EngineWrite,
 } from './calc';
@@ -51,9 +52,20 @@ export interface OpenOptions {
   };
   /** What to do with VBA macros: keep them (default), remove them on save, or refuse the file. */
   macros?: 'keep' | 'remove' | 'block';
+  /**
+   * Live recalculation: always, never, or (the default) unless the workbook
+   * is larger than LIVE_RECALC_LIMITS, when it starts off and can be turned on.
+   */
+  recalc?: 'auto' | 'on' | 'off';
 }
 
 const DEFAULT_MAX_CELLS = 5_000_000;
+
+/**
+ * Above these, building the calculation engine takes many seconds and a
+ * gigabyte or more of memory, so live recalculation starts off.
+ */
+export const LIVE_RECALC_LIMITS = { formulas: 200_000, cells: 2_000_000 };
 
 export interface CellState {
   content: CellContent;
@@ -261,6 +273,8 @@ export class WorkbookSession {
   readonly locale: string;
   /** Remove the VBA project when saving (macro policy "remove"). */
   private stripMacros = false;
+  /** Live recalculation is off: formulas keep Excel's saved values and no engine is built. */
+  private recalcOff = false;
   /** What the structural change that made this session broke, to tell the user. */
   readonly structureWarnings: string[] = [];
   /**
@@ -320,6 +334,9 @@ export class WorkbookSession {
       locale,
     );
     session.stripMacros = model.hasMacros && macros === 'remove';
+    const formulas = model.sheets.reduce((n, m) => n + (m.scan?.grid.formulas.size ?? 0), 0);
+    const recalc = options.recalc ?? 'auto';
+    session.recalcOff = recalc === 'off' || (recalc === 'auto' && (formulas > LIVE_RECALC_LIMITS.formulas || cells > LIVE_RECALC_LIMITS.cells));
     return session;
   }
 
@@ -488,6 +505,7 @@ export class WorkbookSession {
   /** Builds the engine on first use and checks it against Excel's saved values. */
   ensureEngine(): CalcReport {
     if (this.report) return this.report;
+    if (this.recalcOff) return (this.report = this.offReport());
     const t0 = performance.now();
     const sheets = this.model.sheets;
     const reasons = new Map<string, number>();
@@ -527,30 +545,10 @@ export class WorkbookSession {
       }
     });
 
+    this.constant = constant;
+    const needed = this.sheetsFormulasUse();
     const engine = new CalcEngine(
-      sheets.map((m, s) => {
-        const grid = m.scan?.grid;
-        if (!grid) return null;
-        const rows: RawCellContent[][] = new Array(grid.rowCount);
-        for (let r = 0; r < grid.rowCount; r++) {
-          const start = grid.rowPtr[r];
-          const end = grid.rowPtr[r + 1];
-          if (start === end) {
-            rows[r] = [];
-            continue;
-          }
-          const row: RawCellContent[] = new Array(grid.cols[end - 1] + 1).fill(null);
-          for (let i = start; i < end; i++) {
-            const formula = grid.formulas.get(i);
-            row[grid.cols[i]] =
-              formula !== undefined && grid.flags[i] & CellFlag.Formula && !constant[s].has(i)
-                ? toRaw({ kind: 'formula', formula })
-                : valueRaw(gridValue(grid, i));
-          }
-          rows[r] = row;
-        }
-        return { name: m.info.name, rows };
-      }),
+      sheets.map((_m, s) => (needed.has(s) ? this.engineSheet(s) : null)),
       this.model.names,
       this.model.date1904,
     );
@@ -666,6 +664,137 @@ export class WorkbookSession {
     return this.report;
   }
 
+  /** Formula cells whose saved value is kept instead of being calculated, per sheet, by grid index. */
+  private constant: Set<number>[] = [];
+
+  /** A sheet's cells as the engine takes them: the file's cells with this session's edits. */
+  private engineSheet(s: number): EngineSheet | null {
+    const m = this.model.sheets[s];
+    const grid = m.scan?.grid;
+    if (!grid) return null;
+    const constant = this.constant[s] ?? new Set<number>();
+    const rows: RawCellContent[][] = new Array(grid.rowCount);
+    for (let r = 0; r < grid.rowCount; r++) {
+      const start = grid.rowPtr[r];
+      const end = grid.rowPtr[r + 1];
+      if (start === end) {
+        rows[r] = [];
+        continue;
+      }
+      const row: RawCellContent[] = new Array(grid.cols[end - 1] + 1).fill(null);
+      for (let i = start; i < end; i++) {
+        const formula = grid.formulas.get(i);
+        row[grid.cols[i]] =
+          formula !== undefined && grid.flags[i] & CellFlag.Formula && !constant.has(i) ? toRaw({ kind: 'formula', formula }) : valueRaw(gridValue(grid, i));
+      }
+      rows[r] = row;
+    }
+    for (const [key, st] of this.edits[s]) {
+      const row = Math.floor(key / MAX_COLS);
+      const col = key % MAX_COLS;
+      while (rows.length <= row) rows.push([]);
+      const line = rows[row];
+      while (line.length <= col) line.push(null);
+      line[col] = toRaw(st.content);
+    }
+    return { name: m.info.name, rows };
+  }
+
+  /**
+   * The sheets the engine needs: those with formulas, and those any formula,
+   * defined name, validation or conditional format names. A sheet of plain
+   * data nothing refers to is left out until a formula does.
+   */
+  private sheetsFormulasUse(): Set<number> {
+    const sheets = this.model.sheets;
+    const names = sheets.map((m) => m.info.name.toLowerCase());
+    const needed = new Set<number>();
+    const mention = (text: string) => {
+      if (needed.size === sheets.length) return;
+      const lower = text.toLowerCase();
+      names.forEach((n, i) => {
+        if (!needed.has(i) && lower.includes(n)) needed.add(i);
+      });
+    };
+    sheets.forEach((m, s) => {
+      if (m.info.kind !== 'worksheet') return;
+      if (m.scan?.grid.formulas.size || [...this.edits[s].values()].some((e) => e.content.kind === 'formula')) needed.add(s);
+    });
+    for (const m of sheets) {
+      for (const f of m.scan?.grid.formulas.values() ?? []) mention(f);
+      for (const e of [...this.edits[sheets.indexOf(m)].values()]) if (e.content.kind === 'formula') mention(e.content.formula);
+      for (const r of [...m.info.ruleValidations, ...m.info.conditionalFormats]) {
+        const fs = 'formulas' in r ? r.formulas : [r.formula1, r.formula2 ?? ''];
+        fs.forEach(mention);
+      }
+      for (const l of m.info.listValidations) if (l.source.kind === 'formula') mention(l.source.formula);
+    }
+    for (const n of this.model.names) mention(n.formula);
+    return needed;
+  }
+
+  /**
+   * Adds sheets the engine left out that a formula needs: the sheet it is on
+   * (its unqualified references) and any sheet it names.
+   */
+  private ensureSheetsFor(formula: string, own: number): void {
+    const engine = this.engine;
+    if (!engine) return;
+    const lower = formula.toLowerCase();
+    this.model.sheets.forEach((m, s) => {
+      if (m.info.kind !== 'worksheet' || engine.has(s) || (s !== own && !lower.includes(m.info.name.toLowerCase()))) return;
+      const content = this.engineSheet(s);
+      if (content) engine.addSheet(s, content);
+    });
+  }
+
+  /** The report when live recalculation is off, with no engine built. */
+  private offReport(): CalcReport {
+    const formulaCells = this.model.sheets.reduce((n, m) => n + (m.scan?.grid.formulas.size ?? 0), 0);
+    const cells = this.model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
+    return {
+      buildMs: 0,
+      formulaCells,
+      liveCells: 0,
+      unsupported: 0,
+      mismatched: 0,
+      noCachedValue: 0,
+      unsupportedFunctions: [],
+      samples: [],
+      updates: [],
+      cellReasons: new Map(),
+      off: true,
+      findings: [
+        {
+          kind: 'formulaEngine',
+          severity: 'warn',
+          title: 'Live recalculation is off',
+          detail: `This workbook has ${formulaCells.toLocaleString()} formulas in ${cells.toLocaleString()} cells, more than this editor recalculates live without slowing down (building the engine would take a while and a lot of memory). Formulas show the values Excel last saved, and formulas you type are marked as not calculated; Excel recalculates everything when the file is opened. You can turn live recalculation on from the status bar.`,
+        },
+      ],
+    };
+  }
+
+  /** Turns live recalculation on: builds the engine, brings in this session's edits, and reports it. */
+  enableRecalc(): CalcReport {
+    if (!this.recalcOff) return this.ensureEngine();
+    this.recalcOff = false;
+    this.report = undefined;
+    for (const m of this.newFormulaFlags) m.clear();
+    for (const s of this.stale) s.clear();
+    const report = this.ensureEngine();
+    // Formulas typed while it was off get their values now.
+    this.edits.forEach((m, s) => {
+      for (const [key, st] of m) {
+        if (st.content.kind !== 'formula') continue;
+        if (unsupportedReason(st.content.formula)) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
+        else this.values[s].set(key, this.engine!.value(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
+      }
+    });
+    report.updates = this.stateUpdates();
+    return report;
+  }
+
   /** Marks formulas the engine cannot vouch for after the given cells changed. */
   private markStale(changed: Pos[], extraRoots: Pos[] = []): Pos[] {
     const roots: Pos[] = [...extraRoots];
@@ -689,7 +818,7 @@ export class WorkbookSession {
       out.push(p);
     };
     for (const r of roots) if (!extraRoots.includes(r)) mark(r);
-    for (const d of this.engine!.dependentsOf(roots)) mark(d);
+    for (const d of this.engine?.dependentsOf(roots) ?? []) mark(d);
     return out;
   }
 
@@ -734,10 +863,18 @@ export class WorkbookSession {
   // Data validation
 
   private get evaluator(): Evaluator {
-    const engine = this.engine!;
+    const engine = this.engine;
+    if (!engine) {
+      // With recalculation off, rules that need formulas are left for Excel to judge.
+      return { calculate: () => ({ error: '#ERROR!', message: 'Live recalculation is off.' }), withValue: (_s, _r, _c, _v, fn) => fn() };
+    }
     return {
-      calculate: (formula, sheet) => engine.calculate(engineFormula(formula.replace(/^=/, '')), sheet),
+      calculate: (formula, sheet) => {
+        this.ensureSheetsFor(formula, sheet);
+        return engine.calculate(engineFormula(formula.replace(/^=/, '')), sheet);
+      },
       withValue: (sheet, row, col, content, fn) => {
+        this.ensureSheetsFor('', sheet);
         // What the engine holds for the cell now, so it can be put back exactly.
         const untrusted = this.isUntrustedOriginal(sheet, row, col);
         const grid = this.sheet(sheet).scan?.grid;
@@ -967,7 +1104,7 @@ export class WorkbookSession {
   }
 
   private commit(writes: Write[], warnings: string[], newStyles: { index: number; style: DisplayStyle }[]): EditResult {
-    const engine = this.engine!;
+    const engine = this.engine;
     const undo: CellSnapshot[] = [];
     const redo: CellSnapshot[] = [];
     const reasons = new Set<string>();
@@ -1001,14 +1138,15 @@ export class WorkbookSession {
         raw: untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : toRaw(w.content),
       };
     });
-    const changes = engine.write(engineWrites);
+    for (const w of applied) if (w.content.kind === 'formula') this.ensureSheetsFor(w.content.formula, w.sheet);
+    const changes = engine?.write(engineWrites) ?? [];
 
-    // Formulas typed in this session that the engine can't calculate.
+    // Formulas typed in this session that the engine can't calculate (all of them, with recalculation off).
     const newUnsupported: Pos[] = [];
     for (const w of applied) {
       if (w.content.kind !== 'formula' || this.isUntrustedOriginal(w.sheet, w.row, w.col)) continue;
       const key = cellKey(w.row, w.col);
-      if (unsupportedReason(w.content.formula)) {
+      if (!engine || unsupportedReason(w.content.formula)) {
         this.newFormulaFlags[w.sheet].set(key, CellFlag.Unsupported);
         newUnsupported.push(w);
       } else {
@@ -1092,6 +1230,7 @@ export class WorkbookSession {
     const { broken } = restructure(pkg, readWorkbook(pkg, this.locale), op);
     const next = new WorkbookSession(pkg, null, this.fileName, readWorkbook(pkg, this.locale), {}, this.locale);
     next.stripMacros = this.stripMacros;
+    next.recalcOff = this.recalcOff;
     if (broken) {
       next.structureWarnings.push(
         `${broken.toLocaleString()} formula${broken === 1 ? ' now shows' : 's now show'} #REF! because ${broken === 1 ? 'it' : 'they'} used cells that were deleted or pasted over.`,

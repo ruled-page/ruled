@@ -105,8 +105,8 @@ Or the element (see `examples/html/index.html`):
 
 Options include `schemas`, `numbers`, `onSave`, `features` (hide the open,
 save or schema buttons when the host provides them), `user` (recorded in the
-history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros` and
-`createWorker`. All styles are scoped under `.wbe`.
+history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`
+and `createWorker`. All styles are scoped under `.wbe`.
 
 Opened files are treated as untrusted. Before anything is decompressed the
 editor checks the file size (default limit 200 MB), the total unzipped size
@@ -114,6 +114,15 @@ editor checks the file size (default limit 200 MB), the total unzipped size
 count; after reading, the cell count (5 million). `macros: 'remove'` strips
 the VBA project on save and saves as .xlsx; `macros: 'block'` refuses
 macro-enabled files. Links to other workbooks are kept but never fetched.
+
+Large workbooks: above 200,000 formulas or 2 million cells, live
+recalculation starts off (`recalc: 'auto'`, the default). Formulas then show
+the values Excel saved and Excel recalculates on open; the status bar offers
+to turn it on. On the 1.1-million-cell sample that is 1 second and about
+200 MB to open, against 5.5 seconds and 750 MB with the engine. `recalc:
+'on'` or `'off'` forces it either way. The engine only takes the sheets that
+formulas use, adding others when a formula first names them, and sheet XML
+is decoded again when saving rather than kept in memory.
 
 `onSave` receives the file's bytes plus `changes` (each changed cell, before
 and after) and `history`. Without it, saving downloads the file. If the
@@ -298,8 +307,9 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
   editor for list sources only.
 - HyperFormula is GPLv3 or commercially licensed.
-- Whole workbooks are held in memory; files much past a few million cells
-  would need streaming parsing and a lazily built engine.
+- Cells are parsed into typed arrays and held in memory, so files much past
+  a few million cells would need streaming parsing; the engine for live
+  recalculation needs several times more memory than the cells themselves.
 - Schema hooks run on the UI thread and only in the browser; nothing
   re-checks a file on a server yet. Inserting or deleting schema records
   moves cells within the table, so formulas outside the table that point

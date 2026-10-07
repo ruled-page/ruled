@@ -13,7 +13,9 @@ export type WorkerRequest =
   /** Insert or delete rows or columns, or move cells, rewriting references. */
   | { id: number; type: 'structure'; op: StructuralOp }
   /** Go back to, or forward to, the workbook as it was around a structural change. */
-  | { id: number; type: 'undoStructure' | 'redoStructure' };
+  | { id: number; type: 'undoStructure' | 'redoStructure' }
+  /** Turn live recalculation on for a workbook opened with it off. */
+  | { id: number; type: 'enableRecalc' };
 
 export type WorkerResponse =
   | { id: number; type: 'opened'; result: LoadResult }
@@ -25,6 +27,7 @@ export type WorkerResponse =
   | { id: number; type: 'validated'; ok: boolean }
   | { id: number; type: 'listSource'; source: ListSource | null }
   | { id: number; type: 'conditionalFormats'; result: CfResult }
+  | { id: number; type: 'recalcOn'; report: CalcReport }
   /**
    * After a structural change, or undoing one, the whole workbook as it now
    * is: what the file holds, the cells that differ from it, and the engine's

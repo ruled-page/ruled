@@ -118,6 +118,11 @@ export interface StoreOptions {
   limits?: OpenOptions['limits'];
   /** VBA macros: keep them (default), remove them when saving, or refuse such files. */
   macros?: OpenOptions['macros'];
+  /**
+   * Live recalculation: 'auto' (default) turns it off for workbooks too large
+   * to recalculate quickly, where the user can turn it on; 'on' and 'off' force it.
+   */
+  recalc?: OpenOptions['recalc'];
 }
 
 function defaultWorker(): Worker {
@@ -383,10 +388,7 @@ export class WorkbookStore {
   private onMessage = (e: MessageEvent<WorkerResponse>) => {
     const msg = e.data;
     if (msg.type === 'calc') {
-      this.calc = msg.report;
-      this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...msg.report.findings];
-      for (const u of msg.report.updates) this.sheets[u.sheet]?.apply(u);
-      this.schema?.validate();
+      this.applyCalc(msg.report);
       this.notify();
       return;
     }
@@ -444,7 +446,7 @@ export class WorkbookStore {
     this.notify();
     try {
       const res = await this.request(
-        { type: 'open', bytes, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros } } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, recalc: this.options.recalc } } as Omit<WorkerRequest, 'id'>,
         [bytes],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
@@ -816,6 +818,36 @@ export class WorkbookStore {
     this.cfRuns.clear();
     this.clip = undefined;
     this.bindSchemas();
+    this.refreshConditionalFormats(this.active);
+  }
+
+  /** Turns live recalculation on for a workbook opened with it off. Building the engine can take a while. */
+  async enableRecalc(): Promise<void> {
+    await this.queue;
+    this.recalcStarting = true;
+    this.busy = true;
+    this.notify();
+    try {
+      const res = await this.request({ type: 'enableRecalc' } as Omit<WorkerRequest, 'id'>);
+      if (res.type === 'recalcOn') this.applyCalc(res.report);
+    } catch (err) {
+      this.toast('error', (err as Error).message);
+    } finally {
+      this.recalcStarting = false;
+      this.busy = false;
+      this.notify();
+    }
+  }
+
+  /** Set while the engine is being built after the user turned recalculation on. */
+  recalcStarting = false;
+
+  private applyCalc(report: CalcReport): void {
+    this.calc = report;
+    this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...report.findings];
+    for (const u of report.updates) this.sheets[u.sheet]?.apply(u);
+    this.dataVersion++;
+    this.schema?.validate();
     this.refreshConditionalFormats(this.active);
   }
 

@@ -237,7 +237,21 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
             <span className="spinner small" /> Building calculation engine…
           </>
         )}
-        {calc && (
+        {calc?.off && (
+          <>
+            <span className="dot" /> Live recalculation off ({calc.formulaCells.toLocaleString()} formulas)
+            {store.recalcStarting ? (
+              <span className="muted">
+                <span className="spinner small" /> Building calculation engine…
+              </span>
+            ) : (
+              <button className="link" onClick={() => void store.enableRecalc()} title="Building the engine for a workbook this size takes a while and uses a lot of memory">
+                Turn on
+              </button>
+            )}
+          </>
+        )}
+        {calc && !calc.off && (
           <>
             <span className="dot ok" /> {calc.liveCells.toLocaleString()} formulas recalculate live
             {calc.unsupported + calc.mismatched > 0 && (

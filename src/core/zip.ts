@@ -118,6 +118,14 @@ export class OoxmlPackage {
     if (i !== -1) this.order.splice(i, 1);
   }
 
+  /** A part's text, decoded without keeping it, for large parts read rarely. */
+  textOnce(path: string): string | undefined {
+    const cached = this.textCache.get(path);
+    if (cached !== undefined) return cached;
+    const data = this.files.get(path);
+    return data ? decoder.decode(data) : undefined;
+  }
+
   /** Releases decoded text for a part that will not be read again. */
   forgetText(path: string): void {
     this.textCache.delete(path);

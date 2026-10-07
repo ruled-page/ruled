@@ -19,7 +19,8 @@ export interface DefinedName {
 export interface SheetModel {
   info: SheetInfo;
   path: string;
-  xml?: string;
+  /** The worksheet's XML, decoded from the package each time it is read. */
+  readonly xml?: string;
   scan?: ScanResult;
   /** Column ranges with a default style, applied to newly created cells. */
   colStyles: { min: number; max: number; style: number }[];
@@ -561,7 +562,12 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     }
 
     info.blocked = blocked;
-    return { info, path, xml, scan, colStyles };
+    // Big sheets' text is several times the size of their parsed cells, so it
+    // isn't kept: saving and restructuring decode it again from the package.
+    pkg.forgetText(path);
+    const sheetModel: SheetModel = { info, path, scan, colStyles };
+    Object.defineProperty(sheetModel, 'xml', { get: () => pkg.textOnce(path), enumerable: true });
+    return sheetModel;
   });
 
   // Workbook-level features.

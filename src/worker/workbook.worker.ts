@@ -95,6 +95,12 @@ scope.onmessage = (e) => {
         adopt(next, req.id, next.structureWarnings);
         break;
       }
+      case 'enableRecalc': {
+        if (!session) throw new Error('No workbook is open.');
+        calcSent = true;
+        post({ id: req.id, type: 'recalcOn', report: session.enableRecalc() });
+        break;
+      }
       case 'undoStructure':
       case 'redoStructure': {
         const to = req.type === 'undoStructure' ? at - 1 : at + 1;

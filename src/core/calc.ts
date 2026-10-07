@@ -102,7 +102,7 @@ function convert(v: unknown): EngineValue {
  */
 export class CalcEngine {
   private readonly hf: HyperFormula;
-  /** Our sheet index → engine sheet id (-1 when the sheet is not a worksheet). */
+  /** Our sheet index → engine sheet id (-1 when the sheet is not in the engine). */
   private readonly ids: number[];
   private readonly sheetOf = new Map<number, number>();
 
@@ -157,6 +157,34 @@ export class CalcEngine {
     this.ids.forEach((id, i) => {
       if (id >= 0) this.sheetOf.set(id, i);
     });
+  }
+
+  /** Whether a sheet's cells are in the engine. */
+  has(sheet: number): boolean {
+    return (this.ids[sheet] ?? -1) >= 0;
+  }
+
+  /**
+   * Adds a sheet that was left out when the engine was built because no
+   * formula used it, once one does. Returns the cells whose values changed.
+   */
+  addSheet(sheet: number, content: EngineSheet): EngineChange[] {
+    if (this.has(sheet)) return [];
+    // Changes made inside a batch are all returned by the batch.
+    const changes = this.hf.batch(() => {
+      const name = this.hf.addSheet(content.name);
+      const id = this.hf.getSheetId(name)!;
+      this.ids[sheet] = id;
+      this.sheetOf.set(id, sheet);
+      this.hf.setSheetContent(id, content.rows);
+    });
+    const out: EngineChange[] = [];
+    for (const c of changes) {
+      if (!('address' in c) || !c.address) continue;
+      const s = this.sheetOf.get(c.address.sheet);
+      if (s !== undefined && s !== sheet) out.push({ sheet: s, row: c.address.row, col: c.address.col, value: convert(c.newValue) });
+    }
+    return out;
   }
 
   value(sheet: number, row: number, col: number): EngineValue {

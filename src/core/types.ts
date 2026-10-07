@@ -379,6 +379,8 @@ export interface CalcReport {
   findings: Finding[];
   /** Why each formula is not calculated here, keyed by "sheet:row:col". */
   cellReasons: Map<string, string>;
+  /** Live recalculation is off for this workbook; no engine was built. */
+  off?: boolean;
 }
 
 export interface CellUpdate {

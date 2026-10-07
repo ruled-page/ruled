@@ -50,7 +50,9 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
     };
   }
   if (rec.flags & CellFlag.Edited && rec.flags & CellFlag.Unsupported) {
-    return { tone: 'info', text: "This editor can't calculate this formula. It is saved as typed and Excel calculates it when the file is opened." };
+    return store.calc?.off
+      ? { tone: 'info', text: 'Live recalculation is off, so this formula isn\'t calculated here. It is saved as typed and Excel calculates it when the file is opened.' }
+      : { tone: 'info', text: "This editor can't calculate this formula. It is saved as typed and Excel calculates it when the file is opened." };
   }
   if (rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) {
     return { tone: 'info', text: `${why ?? "This editor can't calculate this formula."} Showing Excel's saved value.` };
