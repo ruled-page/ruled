@@ -198,6 +198,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       hiddenRows: [],
       frozenCols: 0,
       frozenRows: 0,
+      rowStyles: {},
+      colStyles: [],
       merges: [],
       listValidations: [],
       ruleValidations: [],
@@ -255,8 +257,9 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     if (attr(fmt, 'defaultRowHeight')) info.defaultRowHeightPx = Math.round((Number(attr(fmt, 'defaultRowHeight')) * 4) / 3);
     for (const [row, pt] of scan.rowHeightsPt) info.rowHeights[row] = Math.round((pt * 4) / 3);
     info.hiddenRows = scan.hiddenRows;
+    for (const [row, style] of scan.rowStyles) info.rowStyles[row] = style;
 
-    const colStyles: SheetModel['colStyles'] = [];
+    const colStyles = info.colStyles;
     const colLimit = Math.max(info.maxCol, 25) + COLUMN_PADDING;
     for (const c of children(child(meta, 'cols'), 'col')) {
       const min = Number(attr(c, 'min')) - 1;

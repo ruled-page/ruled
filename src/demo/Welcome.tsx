@@ -13,6 +13,11 @@ export const SAMPLES = [
     detail: 'Excel’s own data validation: dropdown lists (inline, named, OFFSET and dependent INDIRECT) and number, date, text-length and custom-formula rules.',
   },
   {
+    file: 'formatting.xlsx',
+    title: 'Formatting',
+    detail: 'Borders, text running into empty cells, notes, conditional formatting, table styles and frozen rows.',
+  },
+  {
     file: 'pivot.xlsx',
     title: 'Pivot table',
     detail: 'A pivot table plus filled-down formulas, which Excel stores in a compact shared form.',

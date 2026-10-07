@@ -1,4 +1,4 @@
-import type { DisplayStyle } from './types';
+import type { BorderEdge, CellBorders, DisplayStyle } from './types';
 import { attr, child, children, descendants, parseXml, type XmlNode } from './xml';
 
 /** Excel's built-in number formats (en-US). Ids 14 and 22 follow the user's locale. */
@@ -155,6 +155,37 @@ export function resolveColor(node: XmlNode | undefined, theme: string[], indexed
   return '#' + applyTint(hex.toUpperCase(), tint);
 }
 
+/** Excel border styles drawn as width and pattern. */
+const BORDER_STYLES: Record<string, Omit<BorderEdge, 'color'>> = {
+  thin: { width: 1, pattern: 'solid' },
+  hair: { width: 1, pattern: 'dotted' },
+  dotted: { width: 1, pattern: 'dotted' },
+  dashed: { width: 1, pattern: 'dashed' },
+  dashDot: { width: 1, pattern: 'dashed' },
+  dashDotDot: { width: 1, pattern: 'dashed' },
+  medium: { width: 2, pattern: 'solid' },
+  mediumDashed: { width: 2, pattern: 'dashed' },
+  mediumDashDot: { width: 2, pattern: 'dashed' },
+  mediumDashDotDot: { width: 2, pattern: 'dashed' },
+  slantDashDot: { width: 2, pattern: 'dashed' },
+  thick: { width: 3, pattern: 'solid' },
+  double: { width: 3, pattern: 'double' },
+};
+
+export function parseBorder(node: XmlNode | undefined, theme: string[], indexed: string[]): CellBorders | undefined {
+  if (!node) return undefined;
+  const edge = (...names: string[]): BorderEdge | undefined => {
+    for (const name of names) {
+      const side = child(node, name);
+      const kind = BORDER_STYLES[attr(side, 'style') ?? ''];
+      if (side && kind) return { ...kind, color: resolveColor(child(side, 'color'), theme, indexed) ?? '#000000' };
+    }
+    return undefined;
+  };
+  const b: CellBorders = { left: edge('left', 'start'), right: edge('right', 'end'), top: edge('top'), bottom: edge('bottom') };
+  return b.left || b.right || b.top || b.bottom ? b : undefined;
+}
+
 const flag = (node: XmlNode | undefined) => !!node && attr(node, 'val') !== '0' && attr(node, 'val') !== 'false';
 
 interface FontInfo {
@@ -226,6 +257,8 @@ export class StyleBook {
       return resolveColor(child(stop, 'color'), theme, indexed);
     });
 
+    const borders = children(child(root, 'borders'), 'border').map((b) => parseBorder(b, theme, indexed));
+
     const cellXfsNode = child(root, 'cellXfs');
     for (const xf of children(cellXfsNode, 'xf')) {
       const font = fonts[Number(attr(xf, 'fontId') ?? 0)] ?? fonts[0];
@@ -244,6 +277,7 @@ export class StyleBook {
         vAlign: attr(align, 'vertical'),
         wrap: attr(align, 'wrapText') === '1' || attr(align, 'wrapText') === 'true',
         indent: Number(attr(align, 'indent') ?? 0),
+        border: borders[Number(attr(xf, 'borderId') ?? 0)],
       });
     }
     if (this.display.length === 0) this.display.push(defaultStyle());

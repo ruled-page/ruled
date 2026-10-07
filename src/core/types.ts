@@ -57,6 +57,20 @@ export interface SheetGrid {
   formulas: Map<number, string>;
 }
 
+/** One side of a cell border, as drawn: width in pixels, line pattern and colour. */
+export interface BorderEdge {
+  width: 1 | 2 | 3;
+  pattern: 'solid' | 'dashed' | 'dotted' | 'double';
+  color: string;
+}
+
+export interface CellBorders {
+  left?: BorderEdge;
+  right?: BorderEdge;
+  top?: BorderEdge;
+  bottom?: BorderEdge;
+}
+
 export interface DisplayStyle {
   numFmt: string;
   bold: boolean;
@@ -71,6 +85,7 @@ export interface DisplayStyle {
   vAlign?: string;
   wrap: boolean;
   indent: number;
+  border?: CellBorders;
 }
 
 export interface Anchor {
@@ -155,6 +170,9 @@ export interface SheetInfo {
   hiddenRows: number[];
   frozenCols: number;
   frozenRows: number;
+  /** Formats of whole rows and columns, used by cells that have none of their own. */
+  rowStyles: Record<number, number>;
+  colStyles: { min: number; max: number; style: number }[];
   merges: MergeRange[];
   listValidations: ListValidation[];
   ruleValidations: RuleValidation[];

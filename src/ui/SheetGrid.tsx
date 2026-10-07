@@ -2,8 +2,10 @@ import {
   CompactSelection,
   DataEditor,
   GridCellKind,
+  getMiddleCenterBias,
   type DataEditorRef,
   type DrawCellCallback,
+  type DrawHeaderCallback,
   type FillPatternEventArgs,
   type GridCell,
   type GridColumn,
@@ -15,13 +17,15 @@ import {
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
-import { CellFlag, type DisplayStyle, type Rect } from '../core/types';
+import { CellFlag, VT, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
 import { alignment, displayText, editText, exactText } from '../state/format';
+import { CELL_PADDING, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { ObjectsOverlay } from './ObjectsOverlay';
+import { drawEdge, drawGridLine, FREEZE_LINE } from './paint';
 
 const FONT_STACK = 'Calibri, Carlito, "Aptos Narrow", "Segoe UI", system-ui, sans-serif';
 const EDITED_FILL = '#FFF4CE';
@@ -44,8 +48,10 @@ const THEME: Partial<Theme> = {
   bgHeader: '#F4F5F5',
   bgHeaderHasFocus: '#E3EFE8',
   bgHeaderHovered: '#EAEBEB',
-  borderColor: '#E1E3E3',
-  horizontalBorderColor: '#E1E3E3',
+  // Grid lines are drawn with each cell, so borders and overflowing text can replace them.
+  borderColor: 'transparent',
+  horizontalBorderColor: 'transparent',
+  headerBottomBorderColor: '#D3D6D6',
   headerFontStyle: '500 12px',
   baseFontStyle: '14.7px',
   fontFamily: FONT_STACK,
@@ -61,6 +67,19 @@ const ROW_HEADER_THEME: Partial<Theme> = {
   baseFontStyle: '12px',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
 };
+
+/** The canvas font Glide uses for a cell in this style. */
+function fontFor(style: DisplayStyle): string {
+  return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${FONT_STACK}`;
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+function measure(text: string, style: DisplayStyle): number {
+  measureCtx ??= document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return 0;
+  measureCtx.font = fontFor(style);
+  return measureCtx.measureText(text).width;
+}
 
 const themeCache = new Map<string, Partial<Theme>>();
 function cellTheme(style: DisplayStyle, color: string | undefined, edited: boolean, locked = false): Partial<Theme> | undefined {
@@ -178,8 +197,8 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const asEnum = (cell: EnumCell): EnumCell =>
         options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
       if (!rec) {
-        const mergedStyle = merge ? styles[view.get(merge.r1, merge.c1)?.style ?? 0] : undefined;
-        const bg = mergedStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
+        const baseStyle = styles[merge ? view.styleAt(merge.r1, merge.c1) : view.styleAt(row, col, null)];
+        const bg = baseStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
         return asEnum({
           kind: GridCellKind.Text,
           data: '',
@@ -189,7 +208,16 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
           themeOverride: bg ? { bgCell: bg } : undefined,
         });
       }
-      const { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
+      let { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
+      if (rec.t === VT.Number && !style.wrap) {
+        // Numbers never spill into neighbours; Excel shortens them or shows ####.
+        let room = 0;
+        for (let c = merge?.c1 ?? col; c <= (merge?.c2 ?? col); c++) room += view.colWidth(c);
+        room -= CELL_PADDING * 2;
+        if (text.length * style.fontSizePx * 0.62 > room) {
+          text = fitNumber(text, rec.n ?? 0, /^general$/i.test(style.numFmt), room, (s) => measure(s, style));
+        }
+      }
       return asEnum({
         kind: GridCellKind.Text,
         data: editText(rec, style, date1904),
@@ -206,13 +234,84 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
     [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion],
   );
 
+  // Text spilling into empty neighbours, worked out per row as rows are drawn.
+  const overflowCache = useMemo(
+    () => new Map<number, Overflow[]>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, dataVersion, styles, date1904, colVersion],
+  );
+  const overflowsFor = useCallback(
+    (row: number) => {
+      let list = overflowCache.get(row);
+      if (!list) {
+        list = rowOverflows(view, row, styles, date1904, measure);
+        overflowCache.set(row, list);
+      }
+      return list;
+    },
+    [overflowCache, view, styles, date1904],
+  );
+
+  /** Pixels from the left edge of sheet column `from` to the left edge of `to`, over visible columns. */
+  const offsetBetween = useCallback(
+    (from: number, to: number) => {
+      const a = view.gridCol(from);
+      const b = view.gridCol(to);
+      let px = 0;
+      for (let g = Math.min(a, b); g < Math.max(a, b); g++) px += view.colWidth(view.visibleCols[g]);
+      return a <= b ? px : -px;
+    },
+    [view],
+  );
+
   const drawCell = useCallback<DrawCellCallback>(
     (args, drawContent) => {
-      drawContent();
-      if (args.col === 0) return;
-      const row = view.visibleRows[args.row];
-      const col = view.visibleCols[args.col - 1];
       const { ctx, rect } = args;
+      const row = view.visibleRows[args.row];
+      const gridLines = view.info.showGridLines;
+      if (args.col === 0) {
+        drawContent();
+        drawGridLine(ctx, 'top', rect.x, rect.y, rect.width);
+        drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height);
+        return;
+      }
+      const col = view.visibleCols[args.col - 1];
+
+      // Overflowing text is drawn here in full, in its own cell and in each neighbour it covers.
+      const overflows = overflowsFor(row);
+      const own = overflows.find((o) => o.col === col);
+      const through = own ?? overflows.find((o) => col >= o.from && col <= o.to);
+      if (!own) drawContent();
+      if (through) {
+        const font = fontFor(through.style);
+        ctx.save();
+        ctx.font = font;
+        ctx.fillStyle = through.color ?? through.style.color ?? '#1F1F1F';
+        ctx.textAlign = 'left';
+        const x = rect.x - offsetBetween(through.col, col) + overflowTextX(through, view.colWidth(through.col));
+        ctx.fillText(through.text, x, rect.y + rect.height / 2 + getMiddleCenterBias(ctx, font));
+        ctx.restore();
+      }
+
+      // Left and top edges belong to this cell: a border from either side, else a grid line.
+      const merge = view.mergeAt(row, col);
+      const style = styles[view.styleAt(merge?.r1 ?? row, merge?.c1 ?? col)] ?? styles[0];
+      const gc = view.gridCol(col);
+      const gr = view.gridRow(row);
+      if (!merge || col === merge.c1) {
+        const leftCol = gc > 0 ? view.visibleCols[gc - 1] : -1;
+        const edge = style.border?.left ?? (leftCol >= 0 ? styles[view.styleAt(row, leftCol)]?.border?.right : undefined);
+        if (edge) drawEdge(ctx, 'left', rect.x, rect.y, rect.height, edge);
+        else if (gridLines && !overflows.some((o) => o.from < col && col <= o.to)) drawGridLine(ctx, 'left', rect.x, rect.y, rect.height);
+      }
+      if (!merge || row === merge.r1) {
+        const upRow = gr > 0 ? view.visibleRows[gr - 1] : -1;
+        const edge = style.border?.top ?? (upRow >= 0 ? styles[view.styleAt(upRow, col)]?.border?.bottom : undefined);
+        if (edge) drawEdge(ctx, 'top', rect.x, rect.y, rect.width, edge);
+        else if (gridLines) drawGridLine(ctx, 'top', rect.x, rect.y, rect.width);
+      }
+      if (frozen > 0 && args.col === frozen) drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height, FREEZE_LINE);
+
       if (args.highlighted && enumOptionsOf(args.cell)) {
         // Dropdown chevron on selected enum cells, like Excel's list validation.
         const cx = rect.x + rect.width - 10;
@@ -260,8 +359,13 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       ctx.restore();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, schema, schemaVersion, sheetIndex],
+    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen],
   );
+
+  const drawHeader = useCallback<DrawHeaderCallback>((args, drawContent) => {
+    drawContent();
+    if (args.columnIndex > 0) drawGridLine(args.ctx, 'left', args.rect.x, args.rect.y, args.rect.height);
+  }, []);
 
   // Grid selection <-> sheet selection. Grid column 0 is the row-number column.
   const toSheetRect = useCallback(
@@ -416,10 +520,6 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
     (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
     [],
   );
-  const theme = useMemo(
-    () => (view.info.showGridLines ? THEME : { ...THEME, borderColor: 'transparent', horizontalBorderColor: 'transparent' }),
-    [view],
-  );
 
   return (
     <div className="grid-host" ref={host}>
@@ -430,6 +530,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         rows={view.rowCount}
         getCellContent={getCellContent}
         drawCell={drawCell}
+        drawHeader={drawHeader}
         gridSelection={gridSelection}
         onGridSelectionChange={onSelectionChange}
         onCellEdited={onCellEdited}
@@ -453,7 +554,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         smoothScrollY
         cellActivationBehavior="double-click"
         editOnType
-        theme={theme}
+        theme={THEME}
         width="100%"
         height="100%"
         minColumnWidth={18}

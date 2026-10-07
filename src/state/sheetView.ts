@@ -123,6 +123,14 @@ export class SheetView {
     }
   }
 
+  /** The format a cell is drawn with: its own, else its row's, else its column's. */
+  styleAt(row: number, col: number, rec: CellRecord | null = this.get(row, col)): number {
+    if (rec) return rec.style;
+    const own = this.info.rowStyles[row];
+    if (own !== undefined) return own;
+    return this.info.colStyles.find((c) => col >= c.min && col <= c.max)?.style ?? 0;
+  }
+
   blockedAt(row: number, col: number): BlockedRegion | undefined {
     return this.info.blocked.find((b) => inRect(b, row, col));
   }
