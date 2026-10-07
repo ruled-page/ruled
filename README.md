@@ -335,27 +335,62 @@ with Excel-exact versions (`src/core/excelFunctions.ts`).
 
 ## Sharing it on Cloudflare Pages
 
-The app is static (everything runs in the browser), so it deploys to
-Cloudflare Pages as-is. `wrangler.jsonc` names the project
-`workbook-editor-poc` and points at `dist/`; `public/_headers` keeps it out of
-search results and caches the hashed assets.
+Everything is static (it all runs in the browser), so each example is its
+own Cloudflare Pages site:
 
-Once, to create the project (it prints the `*.pages.dev` address):
+| Site | What it is | Pages project | Config |
+| --- | --- | --- | --- |
+| Demo | The editor with the sample workbooks | `workbook-editor-poc` | `wrangler.jsonc` |
+| Portal | The editor embedded in a React supplier portal | `workbook-editor-portal` | `sites/portal/wrangler.jsonc` |
+| Angular | The editor embedded in an Angular app | `workbook-editor-angular` | `sites/angular/wrangler.jsonc` |
+
+Once, create each project (each prints its `*.pages.dev` address):
 
 ```bash
 npx wrangler pages project create workbook-editor-poc --production-branch main
 ```
 
-Then, each time you want to publish the current code:
-
 ```bash
-npm run deploy
+npx wrangler pages project create workbook-editor-portal --production-branch main
 ```
 
-`npm run pages:dev` serves the production build locally on port 8788 the
-same way Pages will, to check it first. Anyone with the address can open the
-app; put Cloudflare Access in front of it to restrict that. `big.xlsx` is
-uploaded only if you have generated it locally.
+```bash
+npx wrangler pages project create workbook-editor-angular --production-branch main
+```
+
+Then, each time you want to publish the current code, build and upload one
+site, or all three with `npm run deploy`:
+
+```bash
+npm run deploy:demo
+```
+
+```bash
+npm run deploy:portal
+```
+
+```bash
+npm run deploy:angular
+```
+
+`npm run build:sites` builds them into `dist-sites/` without uploading
+anything (`node scripts/build-sites.mjs portal` builds one). The sites link to
+each other at `https://<project>.pages.dev/`; if Cloudflare gives a project
+another address, or you use custom domains, set `DEMO_URL`, `PORTAL_URL` or
+`ANGULAR_URL` when building. Angular's CLI needs Node 22.22.3 or later, so use
+it for the Angular site (with fnm, `fnm use 22.23`).
+
+To check a site locally the way Pages serves it, build it, then:
+
+```bash
+npx wrangler pages dev --port 8788
+```
+
+(`--cwd sites/portal` or `--cwd sites/angular` for the others;
+`npm run pages:dev` builds and serves the demo.) `public/_headers` keeps the
+sites out of search results; anyone with an address can open them, so put
+Cloudflare Access in front to restrict that. The demo uploads `big.xlsx` only
+if you have generated it locally.
 
 ## Schemas
 

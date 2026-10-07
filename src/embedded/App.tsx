@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SITES } from '../sites';
 import { Home } from './Home';
 import { chooseLanguage, LANGUAGES, NS } from './i18n';
 import { Review } from './Review';
@@ -77,7 +78,7 @@ export function App() {
           <a href="#/" aria-current={route.page !== 'home' ? undefined : 'page'}>
             {t('nav.priceLists')}
           </a>
-          <a href="./">{t('nav.editorDemo')}</a>
+          <a href={SITES.demo}>{t('nav.editorDemo')}</a>
         </nav>
         <LanguagePicker />
       </header>

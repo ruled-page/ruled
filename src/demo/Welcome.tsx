@@ -1,5 +1,6 @@
 import { Trans, useTranslation } from 'react-i18next';
 import type { WorkbookStore } from '../state/store';
+import { SITES } from '../sites';
 import { Icon } from '../ui/icons';
 import { DEMO_NS, i18next } from './i18n';
 import type { DemoKey } from './locales/en';
@@ -65,7 +66,13 @@ export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
         <h1>{t('welcome.heading')}</h1>
         <p className="lede">{t('welcome.lede')}</p>
         <p className="lede">
-          <a href={`${import.meta.env.BASE_URL}embedded.html`}>{t('welcome.embedded')}</a>
+          {t('welcome.examples')} <a href={SITES.portal}>{t('welcome.exampleEmbedded')}</a>
+          {SITES.angular && (
+            <>
+              {' · '}
+              <a href={SITES.angular}>{t('welcome.exampleAngular')}</a>
+            </>
+          )}
         </p>
         <button className="dropzone" onClick={onOpen}>
           <Icon name="open" size={22} />

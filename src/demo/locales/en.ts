@@ -12,7 +12,9 @@ export const en = {
   'theme.dark': 'Dark',
 
   'welcome.heading': 'Edit an Excel workbook in the browser',
-  'welcome.embedded': 'See it embedded in an app: a supplier portal that checks, saves and reads price lists →',
+  'welcome.examples': 'Other examples:',
+  'welcome.exampleEmbedded': 'a supplier portal with the editor embedded',
+  'welcome.exampleAngular': 'the element in an Angular app',
   'welcome.lede':
     'Open a .xlsx file, change cells, paste from Excel, drag to fill, and save it back as .xlsx. Formulas recalculate as you edit. Charts, pivot tables, macros and formatting are kept in the saved file, even the ones this editor can’t display.',
   'welcome.choose': '<strong>Choose a workbook</strong> or drop it anywhere on this page',

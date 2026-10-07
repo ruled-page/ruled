@@ -1,0 +1,8 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The editor embedded in an Angular app. `npm run deploy:angular` builds and
+  // uploads it (Angular's CLI needs Node 22.22.3 or later).
+  "name": "workbook-editor-angular",
+  "pages_build_output_dir": "../../dist-sites/angular",
+  "compatibility_date": "2026-10-07"
+}

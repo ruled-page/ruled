@@ -80,6 +80,8 @@ jobs:
       - run: npx playwright test e2e/angular.spec.ts
         env:
           E2E_ANGULAR: '1'
+      # The three example sites, built as Cloudflare Pages would serve them (not deployed).
+      - run: npm run build:sites
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

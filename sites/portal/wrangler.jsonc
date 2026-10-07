@@ -1,0 +1,8 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The supplier portal (the editor embedded in a React app). `npm run
+  // deploy:portal` builds and uploads it.
+  "name": "workbook-editor-portal",
+  "pages_build_output_dir": "../../dist-sites/portal",
+  "compatibility_date": "2026-10-07"
+}
