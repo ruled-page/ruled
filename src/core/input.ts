@@ -1,5 +1,6 @@
 import { isTextFormat, parseValue } from 'numfmt';
 import { toFileFormula, validateFormula } from './formula';
+import { localeInfo, normalizeForLocale } from './locale';
 import { EMPTY, type CellContent } from './types';
 
 export const ERROR_LITERALS = new Set([
@@ -17,9 +18,9 @@ export interface ParsedInput {
 
 /**
  * Interprets text the way Excel does when it is typed or pasted into a cell
- * with the given number format.
+ * with the given number format, reading dates and decimals in `locale`.
  */
-export function parseInput(text: string, cellNumFmt: string): ParsedInput {
+export function parseInput(text: string, cellNumFmt: string, locale = 'en-US'): ParsedInput {
   if (text === '') return { content: EMPTY };
   if (text[0] === "'") return { content: { kind: 'string', value: text.slice(1) } };
 
@@ -41,16 +42,18 @@ export function parseInput(text: string, cellNumFmt: string): ParsedInput {
   const trimmed = text.trim();
   if (ERROR_LITERALS.has(trimmed.toUpperCase())) return { content: { kind: 'error', value: trimmed.toUpperCase() } };
 
+  const local = normalizeForLocale(text, localeInfo(locale));
   let parsed: ReturnType<typeof parseValue> = null;
   try {
-    parsed = parseValue(text);
+    parsed = parseValue(local.text);
   } catch {
     parsed = null;
   }
   if (parsed) {
     if (typeof parsed.v === 'boolean') return { content: { kind: 'bool', value: parsed.v } };
     if (typeof parsed.v === 'number' && Number.isFinite(parsed.v)) {
-      const numFmt = parsed.z && cellNumFmt === 'General' ? parsed.z : undefined;
+      const z = local.numFmt ?? parsed.z;
+      const numFmt = z && cellNumFmt === 'General' ? z : undefined;
       return { content: { kind: 'number', value: parsed.v }, numFmt };
     }
   }

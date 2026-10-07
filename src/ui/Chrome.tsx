@@ -49,9 +49,9 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
         <span className="brand-name">Workbook editor</span>
         {store.fileName && <span className="file-name">{store.fileName}</span>}
         {store.editedCount > 0 && (
-          <span className="badge badge-edit">
+          <button className="badge badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title="Show what changed">
             {store.editedCount.toLocaleString()} {store.editedCount === 1 ? 'change' : 'changes'}
-          </span>
+          </button>
         )}
         {ready && <SchemaChip store={store} />}
         {store.busy && <span className="spinner" aria-label="Working" />}

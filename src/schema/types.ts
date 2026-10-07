@@ -160,12 +160,20 @@ export interface SheetSchema {
   validate?: (sheet: SheetData, ctx: WorkbookData) => IssueInput[] | void | Promise<IssueInput[] | void>;
 }
 
-/** How numbers are shown and copied. */
+/** How numbers are shown, copied, pasted and reviewed. */
 export interface NumberOptions {
   /** "full" shows every stored digit instead of the cell's rounded format. */
   display?: 'formatted' | 'full';
   /** "raw" puts exact values on the clipboard instead of the displayed text. */
   copy?: 'formatted' | 'raw';
+  /**
+   * "strict" asks before pasting values that would be stored differently from
+   * how they read: day/month-ambiguous dates, numbers beyond 15 significant
+   * digits, and numbers with leading zeros.
+   */
+  paste?: 'lenient' | 'strict';
+  /** List every changed cell, old and new value, for confirmation before saving. */
+  reviewBeforeSave?: boolean;
 }
 
 export interface Change {

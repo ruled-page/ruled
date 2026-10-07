@@ -44,7 +44,12 @@ scope.onmessage = (e) => {
       }
       case 'save': {
         if (!session) throw new Error('No workbook is open.');
-        post({ id: req.id, type: 'saved', bytes: session.save(), fileName: session.fileName });
+        post({ id: req.id, type: 'saved', bytes: session.save(), fileName: session.fileName, changes: session.changes() });
+        break;
+      }
+      case 'changes': {
+        if (!session) throw new Error('No workbook is open.');
+        post({ id: req.id, type: 'changes', changes: session.changes() });
         break;
       }
     }

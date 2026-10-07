@@ -1,5 +1,5 @@
 import { mergeEditResults } from '../core/editResult';
-import { inRect } from '../core/refs';
+import { inRect, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
 import type { FieldValue, NumberOptions, WorkbookSchema } from '../schema/types';
@@ -7,6 +7,7 @@ import {
   CellFlag,
   type CalcReport,
   type DisplayStyle,
+  type CellChange,
   type EditOp,
   type EditResult,
   type Finding,
@@ -14,6 +15,8 @@ import {
   type Rect,
 } from '../core/types';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
+import { deleteDraft, fileKey, loadDraft, saveDraft } from './drafts';
+import { pasteRisks } from './pasteRisks';
 import { displayText, exactText } from './format';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
@@ -24,11 +27,41 @@ export interface Toast {
   text: string;
 }
 
+export type Answer = 'confirm' | 'alternate' | 'cancel';
+
 export interface ConfirmRequest {
   title: string;
   body: string;
   confirmLabel: string;
-  resolve: (ok: boolean) => void;
+  /** A second action besides confirming, e.g. "Keep as text". */
+  alternateLabel?: string;
+  cancelLabel?: string;
+  /** A table shown under the message. */
+  details?: { header: string[]; rows: string[][]; more?: number };
+  /** Style the confirm button as destructive. Default true. */
+  danger?: boolean;
+  resolve: (answer: Answer) => void;
+}
+
+/** One action in the change history. */
+export interface HistoryEntry {
+  at: number;
+  user?: string;
+  action: string;
+  cells: number;
+  /** Up to five of the cells it changed, e.g. "Prices!B4". */
+  refs: string[];
+}
+
+/**
+ * Throw from onSave when the stored file changed since it was opened. The
+ * editor keeps the user's changes and offers to download them as a copy.
+ */
+export class SaveConflictError extends Error {
+  constructor(message = 'Someone else saved a newer version of this workbook.') {
+    super(message);
+    this.name = 'SaveConflictError';
+  }
 }
 
 /** The workbook as saved, handed to the host's onSave callback. */
@@ -37,6 +70,10 @@ export interface SavedWorkbook {
   fileName: string;
   /** Cells changed since the workbook was opened. */
   editedCount: number;
+  /** Each changed cell with its value when opened and now. */
+  changes: CellChange[];
+  /** What was done, by whom and when, oldest first. */
+  history: HistoryEntry[];
 }
 
 export interface EditorFeatures {
@@ -66,6 +103,10 @@ export interface StoreOptions {
   features?: Partial<EditorFeatures>;
   /** Locale for parsing and showing dates and numbers; defaults to the browser's. */
   locale?: string;
+  /** Name recorded against each action in the change history. */
+  user?: string;
+  /** Keep unsaved edits in the browser and offer them back when the same file is reopened. Default true. */
+  drafts?: boolean;
 }
 
 function defaultWorker(): Worker {
@@ -79,7 +120,7 @@ export interface SchemaMismatch {
   tried: number;
 }
 
-export type Panel = 'issues' | 'report';
+export type Panel = 'issues' | 'changes' | 'report';
 
 export interface Selection {
   /** Active cell, in sheet coordinates. */
@@ -134,6 +175,12 @@ export class WorkbookStore {
   schemaMismatch?: SchemaMismatch;
   /** Changes whenever schema issues change, so the grid redraws its markers. */
   schemaVersion = 0;
+  history: HistoryEntry[] = [];
+  /** The latest list of changed cells, refreshed while the Changes panel is open. */
+  changeList: CellChange[] = [];
+  private draftKey?: string;
+  private draftOps: EditOp[] = [];
+  private draftTimer?: ReturnType<typeof setTimeout>;
   version = 0;
   private readonly options: StoreOptions;
 
@@ -180,11 +227,18 @@ export class WorkbookStore {
     return this.panel === 'report';
   }
 
-  /** Number display in effect: defaults, then the schema's, then the user's toggle. */
+  /** Number handling in effect: defaults, then the schema's, then the user's toggle. */
   get numbers(): Required<NumberOptions> {
-    const base: Required<NumberOptions> = { display: 'formatted', copy: 'formatted', ...this.options.numbers, ...this.schema?.schema.numbers };
+    const base: Required<NumberOptions> = {
+      display: 'formatted',
+      copy: 'formatted',
+      paste: 'lenient',
+      reviewBeforeSave: false,
+      ...this.options.numbers,
+      ...this.schema?.schema.numbers,
+    };
     if (this.exactNumbers === undefined) return base;
-    return this.exactNumbers ? { display: 'full', copy: 'raw' } : { display: 'formatted', copy: 'formatted' };
+    return this.exactNumbers ? { ...base, display: 'full', copy: 'raw' } : { ...base, display: 'formatted', copy: 'formatted' };
   }
 
   subscribe = (fn: () => void) => {
@@ -262,6 +316,9 @@ export class WorkbookStore {
       this.toast('error', 'Only Excel workbooks (.xlsx or .xlsm) can be opened.');
       return;
     }
+    if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
+    // Hash before the bytes move to the worker; the hash identifies this file's drafts.
+    const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
     this.worker?.terminate();
     for (const p of this.pending.values()) p.reject(new Error('Superseded'));
     this.pending.clear();
@@ -282,6 +339,10 @@ export class WorkbookStore {
       clip: undefined,
       schema: undefined,
       schemaMismatch: undefined,
+      history: [],
+      changeList: [],
+      draftKey: key,
+      draftOps: [],
     });
     this.selections.clear();
     this.notify();
@@ -307,16 +368,61 @@ export class WorkbookStore {
       this.error = (err as Error).message;
     }
     this.notify();
+    if (this.status === 'ready' && key) await this.offerDraft(key);
   }
 
-  async save(): Promise<{ bytes: Uint8Array; fileName: string } | undefined> {
+  /** Offers back edits left unsaved the last time this exact file was open. */
+  private async offerDraft(key: string): Promise<void> {
+    const draft = await loadDraft(key);
+    if (!draft?.ops.length || this.draftKey !== key) return;
+    const when = new Date(draft.updatedAt).toLocaleString();
+    const answer = await this.ask({
+      title: 'Restore unsaved changes?',
+      body: `This file was edited on ${when} and not saved (${draft.editedCount.toLocaleString()} changed cell${draft.editedCount === 1 ? '' : 's'}). Restore those changes?`,
+      confirmLabel: 'Restore changes',
+      cancelLabel: 'Discard them',
+      danger: false,
+    });
+    if (answer !== 'confirm') {
+      void deleteDraft(key);
+      return;
+    }
+    await this.edit({ type: 'batch', ops: draft.ops }, 'undo', { label: 'Restored unsaved changes', replay: true });
+  }
+
+  private scheduleDraft(): void {
+    if (!this.draftKey) return;
+    clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => {
+      const key = this.draftKey;
+      if (!key) return;
+      if (this.editedCount === 0) void deleteDraft(key);
+      else void saveDraft({ key, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps });
+    }, 400);
+  }
+
+  /** Re-reads the list of changed cells from the worker. */
+  async refreshChanges(): Promise<void> {
+    try {
+      const res = await this.request({ type: 'changes' } as Omit<WorkerRequest, 'id'>);
+      if (res.type === 'changes') {
+        this.changeList = res.changes;
+        this.notify();
+      }
+    } catch {
+      // The workbook was closed meanwhile.
+    }
+  }
+
+  /** The edited workbook, without running save checks or the host's onSave. */
+  async save(): Promise<SavedWorkbook | undefined> {
     await this.queue;
     this.busy = true;
     this.notify();
     try {
       const res = await this.request({ type: 'save' } as Omit<WorkerRequest, 'id'>);
       if (res.type !== 'saved') return undefined;
-      return { bytes: res.bytes, fileName: res.fileName };
+      return { bytes: res.bytes, fileName: res.fileName, changes: res.changes, history: [...this.history], editedCount: this.editedCount };
     } catch (err) {
       this.toast('error', `Could not save: ${(err as Error).message}`);
       return undefined;
@@ -326,6 +432,10 @@ export class WorkbookStore {
     }
   }
 
+  /**
+   * The Save button: schema checks, an optional review of every change,
+   * then the host's onSave or a download.
+   */
   async download(): Promise<void> {
     if (this.schema) {
       this.busy = true;
@@ -345,20 +455,53 @@ export class WorkbookStore {
     }
     const saved = await this.save();
     if (!saved) return;
+    if (this.numbers.reviewBeforeSave && saved.changes.length) {
+      const LIMIT = 300;
+      const answer = await this.ask({
+        title: `Save ${saved.changes.length.toLocaleString()} changed cell${saved.changes.length === 1 ? '' : 's'}?`,
+        body: 'Check each value before it goes into the file.',
+        confirmLabel: 'Save',
+        danger: false,
+        details: {
+          header: ['Cell', 'Was', 'Now'],
+          rows: saved.changes.slice(0, LIMIT).map((c) => [`${c.sheet}!${c.ref}`, c.before, c.formatOnly ? `${c.after} (format changed)` : c.after]),
+          more: Math.max(0, saved.changes.length - LIMIT),
+        },
+      });
+      if (answer !== 'confirm') return;
+    }
     if (this.options.onSave) {
       this.busy = true;
       this.notify();
       try {
-        await this.options.onSave({ ...saved, editedCount: this.editedCount });
+        await this.options.onSave(saved);
+        this.afterSave();
         this.toast('info', `Saved ${saved.fileName}.`);
       } catch (err) {
-        this.toast('error', `Not saved: ${(err as Error).message}`);
+        if (err instanceof SaveConflictError || (err as Error)?.name === 'SaveConflictError') {
+          const answer = await this.ask({
+            title: 'This workbook was changed elsewhere',
+            body: `${(err as Error).message} Your changes are still here. Download them as a copy so nothing is lost?`,
+            confirmLabel: 'Download my copy',
+            cancelLabel: 'Keep editing',
+            danger: false,
+          });
+          if (answer === 'confirm') this.downloadFile({ ...saved, fileName: saved.fileName.replace(/(\.xls[xm])$/i, ' (my changes)$1') });
+        } else {
+          this.toast('error', `Not saved: ${(err as Error).message}`);
+        }
       } finally {
         this.busy = false;
         this.notify();
       }
       return;
     }
+    this.downloadFile(saved);
+    this.afterSave();
+    this.toast('info', saved.editedCount ? `Saved ${saved.fileName} with ${saved.editedCount.toLocaleString()} changed cells.` : `Saved ${saved.fileName} (unchanged).`);
+  }
+
+  private downloadFile(saved: SavedWorkbook): void {
     const type = /\.xlsm$/i.test(saved.fileName)
       ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
       : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -368,7 +511,12 @@ export class WorkbookStore {
     a.download = saved.fileName;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    this.toast('info', this.editedCount ? `Saved ${saved.fileName} with ${this.editedCount.toLocaleString()} changed cells.` : `Saved ${saved.fileName} (unchanged).`);
+  }
+
+  /** Once saved, the draft for this file is no longer needed. */
+  private afterSave(): void {
+    clearTimeout(this.draftTimer);
+    if (this.draftKey) void deleteDraft(this.draftKey);
   }
 
   // ---------------------------------------------------------------------------
@@ -379,7 +527,11 @@ export class WorkbookStore {
    * undo. "merge" folds the result into the previous undo step, for edits
    * made by schema logic in response to the user's edit.
    */
-  private edit(op: EditOp, record: 'undo' | 'none' | 'merge' = 'undo'): Promise<EditResult | undefined> {
+  private edit(
+    op: EditOp,
+    record: 'undo' | 'none' | 'merge' = 'undo',
+    opts: { label?: string; replay?: boolean } = {},
+  ): Promise<EditResult | undefined> {
     const run = async () => {
       this.busy = true;
       this.notify();
@@ -398,8 +550,14 @@ export class WorkbookStore {
           const last = this.undoStack.pop();
           this.undoStack.push(last ? mergeEditResults([last, r]) : r);
         }
+        if (r.undo.length) {
+          this.recordHistory(op, record, r, opts.label);
+          this.draftOps.push(op);
+          this.scheduleDraft();
+          if (this.panel === 'changes') void this.refreshChanges();
+        }
         if (ctl) {
-          if (record === 'undo' && before.length) void ctl.afterEdit(before);
+          if (record === 'undo' && before.length && !opts.replay) void ctl.afterEdit(before);
           else ctl.validate();
         }
         return r;
@@ -414,6 +572,16 @@ export class WorkbookStore {
     const p = this.queue.then(run, run);
     this.queue = p;
     return p;
+  }
+
+  private recordHistory(op: EditOp, record: 'undo' | 'none' | 'merge', r: EditResult, label?: string): void {
+    const action =
+      label ??
+      (record === 'merge'
+        ? 'Filled in by business logic'
+        : ({ input: 'Edit', pasteText: 'Paste', copy: 'Paste', fill: 'Fill', clear: 'Clear', restore: 'Undo or redo', inputs: 'Edit', batch: 'Edit' } as const)[op.type]);
+    const refs = r.redo.slice(0, 5).map((c) => `${this.sheets[c.sheet]?.info.name ?? '?'}!${toA1(c.row, c.col)}`);
+    this.history.push({ at: Date.now(), user: this.options.user, action, cells: r.redo.length, refs });
   }
 
   private applyResult(r: EditResult): void {
@@ -433,7 +601,7 @@ export class WorkbookStore {
     const entry = this.undoStack.pop();
     if (!entry) return;
     this.goTo(entry.undo[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.undo }, 'none');
+    await this.edit({ type: 'restore', cells: entry.undo }, 'none', { label: 'Undo' });
     this.redoStack.push(entry);
     this.notify();
   }
@@ -443,7 +611,7 @@ export class WorkbookStore {
     const entry = this.redoStack.pop();
     if (!entry) return;
     this.goTo(entry.redo[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.redo }, 'none');
+    await this.edit({ type: 'restore', cells: entry.redo }, 'none', { label: 'Redo' });
     this.undoStack.push(entry);
     this.notify();
   }
@@ -539,9 +707,33 @@ export class WorkbookStore {
     }
 
     let grid = values.map((line) => [...line]);
+    if (this.numbers.paste === 'strict') {
+      // Ask before storing values that wouldn't read back the way they were pasted.
+      const risks = pasteRisks(values, this.locale);
+      if (risks.length) {
+        const answer = await this.ask({
+          title: risks.length === 1 ? 'Check a pasted value' : `Check ${risks.length} pasted values`,
+          body: 'These would be stored differently from how they read. Paste them as shown, or keep them exactly as text?',
+          confirmLabel: 'Paste as shown',
+          alternateLabel: 'Keep as text',
+          danger: false,
+          details: {
+            header: ['Pasted', 'Would become', 'Because'],
+            rows: risks.slice(0, 20).map((r) => [r.text, r.becomes, r.reason]),
+            more: Math.max(0, risks.length - 20),
+          },
+        });
+        if (answer === 'cancel') return;
+        if (answer === 'alternate') {
+          const risky = new Set(risks.map((r) => r.text));
+          grid = grid.map((line) => line.map((v) => (risky.has(v.trim()) ? "'" + v : v)));
+        }
+      }
+    }
     if (tile) {
+      const block = grid;
       grid = [];
-      for (let r = 0; r < selH; r++) grid.push(Array.from({ length: selW }, (_, c) => values[r % h][c % w] ?? ''));
+      for (let r = 0; r < selH; r++) grid.push(Array.from({ length: selW }, (_, c) => block[r % h]?.[c % w] ?? ''));
     }
     if (this.schema) {
       for (let i = 0; i < grid.length; i++) {
@@ -703,18 +895,24 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Dialogs and messages
 
-  confirm(req: Omit<ConfirmRequest, 'resolve'>): Promise<boolean> {
+  /** Shows a dialog and resolves with the button chosen. */
+  ask(req: Omit<ConfirmRequest, 'resolve'>): Promise<Answer> {
     return new Promise((resolve) => {
+      this.confirmRequest?.resolve('cancel');
       this.confirmRequest = {
         ...req,
-        resolve: (ok) => {
+        resolve: (answer) => {
           this.confirmRequest = undefined;
           this.notify();
-          resolve(ok);
+          resolve(answer);
         },
       };
       this.notify();
     });
+  }
+
+  async confirm(req: Omit<ConfirmRequest, 'resolve'>): Promise<boolean> {
+    return (await this.ask(req)) === 'confirm';
   }
 
   toast(kind: Toast['kind'], text: string): void {

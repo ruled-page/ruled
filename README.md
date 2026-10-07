@@ -28,8 +28,17 @@ back as .xlsx without losing what the editor can't display.
   opens as a plain spreadsheet with a warning. Schemas can be written in
   TypeScript (with async checks and business logic), generated from a
   workbook, edited in the schema designer, and exported or imported as JSON.
-- An "exact numbers" setting shows and copies every stored digit instead of
-  the cell's rounded format. A schema can turn it on.
+- Number handling a host or schema can tighten: show and copy every stored
+  digit instead of the rounded format, ask before pasting values that would
+  be stored differently from how they read (day/month-ambiguous dates, more
+  than 15 significant digits, leading zeros), and list every changed cell
+  for review before saving.
+- Dates and decimals are read in the user's locale (`3/4/2026` is 3 April in
+  the UK, `1.234,5` is 1234.5 in Germany).
+- A Changes panel lists every cell that differs from the opened file, old and
+  new value, and a timestamped history of actions. Unsaved edits are kept in
+  the browser and offered back if the same file is reopened after a crash or
+  a closed tab.
 
 Everything runs in the browser; the file never leaves the machine.
 
@@ -85,10 +94,15 @@ Or the element (see `examples/html/index.html`):
 <workbook-editor src="/files/report.xlsx" save-handler="event"></workbook-editor>
 ```
 
-Options include `schemas`, `numbers`, `onSave` (receives the saved bytes;
-without it saving downloads the file), `features` (hide the open, save or
-schema buttons when the host provides them), `warnOnUnload`, `locale` and
-`createWorker`. All styles are scoped under `.wbe`.
+Options include `schemas`, `numbers`, `onSave`, `features` (hide the open,
+save or schema buttons when the host provides them), `user` (recorded in the
+history), `drafts`, `warnOnUnload`, `locale` and `createWorker`. All styles
+are scoped under `.wbe`.
+
+`onSave` receives the file's bytes plus `changes` (each changed cell, before
+and after) and `history`. Without it, saving downloads the file. If the
+stored copy changed since it was opened, throw `SaveConflictError`: the
+editor keeps the user's work and offers it as a download.
 
 ## Sharing it on Cloudflare Pages
 

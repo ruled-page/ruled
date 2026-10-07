@@ -27,7 +27,9 @@ defineWorkbookEditorElement(mountWorkbookEditor);
 
 export { defineWorkbookEditorElement, type SaveEventDetail } from './element';
 export type { EditorHandle } from './mount';
-export type { EditorFeatures, SavedWorkbook, StoreOptions as EditorOptions } from '../state/store';
+export { SaveConflictError } from '../state/store';
+export type { EditorFeatures, HistoryEntry, SavedWorkbook, StoreOptions as EditorOptions } from '../state/store';
+export type { CellChange } from '../core/types';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

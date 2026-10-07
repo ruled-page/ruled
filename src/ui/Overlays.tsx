@@ -9,26 +9,64 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
     if (!req) return;
     confirmBtn.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') req.resolve(false);
+      if (e.key === 'Escape') req.resolve('cancel');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [req]);
   if (!req) return null;
+  const danger = req.danger !== false;
   return (
-    <div className="modal-backdrop" onMouseDown={() => req.resolve(false)}>
-      <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-icon">
-          <Icon name="warn" size={20} />
+    <div className="modal-backdrop" onMouseDown={() => req.resolve('cancel')}>
+      <div
+        className={`modal ${req.details ? 'modal-wide' : ''}`}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-body"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className={`modal-icon ${danger ? '' : 'calm'}`}>
+          <Icon name={danger ? 'warn' : 'info'} size={20} />
         </div>
-        <div>
+        <div className="modal-content">
           <h2 id="confirm-title">{req.title}</h2>
-          <p>{req.body}</p>
+          <p id="confirm-body">{req.body}</p>
+          {req.details && (
+            <div className="modal-table">
+              <table>
+                <thead>
+                  <tr>
+                    {req.details.header.map((h) => (
+                      <th key={h}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {req.details.rows.map((row, i) => (
+                    <tr key={i}>
+                      {row.map((cell, j) => (
+                        <td key={j} className={j === 0 ? 'mono' : ''}>
+                          {cell === '' ? <span className="muted">(empty)</span> : cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!!req.details.more && <p className="muted small">…and {req.details.more.toLocaleString()} more.</p>}
+            </div>
+          )}
           <div className="modal-actions">
-            <button className="btn" onClick={() => req.resolve(false)}>
-              Cancel
+            <button className="btn" onClick={() => req.resolve('cancel')}>
+              {req.cancelLabel ?? 'Cancel'}
             </button>
-            <button ref={confirmBtn} className="btn danger" onClick={() => req.resolve(true)}>
+            {req.alternateLabel && (
+              <button className="btn" onClick={() => req.resolve('alternate')}>
+                {req.alternateLabel}
+              </button>
+            )}
+            <button ref={confirmBtn} className={`btn ${danger ? 'danger' : 'primary'}`} onClick={() => req.resolve('confirm')}>
               {req.confirmLabel}
             </button>
           </div>

@@ -1,4 +1,5 @@
-import { toA1 } from '../core/refs';
+import { useEffect } from 'react';
+import { parseA1, toA1 } from '../core/refs';
 import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
@@ -84,6 +85,72 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
   );
 }
 
+function ChangesBody({ store }: { store: WorkbookStore }) {
+  useEffect(() => {
+    void store.refreshChanges();
+  }, [store]);
+  const changes = store.changeList;
+  const go = (sheetName: string, ref: string) => {
+    const sheet = store.sheets.findIndex((s) => s.info.name === sheetName);
+    const pos = parseA1(ref);
+    if (sheet < 0 || !pos) return;
+    store.setActive(sheet);
+    store.setSelection({ row: pos.row, col: pos.col, rects: [{ r1: pos.row, c1: pos.col, r2: pos.row, c2: pos.col }] });
+  };
+  const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return (
+    <div className="report-body">
+      <p className="report-lede schema-lede">
+        {changes.length
+          ? `${changes.length.toLocaleString()} cell${changes.length === 1 ? '' : 's'} differ from the file as it was opened.`
+          : 'Nothing has changed since the file was opened.'}
+      </p>
+      {changes.length > 0 && (
+        <div className="changes-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Cell</th>
+                <th>Was</th>
+                <th>Now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changes.slice(0, 500).map((c) => (
+                <tr key={`${c.sheet}!${c.ref}`} onClick={() => go(c.sheet, c.ref)}>
+                  <td className="mono">
+                    {store.sheets.length > 1 ? `${c.sheet}!` : ''}
+                    {c.ref}
+                  </td>
+                  <td>{c.before === '' ? <span className="muted">(empty)</span> : c.before}</td>
+                  <td>{c.formatOnly ? <span className="muted">format only</span> : c.after === '' ? <span className="muted">(empty)</span> : c.after}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {changes.length > 500 && <p className="muted small">Showing the first 500.</p>}
+        </div>
+      )}
+      <section>
+        <h3>History</h3>
+        {store.history.length === 0 && <p className="muted">No edits yet.</p>}
+        <ol className="history">
+          {[...store.history].reverse().slice(0, 200).map((h, i) => (
+            <li key={i}>
+              <span className="history-time">{time(h.at)}</span>
+              <span>
+                <strong>{h.action}</strong> · {h.cells.toLocaleString()} cell{h.cells === 1 ? '' : 's'}
+                {h.user ? ` · ${h.user}` : ''}
+                {h.refs.length > 0 && <span className="muted"> ({h.refs.join(', ')}{h.cells > h.refs.length ? ', …' : ''})</span>}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
+  );
+}
+
 export function SidePanel({ store }: { store: WorkbookStore }) {
   const panel = store.panel;
   if (!panel) return null;
@@ -92,7 +159,10 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
       <div className="report-head">
         <div className="panel-tabs" role="tablist">
           <button role="tab" aria-selected={panel === 'issues'} className={panel === 'issues' ? 'active' : ''} onClick={() => store.set('panel', 'issues')}>
-            Schema checks
+            Checks
+          </button>
+          <button role="tab" aria-selected={panel === 'changes'} className={panel === 'changes' ? 'active' : ''} onClick={() => store.set('panel', 'changes')}>
+            Changes
           </button>
           <button role="tab" aria-selected={panel === 'report'} className={panel === 'report' ? 'active' : ''} onClick={() => store.set('panel', 'report')}>
             What's in this file
@@ -102,7 +172,7 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           <Icon name="close" />
         </button>
       </div>
-      {panel === 'issues' ? <IssuesBody store={store} /> : <ReportBody store={store} />}
+      {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : <ReportBody store={store} />}
     </aside>
   );
 }

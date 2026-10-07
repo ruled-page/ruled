@@ -236,6 +236,16 @@ export interface CellUpdate {
   flags: number;
 }
 
+/** A cell that differs from the opened file. Values are as people read them. */
+export interface CellChange {
+  sheet: string;
+  ref: string;
+  before: string;
+  after: string;
+  /** Only the cell's format changed. */
+  formatOnly?: boolean;
+}
+
 export interface CellSnapshot {
   sheet: number;
   row: number;

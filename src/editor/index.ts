@@ -7,7 +7,15 @@
  */
 export { WorkbookEditor, type WorkbookEditorProps } from './WorkbookEditor';
 export { mountWorkbookEditor, type EditorHandle } from './mount';
-export { WorkbookStore, type EditorFeatures, type SavedWorkbook, type StoreOptions as EditorOptions } from '../state/store';
+export {
+  SaveConflictError,
+  WorkbookStore,
+  type EditorFeatures,
+  type HistoryEntry,
+  type SavedWorkbook,
+  type StoreOptions as EditorOptions,
+} from '../state/store';
+export type { CellChange } from '../core/types';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

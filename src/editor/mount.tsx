@@ -34,10 +34,7 @@ export function mountWorkbookEditor(element: HTMLElement, options: StoreOptions 
   return {
     store,
     open: (bytes, fileName) => store.open(fileName, bytes instanceof Uint8Array ? (bytes.slice().buffer as ArrayBuffer) : bytes),
-    getWorkbook: async () => {
-      const saved = await store.save();
-      return saved ? { ...saved, editedCount: store.editedCount } : undefined;
-    },
+    getWorkbook: () => store.save(),
     save: () => store.download(),
     registerSchema: (schema) => store.registerSchema(schema),
     get editedCount() {

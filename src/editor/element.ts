@@ -1,14 +1,11 @@
-import type { StoreOptions } from '../state/store';
+import type { SavedWorkbook, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
 import type { EditorHandle } from './mount';
 
 type Mount = (element: HTMLElement, options?: StoreOptions) => EditorHandle;
 
 /** Detail of the `save` event when the element handles saving through events. */
-export interface SaveEventDetail {
-  bytes: Uint8Array;
-  fileName: string;
-  editedCount: number;
+export interface SaveEventDetail extends SavedWorkbook {
   /** Keep the save pending until `promise` settles; a rejection is shown as the error. */
   waitUntil(promise: Promise<unknown>): void;
 }
@@ -80,7 +77,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       await this.open(await res.arrayBuffer(), name);
     }
 
-    private async emitSave(file: { bytes: Uint8Array; fileName: string; editedCount: number }): Promise<void> {
+    private async emitSave(file: SavedWorkbook): Promise<void> {
       const waits: Promise<unknown>[] = [];
       const detail: SaveEventDetail = { ...file, waitUntil: (p) => waits.push(p) };
       this.dispatchEvent(new CustomEvent<SaveEventDetail>('save', { detail }));

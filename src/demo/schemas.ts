@@ -32,7 +32,7 @@ export const priceListSchema = defineSchema({
   id: 'demo.price-list',
   name: 'Price list',
   description: 'One product per row. Type a new SKU such as SKU-2001 in the empty row under the table to see the catalogue lookup fill it in.',
-  numbers: { display: 'full', copy: 'raw' },
+  numbers: { display: 'full', copy: 'raw', paste: 'strict', reviewBeforeSave: true },
   sheets: [
     {
       name: 'Prices',

@@ -1,6 +1,6 @@
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import type { RawCellContent } from 'hyperformula';
-import { isDateFormat } from 'numfmt';
+import { format as formatNumber, isDateFormat } from 'numfmt';
 import {
   CalcEngine,
   describeValue,
@@ -22,6 +22,7 @@ import {
   VT,
   type CalcReport,
   type CalcSample,
+  type CellChange,
   type CellContent,
   type CellSnapshot,
   type CellUpdate,
@@ -121,6 +122,36 @@ function valueRaw(v: EngineValue): RawCellContent {
   return toRaw(valueContent(v));
 }
 
+/**
+ * A cell's content as people read it: the formula, or the value as text.
+ * Numbers stay exact; dates (by the cell's format) read as ISO dates.
+ */
+export function contentText(c: CellContent, numFmt = 'General', date1904 = false): string {
+  switch (c.kind) {
+    case 'empty':
+      return '';
+    case 'formula':
+      return displayFormula(c.formula);
+    case 'bool':
+      return c.value ? 'TRUE' : 'FALSE';
+    case 'number': {
+      let isDate = false;
+      try {
+        isDate = numFmt !== 'General' && isDateFormat(numFmt);
+      } catch {
+        isDate = false;
+      }
+      if (isDate) {
+        const serial = c.value + (date1904 ? 1462 : 0);
+        return formatNumber(Number.isInteger(serial) ? 'yyyy-mm-dd' : 'yyyy-mm-dd hh:mm', serial, { throws: false });
+      }
+      return String(parseFloat(c.value.toPrecision(15)));
+    }
+    default:
+      return c.value;
+  }
+}
+
 export function sameContent(a: CellContent, b: CellContent): boolean {
   if (a.kind !== b.kind) return false;
   switch (a.kind) {
@@ -208,7 +239,11 @@ export class WorkbookSession {
   private untrusted: UntrustedFormula[] = [];
   private readonly sheetIndex: Map<string, number>;
 
-  private constructor(pkg: OoxmlPackage, bytes: Uint8Array, fileName: string, model: WorkbookModel, timings: Record<string, number>) {
+  /** Locale used to read typed and pasted dates and numbers. */
+  readonly locale: string;
+
+  private constructor(pkg: OoxmlPackage, bytes: Uint8Array, fileName: string, model: WorkbookModel, timings: Record<string, number>, locale: string) {
+    this.locale = locale;
     this.pkg = pkg;
     this.originalBytes = bytes;
     this.fileName = fileName;
@@ -229,10 +264,14 @@ export class WorkbookSession {
     const t1 = performance.now();
     const model = readWorkbook(pkg, locale);
     const t2 = performance.now();
-    return new WorkbookSession(pkg, bytes, fileName, model, {
-      unzipMs: Math.round(t1 - t0),
-      parseMs: Math.round(t2 - t1),
-    });
+    return new WorkbookSession(
+      pkg,
+      bytes,
+      fileName,
+      model,
+      { unzipMs: Math.round(t1 - t0), parseMs: Math.round(t2 - t1) },
+      locale,
+    );
   }
 
   loadResult(): LoadResult {
@@ -249,6 +288,26 @@ export class WorkbookSession {
 
   get editedCount(): number {
     return this.edits.reduce((n, m) => n + m.size, 0);
+  }
+
+  /** Every cell that differs from the file as opened: what it held, and what it holds now. */
+  changes(): CellChange[] {
+    const out: CellChange[] = [];
+    this.edits.forEach((edits, s) => {
+      const name = this.model.sheets[s].info.name;
+      const keys = [...edits.keys()].sort((a, b) => a - b);
+      for (const key of keys) {
+        const row = Math.floor(key / MAX_COLS);
+        const col = key % MAX_COLS;
+        const now = edits.get(key)!;
+        const was = this.original(s, row, col);
+        const fmt = (style: number) => this.model.styles.get(style).numFmt;
+        const before = contentText(was.content, fmt(was.style), this.model.date1904);
+        const after = contentText(now.content, fmt(now.style), this.model.date1904);
+        out.push({ sheet: name, ref: toA1(row, col), before, after, ...(before === after ? { formatOnly: true } : {}) });
+      }
+    });
+    return out;
   }
 
   // ---------------------------------------------------------------------------
@@ -582,7 +641,7 @@ export class WorkbookSession {
     switch (op.type) {
       case 'input': {
         const cur = this.current(op.sheet, op.row, op.col);
-        const parsed = parseInput(op.text, this.model.styles.get(cur.style).numFmt);
+        const parsed = parseInput(op.text, this.model.styles.get(cur.style).numFmt, this.locale);
         if (parsed.error) return this.emptyResult(parsed.error);
         put({ sheet: op.sheet, row: op.row, col: op.col, content: parsed.content, style: styleFor(cur.style, parsed.numFmt) });
         break;
@@ -595,7 +654,7 @@ export class WorkbookSession {
             const col = op.col + j;
             if (row >= MAX_ROWS || col >= MAX_COLS) return;
             const cur = this.current(op.sheet, row, col);
-            const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt);
+            const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale);
             if (parsed.error) bad++;
             const content = parsed.error ? { kind: 'string' as const, value: text } : parsed.content;
             put({ sheet: op.sheet, row, col, content, style: styleFor(cur.style, parsed.numFmt) });
@@ -637,7 +696,7 @@ export class WorkbookSession {
       case 'inputs': {
         for (const c of op.cells) {
           const cur = this.current(op.sheet, c.row, c.col);
-          const parsed = parseInput(c.text, this.model.styles.get(cur.style).numFmt);
+          const parsed = parseInput(c.text, this.model.styles.get(cur.style).numFmt, this.locale);
           if (parsed.error) warnings.push(parsed.error);
           const content = parsed.error ? { kind: 'string' as const, value: c.text } : parsed.content;
           put({ sheet: op.sheet, row: c.row, col: c.col, content, style: styleFor(cur.style, parsed.numFmt) });
