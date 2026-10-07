@@ -1,6 +1,6 @@
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellUpdate, MergeRange, Rect, SheetGrid, SheetInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, MergeRange, Rect, SheetGrid, SheetInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -25,6 +25,7 @@ export class SheetView {
   private colLimit = 0;
   readonly colWidths = new Map<number, number>();
   private readonly mergesByRow = new Map<number, MergeRange[]>();
+  private readonly notes = new Map<number, CellNote>();
   /** Extra read-only rules, e.g. from a schema. */
   constraint?: (row: number, col: number) => string | undefined;
   version = 0;
@@ -40,6 +41,7 @@ export class SheetView {
       }
     }
     for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
+    for (const n of info.notes) this.notes.set(cellKey(n.row, n.col), n);
     this.extendTo(Math.max(info.maxRow, 0), Math.max(info.maxCol, 0));
   }
 
@@ -129,6 +131,10 @@ export class SheetView {
     const own = this.info.rowStyles[row];
     if (own !== undefined) return own;
     return this.info.colStyles.find((c) => col >= c.min && col <= c.max)?.style ?? 0;
+  }
+
+  noteAt(row: number, col: number): CellNote | undefined {
+    return this.notes.get(cellKey(row, col));
   }
 
   blockedAt(row: number, col: number): BlockedRegion | undefined {

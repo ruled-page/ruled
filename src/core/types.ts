@@ -152,6 +152,22 @@ export interface ListValidation extends ValidationAlert {
   inCellDropdown: boolean;
 }
 
+export interface NoteEntry {
+  author?: string;
+  text: string;
+  /** ISO date, for threaded comments. */
+  date?: string;
+}
+
+/** A note, or a threaded comment with its replies, on one cell. */
+export interface CellNote {
+  row: number;
+  col: number;
+  kind: 'note' | 'thread';
+  entries: NoteEntry[];
+  resolved?: boolean;
+}
+
 export interface SheetInfo {
   index: number;
   name: string;
@@ -178,6 +194,7 @@ export interface SheetInfo {
   ruleValidations: RuleValidation[];
   blocked: BlockedRegion[];
   objects: SheetObject[];
+  notes: CellNote[];
   protected: boolean;
   showGridLines: boolean;
   tabColor?: string;

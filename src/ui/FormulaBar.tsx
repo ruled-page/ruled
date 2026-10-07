@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
-import { CellFlag } from '../core/types';
+import { CellFlag, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
 import { editText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 
-type Tone = 'info' | 'warn' | 'lock' | 'edit' | 'error' | 'field';
+type Tone = 'info' | 'warn' | 'lock' | 'edit' | 'error' | 'field' | 'note';
+
+/** One line for a cell's note or comment thread. */
+export function noteSummary(note: CellNote): string {
+  const [first, ...replies] = note.entries;
+  const who = first?.author ? `${first.author}: ` : '';
+  const more = replies.length ? ` (${replies.length} ${replies.length === 1 ? 'reply' : 'replies'})` : '';
+  return `${note.kind === 'thread' ? 'Comment' : 'Note'} — ${who}${(first?.text ?? '').replace(/\s+/g, ' ').trim()}${more}`;
+}
 
 function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
   const readOnly = view.readOnlyReason(sel.row, sel.col);
@@ -32,7 +40,8 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
     if (rule) describe = rule.prompt ? `${rule.promptTitle ? rule.promptTitle + ': ' : ''}${rule.prompt}` : describeRule(rule);
   }
   const rec = view.get(sel.row, sel.col);
-  if (!rec) return describe ? { tone: 'field', text: describe } : null;
+  const comment = view.noteAt(sel.row, sel.col);
+  if (!rec) return describe ? { tone: 'field', text: describe } : comment ? { tone: 'note', text: noteSummary(comment) } : null;
   const why = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
   if (rec.flags & CellFlag.Stale) {
     return {
@@ -47,6 +56,7 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
     return { tone: 'info', text: `${why ?? "This editor can't calculate this formula."} Showing Excel's saved value.` };
   }
   if (describe) return { tone: 'field', text: describe };
+  if (comment) return { tone: 'note', text: noteSummary(comment) };
   if (rec.flags & CellFlag.Edited) return { tone: 'edit', text: 'Changed in this session.' };
   return null;
 }
@@ -101,7 +111,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
       />
       {note && (
         <div className={`cell-note tone-${note.tone}`} title={note.text}>
-          <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : 'info'} size={14} />
+          <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : note.tone === 'note' ? 'note' : 'info'} size={14} />
           <span>{note.text}</span>
         </div>
       )}

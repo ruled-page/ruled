@@ -21,6 +21,7 @@ const PATHS: Record<string, string> = {
   upload: 'M12 21V9M7 14l5-5 5 5M4 3h16',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  note: 'M4 5h16v11H9l-5 4z',
 };
 
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {

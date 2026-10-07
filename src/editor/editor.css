@@ -1176,6 +1176,56 @@
   color: #285c40;
 }
 
+.wbe .tone-note {
+  background: #f3effc;
+  color: #4e3a8a;
+}
+
+/* Note shown when pointing at a cell that has one. */
+.wbe .note-tip {
+  position: fixed;
+  z-index: 40;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: #fffdf2;
+  border: 1px solid #d8d2b8;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.14);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink);
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
+.wbe .note-tip.thread {
+  background: #fff;
+  border-color: #d9d2f1;
+}
+
+.wbe .note-tip .who {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.wbe .note-tip .when {
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 6px;
+}
+
+.wbe .note-tip .entry + .entry {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.wbe .note-tip .resolved {
+  margin-bottom: 6px;
+  color: var(--ink-3);
+}
+
 .wbe .swatch.tri-right::before {
   content: '';
   position: absolute;

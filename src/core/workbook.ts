@@ -1,7 +1,8 @@
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { StyleBook } from './styles';
-import type { Anchor, BlockedRegion, Finding, Rect, SheetInfo, SheetObject } from './types';
+import { mergeNotes, parseNotes, parsePersons, parseThreads } from './comments';
+import type { Anchor, BlockedRegion, CellNote, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
@@ -149,6 +150,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
   const wbRels = pkg.rels(workbookPath);
   const relById = new Map(wbRels.map((r) => [r.id, r]));
   const relOfType = (type: string) => wbRels.filter((r) => r.type === type);
+  const persons = parsePersons(relOfType('person').map((r) => pkg.text(r.target)).find((x) => x));
 
   const date1904 = ['1', 'true'].includes(attr(child(wb, 'workbookPr'), 'date1904') ?? '');
   const sst = parseSharedStrings(relOfType('sharedStrings')[0] ? pkg.text(relOfType('sharedStrings')[0].target) : undefined);
@@ -205,6 +207,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       ruleValidations: [],
       blocked: [],
       objects: [],
+      notes: [],
       protected: false,
       showGridLines: true,
     };
@@ -405,6 +408,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       });
     }
 
+    const notes: CellNote[] = [];
+    const threads: CellNote[] = [];
     for (const r of sheetRels) {
       if (r.type === 'drawing') {
         info.objects.push(...readDrawing(pkg, r.target));
@@ -459,16 +464,11 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
           where: ref,
         });
       } else if (r.type === 'comments') {
-        const n = countMatches(pkg.text(r.target), /<(\w+:)?comment\b/g);
-        if (n) {
-          findings.push({
-            kind: 'comment',
-            severity: 'info',
-            title: 'Comments and notes',
-            detail: `${plural(n, 'note')}. Kept in the file; not shown in this editor.`,
-            sheet: name,
-          });
-        }
+        const xml = pkg.text(r.target);
+        if (xml) notes.push(...parseNotes(xml));
+      } else if (r.type === 'threadedComment') {
+        const xml = pkg.text(r.target);
+        if (xml) threads.push(...parseThreads(xml, persons));
       } else if (r.type === 'ctrlProp') {
         info.objects.push({ kind: 'control', name: 'Form control' });
       } else if (r.type === 'slicer' || r.type === 'timeline') {
@@ -480,6 +480,19 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
           sheet: name,
         });
       }
+    }
+    info.notes = mergeNotes(notes, threads);
+    if (info.notes.length) {
+      const threadCount = threads.length;
+      const noteCount = info.notes.length - threadCount;
+      const what = [noteCount ? plural(noteCount, 'note') : '', threadCount ? plural(threadCount, 'comment thread') : ''].filter(Boolean).join(' and ');
+      findings.push({
+        kind: 'comment',
+        severity: 'info',
+        title: 'Notes and comments',
+        detail: `${what}. Marked in the corner of their cells and shown when you point at the cell or select it. Kept in the file; they can't be added or changed here.`,
+        sheet: name,
+      });
     }
 
     const charts = info.objects.filter((o) => o.kind === 'chart');

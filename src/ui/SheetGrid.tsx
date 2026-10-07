@@ -9,6 +9,7 @@ import {
   type FillPatternEventArgs,
   type GridCell,
   type GridColumn,
+  type GridMouseEventArgs,
   type GridSelection,
   type Item,
   type Rectangle,
@@ -17,13 +18,14 @@ import {
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
-import { CellFlag, VT, type DisplayStyle, type Rect } from '../core/types';
+import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
 import { alignment, displayText, editText, exactText } from '../state/format';
 import { CELL_PADDING, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
+import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { drawEdge, drawGridLine, FREEZE_LINE } from './paint';
 
@@ -33,6 +35,8 @@ const EDITED_FILL = '#FFF4CE';
 const LOCKED_FILL = '#F2F4F7';
 /** Background for labels fixed by a schema. */
 const LABEL_FILL = '#EAF2EC';
+/** Corner marker for cells with a note or comment. */
+const NOTE_MARK = '#7F56D9';
 
 const THEME: Partial<Theme> = {
   accentColor: '#1E7145',
@@ -117,6 +121,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
   const host = useRef<HTMLDivElement>(null);
   const [colVersion, setColVersion] = useState(0);
   const [region, setRegion] = useState(0);
+  const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const styles = store.styles;
   const date1904 = store.date1904;
   const highlight = store.highlightEdits;
@@ -338,6 +343,18 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         ctx.fill();
         ctx.restore();
       }
+      if (view.noteAt(row, col)) {
+        const right = rect.x + rect.width - 1;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(right, rect.y + 1);
+        ctx.lineTo(right - 6, rect.y + 1);
+        ctx.lineTo(right, rect.y + 7);
+        ctx.closePath();
+        ctx.fillStyle = NOTE_MARK;
+        ctx.fill();
+        ctx.restore();
+      }
       if (!schema) return;
       const issues = schema.cellIssues(sheetIndex, row, col);
       const right = rect.x + rect.width - 1;
@@ -515,6 +532,20 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
     [view],
   );
 
+  const onItemHovered = useCallback(
+    (args: GridMouseEventArgs) => {
+      const [gc, gr] = args.location;
+      const note = args.kind === 'cell' && gc > 0 ? view.noteAt(view.visibleRows[gr], view.visibleCols[gc - 1]) : undefined;
+      if (!note || args.kind !== 'cell') {
+        setHoverNote(null);
+        return;
+      }
+      const { x, y, width } = args.bounds;
+      setHoverNote((prev) => (prev?.note === note ? prev : { note, x: x + width + 4, y }));
+    },
+    [view],
+  );
+
   const rowHeight = useCallback((gr: number) => view.rowHeight(view.visibleRows[gr]), [view]);
   const provideEditor = useCallback(
     (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
@@ -560,7 +591,9 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         minColumnWidth={18}
         maxColumnWidth={1200}
         onVisibleRegionChanged={() => setRegion((n) => n + 1)}
+        onItemHovered={onItemHovered}
       />
+      {hoverNote && <NoteTip {...hoverNote} />}
       <ObjectsOverlay view={view} gridRef={ref} tick={region + colVersion} />
     </div>
   );

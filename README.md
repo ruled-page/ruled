@@ -15,6 +15,8 @@ back as .xlsx without losing what the editor can't display.
 - Save writes only the cells that changed back into the original file.
   Charts, pivot tables, macros, conditional formatting, validation, comments,
   pictures, sparklines and everything else stay byte-for-byte as they were.
+- Notes and threaded comments are marked in the corner of their cell and
+  shown when you point at the cell or select it. They are read-only.
 - "What's in this file" lists everything the editor keeps but can't show,
   and the editor asks before any edit would replace a formula with a value.
 - Excel's own data validation is enforced. List rules get a dropdown,
