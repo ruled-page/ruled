@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workbook editor in plain HTML</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      header { padding: 12px 16px; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; }
+      workbook-editor { height: calc(100vh - 50px); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Host page</strong>
+      <span id="status">No changes</span>
+      <button id="save">Save from the host</button>
+    </header>
+    <!-- Run `npm run build:lib` first; this page loads the standalone build. -->
+    <workbook-editor id="editor" save-handler="event" src="/samples/forecast.xlsx"></workbook-editor>
+    <script type="module">
+      import { defineSchema } from '/dist-lib/standalone/workbook-editor.js';
+
+      const editor = document.getElementById('editor');
+      editor.options = {
+        warnOnUnload: false,
+        features: { open: false },
+        schemas: [
+          defineSchema({
+            id: 'example.forecast',
+            name: 'Forecast (from the host page)',
+            sheets: [{
+              name: 'Forecast',
+              tables: [{
+                key: 'quarters', at: 'A1', orientation: 'columns',
+                fields: [
+                  { key: 'period', label: 'Period', type: 'text', required: true, pattern: '^\\d{4}-Q[1-4]$' },
+                  { key: 'revenue', label: 'Revenue', type: 'number', min: 0 },
+                  { key: 'cost', label: 'Cost', type: 'number', min: 0 },
+                  { key: 'margin', label: 'Margin', type: 'number', formula: 'require' },
+                  { key: 'marginPct', label: 'Margin %', type: 'percent', formula: 'require' },
+                ],
+              }],
+            }],
+          }),
+        ],
+      };
+      editor.addEventListener('change', (e) => {
+        const n = e.detail.editedCount;
+        document.getElementById('status').textContent = n ? `${n} changed cell${n === 1 ? '' : 's'}` : 'No changes';
+      });
+      editor.addEventListener('save', (e) => {
+        // A real host would upload e.detail.bytes; waitUntil keeps the save pending until it finishes.
+        e.detail.waitUntil(new Promise((resolve) => setTimeout(resolve, 300)));
+        document.getElementById('status').textContent = `Saved ${e.detail.fileName} (${e.detail.bytes.length.toLocaleString()} bytes)`;
+      });
+      document.getElementById('save').addEventListener('click', () => editor.save());
+    </script>
+  </body>
+</html>

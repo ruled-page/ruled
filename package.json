@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "samples": "node scripts/gen-samples.mjs",
     "pages:dev": "npm run build && wrangler pages dev --port 8788",
-    "deploy": "npm run build && wrangler pages deploy --branch main --commit-dirty=true"
+    "deploy": "npm run build && wrangler pages deploy --branch main --commit-dirty=true",
+    "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone"
   },
   "author": "",
   "license": "ISC",
@@ -37,5 +38,21 @@
     "wrangler": "^4.148.0"
   },
   "type": "module",
-  "private": true
+  "private": true,
+  "exports": {
+    ".": {
+      "import": "./dist-lib/react/workbook-editor.js"
+    },
+    "./standalone": {
+      "import": "./dist-lib/standalone/workbook-editor.js"
+    },
+    "./style.css": "./dist-lib/react/workbook-editor.css"
+  },
+  "files": [
+    "dist-lib"
+  ],
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
 }

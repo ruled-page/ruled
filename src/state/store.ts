@@ -31,11 +31,45 @@ export interface ConfirmRequest {
   resolve: (ok: boolean) => void;
 }
 
+/** The workbook as saved, handed to the host's onSave callback. */
+export interface SavedWorkbook {
+  bytes: Uint8Array;
+  fileName: string;
+  /** Cells changed since the workbook was opened. */
+  editedCount: number;
+}
+
+export interface EditorFeatures {
+  /** Open button, file picker and drag-and-drop. Default true. */
+  open: boolean;
+  /** Save button and Cmd/Ctrl+S. Default true. */
+  save: boolean;
+  /** Schema designer button. Default true. */
+  schemas: boolean;
+}
+
 export interface StoreOptions {
   /** Schemas to try, in order, against each workbook that is opened. */
   schemas?: WorkbookSchema[];
   /** Default number display; a matching schema can override it. */
   numbers?: NumberOptions;
+  /** Creates the worker that holds the workbook; defaults to the bundled worker file. */
+  createWorker?: () => Worker;
+  /**
+   * Receives the workbook when the user saves, e.g. to upload it. Throwing
+   * shows the error and keeps the changes. Without it, saving downloads the file.
+   */
+  onSave?: (file: SavedWorkbook) => void | Promise<void>;
+  /** Ask before leaving the page with unsaved changes. Default true. */
+  warnOnUnload?: boolean;
+  /** Parts of the UI to show; hosts that open and save files themselves can hide them. */
+  features?: Partial<EditorFeatures>;
+  /** Locale for parsing and showing dates and numbers; defaults to the browser's. */
+  locale?: string;
+}
+
+function defaultWorker(): Worker {
+  return new Worker(new URL('../worker/workbook.worker.ts', import.meta.url), { type: 'module' });
 }
 
 export interface SchemaMismatch {
@@ -112,9 +146,34 @@ export class WorkbookStore {
   private toastSeq = 0;
   private readonly listCache = new WeakMap<ListValidation, { version: number; options: string[] | undefined }>();
 
+  readonly features: EditorFeatures;
+
   constructor(options: StoreOptions = {}) {
     this.options = options;
     this.schemas = [...(options.schemas ?? [])];
+    this.features = { open: true, save: true, schemas: true, ...options.features };
+  }
+
+  /** Whether the host handles saving instead of the browser downloading the file. */
+  get hasSaveHandler(): boolean {
+    return !!this.options.onSave;
+  }
+
+  get warnOnUnload(): boolean {
+    return this.options.warnOnUnload !== false;
+  }
+
+  get locale(): string {
+    return this.options.locale ?? (typeof navigator !== 'undefined' ? navigator.language : '') ?? 'en-US';
+  }
+
+  /** Stops the worker and releases the workbook. */
+  dispose(): void {
+    this.worker?.terminate();
+    this.worker = undefined;
+    for (const p of this.pending.values()) p.reject(new Error('Superseded'));
+    this.pending.clear();
+    this.listeners.clear();
   }
 
   get reportOpen(): boolean {
@@ -207,7 +266,7 @@ export class WorkbookStore {
     for (const p of this.pending.values()) p.reject(new Error('Superseded'));
     this.pending.clear();
     // A fresh worker per file releases the previous workbook's memory.
-    this.worker = new Worker(new URL('../worker/workbook.worker.ts', import.meta.url), { type: 'module' });
+    this.worker = (this.options.createWorker ?? defaultWorker)();
     this.worker.onmessage = this.onMessage;
     Object.assign(this, {
       status: 'loading',
@@ -228,7 +287,7 @@ export class WorkbookStore {
     this.notify();
     try {
       const res = await this.request(
-        { type: 'open', bytes, fileName, locale: navigator.language || 'en-US' } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes, fileName, locale: this.locale || 'en-US' } as Omit<WorkerRequest, 'id'>,
         [bytes],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
@@ -286,6 +345,20 @@ export class WorkbookStore {
     }
     const saved = await this.save();
     if (!saved) return;
+    if (this.options.onSave) {
+      this.busy = true;
+      this.notify();
+      try {
+        await this.options.onSave({ ...saved, editedCount: this.editedCount });
+        this.toast('info', `Saved ${saved.fileName}.`);
+      } catch (err) {
+        this.toast('error', `Not saved: ${(err as Error).message}`);
+      } finally {
+        this.busy = false;
+        this.notify();
+      }
+      return;
+    }
     const type = /\.xlsm$/i.test(saved.fileName)
       ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
       : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

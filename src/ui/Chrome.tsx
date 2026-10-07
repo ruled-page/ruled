@@ -57,9 +57,11 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
         {store.busy && <span className="spinner" aria-label="Working" />}
       </div>
       <div className="toolbar-actions">
-        <button className="btn" onClick={onOpen} title="Open a workbook">
-          <Icon name="open" /> <span className="label">Open</span>
-        </button>
+        {store.features.open && (
+          <button className="btn" onClick={onOpen} title="Open a workbook">
+            <Icon name="open" /> <span className="label">Open</span>
+          </button>
+        )}
         <div className="btn-group">
           <button className="btn icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title="Undo (⌘Z)" aria-label="Undo">
             <Icon name="undo" />
@@ -86,16 +88,20 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
           <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
           <span>Highlight changes</span>
         </label>
-        <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title="Create, import and export schemas">
-          <Icon name="schema" /> <span className="label">Schemas</span>
-        </button>
+        {store.features.schemas && (
+          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title="Create, import and export schemas">
+            <Icon name="schema" /> <span className="label">Schemas</span>
+          </button>
+        )}
         <button className={`btn ${store.panel === 'report' ? 'active' : ''}`} disabled={!ready} onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')} title="What's in this file">
           <Icon name="info" /> <span className="label">What's in this file</span>
           {notable > 0 && <span className="count">{notable}</span>}
         </button>
-        <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title="Save as Excel (⌘S)">
-          <Icon name="download" /> Save as Excel
-        </button>
+        {store.features.save && (
+          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title="Save (⌘S)">
+            <Icon name="download" /> Save{store.hasSaveHandler ? '' : ' as Excel'}
+          </button>
+        )}
       </div>
     </header>
   );

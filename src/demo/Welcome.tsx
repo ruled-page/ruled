@@ -1,5 +1,5 @@
 import type { WorkbookStore } from '../state/store';
-import { Icon } from './icons';
+import { Icon } from '../ui/icons';
 
 export const SAMPLES = [
   {
