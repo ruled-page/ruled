@@ -3,12 +3,14 @@ import {
   DataEditor,
   GridCellKind,
   getMiddleCenterBias,
+  type DataEditorProps,
   type DataEditorRef,
   type DrawCellCallback,
   type DrawHeaderCallback,
   type FillPatternEventArgs,
   type GridCell,
   type GridColumn,
+  type GridKeyEventArgs,
   type GridMouseEventArgs,
   type GridSelection,
   type Item,
@@ -16,13 +18,13 @@ import {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { colToLetters } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText, exactText } from '../state/format';
-import { CELL_PADDING, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
+import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
@@ -128,12 +130,45 @@ interface Props {
   /** Changes whenever schema issues change, so markers redraw. */
   schemaVersion: number;
   selection: Selection;
+  /** Changes whenever a column is resized; shared by both panes. */
+  colVersion: number;
+  onColumnResized: () => void;
+  /**
+   * The rows this grid shows, as grid rows of the sheet view: frozen rows are
+   * a separate pane above the scrolling one. Defaults to every row.
+   */
+  rowStart?: number;
+  rowCount?: number;
+  /** Whether this pane shows the column letters. */
+  header?: boolean;
+  gridRef?: RefObject<DataEditorRef>;
+  onKeyDown?: (e: GridKeyEventArgs) => void;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
-export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }: Props) {
-  const ref = useRef<DataEditorRef>(null);
+type Highlights = NonNullable<DataEditorProps['highlightRegions']>;
+
+export function SheetGrid({
+  store,
+  view,
+  dataVersion,
+  schemaVersion,
+  selection,
+  colVersion,
+  onColumnResized,
+  rowStart = 0,
+  rowCount,
+  header = true,
+  gridRef,
+  onKeyDown,
+  className,
+  style: hostStyle,
+}: Props) {
+  const ownRef = useRef<DataEditorRef>(null);
+  const ref = gridRef ?? ownRef;
   const host = useRef<HTMLDivElement>(null);
-  const [colVersion, setColVersion] = useState(0);
+  const rows = rowCount ?? view.rowCount - rowStart;
   const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const styles = store.styles;
@@ -161,7 +196,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
 
   const getCellContent = useCallback(
     ([gc, gr]: Item): GridCell => {
-      const row = view.visibleRows[gr];
+      const row = view.visibleRows[gr + rowStart];
       if (gc === 0) {
         return {
           kind: GridCellKind.Text,
@@ -228,13 +263,18 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         });
       }
       let { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
+      let drawStyle = style;
       if (rec.t === VT.Number && !style.wrap) {
         // Numbers never spill into neighbours; Excel shortens them or shows ####.
         let room = 0;
         for (let c = merge?.c1 ?? col; c <= (merge?.c2 ?? col); c++) room += view.colWidth(c);
         room -= CELL_PADDING * 2;
         if (text.length * style.fontSizePx * 0.62 > room) {
-          text = fitNumber(text, rec.n ?? 0, /^general$/i.test(style.numFmt), room, (s) => measure(s, style));
+          // Whether it fits is Excel's call, made with Calibri's widths; where
+          // the browser's stand-in font is wider, the number is drawn smaller.
+          text = fitNumber(text, rec.n ?? 0, /^general$/i.test(style.numFmt), room, (s) => excelTextWidth(s, style));
+          const drawn = text.startsWith('#') ? 0 : measure(text, style);
+          if (drawn > room) drawStyle = { ...style, fontSizePx: Math.max(6, Math.floor(((style.fontSizePx * room) / drawn) * 10) / 10) };
         }
       }
       return asEnum({
@@ -246,11 +286,14 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         contentAlign: alignment(rec, style),
         allowWrapping: style.wrap,
         span,
-        themeOverride: label && !style.fill ? { ...cellTheme(style, color, false, false), bgCell: LABEL_FILL } : cellTheme(style, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
+        themeOverride:
+          label && !style.fill
+            ? { ...cellTheme(drawStyle, color, false, false), bgCell: LABEL_FILL }
+            : cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion],
+    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart],
   );
 
   // Text spilling into empty neighbours, worked out per row as rows are drawn.
@@ -286,7 +329,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
   const drawCell = useCallback<DrawCellCallback>(
     (args, drawContent) => {
       const { ctx, rect } = args;
-      const row = view.visibleRows[args.row];
+      const row = view.visibleRows[args.row + rowStart];
       const gridLines = view.info.showGridLines;
       if (args.col === 0) {
         drawContent();
@@ -400,7 +443,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       ctx.restore();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen],
+    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen, rowStart],
   );
 
   const drawHeader = useCallback<DrawHeaderCallback>((args, drawContent) => {
@@ -414,31 +457,43 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const x1 = Math.max(1, r.x);
       const x2 = Math.max(x1, r.x + r.width - 1);
       return {
-        r1: view.visibleRows[r.y],
-        r2: view.visibleRows[Math.min(view.rowCount - 1, r.y + r.height - 1)],
+        r1: view.visibleRows[r.y + rowStart],
+        r2: view.visibleRows[Math.min(rowStart + rows - 1, rowStart + r.y + r.height - 1)],
         c1: view.visibleCols[x1 - 1],
         c2: view.visibleCols[Math.min(view.colCount, x2) - 1],
       };
     },
-    [view],
+    [view, rowStart, rows],
   );
 
-  const gridSelection = useMemo<GridSelection>(() => {
-    const gr = Math.max(0, view.gridRow(selection.row));
-    const gc = Math.max(0, view.gridCol(selection.col)) + 1;
-    const [first, ...rest] = selection.rects.map((r) => {
-      const y1 = Math.max(0, view.gridRow(r.r1));
-      const y2 = Math.max(y1, view.gridRow(r.r2));
+  // The selection, clipped to this pane. When the active cell is in the other
+  // pane, this one shows its part of the selection as a highlight instead.
+  const { gridSelection, highlights } = useMemo(() => {
+    const last = rowStart + rows - 1;
+    const at = (row: number) => Math.max(0, view.gridRow(row));
+    const clip = (r: Rect): Rectangle | undefined => {
+      const y1 = Math.max(rowStart, at(r.r1));
+      const y2 = Math.min(last, Math.max(at(r.r1), at(r.r2)));
+      if (y1 > y2) return undefined;
       const x1 = Math.max(0, view.gridCol(r.c1)) + 1;
       const x2 = Math.max(x1, view.gridCol(r.c2) + 1);
-      return { x: x1, y: y1, width: x2 - x1 + 1, height: y2 - y1 + 1 };
-    });
-    return {
-      current: { cell: [gc, gr], range: first ?? { x: gc, y: gr, width: 1, height: 1 }, rangeStack: rest },
-      columns: CompactSelection.empty(),
-      rows: CompactSelection.empty(),
+      return { x: x1, y: y1 - rowStart, width: x2 - x1 + 1, height: y2 - y1 + 1 };
     };
-  }, [view, selection]);
+    const rects = selection.rects.map(clip).filter((r): r is Rectangle => !!r);
+    const gr = at(selection.row);
+    const gc = Math.max(0, view.gridCol(selection.col)) + 1;
+    const empty = { columns: CompactSelection.empty(), rows: CompactSelection.empty() };
+    if (gr < rowStart || gr > last) {
+      const marks: Highlights = rects.map((range) => ({ color: 'rgba(30, 113, 69, 0.10)', range, style: 'solid-outline' }));
+      return { gridSelection: { current: undefined, ...empty } as GridSelection, highlights: marks.length ? marks : undefined };
+    }
+    const cell = { x: gc, y: gr - rowStart, width: 1, height: 1 };
+    const [first, ...rest] = rects;
+    return {
+      gridSelection: { current: { cell: [gc, gr - rowStart], range: first ?? cell, rangeStack: rest }, ...empty } as GridSelection,
+      highlights: undefined,
+    };
+  }, [view, selection, rowStart, rows]);
 
   const onSelectionChange = useCallback(
     (sel: GridSelection) => {
@@ -454,21 +509,21 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const [gc, gr] = sel.current.cell;
       if (gc === 0) {
         // Clicking a row number selects the whole row.
-        const rows = [sel.current.range.y, sel.current.range.y + sel.current.range.height - 1].map((y) => view.visibleRows[y]);
+        const picked = [sel.current.range.y, sel.current.range.y + sel.current.range.height - 1].map((y) => view.visibleRows[y + rowStart]);
         store.setSelection({
-          row: rows[0],
+          row: picked[0],
           col: view.visibleCols[0],
-          rects: [{ r1: rows[0], r2: rows[1], c1: 0, c2: Math.max(view.info.maxCol, 0) }],
+          rects: [{ r1: picked[0], r2: picked[1], c1: 0, c2: Math.max(view.info.maxCol, 0) }],
         });
         return;
       }
       store.setSelection({
-        row: view.visibleRows[gr],
+        row: view.visibleRows[gr + rowStart],
         col: view.visibleCols[gc - 1],
         rects: [sel.current.range, ...sel.current.rangeStack].map(toSheetRect),
       });
     },
-    [store, view, toSheetRect],
+    [store, view, toSheetRect, rowStart],
   );
 
   // Remember what was copied, so pasting it back carries formulas.
@@ -533,33 +588,33 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
   const onCellEdited = useCallback(
     ([gc, gr]: Item, value: { data?: unknown }) => {
       if (gc === 0) return;
-      void store.input(view.visibleRows[gr], view.visibleCols[gc - 1], String(value.data ?? ''));
+      void store.input(view.visibleRows[gr + rowStart], view.visibleCols[gc - 1], String(value.data ?? ''));
     },
-    [store, view],
+    [store, view, rowStart],
   );
 
   const onCellActivated = useCallback(
     ([gc, gr]: Item) => {
       if (gc === 0) return;
-      const reason = view.readOnlyReason(view.visibleRows[gr], view.visibleCols[gc - 1]);
+      const reason = view.readOnlyReason(view.visibleRows[gr + rowStart], view.visibleCols[gc - 1]);
       if (reason) store.toast('warn', reason);
     },
-    [store, view],
+    [store, view, rowStart],
   );
 
   const onColumnResize = useCallback(
     (_c: GridColumn, size: number, index: number) => {
       if (index === 0) return;
       view.colWidths.set(view.visibleCols[index - 1], size);
-      setColVersion((v) => v + 1);
+      onColumnResized();
     },
-    [view],
+    [view, onColumnResized],
   );
 
   const onItemHovered = useCallback(
     (args: GridMouseEventArgs) => {
       const [gc, gr] = args.location;
-      const note = args.kind === 'cell' && gc > 0 ? view.noteAt(view.visibleRows[gr], view.visibleCols[gc - 1]) : undefined;
+      const note = args.kind === 'cell' && gc > 0 ? view.noteAt(view.visibleRows[gr + rowStart], view.visibleCols[gc - 1]) : undefined;
       if (!note || args.kind !== 'cell') {
         setHoverNote(null);
         return;
@@ -567,22 +622,22 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const { x, y, width } = args.bounds;
       setHoverNote((prev) => (prev?.note === note ? prev : { note, x: x + width + 4, y }));
     },
-    [view],
+    [view, rowStart],
   );
 
-  const rowHeight = useCallback((gr: number) => view.rowHeight(view.visibleRows[gr]), [view]);
+  const rowHeight = useCallback((gr: number) => view.rowHeight(view.visibleRows[gr + rowStart]), [view, rowStart]);
   const provideEditor = useCallback(
     (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
     [],
   );
 
   return (
-    <div className="grid-host" ref={host}>
+    <div className={`grid-host ${className ?? ''}`} ref={host} style={hostStyle}>
       <DataEditor
         ref={ref}
         key={view.info.index}
         columns={columns}
-        rows={view.rowCount}
+        rows={rows}
         getCellContent={getCellContent}
         drawCell={drawCell}
         drawHeader={drawHeader}
@@ -604,7 +659,9 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         rowMarkers="none"
         freezeColumns={1 + frozen}
         rowHeight={rowHeight}
-        headerHeight={24}
+        headerHeight={header ? 24 : 0}
+        highlightRegions={highlights}
+        onKeyDown={onKeyDown}
         smoothScrollX
         smoothScrollY
         cellActivationBehavior="double-click"
@@ -618,7 +675,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         onItemHovered={onItemHovered}
       />
       {hoverNote && <NoteTip {...hoverNote} />}
-      <ObjectsOverlay view={view} gridRef={ref} tick={region + colVersion} />
+      <ObjectsOverlay view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
     </div>
   );
 }

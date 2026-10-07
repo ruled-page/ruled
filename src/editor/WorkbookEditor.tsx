@@ -5,7 +5,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { Icon } from '../ui/icons';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
 import { SchemaDesigner } from '../ui/SchemaDesigner';
-import { SheetGrid } from '../ui/SheetGrid';
+import { SheetPanes } from '../ui/SheetPanes';
 import { SidePanel } from '../ui/SidePanel';
 import './editor.css';
 
@@ -162,7 +162,7 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
               </div>
             )}
             {ready && view.info.kind === 'worksheet' && (
-              <SheetGrid
+              <SheetPanes
                 store={store}
                 view={view}
                 dataVersion={view.version * 31 + store.styles.length}

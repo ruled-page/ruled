@@ -25,7 +25,23 @@ const LABEL: Record<SheetObject['kind'], string> = {
  * Placeholders where the workbook's charts, pictures and shapes sit, so it
  * is clear they exist and will be saved, even though they are not drawn.
  */
-export function ObjectsOverlay({ view, gridRef, tick }: { view: SheetView; gridRef: RefObject<DataEditorRef | null>; tick: number }) {
+export function ObjectsOverlay({
+  view,
+  gridRef,
+  tick,
+  rowStart,
+  rowCount,
+  top,
+}: {
+  view: SheetView;
+  gridRef: RefObject<DataEditorRef | null>;
+  tick: number;
+  /** The grid rows this pane shows; objects anchored outside them are left to the other pane. */
+  rowStart: number;
+  rowCount: number;
+  /** Height of the column header above the cells. */
+  top: number;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
 
@@ -38,15 +54,15 @@ export function ObjectsOverlay({ view, gridRef, tick }: { view: SheetView; gridR
     view.info.objects.forEach((obj, i) => {
       if (!obj.from || obj.kind === 'pivot' || obj.kind === 'control') return;
       const gc = view.gridCol(obj.from.col);
-      const gr = view.gridRow(obj.from.row);
-      if (gc < 0 || gr < 0) return;
+      const gr = view.gridRow(obj.from.row) - rowStart;
+      if (gc < 0 || gr < 0 || gr >= rowCount) return;
       const a = grid.getBounds(gc + 1, gr);
       if (!a) return;
       let width = obj.sizePx?.w ?? 0;
       let height = obj.sizePx?.h ?? 0;
       if (obj.to) {
         const tc = view.gridCol(obj.to.col);
-        const tr = view.gridRow(obj.to.row);
+        const tr = view.gridRow(obj.to.row) - rowStart;
         const b = tc >= 0 && tr >= 0 ? grid.getBounds(tc + 1, tr) : undefined;
         if (b) {
           width = b.x + obj.to.colOffPx - (a.x + obj.from.colOffPx);
@@ -64,10 +80,10 @@ export function ObjectsOverlay({ view, gridRef, tick }: { view: SheetView; gridR
       });
     });
     setBoxes(out);
-  }, [view, gridRef, tick]);
+  }, [view, gridRef, tick, rowStart, rowCount]);
 
   return (
-    <div className="objects-overlay" ref={host} aria-hidden="true">
+    <div className="objects-overlay" ref={host} aria-hidden="true" style={{ top }}>
       {boxes.map((b) => (
         <div
           key={b.key}

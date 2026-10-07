@@ -6,7 +6,7 @@ import { StyleBook, tintColor } from '../src/core/styles';
 import { builtinTableLook, tableCellFormat } from '../src/core/tableStyles';
 import type { TableInfo } from '../src/core/types';
 import { effectiveStyle } from '../src/state/cellStyle';
-import { fitNumber, rowOverflows } from '../src/state/overflow';
+import { excelTextWidth, fitNumber, rowOverflows } from '../src/state/overflow';
 import { SheetView } from '../src/state/sheetView';
 import { sample } from './helpers';
 
@@ -83,6 +83,13 @@ describe('fitting numbers into narrow columns', () => {
     expect(fitNumber('3.14159265', 3.14159265, true, 7 * 5, measure)).toBe('3.142');
     expect(fitNumber('123456789012345', 123456789012345, true, 7 * 11, measure)).toBe('1.23457E+14');
     expect(fitNumber('0.000012345', 0.000012345, true, 7 * 8, measure)).toBe('1.23E-05');
+  });
+
+  it("judges fit with Excel's Calibri widths, not the browser's font", () => {
+    const style = { ...new StyleBook(undefined, undefined, 'en-US').get(0), bold: true };
+    // Column width 13 is 96px; Excel shows this total in full.
+    expect(excelTextWidth('$157,925.25', style)).toBeLessThan(96 - 9);
+    expect(excelTextWidth('123456789012345', style)).toBeGreaterThan(64 - 9);
   });
 
   it('shows # for formatted numbers that do not fit', () => {

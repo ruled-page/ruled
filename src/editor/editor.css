@@ -431,6 +431,39 @@
   inset: 0;
 }
 
+/* Frozen rows: a fixed pane above the scrolling one. */
+.wbe .grid-panes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wbe .grid-panes > .grid-host {
+  position: relative;
+  inset: auto;
+}
+
+.wbe .grid-panes > .pane-top {
+  flex: none;
+  max-height: 50%;
+  border-bottom: 1px solid #b7bcc2;
+}
+
+.wbe .grid-panes > .pane-bottom {
+  flex: 1;
+  min-height: 0;
+}
+
+/* The lower pane's scrollbar moves both panes sideways. */
+.wbe .pane-top .dvn-scroller {
+  scrollbar-width: none;
+}
+
+.wbe .pane-top .dvn-scroller::-webkit-scrollbar {
+  display: none;
+}
+
 .wbe .objects-overlay {
   position: absolute;
   inset: 24px 0 0 0;

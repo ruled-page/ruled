@@ -114,3 +114,17 @@ export function fitNumber(text: string, n: number, general: boolean, available: 
   }
   return '#'.repeat(Math.max(1, Math.floor(available / Math.max(1, width('#')))));
 }
+
+/** Calibri 11pt character widths in pixels, as Excel lays numbers out. */
+const CALIBRI: Record<string, number> = { '.': 3.6, ',': 3.6, ':': 3.6, ' ': 3.3, '-': 4.3, '(': 4.3, ')': 4.3, '%': 10.4, '/': 5.1, E: 6.4, '+': 7, $: 7, '#': 7 };
+
+/**
+ * How wide Excel makes text in a cell's font, from Calibri's metrics scaled
+ * to the font size. Used to decide what fits, so a number that fits in
+ * Excel isn't turned into #### because the browser lacks Calibri.
+ */
+export function excelTextWidth(text: string, style: DisplayStyle): number {
+  let w = 0;
+  for (const ch of text) w += CALIBRI[ch] ?? (/\d/.test(ch) ? 7 : 6.5);
+  return w * (style.fontSizePx / 14.7) * (style.bold ? 1.04 : 1);
+}
