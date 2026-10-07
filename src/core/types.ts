@@ -124,6 +124,57 @@ export interface TableInfo {
   look?: TableLook;
 }
 
+/** A threshold in a colour scale, data bar or icon set. */
+export interface Cfvo {
+  type: 'min' | 'max' | 'num' | 'percent' | 'percentile' | 'formula' | 'autoMin' | 'autoMax';
+  val?: string;
+  /** For icon sets: the value must be >= the threshold (else >). */
+  gte: boolean;
+}
+
+/** One conditional formatting rule, as Excel stores it. */
+export interface CfRule {
+  rects: Rect[];
+  type: string;
+  /** Lower numbers win. */
+  priority: number;
+  stopIfTrue: boolean;
+  style?: DiffStyle;
+  operator?: string;
+  /** In file form, written for the top-left cell of the first range. */
+  formulas: string[];
+  text?: string;
+  rank?: number;
+  percent?: boolean;
+  bottom?: boolean;
+  aboveAverage?: boolean;
+  equalAverage?: boolean;
+  stdDev?: number;
+  colorScale?: { cfvo: Cfvo[]; colors: string[] };
+  dataBar?: { cfvo: Cfvo[]; color: string; negativeColor?: string; showValue: boolean; gradient: boolean; minLength: number; maxLength: number };
+  iconSet?: { set: string; cfvo: Cfvo[]; reverse: boolean; showValue: boolean };
+}
+
+/** What conditional formatting does to one cell. */
+export interface CfCell {
+  row: number;
+  col: number;
+  /** Index into CfResult.styles. */
+  style?: number;
+  /** Data bar extent as fractions of the cell width. */
+  bar?: { from: number; to: number; color: string; gradient: boolean };
+  icon?: { set: string; index: number };
+  hideValue?: boolean;
+}
+
+export interface CfResult {
+  sheet: number;
+  styles: DiffStyle[];
+  cells: CfCell[];
+  /** Rules too large to evaluate here. */
+  skipped: number;
+}
+
 export interface DisplayStyle {
   numFmt: string;
   bold: boolean;
@@ -249,6 +300,7 @@ export interface SheetInfo {
   objects: SheetObject[];
   notes: CellNote[];
   tables: TableInfo[];
+  conditionalFormats: CfRule[];
   protected: boolean;
   showGridLines: boolean;
   tabColor?: string;

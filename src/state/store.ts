@@ -285,7 +285,43 @@ export class WorkbookStore {
 
   setActive(i: number): void {
     this.active = i;
+    this.refreshConditionalFormats(i);
     this.notify();
+  }
+
+  private readonly cfRuns = new Map<number, { version: number; running: boolean; warned?: boolean }>();
+
+  /**
+   * Re-evaluates a sheet's conditional formatting in the worker if cell values
+   * have changed since it last was. Runs one at a time per sheet; a change
+   * made while one runs triggers another when it finishes.
+   */
+  refreshConditionalFormats(sheet: number): void {
+    const view = this.sheets[sheet];
+    if (!view?.info.conditionalFormats.length) return;
+    let run = this.cfRuns.get(sheet);
+    if (!run) this.cfRuns.set(sheet, (run = { version: -1, running: false }));
+    if (run.running || run.version === this.dataVersion) return;
+    const state = run;
+    const version = this.dataVersion;
+    state.running = true;
+    void this.request({ type: 'conditionalFormats', sheet } as Omit<WorkerRequest, 'id'>)
+      .then((res) => {
+        if (res.type !== 'conditionalFormats' || this.sheets[sheet] !== view) return;
+        view.setConditionalFormats(res.result);
+        if (res.result.skipped && !state.warned) {
+          state.warned = true;
+          this.toast('info', `${res.result.skipped.toLocaleString()} conditional format rule(s) on ${view.info.name} cover too many cells to show here.`);
+        }
+        this.notify();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        // Recorded even on failure, so a rule that can't be evaluated isn't retried in a loop.
+        state.version = version;
+        state.running = false;
+        if (this.sheets[sheet] === view && sheet === this.active) this.refreshConditionalFormats(sheet);
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -378,7 +414,9 @@ export class WorkbookStore {
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
       this.stage = '';
+      this.cfRuns.clear();
       this.bindSchemas();
+      this.refreshConditionalFormats(this.active);
     } catch (err) {
       if ((err as Error).message === 'Superseded') return;
       this.status = 'error';
@@ -612,6 +650,7 @@ export class WorkbookStore {
       this.toast('warn', r.skipped === 1 ? reason : `${r.skipped.toLocaleString()} cells were left unchanged. ${reason}`);
     }
     for (const w of r.warnings) this.toast('warn', w);
+    this.refreshConditionalFormats(this.active);
   }
 
   async undo(): Promise<void> {

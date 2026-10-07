@@ -1,5 +1,6 @@
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
+import { parseConditionalFormats } from './conditionalFormat';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePersons, parseThreads } from './comments';
@@ -210,6 +211,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       objects: [],
       notes: [],
       tables: [],
+      conditionalFormats: [],
       protected: false,
       showGridLines: true,
     };
@@ -343,14 +345,13 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       });
     }
 
-    const cfCount =
-      children(meta, 'conditionalFormatting').length + countMatches(xml.slice(scan.sheetDataEnd), /<x14:conditionalFormatting\b/g);
-    if (cfCount) {
+    info.conditionalFormats = parseConditionalFormats(meta, styles);
+    if (info.conditionalFormats.length) {
       findings.push({
         kind: 'conditionalFormat',
         severity: 'info',
         title: 'Conditional formatting',
-        detail: `${plural(cfCount, 'rule set')}. Kept in the file and applied by Excel; not shown in this editor.`,
+        detail: `${plural(info.conditionalFormats.length, 'rule')}. Shown here and updated as you edit; kept in the file for Excel.`,
         sheet: name,
       });
     }

@@ -10,6 +10,7 @@ import {
   type EngineValue,
   type EngineWrite,
 } from './calc';
+import { evaluateConditionalFormats } from './conditionalFormat';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
@@ -29,6 +30,7 @@ import {
   type CellUpdate,
   type DisplayStyle,
   type EditOp,
+  type CfResult,
   type EditResult,
   type Finding,
   type ListSource,
@@ -654,6 +656,43 @@ export class WorkbookSession {
     for (const r of roots) if (!extraRoots.includes(r)) mark(r);
     for (const d of this.engine!.dependentsOf(roots)) mark(d);
     return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conditional formatting
+
+  /** A cell's current value, as formulas and rules see it. */
+  private cellValue(sheet: number, row: number, col: number): EngineValue {
+    const { content } = this.current(sheet, row, col);
+    switch (content.kind) {
+      case 'empty':
+        return null;
+      case 'formula':
+        return this.formulaValue(sheet, row, col);
+      case 'error':
+        return { error: content.value };
+      default:
+        return content.value;
+    }
+  }
+
+  /** What the sheet's conditional formatting does to each cell, for the current values. */
+  conditionalFormats(sheet: number): CfResult {
+    this.ensureEngine();
+    const info = this.sheet(sheet).info;
+    let maxRow = info.maxRow;
+    let maxCol = info.maxCol;
+    for (const key of this.edits[sheet].keys()) {
+      maxRow = Math.max(maxRow, Math.floor(key / MAX_COLS));
+      maxCol = Math.max(maxCol, key % MAX_COLS);
+    }
+    const ev = this.evaluator;
+    return evaluateConditionalFormats(info.conditionalFormats, sheet, {
+      value: (row, col) => this.cellValue(sheet, row, col),
+      calculate: (formula) => ev.calculate(formula, sheet),
+      maxRow,
+      maxCol,
+    });
   }
 
   // ---------------------------------------------------------------------------

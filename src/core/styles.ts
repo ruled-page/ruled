@@ -270,6 +270,7 @@ export class StyleBook {
   readonly tableStyles = new Map<string, TableLook>();
   /** Theme colours (hex, no "#") in SpreadsheetML theme-index order. */
   readonly theme: string[];
+  private readonly indexed: string[] = [...INDEXED_COLORS];
   private nextNumFmtId = 164;
 
   constructor(stylesXml: string | undefined, themeXml: string | undefined, locale: string) {
@@ -281,7 +282,7 @@ export class StyleBook {
       return;
     }
     const root = parseXml(stylesXml);
-    const indexed = [...INDEXED_COLORS];
+    const indexed = this.indexed;
     const custom = children(child(child(root, 'colors'), 'indexedColors'), 'rgbColor');
     custom.forEach((c, i) => {
       const rgb = attr(c, 'rgb');
@@ -363,6 +364,16 @@ export class StyleBook {
     while (this.xfRaw.length < this.display.length) {
       this.xfRaw.push('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
     }
+  }
+
+  /** A colour element (rgb, theme or indexed) resolved against this workbook's palette. */
+  color(node: XmlNode | undefined): string | undefined {
+    return resolveColor(node, this.theme, this.indexed);
+  }
+
+  /** A differential format written inline, as x14 conditional formats do. */
+  dxf(node: XmlNode): DiffStyle {
+    return parseDxf(node, this.theme, this.indexed);
   }
 
   private numFmtCode(id: number, locale: string): string {

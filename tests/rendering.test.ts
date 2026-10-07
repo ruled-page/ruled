@@ -212,3 +212,69 @@ describe('table styles', () => {
     expect([1, 2, 3, 4, 5].map((row) => tableCellFormat(t, row, 0)?.fill ?? '-')).toEqual(['#B4C6E7', '#B4C6E7', '-', '-', '#B4C6E7']);
   });
 });
+
+describe('conditional formatting', () => {
+  const { s, r } = load('formatting.xlsx');
+  const sheet = 1;
+  const result = s.conditionalFormats(sheet);
+  const at = (ref: string) => {
+    const { row, col } = parseA1(ref)!;
+    const c = result.cells.find((x) => x.row === row && x.col === col);
+    return c && { ...c, style: c.style === undefined ? undefined : result.styles[c.style] };
+  };
+  // The sample's columns, as gen_formatting.py fills rows 2-31 (i = 0..29).
+  const score = (i: number) => (i * 37) % 100;
+  const late = (i: number) => i % 5 === 1 || i % 5 === 4;
+
+  it('reads every rule on the sheet', () => {
+    expect(r.sheets[sheet].conditionalFormats.map((c) => c.type)).toEqual([
+      'cellIs', 'cellIs', 'expression', 'colorScale', 'dataBar', 'iconSet',
+      'containsText', 'containsBlanks', 'duplicateValues', 'top10', 'aboveAverage',
+    ]);
+    expect(result.skipped).toBe(0);
+  });
+
+  it('applies cell-value and formula rules in priority order', () => {
+    for (let i = 0; i < 30; i++) {
+      const b = at(`B${i + 2}`)?.style;
+      if (score(i) >= 80) expect(b).toMatchObject({ fill: '#C6EFCE', bold: true });
+      else if (score(i) < 30) expect(b).toMatchObject({ color: '#9C0006', italic: true, ...(late(i) ? { fill: '#FCE4D6' } : {}) });
+      else expect(b?.fill).toBe(late(i) ? '#FCE4D6' : undefined);
+      expect(at(`A${i + 2}`)?.style?.fill).toBe(late(i) ? '#FCE4D6' : undefined);
+    }
+  });
+
+  it('colours scales, sizes bars and picks icons from the range', () => {
+    // Column D holds (i*13)%50: 0 is the minimum (red), 49 the maximum (green).
+    expect(at('D2')?.style?.fill).toBe('#F8696B');
+    expect(at('D25')?.style?.fill).toBe('#63BE7B');
+    expect(at('E2')?.bar).toEqual({ from: 0, to: 0.1, color: '#638EC6', gradient: true });
+    expect(at('E26')?.bar?.to).toBeCloseTo(0.9);
+    // Column F holds (i*17)%30, 0-29: icons split at 33% and 67% of the span.
+    const icon = (i: number) => at(`F${i + 2}`)?.icon?.index;
+    expect([icon(0), icon(1), icon(2), icon(3)]).toEqual([0, 1, 0, 2]);
+  });
+
+  it('handles text, blanks, duplicates, top-N and averages', () => {
+    // G7 contains "error"; G3 does too, but it is a late row and that rule has priority.
+    expect(at('G7')?.style?.fill).toBe('#FFEB9C');
+    expect(at('G3')?.style?.fill).toBe('#FCE4D6');
+    expect(at('G4')?.style?.fill).toBe('#EDEDED');
+    expect(at('G2')?.style?.fill).toBeUndefined();
+    expect(at('H2')?.style?.strike).toBe(true);
+    const top = [...Array(30).keys()].map((i) => (i * 23) % 61).sort((a, b) => b - a).slice(0, 3);
+    const tops = [...Array(30).keys()].filter((i) => at(`I${i + 2}`)?.style?.bold).map((i) => (i * 23) % 61);
+    expect(tops.sort((a, b) => b - a)).toEqual(top);
+    const avg = [...Array(30).keys()].reduce((s, i) => s + ((i * 11) % 40), 0) / 30;
+    const above = [...Array(30).keys()].filter((i) => at(`J${i + 2}`)?.style?.fill === '#C6EFCE');
+    expect(above.every((i) => (i * 11) % 40 > avg)).toBe(true);
+  });
+
+  it('follows edits', () => {
+    const t = WorkbookSession.open(sample('formatting.xlsx'), 'formatting.xlsx');
+    t.apply({ type: 'input', sheet, row: 1, col: 2, text: 'Late' });
+    const after = t.conditionalFormats(sheet);
+    const a2 = after.cells.find((c) => c.row === 1 && c.col === 0);
+    expect(a2 && after.styles[a2.style!].fill).toBe('#FCE4D6');
+  });
+});

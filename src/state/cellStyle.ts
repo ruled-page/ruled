@@ -53,11 +53,13 @@ export function overlay(base: DisplayStyle, diff: DiffStyle): DisplayStyle {
   }));
 }
 
-/** The style a cell is drawn with: its own format, over its table's style. */
+/** The style a cell is drawn with: its own format over its table's style, with conditional formatting on top. */
 export function effectiveStyle(view: SheetView, styles: DisplayStyle[], row: number, col: number, styleIndex = view.styleAt(row, col)): DisplayStyle {
   let style = styles[styleIndex] ?? styles[0];
   const table = view.tableAt(row, col);
   const format = table && tableCellFormat(table, row, col);
   if (format) style = underlay(style, format);
+  const cf = view.cfAt(row, col);
+  if (cf?.style !== undefined) style = overlay(style, view.cfStyles[cf.style]);
   return style;
 }

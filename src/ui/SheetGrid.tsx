@@ -28,7 +28,7 @@ import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
-import { drawEdge, drawGridLine, FREEZE_LINE } from './paint';
+import { drawDataBar, drawEdge, drawGridLine, drawIcon, FREEZE_LINE } from './paint';
 
 const FONT_STACK = 'Calibri, Carlito, "Aptos Narrow", "Segoe UI", system-ui, sans-serif';
 const EDITED_FILL = '#FFF4CE';
@@ -76,6 +76,19 @@ const ROW_HEADER_THEME: Partial<Theme> = {
 /** The canvas font Glide uses for a cell in this style. */
 function fontFor(style: DisplayStyle): string {
   return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${FONT_STACK}`;
+}
+
+/** Strikethrough and underline, which Glide doesn't draw. */
+function decorate(ctx: CanvasRenderingContext2D, rect: Rectangle, text: string, align: 'left' | 'right' | 'center', style: DisplayStyle): void {
+  const width = measure(text, style);
+  const x = align === 'right' ? rect.x + rect.width - CELL_PADDING - width : align === 'center' ? rect.x + (rect.width - width) / 2 : rect.x + CELL_PADDING;
+  const mid = rect.y + rect.height / 2;
+  ctx.save();
+  ctx.fillStyle = style.color ?? '#1F1F1F';
+  const thickness = style.bold ? 1.5 : 1;
+  if (style.strike) ctx.fillRect(x, mid, width, thickness);
+  if (style.underline) ctx.fillRect(x, mid + style.fontSizePx * 0.45, width, thickness);
+  ctx.restore();
 }
 
 let measureCtx: CanvasRenderingContext2D | null = null;
@@ -284,10 +297,22 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const col = view.visibleCols[args.col - 1];
 
       // Overflowing text is drawn here in full, in its own cell and in each neighbour it covers.
+      const merge = view.mergeAt(row, col);
+      const style = effectiveStyle(view, styles, merge?.r1 ?? row, merge?.c1 ?? col);
       const overflows = overflowsFor(row);
       const own = overflows.find((o) => o.col === col);
       const through = own ?? overflows.find((o) => col >= o.from && col <= o.to);
-      if (!own) drawContent();
+
+      // Conditional formatting's bars and icons sit behind the text.
+      const cf = view.cfAt(merge?.r1 ?? row, merge?.c1 ?? col);
+      if (cf?.bar) drawDataBar(ctx, rect, cf.bar);
+      if (cf?.icon) drawIcon(ctx, cf.icon.set, cf.icon.index, rect.x + 3, rect.y + (rect.height - 14) / 2);
+      if (!own && !cf?.hideValue) {
+        drawContent();
+        if ((style.strike || style.underline) && args.cell.kind === GridCellKind.Text && args.cell.displayData) {
+          decorate(ctx, rect, args.cell.displayData, args.cell.contentAlign ?? 'left', style);
+        }
+      }
       if (through) {
         const font = fontFor(through.style);
         ctx.save();
@@ -300,8 +325,6 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       }
 
       // Left and top edges belong to this cell: a border from either side, else a grid line.
-      const merge = view.mergeAt(row, col);
-      const style = effectiveStyle(view, styles, merge?.r1 ?? row, merge?.c1 ?? col);
       const gc = view.gridCol(col);
       const gr = view.gridRow(row);
       if (!merge || col === merge.c1) {

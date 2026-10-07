@@ -59,6 +59,12 @@ scope.onmessage = (e) => {
         post({ id: req.id, type: 'listSource', source: session.listSource(req.sheet, req.formula) ?? null });
         break;
       }
+      case 'conditionalFormats': {
+        if (!session) throw new Error('No workbook is open.');
+        ensureCalc();
+        post({ id: req.id, type: 'conditionalFormats', result: session.conditionalFormats(req.sheet) });
+        break;
+      }
       case 'changes': {
         if (!session) throw new Error('No workbook is open.');
         post({ id: req.id, type: 'changes', changes: session.changes() });

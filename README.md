@@ -263,8 +263,14 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   with Excel itself. Open a few saved files in Excel before relying on them,
   especially `pivot.xlsx`, whose pivot table was written by hand because
   ExcelJS can't create one.
-- Not drawn: charts (placeholders only), conditional formatting, mixed fonts
-  inside a cell. Merges spanning several rows show only the top row.
+- Not drawn: charts (placeholders only), mixed fonts inside a cell. Merges
+  spanning several rows show only the top row.
+- Conditional formatting is evaluated in the worker and redrawn after each
+  edit: cell-value, formula, text, blank, error, date, top/bottom,
+  above-average and duplicate rules, colour scales, data bars and icon sets,
+  in priority order with "stop if true". Data bars don't draw a separate
+  axis for negative values, icons are simplified drawings, and a sheet's
+  rules stop being evaluated past 200,000 formula evaluations.
 - Excel files name their built-in table styles without defining them, so
   those are drawn from each style family's pattern in the theme colours:
   close to Excel, not exact. Custom table styles are drawn as defined.

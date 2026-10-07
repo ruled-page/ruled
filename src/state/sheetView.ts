@@ -1,6 +1,6 @@
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -26,6 +26,9 @@ export class SheetView {
   readonly colWidths = new Map<number, number>();
   private readonly mergesByRow = new Map<number, MergeRange[]>();
   private readonly notes = new Map<number, CellNote>();
+  private readonly cf = new Map<number, CfCell>();
+  /** Formats referred to by conditional formatting results. */
+  cfStyles: DiffStyle[] = [];
   /** Extra read-only rules, e.g. from a schema. */
   constraint?: (row: number, col: number) => string | undefined;
   version = 0;
@@ -131,6 +134,18 @@ export class SheetView {
     const own = this.info.rowStyles[row];
     if (own !== undefined) return own;
     return this.info.colStyles.find((c) => col >= c.min && col <= c.max)?.style ?? 0;
+  }
+
+  /** Takes the worker's latest conditional formatting results for this sheet. */
+  setConditionalFormats(r: CfResult): void {
+    this.cf.clear();
+    for (const c of r.cells) this.cf.set(cellKey(c.row, c.col), c);
+    this.cfStyles = r.styles;
+    this.version++;
+  }
+
+  cfAt(row: number, col: number): CfCell | undefined {
+    return this.cf.get(cellKey(row, col));
   }
 
   tableAt(row: number, col: number): TableInfo | undefined {
