@@ -365,6 +365,17 @@ async function validationSample() {
   lists.getColumn(1).width = 14;
   lists.getColumn(3).width = 12;
   wb.definedNames.add(`Lists!$C$2:$C$${regions.length + 1}`, 'Regions');
+  lists.getCell('I1').value = 'Max discount';
+  lists.getCell('I2').value = 0.5;
+  wb.definedNames.add('Lists!$I$2', 'MaxDiscount');
+  // Models per product, each a named range, for a dependent dropdown with INDIRECT.
+  const models = { Widget: ['W-100', 'W-200', 'W-300'], Gadget: ['G-1', 'G-2'], Gizmo: ['Z-mini', 'Z-max'] };
+  Object.entries(models).forEach(([product, list], i) => {
+    const col = String.fromCharCode(69 + i); // E, F, G
+    lists.getCell(`${col}1`).value = product;
+    list.forEach((m, r) => (lists.getCell(`${col}${r + 2}`).value = m));
+    wb.definedNames.add(`Lists!$${col}$2:$${col}$${list.length + 1}`, product);
+  });
 
   ws.columns = [
     { header: 'Order', width: 10 },
@@ -373,6 +384,12 @@ async function validationSample() {
     { header: 'Region', width: 10 },
     { header: 'Status', width: 12 },
     { header: 'Qty', width: 8 },
+    { header: 'Due', width: 13, style: { numFmt: 'yyyy-mm-dd' } },
+    { header: 'Ref', width: 10 },
+    { header: 'Discount', width: 10, style: { numFmt: '0%' } },
+    { header: 'Model', width: 10 },
+    { header: 'Note', width: 22 },
+    { header: 'Alt product', width: 14 },
   ];
   ws.getRow(1).font = { bold: true };
   const rand = rng(11);
@@ -386,6 +403,9 @@ async function validationSample() {
     ws.getCell(`D${r}`).value = regions[Math.floor(rand() * regions.length)];
     ws.getCell(`E${r}`).value = statuses[Math.floor(rand() * statuses.length)];
     ws.getCell(`F${r}`).value = 1 + Math.floor(rand() * 40);
+    ws.getCell(`G${r}`).value = new Date(Date.UTC(2026, 1 + (i % 9), 1 + i));
+    ws.getCell(`H${r}`).value = `PO-${100 + i}`;
+    ws.getCell(`I${r}`).value = (i % 4) * 0.05;
   }
   // One rule per column range: ExcelJS's per-cell merging sorts addresses as
   // text ("B10" before "B2") and writes overlapping ranges.
@@ -410,8 +430,39 @@ async function validationSample() {
     showErrorMessage: true, errorTitle: 'Status', error: 'Choose Open, Shipped, Delivered or Cancelled.',
     showInputMessage: true, promptTitle: 'Status', prompt: 'Where the order is up to.',
   });
-  // Qty: a whole-number rule; kept in the file but not enforced by the editor.
-  ws.dataValidations.add('F2:F60', { type: 'whole', operator: 'between', allowBlank: true, formulae: [1, 1000], showErrorMessage: true });
+  // Qty: whole numbers from 1 to 1,000.
+  ws.dataValidations.add('F2:F60', {
+    type: 'whole', operator: 'between', allowBlank: true, formulae: [1, 1000],
+    showErrorMessage: true, errorTitle: 'Quantity', error: 'Enter a whole number from 1 to 1,000.',
+  });
+  // Due: a date from 2026 onwards.
+  ws.dataValidations.add('G2:G60', {
+    type: 'date', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [new Date(Date.UTC(2026, 0, 1))],
+    showErrorMessage: true, errorTitle: 'Due date', error: 'Due dates start in 2026.',
+  });
+  // Ref: a custom formula, relative to the first cell of the range.
+  ws.dataValidations.add('H2:H60', {
+    type: 'custom', allowBlank: true, formulae: ['AND(LEN(H2)<=8,ISNUMBER(SEARCH("-",H2)))'],
+    showErrorMessage: true, errorTitle: 'Reference', error: 'References have a dash and at most 8 characters, like PO-123.',
+  });
+  // Discount: a decimal up to the MaxDiscount cell on the Lists sheet, warning only.
+  ws.dataValidations.add('I2:I60', {
+    type: 'decimal', operator: 'between', allowBlank: true, formulae: [0, 'MaxDiscount'],
+    showErrorMessage: true, errorStyle: 'warning', errorTitle: 'Large discount', error: 'Discounts over 50% need approval.',
+  });
+  // Model: a dependent list, INDIRECT of the product's named range.
+  ws.dataValidations.add('J2:J60', {
+    type: 'list', allowBlank: true, formulae: ['INDIRECT(C2)'], showErrorMessage: true, error: 'Pick a model of the chosen product.',
+  });
+  // Note: text no longer than 20 characters.
+  ws.dataValidations.add('K2:K60', {
+    type: 'textLength', operator: 'lessThanOrEqual', allowBlank: true, formulae: [20],
+    showErrorMessage: true, error: 'Keep notes to 20 characters.',
+  });
+  // Alt product: the product list sized with OFFSET and COUNTA, so it grows with the Lists sheet.
+  ws.dataValidations.add('L2:L60', {
+    type: 'list', allowBlank: true, formulae: ['OFFSET(Lists!$A$2,0,0,COUNTA(Lists!$A:$A)-1,1)'], showErrorMessage: true,
+  });
   await wb.xlsx.writeFile(join(outDir, 'orders.xlsx'));
   console.log('Wrote orders.xlsx');
 }

@@ -104,23 +104,37 @@ export type ListSource =
   | { kind: 'values'; values: string[] }
   /** A range, possibly on another sheet; read live so edits to it show up. */
   | { kind: 'range'; sheet: number; rect: Rect }
-  /** A formula such as OFFSET or INDIRECT that this editor can't resolve. */
-  | { kind: 'unsupported'; formula: string };
+  /** A formula (OFFSET, INDIRECT, …) the engine evaluates when the list is needed. */
+  | { kind: 'formula'; formula: string };
 
-/** An Excel "list" data validation rule on a sheet. */
-export interface ListValidation {
-  rects: Rect[];
-  source: ListSource;
+/** Alert behaviour shared by every Excel data validation rule. */
+export interface ValidationAlert {
   allowBlank: boolean;
-  /** False when Excel's "In-cell dropdown" option is off. */
-  inCellDropdown: boolean;
-  /** Whether Excel shows an alert for values not in the list. */
+  /** Whether Excel shows an alert for values that break the rule. */
   showError: boolean;
   errorStyle: 'stop' | 'warning' | 'information';
   errorTitle?: string;
   error?: string;
   promptTitle?: string;
   prompt?: string;
+}
+
+/** A non-list Excel data validation rule: number, date, time, text length or custom formula. */
+export interface RuleValidation extends ValidationAlert {
+  rects: Rect[];
+  kind: 'whole' | 'decimal' | 'date' | 'time' | 'textLength' | 'custom';
+  operator: 'between' | 'notBetween' | 'equal' | 'notEqual' | 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual';
+  /** Bounds or the custom formula, relative to the rule's top-left cell. */
+  formula1: string;
+  formula2?: string;
+}
+
+/** An Excel "list" data validation rule on a sheet. */
+export interface ListValidation extends ValidationAlert {
+  rects: Rect[];
+  source: ListSource;
+  /** False when Excel's "In-cell dropdown" option is off. */
+  inCellDropdown: boolean;
 }
 
 export interface SheetInfo {
@@ -143,6 +157,7 @@ export interface SheetInfo {
   frozenRows: number;
   merges: MergeRange[];
   listValidations: ListValidation[];
+  ruleValidations: RuleValidation[];
   blocked: BlockedRegion[];
   objects: SheetObject[];
   protected: boolean;

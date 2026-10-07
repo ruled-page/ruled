@@ -190,6 +190,18 @@ export class CalcEngine {
     return out;
   }
 
+  /** Evaluates a formula (with "=") on a sheet without placing it in a cell. */
+  calculate(formula: string, sheet: number): EngineValue | EngineValue[][] {
+    const id = this.ids[sheet];
+    if (id === undefined || id < 0) return { error: '#REF!' };
+    try {
+      const v = this.hf.calculateFormula(formula, id);
+      return Array.isArray(v) ? v.map((row) => row.map(convert)) : convert(v);
+    } catch (e) {
+      return { error: '#ERROR!', message: (e as Error).message };
+    }
+  }
+
   /**
    * Formula cells that depend on any of the given cells, directly or
    * indirectly. Used to mark results the engine cannot vouch for.

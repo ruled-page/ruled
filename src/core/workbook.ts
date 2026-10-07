@@ -2,7 +2,7 @@ import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { StyleBook } from './styles';
 import type { Anchor, BlockedRegion, Finding, Rect, SheetInfo, SheetObject } from './types';
-import { parseListValidations } from './validations';
+import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
 
@@ -200,6 +200,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       frozenRows: 0,
       merges: [],
       listValidations: [],
+      ruleValidations: [],
       blocked: [],
       objects: [],
       protected: false,
@@ -345,19 +346,15 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         sheet: name,
       });
     }
-    const validations = parseListValidations(meta, { sheetIndex: sheetIndexByName, ownSheet: index, names });
+    const validations = parseValidations(meta, { sheetIndex: sheetIndexByName, ownSheet: index, names });
     info.listValidations = validations.lists;
-    const dvCount = validations.lists.length + validations.other;
+    info.ruleValidations = validations.rules;
+    const dvCount = validations.lists.length + validations.rules.length + validations.other;
     if (dvCount) {
-      const unresolved = validations.lists.filter((l) => l.source.kind === 'unsupported').length;
       const parts: string[] = [];
-      if (validations.lists.length) {
-        parts.push(
-          `${plural(validations.lists.length, 'list rule')} show a dropdown and check typed values as Excel does` +
-            (unresolved ? ` (${unresolved} use a formula this editor can't resolve, so they have no dropdown)` : ''),
-        );
-      }
-      if (validations.other) parts.push(`${plural(validations.other, 'other rule')} (numbers, dates, text length or custom) are kept in the file but not enforced here`);
+      if (validations.lists.length) parts.push(`${plural(validations.lists.length, 'list rule')} show a dropdown and check typed values as Excel does`);
+      if (validations.rules.length) parts.push(`${plural(validations.rules.length, 'number, date, text-length or custom rule')} check typed values as Excel does`);
+      if (validations.other) parts.push(`${plural(validations.other, 'other rule')} are kept in the file but not enforced here`);
       findings.push({
         kind: 'dataValidation',
         severity: 'info',

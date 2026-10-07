@@ -1,4 +1,5 @@
 import { mergeEditResults } from '../core/editResult';
+import { shiftFormula } from '../core/formula';
 import { inRect, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
@@ -13,6 +14,8 @@ import {
   type Finding,
   type ListValidation,
   type Rect,
+  type RuleValidation,
+  type ValidationAlert,
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
@@ -150,6 +153,12 @@ const rectCells = (r: Rect) => (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1);
  * a view of each sheet for rendering, the undo history, and the UI state
  * around it (dialogs, toasts, panels).
  */
+interface FormulaList {
+  version: number;
+  options: string[] | undefined;
+  ready: Promise<string[] | undefined>;
+}
+
 export class WorkbookStore {
   status: 'empty' | 'loading' | 'ready' | 'error' = 'empty';
   stage = '';
@@ -197,6 +206,9 @@ export class WorkbookStore {
   private queue: Promise<unknown> = Promise.resolve();
   private toastSeq = 0;
   private readonly listCache = new WeakMap<ListValidation, { version: number; options: string[] | undefined }>();
+  private readonly formulaLists = new Map<string, FormulaList>();
+  /** Bumped whenever cell values change, so formula-based lists are re-evaluated. */
+  private dataVersion = 0;
 
   readonly features: EditorFeatures;
 
@@ -590,6 +602,7 @@ export class WorkbookStore {
   }
 
   private applyResult(r: EditResult): void {
+    this.dataVersion++;
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     this.editedCount = r.editedCount;
@@ -658,7 +671,7 @@ export class WorkbookStore {
     if (reason) return this.toast('warn', reason);
     const prepared = this.schema?.prepareInput(this.active, row, col, text) ?? { text };
     if ('reject' in prepared) return this.toast('warn', prepared.reject);
-    if (!(await this.passesList(row, col, text))) return;
+    if (!(await this.passesValidation(row, col, text))) return;
     const rec = view.get(row, col);
     if (rec?.flags && rec.flags & CellFlag.Formula && !text.startsWith('=') && !(await this.okToReplace(1))) return;
     await this.edit({ type: 'input', sheet: this.active, row, col, text: prepared.text });
@@ -782,31 +795,85 @@ export class WorkbookStore {
     return listValidationAt(view.info, row, col);
   }
 
-  /** A list's allowed values, re-read when its source sheet changes. */
-  listOptions(dv: ListValidation): string[] | undefined {
-    const version = dv.source.kind === 'range' ? (this.sheets[dv.source.sheet]?.version ?? 0) : -1;
-    const hit = this.listCache.get(dv);
-    if (hit && hit.version === version) return hit.options;
-    const options = listOptions(dv, this.sheets, this.styles, this.date1904);
-    this.listCache.set(dv, { version, options });
-    return options;
+  /**
+   * A list's allowed values at a cell. Range lists are re-read when their
+   * sheet changes; formula lists are evaluated by the worker, so the first
+   * call returns undefined and the editor updates when the values arrive.
+   */
+  listOptions(dv: ListValidation, row = dv.rects[0].r1, col = dv.rects[0].c1): string[] | undefined {
+    if (dv.source.kind !== 'formula') {
+      const version = dv.source.kind === 'range' ? (this.sheets[dv.source.sheet]?.version ?? 0) : -1;
+      const hit = this.listCache.get(dv);
+      if (hit && hit.version === version) return hit.options;
+      const options = listOptions(dv, this.sheets, this.styles, this.date1904);
+      this.listCache.set(dv, { version, options });
+      return options;
+    }
+    return this.formulaList(dv, row, col).options;
   }
 
-  /** Applies a list validation's alert to typed text, as Excel does. Resolves false to reject. */
-  private async passesList(row: number, col: number, text: string): Promise<boolean> {
-    const dv = this.listAt(this.active, row, col);
-    if (!dv || !dv.showError || text === '' || text.startsWith('=')) return true;
-    const options = this.listOptions(dv);
-    if (!options || listAllows(options, text.replace(/^'/, ''))) return true;
+  /**
+   * A formula list at a cell: the values last evaluated (shown while newer
+   * ones load) and a promise of its values for the current data.
+   */
+  private formulaList(dv: ListValidation, row: number, col: number): FormulaList {
+    const source = dv.source.kind === 'formula' ? dv.source.formula : '';
+    // The formula is written for the rule's first cell, e.g. INDIRECT(C2) for a whole column.
+    const formula = shiftFormula(source, dv.rects[0].r1, dv.rects[0].c1, row, col) ?? source;
+    const sheet = this.sheets.findIndex((v) => v.info.listValidations.includes(dv));
+    const key = `${sheet}|${formula}`;
+    const hit = this.formulaLists.get(key);
+    if (hit && hit.version === this.dataVersion) return hit;
+    const entry: FormulaList = {
+      version: this.dataVersion,
+      options: hit?.options,
+      ready: this.request({ type: 'listSource', sheet, formula } as Omit<WorkerRequest, 'id'>)
+        .then((res) => {
+          const src = res.type === 'listSource' ? res.source : null;
+          entry.options = src ? listOptions({ ...dv, source: src }, this.sheets, this.styles, this.date1904) : undefined;
+          this.notify();
+          return entry.options;
+        })
+        .catch(() => undefined),
+    };
+    this.formulaLists.set(key, entry);
+    return entry;
+  }
+
+  /** The non-list validation rule at a cell, with its index on the sheet. */
+  ruleAt(sheet: number, row: number, col: number): { rule: RuleValidation; index: number } | undefined {
+    const rules = this.sheets[sheet]?.info.ruleValidations ?? [];
+    const index = rules.findIndex((r) => r.rects.some((rect) => inRect(rect, row, col)));
+    return index < 0 ? undefined : { rule: rules[index], index };
+  }
+
+  /** Applies a rule's alert as Excel does; resolves false when the value is rejected. */
+  private async alert(dv: ValidationAlert, fallbackTitle: string): Promise<boolean> {
     const message = dv.error ?? DEFAULT_LIST_ERROR;
     if (dv.errorStyle === 'stop') {
       this.toast('error', dv.errorTitle ? `${dv.errorTitle}: ${message}` : message);
       return false;
     }
     if (dv.errorStyle === 'warning') {
-      return this.confirm({ title: dv.errorTitle ?? 'Not in the list', body: `${message} Keep this value anyway?`, confirmLabel: 'Keep value' });
+      return this.confirm({ title: dv.errorTitle ?? fallbackTitle, body: `${message} Keep this value anyway?`, confirmLabel: 'Keep value' });
     }
     this.toast('info', message);
+    return true;
+  }
+
+  /** Checks typed text against the cell's Excel validation rules. Resolves false to reject it. */
+  private async passesValidation(row: number, col: number, text: string): Promise<boolean> {
+    if (text === '' || text.startsWith('=')) return true;
+    const dv = this.listAt(this.active, row, col);
+    if (dv?.showError) {
+      const options = dv.source.kind === 'formula' ? await this.formulaList(dv, row, col).ready : this.listOptions(dv, row, col);
+      if (options && !listAllows(options, text.replace(/^'/, ''))) return this.alert(dv, 'Not in the list');
+    }
+    const rule = this.ruleAt(this.active, row, col);
+    if (rule?.rule.showError) {
+      const res = await this.request({ type: 'validate', sheet: this.active, row, col, text, rule: rule.index } as Omit<WorkerRequest, 'id'>).catch(() => undefined);
+      if (res?.type === 'validated' && !res.ok) return this.alert(rule.rule, 'Value not allowed');
+    }
     return true;
   }
 

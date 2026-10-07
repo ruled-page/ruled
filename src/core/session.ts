@@ -10,9 +10,10 @@ import {
   type EngineValue,
   type EngineWrite,
 } from './calc';
+import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
-import { displayFormula, isVolatile, makeShifter } from './formula';
+import { displayFormula, engineFormula, isVolatile, makeShifter } from './formula';
 import { parseInput } from './input';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS, toA1 } from './refs';
 import { findCell } from './sheetScanner';
@@ -30,6 +31,7 @@ import {
   type EditOp,
   type EditResult,
   type Finding,
+  type ListSource,
   type LoadResult,
   type Rect,
   type SheetGrid,
@@ -652,6 +654,45 @@ export class WorkbookSession {
     for (const r of roots) if (!extraRoots.includes(r)) mark(r);
     for (const d of this.engine!.dependentsOf(roots)) mark(d);
     return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data validation
+
+  private get evaluator(): Evaluator {
+    const engine = this.engine!;
+    return {
+      calculate: (formula, sheet) => engine.calculate(engineFormula(formula.replace(/^=/, '')), sheet),
+      withValue: (sheet, row, col, content, fn) => {
+        // What the engine holds for the cell now, so it can be put back exactly.
+        const untrusted = this.isUntrustedOriginal(sheet, row, col);
+        const grid = this.sheet(sheet).scan?.grid;
+        const prev = untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : toRaw(this.current(sheet, row, col).content);
+        engine.write([{ sheet, row, col, raw: toRaw(content) }]);
+        try {
+          return fn();
+        } finally {
+          engine.write([{ sheet, row, col, raw: prev }]);
+        }
+      },
+    };
+  }
+
+  /** Whether typed text passes the sheet's validation rule at `ruleIndex`, as Excel would judge it. */
+  checkValidation(sheet: number, row: number, col: number, text: string, ruleIndex: number): boolean {
+    this.ensureEngine();
+    const rule = this.sheet(sheet).info.ruleValidations[ruleIndex];
+    if (!rule) return true;
+    const cur = this.current(sheet, row, col);
+    const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale);
+    if (parsed.error) return false;
+    return checkRule(rule, sheet, row, col, parsed.content, text, this.evaluator);
+  }
+
+  /** The values (or range) a formula-based list rule offers at a cell. */
+  listSource(sheet: number, formula: string): ListSource | undefined {
+    this.ensureEngine();
+    return evaluateListFormula(formula, sheet, { sheetIndex: this.sheetIndex, ownSheet: sheet, names: this.model.names }, this.evaluator);
   }
 
   // ---------------------------------------------------------------------------

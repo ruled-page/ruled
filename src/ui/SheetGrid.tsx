@@ -172,7 +172,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       if (!options && !readOnly && view.info.listValidations.length) {
         // Excel's own list validations get the same dropdown.
         const dv = store.listAt(sheetIndex, row, view.visibleCols[gc - 1]);
-        if (dv?.inCellDropdown) options = store.listOptions(dv);
+        if (dv?.inCellDropdown) options = store.listOptions(dv, row, view.visibleCols[gc - 1]);
         if (!options?.length) options = undefined;
       }
       const asEnum = (cell: EnumCell): EnumCell =>

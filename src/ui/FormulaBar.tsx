@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
 import { CellFlag } from '../core/types';
+import { describeRule } from '../core/dataValidation';
 import { editText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
@@ -20,12 +21,15 @@ function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone
   let describe = ctl?.describe(store.active, sel.row, sel.col);
   const dv = describe ? undefined : store.listAt(store.active, sel.row, sel.col);
   if (dv) {
-    const options = store.listOptions(dv);
+    const options = store.listOptions(dv, sel.row, sel.col);
     describe = dv.prompt
       ? `${dv.promptTitle ? dv.promptTitle + ': ' : ''}${dv.prompt}`
       : options
         ? `Choose from the list: ${options.slice(0, 8).join(', ')}${options.length > 8 ? '…' : ''}`
-        : `Excel restricts this cell to a list (${(dv.source as { formula?: string }).formula ?? ''}) that this editor can't read.`;
+        : 'Excel restricts this cell to a list.';
+  } else if (!describe) {
+    const rule = store.ruleAt(store.active, sel.row, sel.col)?.rule;
+    if (rule) describe = rule.prompt ? `${rule.promptTitle ? rule.promptTitle + ': ' : ''}${rule.prompt}` : describeRule(rule);
   }
   const rec = view.get(sel.row, sel.col);
   if (!rec) return describe ? { tone: 'field', text: describe } : null;

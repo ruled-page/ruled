@@ -10,7 +10,7 @@ export const SAMPLES = [
   {
     file: 'orders.xlsx',
     title: 'Order log',
-    detail: 'Excel’s own dropdown lists: inline, from another sheet and from a named range, with stop, warning and information alerts.',
+    detail: 'Excel’s own data validation: dropdown lists (inline, named, OFFSET and dependent INDIRECT) and number, date, text-length and custom-formula rules.',
   },
   {
     file: 'pivot.xlsx',

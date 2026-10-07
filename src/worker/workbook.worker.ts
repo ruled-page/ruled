@@ -47,6 +47,18 @@ scope.onmessage = (e) => {
         post({ id: req.id, type: 'saved', bytes: session.save(), fileName: session.saveFileName, changes: session.changes() });
         break;
       }
+      case 'validate': {
+        if (!session) throw new Error('No workbook is open.');
+        ensureCalc();
+        post({ id: req.id, type: 'validated', ok: session.checkValidation(req.sheet, req.row, req.col, req.text, req.rule) });
+        break;
+      }
+      case 'listSource': {
+        if (!session) throw new Error('No workbook is open.');
+        ensureCalc();
+        post({ id: req.id, type: 'listSource', source: session.listSource(req.sheet, req.formula) ?? null });
+        break;
+      }
       case 'changes': {
         if (!session) throw new Error('No workbook is open.');
         post({ id: req.id, type: 'changes', changes: session.changes() });

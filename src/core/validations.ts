@@ -1,6 +1,6 @@
 import { parseA1Ref } from '@borgar/fx';
 import { MAX_COLS, MAX_ROWS, parseRange } from './refs';
-import type { ListSource, ListValidation } from './types';
+import type { ListSource, ListValidation, RuleValidation, ValidationAlert } from './types';
 import { attr, child, descendants, type XmlNode } from './xml';
 
 export interface ListContext {
@@ -29,10 +29,10 @@ export function resolveListSource(formula: string, ctx: ListContext): ListSource
     ctx.names.find((n) => n.name.toLowerCase() === lower && n.localSheet === undefined);
   if (name) text = name.formula.trim().replace(/^=/, '');
   const ref = parseA1Ref(text, { allowTernary: false });
-  if (!ref || !('range' in ref) || (ref.context?.length ?? 0) > 1) return { kind: 'unsupported', formula };
+  if (!ref || !('range' in ref) || (ref.context?.length ?? 0) > 1) return { kind: 'formula', formula: formula.trim().replace(/^=/, '') };
   const sheetName = ref.context?.[0];
   const sheet = sheetName === undefined ? ctx.ownSheet : ctx.sheetIndex.get(sheetName.toLowerCase());
-  if (sheet === undefined) return { kind: 'unsupported', formula };
+  if (sheet === undefined) return { kind: 'formula', formula: formula.trim().replace(/^=/, '') };
   const r = ref.range;
   return {
     kind: 'range',
@@ -46,45 +46,67 @@ export function resolveListSource(formula: string, ctx: ListContext): ListSource
   };
 }
 
+const KINDS = new Set(['whole', 'decimal', 'date', 'time', 'textLength', 'custom']);
+const OPERATORS = new Set(['between', 'notBetween', 'equal', 'notEqual', 'greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual']);
+
 /**
- * List validations from a worksheet's non-cell XML. Excel writes them as
- * <dataValidation> or, for lists on another sheet in older files, as
- * <x14:dataValidation> inside extLst with the formula and range as elements.
+ * Data validation rules from a worksheet's non-cell XML. Excel writes them as
+ * <dataValidation> or, for rules that point at other sheets in older files,
+ * as <x14:dataValidation> inside extLst with the formulas and range as elements.
  */
-export function parseListValidations(meta: XmlNode, ctx: ListContext): { lists: ListValidation[]; other: number } {
+export function parseValidations(meta: XmlNode, ctx: ListContext): { lists: ListValidation[]; rules: RuleValidation[]; other: number } {
   const lists: ListValidation[] = [];
+  const rules: RuleValidation[] = [];
   let other = 0;
   for (const dv of descendants(meta, 'dataValidation')) {
-    if (attr(dv, 'type') !== 'list') {
-      other++;
-      continue;
-    }
-    const f1 = child(dv, 'formula1');
-    const formula = (child(f1, 'f')?.text ?? f1?.text ?? '').trim();
+    const type = attr(dv, 'type') ?? 'none';
+    const formulaOf = (name: string) => {
+      const node = child(dv, name);
+      return (child(node, 'f')?.text ?? node?.text ?? '').trim();
+    };
     const sqref = (attr(dv, 'sqref') ?? child(dv, 'sqref')?.text ?? '').trim();
     const rects = sqref
       .split(/\s+/)
       .map((r) => parseRange(r))
       .filter((r): r is NonNullable<typeof r> => !!r);
-    if (!rects.length || !formula) continue;
     const flag = (name: string, fallback: boolean) => {
       const v = attr(dv, name);
       return v === undefined ? fallback : v === '1' || v === 'true';
     };
     const style = attr(dv, 'errorStyle');
-    lists.push({
-      rects,
-      source: resolveListSource(formula, ctx),
+    const alert: ValidationAlert = {
       allowBlank: flag('allowBlank', false),
-      // Excel's showDropDown attribute is inverted: "1" hides the in-cell dropdown.
-      inCellDropdown: !flag('showDropDown', false),
       showError: flag('showErrorMessage', false),
       errorStyle: style === 'warning' || style === 'information' ? style : 'stop',
       errorTitle: attr(dv, 'errorTitle') || undefined,
       error: attr(dv, 'error') || undefined,
       promptTitle: attr(dv, 'promptTitle') || undefined,
       prompt: attr(dv, 'prompt') || undefined,
-    });
+    };
+    const formula1 = formulaOf('formula1');
+    if (!rects.length) continue;
+    if (type === 'list' && formula1) {
+      lists.push({
+        ...alert,
+        rects,
+        source: resolveListSource(formula1, ctx),
+        // Excel's showDropDown attribute is inverted: "1" hides the in-cell dropdown.
+        inCellDropdown: !flag('showDropDown', false),
+      });
+    } else if (KINDS.has(type) && formula1) {
+      const op = attr(dv, 'operator') ?? 'between';
+      rules.push({
+        ...alert,
+        rects,
+        kind: type as RuleValidation['kind'],
+        operator: (OPERATORS.has(op) ? op : 'between') as RuleValidation['operator'],
+        formula1: formula1.replace(/^=/, ''),
+        formula2: formulaOf('formula2').replace(/^=/, '') || undefined,
+      });
+    } else {
+      other++;
+    }
   }
-  return { lists, other };
+  return { lists, rules, other };
 }
+
