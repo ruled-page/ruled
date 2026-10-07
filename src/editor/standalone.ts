@@ -25,7 +25,13 @@ export function mountWorkbookEditor(element: HTMLElement, options: StoreOptions 
 
 defineWorkbookEditorElement(mountWorkbookEditor);
 
-export { defineWorkbookEditorElement, type SaveEventDetail } from './element';
+export {
+  defineWorkbookEditorElement,
+  type ChangeEventDetail,
+  type SaveEventDetail,
+  type WorkbookEditorElement,
+  type WorkbookEditorEventMap,
+} from './element';
 export type { EditorHandle } from './mount';
 export { SaveConflictError } from '../state/store';
 export { de, en, msg, type Localized, type Message, type Text, type Translations } from '../i18n';

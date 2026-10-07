@@ -1,0 +1,12 @@
+{
+  // Type declarations for the library builds, next to them in dist-lib/types.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist-lib/types",
+    "rootDir": "src"
+  },
+  "include": ["src/editor/index.ts", "src/editor/standalone.ts"]
+}

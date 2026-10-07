@@ -57,3 +57,34 @@ jobs:
             playwright-report
             test-results
           retention-days: 7
+
+  angular:
+    name: Angular example
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          # Angular's CLI needs a newer Node 22 than the rest of the project.
+          node-version-file: examples/angular/.node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/angular/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: examples/angular
+      - run: npm run build:lib
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/angular.spec.ts
+        env:
+          E2E_ANGULAR: '1'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-angular
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7

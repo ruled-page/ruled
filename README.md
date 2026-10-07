@@ -123,6 +123,34 @@ Or the element (see `examples/html/index.html`):
 <workbook-editor src="/files/report.xlsx" save-handler="event"></workbook-editor>
 ```
 
+In Angular (see `examples/angular`, a working Angular 22 app), the element
+is used like any custom element: allow it with `CUSTOM_ELEMENTS_SCHEMA`,
+bind its options, and listen to its events. Loading the editor with a
+dynamic `import()` keeps it out of Angular's initial bundle; the element
+keeps options Angular set before it loaded. The standalone build has type
+declarations, including `WorkbookEditorElement` for the element itself.
+
+```ts
+const editorLoaded = import('fake-spreadsheet/standalone');
+
+@Component({
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  template: `<workbook-editor save-handler="event" [options]="options" (save)="onSave($event)"></workbook-editor>`,
+})
+export class Review {
+  options: EditorOptions = { schemas: [forecastSchema], saveLabel: 'Save to the app' };
+  onSave(event: Event) {
+    const saved = (event as CustomEvent<SaveEventDetail>).detail;
+    saved.waitUntil(this.api.upload(saved.bytes, saved.values));
+  }
+}
+```
+
+To run it: `npm run build:lib`, then in `examples/angular`, `npm install` and
+`npm start` (Angular's CLI needs Node 22.22.3 or later; the folder's
+`.node-version` asks for it). `E2E_ANGULAR=1 npx playwright test
+e2e/angular.spec.ts` tests it.
+
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`

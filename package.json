@@ -11,7 +11,7 @@
     "samples": "node scripts/gen-samples.mjs",
     "pages:dev": "npm run build && wrangler pages dev --port 8788",
     "deploy": "npm run build && wrangler pages deploy --branch main --commit-dirty=true",
-    "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone",
+    "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json",
     "build:node": "vite build -c vite.node.config.ts",
     "e2e": "playwright test"
   },
@@ -48,9 +48,11 @@
   "private": true,
   "exports": {
     ".": {
+      "types": "./dist-lib/types/editor/index.d.ts",
       "import": "./dist-lib/react/workbook-editor.js"
     },
     "./standalone": {
+      "types": "./dist-lib/types/editor/standalone.d.ts",
       "import": "./dist-lib/standalone/workbook-editor.js"
     },
     "./style.css": "./dist-lib/react/workbook-editor.css",

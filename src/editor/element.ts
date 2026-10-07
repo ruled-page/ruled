@@ -11,6 +11,49 @@ export interface SaveEventDetail extends SavedWorkbook {
   waitUntil(promise: Promise<unknown>): void;
 }
 
+/** Detail of the `change` event. */
+export interface ChangeEventDetail {
+  /** Cells that differ from the file as it was opened. */
+  editedCount: number;
+  /** Whether there are edits the host hasn't received through a save. */
+  unsaved: boolean;
+}
+
+/** The events <workbook-editor> fires, for typed listeners. */
+export interface WorkbookEditorEventMap extends HTMLElementEventMap {
+  ready: CustomEvent<void>;
+  change: CustomEvent<ChangeEventDetail>;
+  save: CustomEvent<SaveEventDetail>;
+}
+
+/** The <workbook-editor> element: what hosts can set, call and listen to. */
+export interface WorkbookEditorElement extends HTMLElement {
+  /** Editor options. Setting them on a connected element re-creates the editor. */
+  options: StoreOptions;
+  open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<void>;
+  /** Runs the save flow: schema checks, then the `save` event (or a download). */
+  save(): Promise<void>;
+  /** Downloads a copy as .xlsx without saving it to the host. */
+  download(): Promise<void>;
+  /** The edited workbook as it would be saved, without the save checks. */
+  getWorkbook(): Promise<SavedWorkbook | undefined>;
+  registerSchema(schema: WorkbookSchema): void;
+  setTheme(theme: EditorTheme | undefined): void;
+  setLanguage(language: string): void;
+  readonly unsaved: boolean;
+  readonly editedCount: number;
+  addEventListener<K extends keyof WorkbookEditorEventMap>(type: K, listener: (this: WorkbookEditorElement, ev: WorkbookEditorEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+  removeEventListener<K extends keyof WorkbookEditorEventMap>(type: K, listener: (this: WorkbookEditorElement, ev: WorkbookEditorEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'workbook-editor': WorkbookEditorElement;
+  }
+}
+
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
  *
@@ -25,7 +68,7 @@ export interface SaveEventDetail extends SavedWorkbook {
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
 
-  class WorkbookEditorElement extends HTMLElement {
+  class Editor extends HTMLElement implements WorkbookEditorElement {
     static observedAttributes = ['src'];
     private opts: StoreOptions = {};
     private handle?: EditorHandle;
@@ -37,6 +80,13 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     constructor() {
       super();
+      // A framework may set `options` before this element was defined (the editor
+      // loaded later); that value sits on the instance and hides the setter.
+      if (Object.prototype.hasOwnProperty.call(this, 'options')) {
+        const options = (this as { options?: StoreOptions }).options;
+        delete (this as { options?: StoreOptions }).options;
+        this.opts = options ?? {};
+      }
       this.container.style.height = '100%';
       // Inputs inside the editor fire the browser's change events, which
       // bubble. Stop them here, so `change` listeners hear only the editor's.
@@ -72,7 +122,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
         if (edited === this.lastEdited && unsaved === this.lastUnsaved) return;
         this.lastEdited = edited;
         this.lastUnsaved = unsaved;
-        this.dispatchEvent(new CustomEvent('change', { detail: { editedCount: edited, unsaved } }));
+        this.dispatchEvent(new CustomEvent<ChangeEventDetail>('change', { detail: { editedCount: edited, unsaved } }));
       });
       this.dispatchEvent(new CustomEvent('ready'));
       const src = this.getAttribute('src');
@@ -146,5 +196,5 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     }
   }
 
-  customElements.define(tagName, WorkbookEditorElement);
+  customElements.define(tagName, Editor);
 }
