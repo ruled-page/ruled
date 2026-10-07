@@ -1310,10 +1310,14 @@ export class WorkbookStore {
     const view = this.view;
     if (!view) return '';
     const lines: string[] = [];
-    for (let row = rect.r1; row <= Math.min(rect.r2, Math.max(view.info.maxRow, rect.r1)); row++) {
+    // The file's used range, grown by any cells typed or pasted beyond it since it was opened.
+    const extent = view.extent();
+    const lastRow = Math.max(extent.maxRow, rect.r1);
+    const lastCol = Math.max(extent.maxCol, rect.c1);
+    for (let row = rect.r1; row <= Math.min(rect.r2, lastRow); row++) {
       if (view.gridRow(row) < 0) continue;
       const cells: string[] = [];
-      for (let col = rect.c1; col <= Math.min(rect.c2, Math.max(view.info.maxCol, rect.c1)); col++) {
+      for (let col = rect.c1; col <= Math.min(rect.c2, lastCol); col++) {
         const rec = view.get(row, col);
         const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
         const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;

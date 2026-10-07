@@ -1,7 +1,7 @@
 import { english, errorText } from '../i18n';
 import { spawnSync } from 'node:child_process';
 import { strFromU8, unzipSync } from 'fflate';
-import { toA1 } from '../core/refs';
+import { MAX_ROWS, toA1 } from '../core/refs';
 import { gridValue, WorkbookSession } from '../core/session';
 import { CellFlag, VT, type SheetGrid } from '../core/types';
 
@@ -71,7 +71,7 @@ function chooseProbes(s: WorkbookSession): Probe[] {
       if (numbers >= 2 && text >= 1) break;
     }
     const below = Math.max(m.info.maxRow, 0) + 2;
-    if (free(below, 0)) probes.push({ sheet, row: below, col: 0, text: 'verify', expect: 'verify' });
+    if (below < MAX_ROWS && free(below, 0)) probes.push({ sheet, row: below, col: 0, text: 'verify', expect: 'verify' });
   });
   return probes;
 }
@@ -170,7 +170,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     reopened = WorkbookSession.open(edited, file);
     add('The edited copy opens again', 'pass', `${probes.length} cell${probes.length === 1 ? '' : 's'} edited.`);
   } catch (e) {
-    add('The edited copy opens again', 'fail', (e as Error).message);
+    add('The edited copy opens again', 'fail', english.text(errorText(e)));
     return finish(report);
   }
 
@@ -268,7 +268,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
             : `formulas ${count(original)} → ${count(again)}, #REF! ${refs(original)} → ${refs(again)}`,
         );
       } catch (e) {
-        add('Inserting a row keeps every reference working', 'info', `Refused: ${(e as Error).message}`);
+        add('Inserting a row keeps every reference working', 'info', `Refused: ${english.text(errorText(e))}`);
       }
     }
   }
@@ -304,7 +304,9 @@ export function reportMarkdown(reports: VerifyReport[], outDir?: string): string
     for (const c of r.checks) lines.push(`- ${MARK[c.status]} **${c.name}**: ${c.detail}`);
     if (r.calc?.samples.length) {
       lines.push('', 'Formulas not calculated here or calculated differently (first 20):', '', '| Cell | Formula | Excel | Here | Why |', '| --- | --- | --- | --- | --- |');
-      for (const x of r.calc.samples) lines.push(`| ${x.where} | \`${x.formula.replace(/\|/g, '\\|')}\` | ${x.excel ?? ''} | ${x.engine ?? ''} | ${x.reason} |`);
+      // A | inside a cell, in a formula or in a text value, would end the cell.
+      const cell = (text = '') => text.replace(/\|/g, '\\|');
+      for (const x of r.calc.samples) lines.push(`| ${cell(x.where)} | \`${cell(x.formula)}\` | ${cell(x.excel)} | ${cell(x.engine)} | ${cell(x.reason)} |`);
     }
     if (r.probes.length) lines.push('', `Edited in the copy: ${r.probes.map((p) => `${p.sheet}!${p.ref} = ${p.text.replace(/^'/, '')}`).join(', ')}.`);
     lines.push('');

@@ -64,7 +64,9 @@ export function unsupportedReason(fileFormula: string): Unsupported | undefined 
     if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
       if (t.value.includes('[')) return { kind: 'externalLinks' };
       const ref = parseA1Ref(t.value, { allowTernary: false });
-      if (ref && 'context' in ref && (ref.context?.length ?? 0) > 1) return { kind: 'threeD' };
+      // The parser gives Jan:Mar!B2 one context, "Jan:Mar"; sheet names can't contain ":".
+      const context = ref && 'context' in ref ? (ref.context ?? []) : [];
+      if (context.length > 1 || context[0]?.includes(':')) return { kind: 'threeD' };
     }
   }
   probe ??= HyperFormula.buildEmpty({ licenseKey: 'gpl-v3' });

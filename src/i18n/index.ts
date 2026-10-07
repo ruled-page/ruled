@@ -15,7 +15,7 @@
  * written; schemas can give it in several languages (see `Localized`).
  */
 import i18next, { type i18n as I18n } from 'i18next';
-import { isMessage, pickLanguage, type Localized, type MessageKey, type MessageParams, type Text } from './message';
+import { isLocalizedMap, isMessage, pickLanguage, type Localized, type MessageKey, type MessageParams, type Text } from './message';
 import { de } from './messages/de';
 import { en } from './messages/en';
 
@@ -77,11 +77,6 @@ export interface Translator {
   /** The language shown, such as "en-US" or "de". */
   readonly language: string;
   readonly dir: 'ltr' | 'rtl';
-}
-
-/** { en: 'Price', de: 'Preis' }: a plain object of strings (arrays, for list formatting, are left alone). */
-function isLocalizedMap(v: unknown): v is Readonly<Record<string, string>> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'string');
 }
 
 /** Translation functions for code outside React, following the instance's current language. */

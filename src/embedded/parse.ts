@@ -49,7 +49,8 @@ export function readPriceLines(saved: Pick<SavedWorkbook, 'values'>, approved: R
 export function priceChange(line: PriceLine): number | undefined {
   const a = line.approved;
   if (!a || a.currency !== line.currency || !a.price) return undefined;
-  return line.price / a.price - 1;
+  // Rounded, as the ratio of two prices isn't exact: 85 / 100 − 1 is −0.15000000000000002, past the threshold.
+  return Math.round((line.price / a.price - 1) * 1e9) / 1e9;
 }
 
 export interface Summary {

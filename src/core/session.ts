@@ -264,6 +264,13 @@ export class WorkbookSession {
   private readonly stale: Set<number>[];
   private untrusted: UntrustedFormula[] = [];
   private readonly sheetIndex: Map<string, number>;
+  /**
+   * After a change of rows or columns, the file's saved formula values are the
+   * ones from before it, not Excel's. Only the formulas the previous session
+   * found calculated differently from Excel ("sheet:row:col", where they are
+   * now) keep their saved value; the rest are calculated.
+   */
+  private comparedOnly?: Set<string>;
 
   /** Locale used to read typed and pasted dates and numbers. */
   readonly locale: string;
@@ -561,6 +568,14 @@ export class WorkbookSession {
     const updates: CellUpdate[] = [];
     let noCachedValue = 0;
     let candidates: Pos[] = [];
+    // Cells edited before the engine was built (with live recalculation off)
+    // hold the user's content, and formulas reading them can no longer match
+    // Excel's saved values: those are calculated, not compared.
+    const edited: Pos[] = [];
+    this.edits.forEach((m, s) => {
+      for (const key of m.keys()) edited.push({ sheet: s, row: Math.floor(key / MAX_COLS), col: key % MAX_COLS });
+    });
+    const affected = new Set((edited.length ? engine.dependentsOf(edited) : []).map((p) => `${p.sheet}:${p.row}:${p.col}`));
     sheets.forEach((m, s) => {
       const grid = m.scan?.grid;
       if (!grid) return;
@@ -568,6 +583,11 @@ export class WorkbookSession {
         if (!(grid.flags[idx] & CellFlag.Formula) || constant[s].has(idx)) continue;
         const row = rowOfIndex(grid, idx);
         const col = grid.cols[idx];
+        if (this.edits[s].has(cellKey(row, col))) continue;
+        if (affected.has(`${s}:${row}:${col}`) || (this.comparedOnly && !this.comparedOnly.has(`${s}:${row}:${col}`))) {
+          this.values[s].set(cellKey(row, col), engine.value(s, row, col));
+          continue;
+        }
         if (grid.flags[idx] & CellFlag.NoCache) {
           noCachedValue++;
           this.values[s].set(cellKey(row, col), engine.value(s, row, col));
@@ -1260,6 +1280,21 @@ export class WorkbookSession {
         if (to) next.baked.keys[to.sheet].add(cellKey(to.rect.r1, to.rect.c1));
       }
     });
+    // With the engine built, this session knows which saved values are Excel's own word on
+    // formulas it calculates differently; those move with their cells, and the rest are recalculated.
+    if (this.report && !this.recalcOff) {
+      const compared = new Set<string>();
+      this.calcFlags.forEach((flags, s) => {
+        for (const [key, flag] of flags) {
+          if (!(flag & CellFlag.Mismatch)) continue;
+          const row = Math.floor(key / MAX_COLS);
+          const col = key % MAX_COLS;
+          const to = map.range(s, { r1: row, c1: col, r2: row, c2: col });
+          if (to) compared.add(`${to.sheet}:${to.rect.r1}:${to.rect.c1}`);
+        }
+      });
+      next.comparedOnly = compared;
+    }
     next.baked.structure.push(describeStructure(op, names));
     return next;
   }

@@ -141,6 +141,17 @@ export class SheetView {
   }
 
   /** Calls fn for each non-empty cell inside rect (file cells and overlay). */
+  /** The last row and column in use: the file's used range, grown by cells typed or pasted beyond it. */
+  extent(): { maxRow: number; maxCol: number } {
+    let maxRow = this.info.maxRow;
+    let maxCol = this.info.maxCol;
+    for (const key of this.overlay.keys()) {
+      maxRow = Math.max(maxRow, Math.floor(key / MAX_COLS));
+      maxCol = Math.max(maxCol, key % MAX_COLS);
+    }
+    return { maxRow, maxCol };
+  }
+
   forEach(rect: Rect, fn: (row: number, col: number, rec: CellRecord) => void): void {
     const g = this.grid;
     const seen = new Set<number>();

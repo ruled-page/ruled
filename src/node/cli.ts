@@ -121,7 +121,7 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
         {
           ok,
           file: wb.fileName,
-          schema: wb.schema && { id: wb.schema.id, name: wb.schema.name, version: wb.schema.version },
+          schema: wb.schema && { id: wb.schema.id, name: english.localized(wb.schema.name), version: wb.schema.version },
           mismatch: wb.mismatch,
           note: wb.note,
           errors,
@@ -140,7 +140,7 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
   }
 
   const lines: string[] = [];
-  if (wb.schema) lines.push(`${wb.fileName}: matches “${wb.schema.name}”${wb.schema.version ? ` (version ${wb.schema.version})` : ''}.`);
+  if (wb.schema) lines.push(`${wb.fileName}: matches “${english.localized(wb.schema.name)}”${wb.schema.version ? ` (version ${wb.schema.version})` : ''}.`);
   else if (wb.mismatch) {
     lines.push(`${wb.fileName}: doesn't match ${wb.mismatch.schema ? `“${wb.mismatch.schema}”` : 'any schema given'}.`);
     for (const p of wb.mismatch.problems) lines.push(`  ${p}`);

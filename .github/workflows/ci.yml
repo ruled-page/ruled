@@ -29,7 +29,8 @@ jobs:
       - run: pip install openpyxl
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # Unit tests, failing if coverage of the logic drops (the screens are covered by the e2e job).
+      - run: npm run test:coverage
       - run: npm run build
       - run: npm run build:lib
       - run: npm run build:node

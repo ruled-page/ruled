@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { THEME_TOKENS, themeProperty, themeStyle } from '../src/editor/theme';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { copyTheme, THEME_TOKENS, themeProperty, themeStyle } from '../src/editor/theme';
 import { DEMO_THEMES } from '../src/demo/themes';
 import { DEFAULT_PALETTE } from '../src/ui/gridPalette';
 
@@ -30,5 +30,22 @@ describe('theme tokens', () => {
   it('turn into inline custom properties', () => {
     expect(themeStyle({ accent: '#c00', gridHeaderBg: '#eee' })).toEqual({ '--wbe-accent': '#c00', '--wbe-grid-header-bg': '#eee' });
     for (const t of DEMO_THEMES) for (const key of Object.keys(t.theme ?? {})) expect(tokens).toContain(key);
+  });
+});
+
+describe('the popup layer', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('takes every token as the editor resolves it, so cell editors opened outside the editor match it', () => {
+    const resolved: Record<string, string> = { '--wbe-accent': '#0f766e', '--wbe-grid-bg': '#1b1f23' };
+    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: (name: string) => resolved[name] ?? '' }));
+    const set = new Map<string, string>();
+    const portal = { style: { setProperty: (name: string, value: string) => set.set(name, value) } } as unknown as HTMLElement;
+    copyTheme({} as Element, portal);
+    expect(set.size).toBe(THEME_TOKENS.length);
+    expect(set.get('--wbe-accent')).toBe('#0f766e');
+    expect(set.get('--wbe-grid-bg')).toBe('#1b1f23');
+    // A token the editor doesn't set is cleared, rather than left from another editor.
+    expect(set.get('--wbe-radius')).toBe('');
   });
 });

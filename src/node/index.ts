@@ -9,7 +9,7 @@
  *   await wb.set('Prices', 'D4', '12.50');
  *   const out = wb.save();
  */
-import { parseA1, toA1 } from '../core/refs';
+import { MAX_COLS, MAX_ROWS, parseA1, toA1 } from '../core/refs';
 import { english, errorText } from '../i18n';
 import { WorkbookSession, type OpenOptions } from '../core/session';
 import type { CellChange, CellUpdate, DisplayStyle, EditOp, EditResult, Finding } from '../core/types';
@@ -170,7 +170,8 @@ export class ServerWorkbook implements WorkbookReaders {
   async set(sheet: string, ref: string, text: string): Promise<EditResult> {
     const s = this.sheetIndex(sheet);
     const at = parseA1(ref);
-    if (!at) throw new Error(`"${ref}" isn't a cell reference.`);
+    // The A1 parser takes row 0 and columns past XFD; a column past XFD would land on the next row.
+    if (!at || at.row < 0 || at.row >= MAX_ROWS || at.col >= MAX_COLS) throw new Error(`"${ref}" isn't a cell reference.`);
     const { row, col } = at;
     const ctl = this.controller;
     const prepared = ctl?.prepareInput(s, row, col, text) ?? { text };

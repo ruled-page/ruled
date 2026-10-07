@@ -326,10 +326,7 @@ function rewriteCells(
     })
     .join('');
   const sheetData = `<${p}sheetData>${body}</${p}sheetData>`;
-  let next =
-    scan.sheetDataStart >= 0
-      ? xml.slice(0, scan.sheetDataStart) + sheetData + xml.slice(scan.sheetDataEnd)
-      : xml.replace(/(<(?:\w+:)?sheetData\s*\/>)|(<\/(?:\w+:)?sheetFormatPr>|<(?:\w+:)?cols\b[\s\S]*?<\/(?:\w+:)?cols>)/, (x) => x + sheetData);
+  let next = scan.sheetDataStart >= 0 ? xml.slice(0, scan.sheetDataStart) + sheetData + xml.slice(scan.sheetDataEnd) : insertSheetData(xml, sheetData);
 
   // The used range.
   let r1 = Infinity;
@@ -345,6 +342,13 @@ function rewriteCells(
   const dim = r2 < 0 ? 'A1' : rangeToA1({ r1, c1, r2, c2 });
   next = next.replace(/(<(?:\w+:)?dimension\b[^>]*\bref=")[^"]*"/, `$1${dim}"`);
   return next;
+}
+
+/** Adds <sheetData> to a sheet that has none, after the elements that come before it in a worksheet. */
+function insertSheetData(xml: string, sheetData: string): string {
+  const before = /^[\s\S]*(?:<\/(?:\w+:)?(?:sheetPr|sheetViews|sheetFormatPr|cols)>|<(?:\w+:)?(?:sheetPr|dimension|sheetFormatPr)\b[^>]*\/>)/.exec(xml);
+  const at = before ? before[0].length : findTagEnd(xml, xml.search(/<(?:\w+:)?worksheet\b/)) + 1;
+  return xml.slice(0, at) + sheetData + xml.slice(at);
 }
 
 function rowOf(rowPtr: Int32Array, idx: number): number {
@@ -422,10 +426,13 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
       return el;
     });
   }
-  tail = tail.replace(/(<(?:\w+:)?sqref>)([^<]*)(<\/(?:\w+:)?sqref>)/g, (all, a: string, v: string, b: string) => {
-    const next = sq(v);
-    return next ? a + next + b : all;
-  });
+  // Sparklines' cells. Only these: the <sqref> of the Excel 2010 elements above has already moved.
+  tail = eachElement(tail, 'sparkline', (el) =>
+    el.replace(/(<(?:\w+:)?sqref>)([^<]*)(<\/(?:\w+:)?sqref>)/, (all, a: string, v: string, b: string) => {
+      const next = sq(v);
+      return next ? a + next + b : all;
+    }),
+  );
   for (const tag of ['mergeCell', 'hyperlink']) {
     tail = eachElement(tail, tag, (el) => {
       const ref = /\sref="([^"]*)"/.exec(el);

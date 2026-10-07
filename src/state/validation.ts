@@ -39,15 +39,20 @@ export function listOptions(dv: ListValidation, views: SheetView[], styles: Disp
   return out;
 }
 
+/** Text as a decimal number, or NaN; Number() alone would also read 0x10, 0b1 and 0o7. */
+function decimal(text: string): number {
+  return /^[-+]?(?:\d[\d,]*\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i.test(text) ? Number(text.replace(/,/g, '')) : NaN;
+}
+
 /** Whether typed text is one of the options: ignoring case, and numerically for numbers. */
 export function listAllows(options: readonly string[], text: string): boolean {
   const t = text.trim().toLowerCase();
-  const n = Number(t.replace(/,/g, ''));
+  const n = decimal(t);
   return options.some((o) => {
     const v = o.trim().toLowerCase();
     if (v === t) return true;
-    const m = Number(v.replace(/,/g, ''));
-    return t !== '' && v !== '' && !Number.isNaN(n) && !Number.isNaN(m) && n === m;
+    const m = decimal(v);
+    return !Number.isNaN(n) && !Number.isNaN(m) && n === m;
   });
 }
 

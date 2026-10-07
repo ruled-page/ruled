@@ -1,5 +1,5 @@
-import { parseA1, parseRange } from '../core/refs';
-import type { DisplayStyle } from '../core/types';
+import { MAX_COLS, MAX_ROWS, parseA1, parseRange } from '../core/refs';
+import type { DisplayStyle, Rect } from '../core/types';
 import type { JsonValue } from '../schema/types';
 import { cellJson } from './format';
 import type { SheetView } from './sheetView';
@@ -10,6 +10,9 @@ export interface WorkbookReaders {
   /** A range's values row by row, e.g. range('Data', 'A1:F200'); without a range, the sheet's used range. */
   range(sheet: string, ref?: string): JsonValue[][];
 }
+
+/** The A1 parser takes row 0 and columns past XFD; neither is on a sheet. */
+const onSheet = (r: Rect) => r.r1 >= 0 && r.r2 < MAX_ROWS && r.c2 < MAX_COLS;
 
 /** Readers over sheets as they are now, by sheet name and A1 reference. */
 export function workbookReaders(sheets: SheetView[], styles: DisplayStyle[], date1904: boolean): WorkbookReaders {
@@ -25,17 +28,19 @@ export function workbookReaders(sheets: SheetView[], styles: DisplayStyle[], dat
   return {
     cell: (sheet, ref) => {
       const at = parseA1(ref);
-      if (!at) throw new Error(`"${ref}" isn't a cell reference.`);
+      if (!at || !onSheet({ r1: at.row, c1: at.col, r2: at.row, c2: at.col })) throw new Error(`"${ref}" isn't a cell reference.`);
       return value(find(sheet), at.row, at.col);
     },
     range: (sheet, ref) => {
       const view = find(sheet);
-      const rect = ref ? parseRange(ref) : view.info.maxRow < 0 ? null : { r1: 0, c1: 0, r2: view.info.maxRow, c2: view.info.maxCol };
-      if (ref && !rect) throw new Error(`"${ref}" isn't a range.`);
+      // Cells typed or pasted past the file's used range count too.
+      const { maxRow, maxCol } = view.extent();
+      const rect = ref ? parseRange(ref) : maxRow < 0 ? null : { r1: 0, c1: 0, r2: maxRow, c2: maxCol };
+      if (ref && !(rect && onSheet(rect))) throw new Error(`"${ref}" isn't a range.`);
       if (!rect) return [];
       const rows: JsonValue[][] = [];
-      const r2 = Math.min(rect.r2, Math.max(view.info.maxRow, rect.r1));
-      const c2 = Math.min(rect.c2, Math.max(view.info.maxCol, rect.c1));
+      const r2 = Math.min(rect.r2, Math.max(maxRow, rect.r1));
+      const c2 = Math.min(rect.c2, Math.max(maxCol, rect.c1));
       for (let r = rect.r1; r <= r2; r++) {
         const line: JsonValue[] = [];
         for (let c = rect.c1; c <= c2; c++) line.push(value(view, r, c));

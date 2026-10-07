@@ -83,7 +83,8 @@ export const supplierPriceList = defineSchema({
                   if (typeof sku !== 'string' || typeof price !== 'number' || typeof currency !== 'string') return undefined;
                   const approved = await lookupApprovedPrice(sku);
                   if (!approved || approved.currency !== currency || !approved.price) return undefined;
-                  const change = price / approved.price - 1;
+                  // Rounded, as the ratio of two prices isn't exact: 85 / 100 − 1 is −0.15000000000000002.
+                  const change = Math.round((price / approved.price - 1) * 1e9) / 1e9;
                   if (Math.abs(change) <= 0.15) return undefined;
                   const say = (language: string) => [pct(change, language), money(approved.price, approved.currency, language)];
                   const [enPct, enMoney] = say('en');

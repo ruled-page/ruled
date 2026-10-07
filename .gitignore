@@ -10,3 +10,4 @@ dist-node
 test-results
 playwright-report
 dist-sites
+coverage

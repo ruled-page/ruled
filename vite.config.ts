@@ -15,5 +15,23 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     testTimeout: 60_000,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      // The React screens and the apps' entry points are tested in a browser by the Playwright suite (e2e/).
+      exclude: [
+        'src/ui/**/*.tsx',
+        'src/ui/useDialog.ts',
+        'src/editor/{WorkbookEditor.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
+        'src/demo/{main.tsx,Welcome.tsx,i18n.ts}',
+        'src/embedded/{*.tsx,i18n.ts,format.ts}',
+        'src/{demo,embedded}/locales/**',
+        'src/i18n/messages/**',
+        'src/sites.ts',
+      ],
+      reporter: ['text-summary', 'html'],
+      // Just under what the suite reaches, so coverage can't quietly slip.
+      thresholds: { lines: 98, statements: 97, functions: 97, branches: 90 },
+    },
   },
 });

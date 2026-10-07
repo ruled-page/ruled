@@ -78,8 +78,11 @@ category and the change from approved prices. Approving a list makes its
 prices the ones the next list is checked against. Submissions are kept in
 the browser's IndexedDB; nothing is sent anywhere.
 
-`npm test` runs the core tests (reading, recalculation, editing, saving and
-reopening the samples). `npm run e2e` runs the browser tests with Playwright
+`npm test` runs the unit tests (reading, recalculation, editing, saving and
+reopening the samples, schemas, the store, the Node API and translation);
+`npm run test:coverage` does the same and fails if coverage of the code
+behind the screens drops below 98% of lines (it is at about 99%). The screens
+themselves are covered by the browser tests. `npm run e2e` runs the browser tests with Playwright
 against a production build: editing, saving, schemas, the HTML host page,
 keyboard-only use, and an axe accessibility scan of every screen, menu and
 dialog in the light and dark themes (run `npx playwright install chromium`

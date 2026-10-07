@@ -695,7 +695,9 @@ export class SchemaController {
       if (c.rule === 'compare') {
         const a = values[c.field];
         const b = values[c.other];
-        if (blank(a) || blank(b)) continue;
+        // Like blanks, a formula error has nothing to compare; its own cell already reports it.
+        const isError = (v: unknown) => typeof v === 'object' && v !== null && !(v instanceof Date) && 'error' in v;
+        if (blank(a) || blank(b) || isError(a) || isError(b)) continue;
         const x = comparable(a);
         const y = comparable(b);
         const ok = { '<': x! < y!, '<=': x! <= y!, '>': x! > y!, '>=': x! >= y!, '=': x === y, '<>': x !== y }[c.op];

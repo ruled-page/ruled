@@ -47,15 +47,20 @@ export type Localized = string | LocalizedMap;
  */
 export class TextError extends Error {
   constructor(readonly text: Text) {
-    super(typeof text === 'string' ? text : text.key);
+    super(typeof text === 'string' ? text : isMessage(text) ? text.key : pickLanguage(text, 'en'));
     this.name = 'TextError';
   }
+}
+
+/** { en: 'Price', de: 'Preis' }: a plain object of strings (arrays, for list formatting, are left alone). */
+export function isLocalizedMap(v: unknown): v is LocalizedMap {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) && !isMessage(v) && Object.values(v).every((x) => typeof x === 'string');
 }
 
 /** What to show for an error: the message it carries, or its own words. */
 export function errorText(err: unknown): Text {
   const text = (err as { text?: unknown } | null)?.text;
-  if (typeof text === 'string' || isMessage(text)) return text;
+  if (typeof text === 'string' || isMessage(text) || isLocalizedMap(text)) return text;
   return err instanceof Error ? err.message : String(err);
 }
 
