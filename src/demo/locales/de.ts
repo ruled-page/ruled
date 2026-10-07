@@ -11,6 +11,7 @@ export const de: Record<keyof typeof en, string> = {
   'theme.dark': 'Dunkel',
 
   'welcome.heading': 'Eine Excel-Arbeitsmappe im Browser bearbeiten',
+  'welcome.embedded': 'In einer App eingebettet ansehen: ein Lieferantenportal, das Preislisten prüft, speichert und auswertet →',
   'welcome.lede':
     'Öffnen Sie eine .xlsx-Datei, ändern Sie Zellen, fügen Sie aus Excel ein, füllen Sie durch Ziehen aus und speichern Sie sie wieder als .xlsx. Formeln werden beim Bearbeiten neu berechnet. Diagramme, PivotTables, Makros und Formatierungen bleiben in der gespeicherten Datei erhalten, auch die, die dieser Editor nicht anzeigen kann.',
   'welcome.choose': '<strong>Arbeitsmappe auswählen</strong> oder an einer beliebigen Stelle auf dieser Seite ablegen',

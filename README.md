@@ -63,6 +63,21 @@ running, http://localhost:5173/examples/html/ shows it in a plain page.
 
 Then open http://localhost:5173 and pick a sample or drop in a workbook.
 
+http://localhost:5173/embedded.html is the editor embedded in a host app
+(`src/embedded`): a procurement portal where suppliers submit price lists.
+A supplier uploads a workbook (or tries the sample, which has one problem of
+each kind) and corrects it in the editor under the portal's brand and
+language. Three kinds of check run: each column's type and limits, the Excel
+validation rules the template carries, and the portal's business checks,
+which call its (simulated, local) services. Products must be in the
+catalogue, prices more than 15% from the last approved price are flagged,
+and a list uses one currency. "Download a copy" exports at any point;
+"Submit price list" hands the portal the file and its values, which it reads
+into its own records (`parse.ts`) and shows as a summary, a breakdown by
+category and the change from approved prices. Approving a list makes its
+prices the ones the next list is checked against. Submissions are kept in
+the browser's IndexedDB; nothing is sent anywhere.
+
 `npm test` runs the core tests (reading, recalculation, editing, saving and
 reopening the samples). `npm run e2e` runs the browser tests with Playwright
 against a production build: editing, saving, schemas, the HTML host page,

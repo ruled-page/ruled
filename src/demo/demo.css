@@ -44,6 +44,11 @@ body,
   margin: 0 0 22px;
 }
 
+.lede a {
+  color: var(--wbe-accent-strong);
+  font-weight: 500;
+}
+
 .samples-list {
   list-style: none;
   padding: 0;

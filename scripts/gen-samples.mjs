@@ -467,8 +467,93 @@ async function validationSample() {
   console.log('Wrote orders.xlsx');
 }
 
+/**
+ * The supplier price list for the embedded-app demo (src/embedded): a blank
+ * template a supplier fills in, and a filled-in one with a problem of each
+ * kind. Excel's own validation rules ride along in both, as a supplier's
+ * Excel would enforce them.
+ */
+async function supplierSamples() {
+  const make = async (file, rows) => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Price list');
+    ws.columns = [
+      { header: 'SKU', width: 11 },
+      { header: 'Description', width: 30 },
+      { header: 'Category', width: 12 },
+      { header: 'Unit price', width: 11, style: { numFmt: '#,##0.00' } },
+      { header: 'Currency', width: 10 },
+      { header: 'Min. order qty', width: 14, style: { numFmt: '#,##0' } },
+      { header: 'Valid from', width: 12, style: { numFmt: 'yyyy-mm-dd' } },
+      { header: 'Order value', width: 13, style: { numFmt: '#,##0.00' } },
+    ];
+    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    rows.forEach(([sku, description, category, price, currency, moq, from], i) => {
+      const r = i + 2;
+      ws.getRow(r).values = [sku, description || null, category, price, currency, moq, from];
+      ws.getCell(`H${r}`).value = { formula: `D${r}*F${r}`, result: price * moq };
+    });
+    const last = 501;
+    ws.dataValidations.add(`C2:C${last}`, {
+      type: 'list', allowBlank: true, formulae: ['"Hardware,Software,Services"'],
+      showErrorMessage: true, errorTitle: 'Category', error: 'Choose Hardware, Software or Services.',
+    });
+    ws.dataValidations.add(`D2:D${last}`, {
+      type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [0],
+      showErrorMessage: true, errorTitle: 'Unit price', error: 'Prices can’t be negative.',
+    });
+    ws.dataValidations.add(`E2:E${last}`, {
+      type: 'list', allowBlank: true, formulae: ['"USD,EUR,GBP"'],
+      showErrorMessage: true, errorTitle: 'Currency', error: 'Use USD, EUR or GBP.',
+    });
+    ws.dataValidations.add(`F2:F${last}`, {
+      type: 'whole', operator: 'between', allowBlank: true, formulae: [1, 10000],
+      showErrorMessage: true, errorTitle: 'Minimum order', error: 'Enter a whole number from 1 to 10,000.',
+      showInputMessage: true, promptTitle: 'Minimum order', prompt: 'The smallest quantity you sell this in.',
+    });
+    ws.dataValidations.add(`G2:G${last}`, {
+      type: 'date', operator: 'greaterThanOrEqual', allowBlank: true, formulae: [new Date(Date.UTC(2026, 0, 1))],
+      showErrorMessage: true, errorTitle: 'Valid from', error: 'Price lists start from 2026.',
+    });
+    const help = wb.addWorksheet('How to fill this in');
+    help.getColumn(1).width = 90;
+    [
+      'One product per row on the Price list sheet.',
+      'SKU: the product code from our catalogue, like SKU-1001.',
+      'Unit price: the price per unit, in the currency you give. Use one currency for the whole list.',
+      'Min. order qty: the smallest quantity you sell, from 1 to 10,000.',
+      'Order value is worked out for you.',
+    ].forEach((text, i) => (help.getCell(`A${i + 1}`).value = text));
+    await wb.xlsx.writeFile(join(outDir, file));
+    console.log(`Wrote ${file}`);
+  };
+  const from = new Date(Date.UTC(2026, 10, 1));
+  await make('supplier-template.xlsx', []);
+  await make('supplier-price-list.xlsx', [
+    ['SKU-1001', 'Steel bracket, small', 'Hardware', 4.75, 'USD', 100, from],
+    // Up 30% on the last approved price: a warning from the portal.
+    ['SKU-1002', 'Steel bracket, large', 'Hardware', 9.4, 'USD', 50, from],
+    ['SKU-1003', 'Mounting kit', 'Hardware', 19.99, 'USD', 10, from],
+    ['SKU-1004', 'Inventory app, annual licence', 'Software', 240, 'USD', 1, from],
+    ['SKU-1005', 'Inventory app, monthly licence', 'Software', 24, 'USD', 1, from],
+    // Breaks Excel's own rule for the column.
+    ['SKU-1006', 'Installation (per hour)', 'Services', 85, 'USD', 0, from],
+    // Not one of the categories.
+    ['SKU-1007', 'Cable ties, pack of 100', 'Hardwear', 6.5, 'USD', 20, from],
+    // A second currency in the list.
+    ['SKU-1008', 'Training session', 'Services', 450, 'EUR', 1, from],
+    // Not in the portal's catalogue.
+    ['SKU-1099', 'Rack shelf', 'Hardware', 55, 'USD', 5, from],
+    // Three decimal places.
+    ['SKU-1010', 'Support plan, gold', 'Services', 1250.125, 'USD', 1, from],
+    ['SKU-1011', 'Reporting add-on', 'Software', 60, 'USD', 1, from],
+  ]);
+}
+
 await pivotSample();
 await schemaSamples();
+await supplierSamples();
 await validationSample();
 if (!process.argv.includes('--no-big')) await bigSample();
 void readFileSync;

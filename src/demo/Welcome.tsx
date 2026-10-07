@@ -64,6 +64,9 @@ export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
       <div className="welcome-card">
         <h1>{t('welcome.heading')}</h1>
         <p className="lede">{t('welcome.lede')}</p>
+        <p className="lede">
+          <a href={`${import.meta.env.BASE_URL}embedded.html`}>{t('welcome.embedded')}</a>
+        </p>
         <button className="dropzone" onClick={onOpen}>
           <Icon name="open" size={22} />
           <span>

@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   worker: { format: 'es' },
+  // Two pages: the editor demo, and the editor embedded in a host app.
+  build: { rolldownOptions: { input: { main: 'index.html', embedded: 'embedded.html' } } },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
