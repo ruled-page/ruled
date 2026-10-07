@@ -1,3 +1,4 @@
+import { msg, pickLanguage, type Text } from '../i18n/message';
 import type { WorkbookSchema } from './types';
 
 /** The custom document property that records the schema a file was saved with, as "id@version". */
@@ -21,11 +22,16 @@ export function stampedFirst(schemas: WorkbookSchema[], properties: Record<strin
   return stamp ? [...schemas].sort((a, b) => Number(b.id === stamp.id) - Number(a.id === stamp.id)) : schemas;
 }
 
-/** A notice when a file was saved under a different version of the schema now checking it. */
-export function versionNote(schema: WorkbookSchema, properties: Record<string, string>): string | undefined {
+/**
+ * A notice when a file was saved under a different version of the schema now
+ * checking it. The schema's name is given in `language` when it has several.
+ */
+export function versionNote(schema: WorkbookSchema, properties: Record<string, string>, language = 'en'): Text | undefined {
   const stamp = parseStamp(properties[SCHEMA_PROPERTY]);
   if (stamp?.id !== schema.id || stamp.version === (schema.version ?? '')) return undefined;
-  return stamp.version
-    ? `This file was last saved with version ${stamp.version} of “${schema.name}”; it is checked against ${schema.version ? `version ${schema.version}` : 'the current version'}.`
-    : `This file was last saved with an unversioned “${schema.name}” schema; it is checked against version ${schema.version}.`;
+  const name = pickLanguage(schema.name, language);
+  if (!stamp.version) return msg('schema.version.wasUnversioned', { schema: name, current: schema.version });
+  return schema.version
+    ? msg('schema.version.changed', { schema: name, saved: stamp.version, current: schema.version })
+    : msg('schema.version.nowUnversioned', { schema: name, saved: stamp.version });
 }

@@ -17,7 +17,7 @@ export interface SaveEventDetail extends SavedWorkbook {
  * Attributes: `src` (URL of a workbook to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options, set before connecting).
- * Methods: open(), save(), download(), getWorkbook(), registerSchema(), setTheme().
+ * Methods: open(), save(), download(), getWorkbook(), registerSchema(), setTheme(), setLanguage().
  * Events: `ready`, `change` (detail: { editedCount, unsaved }), `save` (detail:
  * the saved workbook with its bytes, changes, values and readers; call
  * `detail.waitUntil(promise)` to keep the save pending while you store it).
@@ -133,6 +133,12 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     setTheme(theme: EditorTheme | undefined): void {
       this.opts = { ...this.opts, theme };
       this.handle?.setTheme(theme);
+    }
+
+    /** Changes the language of the editor's text, such as "de", without re-creating the editor. */
+    setLanguage(language: string): void {
+      this.opts = { ...this.opts, language };
+      this.handle?.setLanguage(language);
     }
 
     get editedCount(): number {

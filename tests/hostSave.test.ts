@@ -3,6 +3,7 @@ import { schemaFromJSON } from '../src/schema/json';
 import type { SavedWorkbook } from '../src/state/store';
 import { forecastSchema } from '../src/demo/schemas';
 import { sample } from './helpers';
+import { english } from '../src/i18n';
 import type { WorkbookStore } from '../src/state/store';
 import { opened, testStore } from './storeHarness';
 
@@ -53,7 +54,7 @@ describe('saving to the host', () => {
     const again = await testStore({ schemas: [newer] });
     await opened(again, bytes!, 'forecast.xlsx');
     expect(again.properties).toEqual({ WorkbookSchema: `${schema.id}@3` });
-    expect(again.schemaNote).toMatch(/last saved with version 3 .* checked against version 4/);
+    expect(english.text(again.schemaNote)).toMatch(/last saved with version 3 .* checked against version 4/);
     again.dispose();
   });
 });

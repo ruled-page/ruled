@@ -1,3 +1,4 @@
+import { msg, pickLanguage, type Localized, type LocalizedMap, type Message, type MessageKey, type Text } from '../i18n/message';
 import { parseA1, toA1 } from '../core/refs';
 import { CellFlag, VT, type CellContent, type DisplayStyle, type EditOp } from '../core/types';
 import { isDateStyle, type CellRecord } from '../state/format';
@@ -9,6 +10,7 @@ import type {
   ChangeContext,
   CheckResult,
   DeclarativeRule,
+  FieldContext,
   FieldSchema,
   FieldValue,
   IssueInput,
@@ -23,7 +25,7 @@ import type {
 
 export interface Issue {
   severity: Severity;
-  message: string;
+  message: Text;
   /** Sheet index, or -1 for workbook-wide issues. */
   sheet: number;
   sheetName: string;
@@ -40,6 +42,12 @@ export interface SchemaHost {
   followUp(op: EditOp): Promise<void>;
   /** Tells the UI that issues changed. */
   changed(): void;
+  /**
+   * The editor's language (BCP 47, such as "en-US" or "de"). Hooks get it in
+   * their context, and names the host gave in several languages are shown in
+   * it. Default "en".
+   */
+  language?(): string;
 }
 
 export interface FieldRef {
@@ -53,7 +61,56 @@ export interface FieldRef {
   append?: boolean;
 }
 
-type Lite = { severity: Severity; message: string };
+type Lite = { severity: Severity; message: Text };
+
+/** An issue a check found, before it is placed on a cell: the host's, or the editor's own message. */
+type Found = Omit<IssueInput, 'message'> & { message: Text };
+
+const TYPE_NAMES: Record<FieldSchema['type'], MessageKey> = {
+  text: 'schema.describe.text',
+  number: 'schema.describe.number',
+  integer: 'schema.describe.integer',
+  percent: 'schema.describe.percent',
+  date: 'schema.describe.date',
+  boolean: 'schema.describe.boolean',
+  enum: 'schema.describe.enum',
+};
+
+const TIMEOUTS: Record<Issue['source'], MessageKey> = {
+  field: 'schema.hook.fieldTimeout',
+  table: 'schema.hook.tableTimeout',
+  sheet: 'schema.hook.sheetTimeout',
+  workbook: 'schema.hook.workbookTimeout',
+};
+
+const MONOTONIC: Record<Extract<DeclarativeRule, { rule: 'monotonic' }>['direction'], MessageKey> = {
+  increasing: 'schema.check.increasing',
+  decreasing: 'schema.check.decreasing',
+  nonIncreasing: 'schema.check.nonIncreasing',
+  nonDecreasing: 'schema.check.nonDecreasing',
+};
+
+type CompareOp = Extract<DeclarativeRule, { rule: 'compare' }>['op'];
+
+/** How one value should compare with another: numbers and text. */
+const COMPARE: Record<CompareOp, MessageKey> = {
+  '<': 'schema.compare.lessThan',
+  '<=': 'schema.compare.atMost',
+  '>': 'schema.compare.moreThan',
+  '>=': 'schema.compare.atLeast',
+  '=': 'schema.compare.equalTo',
+  '<>': 'schema.compare.differentFrom',
+};
+
+/** How one value should compare with another: dates. */
+const COMPARE_DATES: Record<CompareOp, MessageKey> = {
+  '<': 'schema.compare.before',
+  '<=': 'schema.compare.noLaterThan',
+  '>': 'schema.compare.after',
+  '>=': 'schema.compare.noEarlierThan',
+  '=': 'schema.compare.sameAs',
+  '<>': 'schema.compare.differentFrom',
+};
 
 const EPOCH = Date.UTC(1899, 11, 30);
 const DAY = 86_400_000;
@@ -72,9 +129,30 @@ export function toJson(v: FieldValue): JsonValue {
 
 /** A hook that ran past its time limit. */
 class HookTimeout extends Error {
-  constructor(ms: number) {
-    super(`didn't finish within ${ms % 1000 ? `${ms.toLocaleString()} ms` : `${(ms / 1000).toLocaleString()} second${ms === 1000 ? '' : 's'}`}`);
+  constructor(readonly ms: number) {
+    super(`didn't finish within ${ms} ms`);
   }
+
+  /** The time limit as people read it: "30 ms", "10 seconds". */
+  get duration(): Message {
+    const ms = this.ms;
+    return ms % 1000 ? msg('schema.duration.milliseconds', { n: ms }) : msg('schema.duration.seconds', { count: ms / 1000 });
+  }
+}
+
+/** Why a hook failed, from whatever it threw. */
+function failure(e: unknown): string {
+  return (e as Error)?.message ?? String(e);
+}
+
+/** A field label inside a message: “Task”. */
+function quoted(text: string): Message {
+  return msg('schema.quoted', { text });
+}
+
+/** Several labels as one: “Task” and “Owner”. */
+function and(items: Text[]): Text {
+  return items.reduce((first, next) => msg('schema.and', { first, next }));
 }
 
 /** The hook's result, or a HookTimeout once it has run longer than `ms` (calling `onTimeout`, e.g. to abort it). */
@@ -101,7 +179,11 @@ function decimalsOf(n: number): number {
 
 function toLite(r: CheckResult): Lite | null {
   if (!r) return null;
-  return typeof r === 'string' ? { severity: 'error', message: r } : { severity: r.severity ?? 'error', message: r.message };
+  if (typeof r === 'string') return { severity: 'error', message: r };
+  // { message, severity } from a hook, or the message itself in several languages.
+  const found = r as { message?: Localized; severity?: Severity };
+  if (found.message !== undefined) return { severity: found.severity ?? 'error', message: found.message };
+  return { severity: 'error', message: r as LocalizedMap };
 }
 
 function contentOf(rec: CellRecord | null): CellContent {
@@ -200,65 +282,75 @@ export class SchemaController {
     return bs.cells.some((c) => c.labelPos?.row === row && c.labelPos.col === col);
   }
 
-  readOnlyReason(sheet: number, row: number, col: number): string | undefined {
+  /** The editor's language. */
+  private get language(): string {
+    return this.host.language?.() ?? 'en';
+  }
+
+  /** Text the host gave in one language or several, in the editor's language. */
+  private localized(text: Localized): string {
+    return pickLanguage(text, this.language);
+  }
+
+  /** Why a cell can't be edited, if it can't. */
+  readOnlyReason(sheet: number, row: number, col: number): Message | undefined {
     const bs = this.boundSheet(sheet);
-    const name = this.schema.name;
-    if (!bs) return this.schema.otherSheets === 'readOnly' ? `Only the sheets described by the “${name}” schema can be edited.` : undefined;
+    const schema = this.localized(this.schema.name);
+    if (!bs) return this.schema.otherSheets === 'readOnly' ? msg('schema.readOnly.otherSheet', { schema }) : undefined;
     for (const t of bs.tables) {
       const loc = t.locate(row, col);
       if (!loc) continue;
-      const fieldWord = t.byRow ? 'Column' : 'Row';
-      const recordWord = t.byRow ? 'Row' : 'Column';
-      if (loc.kind === 'header') return `${fieldWord} names in this table are set by the “${name}” schema.`;
-      if (loc.kind === 'label' || loc.kind === 'corner') return `${recordWord} labels in this table are set by the “${name}” schema.`;
+      if (loc.kind === 'header') return msg(t.byRow ? 'schema.readOnly.columnNames' : 'schema.readOnly.rowNames', { schema });
+      if (loc.kind === 'label' || loc.kind === 'corner') return msg(t.byRow ? 'schema.readOnly.rowLabels' : 'schema.readOnly.columnLabels', { schema });
       const f = t.fields[loc.field];
-      return f.readOnly ? `“${matchLabel(f.label)}” is read-only.` : undefined;
+      return f.readOnly ? msg('schema.readOnly.field', { field: matchLabel(f.label) }) : undefined;
     }
     for (const c of bs.cells) {
-      if (c.labelPos?.row === row && c.labelPos.col === col) return `This label is set by the “${name}” schema.`;
-      if (c.pos.row === row && c.pos.col === col) return c.schema.readOnly ? `“${c.schema.key}” is read-only.` : undefined;
+      if (c.labelPos?.row === row && c.labelPos.col === col) return msg('schema.readOnly.label', { schema });
+      if (c.pos.row === row && c.pos.col === col) return c.schema.readOnly ? msg('schema.readOnly.field', { field: c.schema.key }) : undefined;
     }
     if (bs.schema.outside === 'editable') return undefined;
     const append = bs.tables.find((t) => t.canAppend);
-    return append
-      ? `Only the “${name}” schema's tables and fields can be edited here. Add a ${append.byRow ? 'row' : 'column'} straight after the table, or use Insert.`
-      : `Only the “${name}” schema's tables and fields can be edited here.`;
+    if (!append) return msg('schema.readOnly.outside', { schema });
+    return msg(append.byRow ? 'schema.readOnly.outsideAddRow' : 'schema.readOnly.outsideAddColumn', { schema });
   }
 
-  /** One-line description of the field at a cell, for the formula bar. */
-  describe(sheet: number, row: number, col: number): string | undefined {
+  /** One-line description of the field at a cell, for the formula bar: "Price · number · up to 2 dp · ≥ 0 · required". */
+  describe(sheet: number, row: number, col: number): Text | undefined {
     const ref = this.fieldAt(sheet, row, col);
     if (!ref) return undefined;
     const f = ref.field;
-    const parts: string[] = [ref.name, f.type === 'enum' ? `one of ${f.values?.join(', ')}` : f.type];
-    if (f.decimals !== undefined) parts.push(f.decimals === 0 ? 'no decimals' : `up to ${f.decimals} dp`);
-    if (f.min !== undefined) parts.push(`≥ ${this.formatBound(f, f.min)}`);
-    if (f.max !== undefined) parts.push(`≤ ${this.formatBound(f, f.max)}`);
-    if (f.patternHint) parts.push(f.patternHint);
-    if (f.required) parts.push('required');
-    if (f.unique) parts.push('unique');
-    if (f.formula === 'require') parts.push('formula');
-    if (f.formula === 'forbid') parts.push('no formulas');
-    if (ref.append) parts.push(`new ${ref.table?.byRow ? 'row' : 'column'}`);
-    return parts.join(' · ') + (f.description ? `. ${f.description}` : '');
+    const parts: Text[] = [ref.name, f.type === 'enum' ? msg('schema.describe.enum', { values: f.values?.join(', ') ?? '' }) : msg(TYPE_NAMES[f.type])];
+    if (f.decimals !== undefined) parts.push(f.decimals === 0 ? msg('schema.describe.noDecimals') : msg('schema.describe.decimals', { count: f.decimals }));
+    if (f.min !== undefined) parts.push(msg('schema.describe.min', { bound: this.bound(f, f.min) }));
+    if (f.max !== undefined) parts.push(msg('schema.describe.max', { bound: this.bound(f, f.max) }));
+    if (f.patternHint) parts.push(this.localized(f.patternHint));
+    if (f.required) parts.push(msg('schema.describe.required'));
+    if (f.unique) parts.push(msg('schema.describe.unique'));
+    if (f.formula === 'require') parts.push(msg('schema.describe.formula'));
+    if (f.formula === 'forbid') parts.push(msg('schema.describe.noFormulas'));
+    if (ref.append) parts.push(msg(ref.table?.byRow ? 'schema.describe.newRow' : 'schema.describe.newColumn'));
+    const summary = parts.reduce((first, next) => msg('schema.describe.next', { first, next }));
+    return f.description ? msg('schema.describe.withDescription', { summary, description: this.localized(f.description) }) : summary;
   }
 
-  private formatBound(f: FieldSchema | CellSchema, b: number | string): string {
+  /** A bound as people read it: dates as written, percents as percentages. */
+  private bound(f: FieldSchema | CellSchema, b: number | string): Text {
     if (typeof b === 'string') return b;
-    if (f.type === 'percent') return `${+(b * 100).toPrecision(12)}%`;
-    return b.toLocaleString();
+    if (f.type === 'percent') return msg('schema.bound.percent', { n: +(b * 100).toPrecision(12) });
+    return msg('schema.bound.number', { n: b });
   }
 
   // ---------------------------------------------------------------------------
   // Typed input
 
   /** Rewrites typed or pasted text so it is stored as the field's type, or refuses it. */
-  prepareInput(sheet: number, row: number, col: number, text: string): { text: string } | { reject: string } {
+  prepareInput(sheet: number, row: number, col: number, text: string): { text: string } | { reject: Message } {
     const ref = this.fieldAt(sheet, row, col);
     if (!ref || text === '') return { text };
     const f = ref.field;
     if (text.startsWith('=') && text.length > 1) {
-      return f.formula === 'forbid' ? { reject: `Formulas aren't allowed in “${ref.name}”. Type a value instead.` } : { text };
+      return f.formula === 'forbid' ? { reject: msg('schema.input.formulaForbidden', { field: ref.name }) } : { text };
     }
     const t = text.trim();
     switch (f.type) {
@@ -375,6 +467,7 @@ export class SchemaController {
   data(signal: AbortSignal): WorkbookData {
     return {
       signal,
+      language: this.language,
       sheet: (name) => {
         const bs = this.binding.sheets.find((b) => b.name.toLowerCase() === name.toLowerCase() || textMatches(b.schema.name, name));
         return bs ? this.sheetData(bs) : undefined;
@@ -387,23 +480,23 @@ export class SchemaController {
 
   private checkValue(f: FieldSchema | CellSchema, rec: CellRecord | null, value: FieldValue): Lite[] {
     const out: Lite[] = [];
-    const err = (message: string) => out.push({ severity: 'error', message });
+    const err = (key: MessageKey, params?: Record<string, unknown>) => out.push({ severity: 'error', message: msg(key, params) });
     const isFormula = rec?.f !== undefined;
     if (f.formula === 'require' && !isFormula) {
-      err('Should be calculated by a formula.');
+      err('schema.check.formulaRequired');
       return out;
     }
-    if (f.formula === 'forbid' && isFormula) err("Formulas aren't allowed here; type a value.");
+    if (f.formula === 'forbid' && isFormula) err('schema.check.formulaForbidden');
     if (rec && rec.flags & CellFlag.Stale) {
-      out.push({ severity: 'warning', message: "Can't be checked until Excel recalculates this formula." });
+      out.push({ severity: 'warning', message: msg('schema.check.stale') });
       return out;
     }
     if (value === null || value === '') {
-      if (f.required) err('Required.');
+      if (f.required) err('schema.check.required');
       return out;
     }
     if (typeof value === 'object' && !(value instanceof Date)) {
-      err(`The formula returns ${value.error}.`);
+      err('schema.check.formulaError', { error: value.error });
       return out;
     }
     switch (f.type) {
@@ -411,47 +504,50 @@ export class SchemaController {
       case 'integer':
       case 'percent': {
         if (typeof value !== 'number') {
-          err(f.type === 'percent' ? 'Expected a percentage.' : f.type === 'integer' ? 'Expected a whole number.' : 'Expected a number.');
+          err(f.type === 'percent' ? 'schema.check.expectedPercent' : f.type === 'integer' ? 'schema.check.expectedInteger' : 'schema.check.expectedNumber');
           break;
         }
-        if (f.type === 'integer' && !Number.isInteger(value)) err('Expected a whole number.');
+        if (f.type === 'integer' && !Number.isInteger(value)) err('schema.check.expectedInteger');
         if (f.decimals !== undefined && decimalsOf(f.type === 'percent' ? value * 100 : value) > f.decimals) {
-          err(f.decimals === 0 ? 'No decimal places allowed.' : `At most ${f.decimals} decimal place${f.decimals === 1 ? '' : 's'}.`);
+          if (f.decimals === 0) err('schema.check.noDecimals');
+          else err('schema.check.maxDecimals', { count: f.decimals });
         }
-        if (typeof f.min === 'number' && value < f.min) err(`Must be at least ${this.formatBound(f, f.min)}.`);
-        if (typeof f.max === 'number' && value > f.max) err(`Must be at most ${this.formatBound(f, f.max)}.`);
+        if (typeof f.min === 'number' && value < f.min) err('schema.check.min', { bound: this.bound(f, f.min) });
+        if (typeof f.max === 'number' && value > f.max) err('schema.check.max', { bound: this.bound(f, f.max) });
         break;
       }
       case 'date':
         if (!(value instanceof Date)) {
-          err('Expected a date.');
+          err('schema.check.expectedDate');
           break;
         }
-        if (typeof f.min === 'string' && isoDate(value) < f.min) err(`Must be on or after ${f.min}.`);
-        if (typeof f.max === 'string' && isoDate(value) > f.max) err(`Must be on or before ${f.max}.`);
+        if (typeof f.min === 'string' && isoDate(value) < f.min) err('schema.check.onOrAfter', { date: f.min });
+        if (typeof f.max === 'string' && isoDate(value) > f.max) err('schema.check.onOrBefore', { date: f.max });
         break;
       case 'boolean':
-        if (typeof value !== 'boolean') err('Expected TRUE or FALSE.');
+        if (typeof value !== 'boolean') err('schema.check.expectedBoolean');
         break;
       case 'enum':
-        if (!f.values?.includes(String(value))) err(`Must be one of: ${f.values?.join(', ')}.`);
+        // Joined plainly rather than as a sentence list: these are the values to type.
+        if (!f.values?.includes(String(value))) err('schema.check.oneOf', { values: f.values?.join(', ') ?? '' });
         break;
       case 'text':
         break;
     }
     if (f.minLength !== undefined || f.maxLength !== undefined) {
       const length = (value instanceof Date ? isoDate(value) : String(value)).length;
-      if (f.minLength !== undefined && length < f.minLength) err(`At least ${f.minLength} character${f.minLength === 1 ? '' : 's'}.`);
-      if (f.maxLength !== undefined && length > f.maxLength) err(`At most ${f.maxLength} character${f.maxLength === 1 ? '' : 's'}.`);
+      if (f.minLength !== undefined && length < f.minLength) err('schema.check.minLength', { count: f.minLength });
+      if (f.maxLength !== undefined && length > f.maxLength) err('schema.check.maxLength', { count: f.maxLength });
     }
     if (f.pattern && !regex(f.pattern).test(value instanceof Date ? isoDate(value) : String(value))) {
-      err(f.patternHint ? `Should be ${f.patternHint}.` : "Doesn't match the expected format.");
+      if (f.patternHint) err('schema.check.patternHint', { hint: this.localized(f.patternHint) });
+      else err('schema.check.pattern');
     }
     return out;
   }
 
   /** Runs a field's own check hook, reusing async results until the value changes. */
-  private fieldHook(id: string, f: FieldSchema | CellSchema, value: FieldValue, ctx: Omit<Parameters<NonNullable<FieldSchema['validate']>>[1], 'signal'>): Lite | null {
+  private fieldHook(id: string, f: FieldSchema | CellSchema, value: FieldValue, ctx: Omit<FieldContext, 'signal' | 'language'>): Lite | null {
     const key = valueKey(value);
     const existing = this.fieldChecks.get(id);
     if (existing && existing.key === key && (existing.pending || existing.issue !== undefined)) return null;
@@ -459,10 +555,10 @@ export class SchemaController {
     const abort = new AbortController();
     let result: CheckResult | Promise<CheckResult>;
     try {
-      result = f.validate!(value, { ...ctx, signal: abort.signal });
+      result = f.validate!(value, { ...ctx, language: this.language, signal: abort.signal });
     } catch (e) {
       this.fieldChecks.delete(id);
-      return { severity: 'error', message: `Check failed: ${(e as Error).message}` };
+      return { severity: 'error', message: msg('schema.hook.failed', { error: failure(e) }) };
     }
     if (!isPromise<CheckResult>(result)) {
       this.fieldChecks.delete(id);
@@ -474,8 +570,8 @@ export class SchemaController {
         entry.issue = toLite(r);
       },
       (e: Error) => {
-        if (e instanceof HookTimeout) entry.issue = { severity: 'warning', message: `Couldn't be checked: the check ${e.message}.` };
-        else if (!abort.signal.aborted) entry.issue = { severity: 'error', message: `Check failed: ${e.message}` };
+        if (e instanceof HookTimeout) entry.issue = { severity: 'warning', message: msg('schema.hook.fieldTimeout', { duration: e.duration }) };
+        else if (!abort.signal.aborted) entry.issue = { severity: 'error', message: msg('schema.hook.failed', { error: failure(e) }) };
       },
     ).finally(() => {
       entry.pending = undefined;
@@ -488,7 +584,7 @@ export class SchemaController {
     return null;
   }
 
-  private resolveIssues(inputs: IssueInput[], source: Issue['source'], bs?: BoundSheet, t?: BoundTable): Issue[] {
+  private resolveIssues(inputs: Found[], source: Issue['source'], bs?: BoundSheet, t?: BoundTable): Issue[] {
     return inputs.map((i) => {
       let sheet = bs;
       let pos: Pos | undefined;
@@ -514,7 +610,7 @@ export class SchemaController {
 
   /** Runs a hook that may be async; results from superseded runs are dropped. */
   private runHook(id: string, generation: number, source: Issue['source'], run: () => IssueInput[] | void | Promise<IssueInput[] | void>, bs?: BoundSheet, t?: BoundTable): void {
-    const failed = (e: unknown): Issue[] => this.resolveIssues([{ message: `Check failed: ${(e as Error)?.message ?? String(e)}` }], source, bs, t);
+    const failed = (e: unknown): Issue[] => this.resolveIssues([{ message: msg('schema.hook.failed', { error: failure(e) }) }], source, bs, t);
     let result: IssueInput[] | void | Promise<IssueInput[] | void>;
     try {
       result = run();
@@ -534,7 +630,7 @@ export class SchemaController {
         },
         (e) => {
           if (generation !== this.generation) return;
-          if (e instanceof HookTimeout) this.hookResults.set(id, this.resolveIssues([{ severity: 'warning', message: `A ${source} check ${e.message}, so its result is ignored.` }], source, bs, t));
+          if (e instanceof HookTimeout) this.hookResults.set(id, this.resolveIssues([{ severity: 'warning', message: msg(TIMEOUTS[source], { duration: e.duration }) }], source, bs, t));
           else if (!signal.aborted) this.hookResults.set(id, failed(e));
         },
       )
@@ -549,7 +645,7 @@ export class SchemaController {
   private runCheck(t: BoundTable, bs: BoundSheet, c: DeclarativeRule, count: number): Issue[] {
     if (c.rule === 'compare' || c.rule === 'requiredIf' || c.rule === 'uniqueTogether') return this.resolveIssues(this.recordCheck(t, c, count), 'table', bs, t);
     const fields = c.field === '*' ? t.fields.map((_, j) => j) : [t.fields.findIndex((f) => f.key === c.field)].filter((j) => j >= 0);
-    const inputs: IssueInput[] = [];
+    const inputs: Found[] = [];
     const num = (r: number, j: number) => {
       const v = this.recordValues(t, r)[t.fields[j].key];
       return typeof v === 'number' ? v : v instanceof Date ? v.getTime() : null;
@@ -558,38 +654,38 @@ export class SchemaController {
       const key = t.fields[j].key;
       if (c.rule === 'monotonic') {
         const ok = { increasing: (a: number, b: number) => b > a, decreasing: (a: number, b: number) => b < a, nonIncreasing: (a: number, b: number) => b <= a, nonDecreasing: (a: number, b: number) => b >= a }[c.direction];
-        const words = { increasing: 'more than', decreasing: 'less than', nonIncreasing: 'no more than', nonDecreasing: 'no less than' }[c.direction];
+        const message = msg(MONOTONIC[c.direction]);
         let prev: number | null = null;
         for (let r = 0; r < count; r++) {
           const v = num(r, j);
           if (v === null) continue;
-          if (prev !== null && !ok(prev, v)) inputs.push({ record: r, field: key, severity: c.severity, message: `Should be ${words} the value before it.` });
+          if (prev !== null && !ok(prev, v)) inputs.push({ record: r, field: key, severity: c.severity, message });
           prev = v;
         }
       } else if (c.rule === 'firstEquals') {
         if (count === 0) continue;
         const v = this.recordValues(t, 0)[key];
         const same = typeof c.value === 'number' ? v === c.value : String(v ?? '').toLowerCase() === c.value.toLowerCase();
-        if (!same) inputs.push({ record: 0, field: key, severity: c.severity, message: `The first value should be ${c.value}.` });
+        if (!same) inputs.push({ record: 0, field: key, severity: c.severity, message: msg('schema.check.firstEquals', { value: c.value }) });
       } else if (c.rule === 'sum') {
         let total = 0;
         for (let r = 0; r < count; r++) total += num(r, j) ?? 0;
         total = parseFloat(total.toPrecision(15));
-        const label = matchLabel(t.fields[j].label);
-        if (c.equals !== undefined && total !== c.equals) inputs.push({ field: key, severity: c.severity, message: `“${label}” adds up to ${total.toLocaleString()}; it should be ${c.equals.toLocaleString()}.` });
-        if (c.max !== undefined && total > c.max) inputs.push({ field: key, severity: c.severity, message: `“${label}” adds up to ${total.toLocaleString()}, over the limit of ${c.max.toLocaleString()}.` });
-        if (c.min !== undefined && total < c.min) inputs.push({ field: key, severity: c.severity, message: `“${label}” adds up to ${total.toLocaleString()}, under the minimum of ${c.min.toLocaleString()}.` });
+        const field = matchLabel(t.fields[j].label);
+        if (c.equals !== undefined && total !== c.equals) inputs.push({ field: key, severity: c.severity, message: msg('schema.check.sumEquals', { field, total, expected: c.equals }) });
+        if (c.max !== undefined && total > c.max) inputs.push({ field: key, severity: c.severity, message: msg('schema.check.sumMax', { field, total, max: c.max }) });
+        if (c.min !== undefined && total < c.min) inputs.push({ field: key, severity: c.severity, message: msg('schema.check.sumMin', { field, total, min: c.min }) });
       }
     }
     return this.resolveIssues(inputs, 'table', bs, t);
   }
 
   /** Checks that compare fields within each record, or records with each other. */
-  private recordCheck(t: BoundTable, c: Extract<DeclarativeRule, { rule: 'compare' | 'requiredIf' | 'uniqueTogether' }>, count: number): IssueInput[] {
-    const out: IssueInput[] = [];
-    const label = (key: string) => {
+  private recordCheck(t: BoundTable, c: Extract<DeclarativeRule, { rule: 'compare' | 'requiredIf' | 'uniqueTogether' }>, count: number): Found[] {
+    const out: Found[] = [];
+    const label = (key: string): Text => {
       const f = t.fields.find((x) => x.key === key);
-      return f ? `“${matchLabel(f.label)}”` : key;
+      return f ? quoted(matchLabel(f.label)) : key;
     };
     const blank = (v: FieldValue) => v === null || v === '';
     const comparable = (v: FieldValue) => (v instanceof Date ? v.getTime() : typeof v === 'string' ? v.toLowerCase() : v);
@@ -603,14 +699,16 @@ export class SchemaController {
         const x = comparable(a);
         const y = comparable(b);
         const ok = { '<': x! < y!, '<=': x! <= y!, '>': x! > y!, '>=': x! >= y!, '=': x === y, '<>': x !== y }[c.op];
-        const words = { '<': 'before', '<=': 'no later than', '>': 'after', '>=': 'no earlier than', '=': 'the same as', '<>': 'different from' }[c.op];
-        const numeric = { '<': 'less than', '<=': 'at most', '>': 'more than', '>=': 'at least', '=': 'equal to', '<>': 'different from' }[c.op];
-        if (!ok) out.push({ record: r, field: c.field, severity: c.severity, message: `Should be ${a instanceof Date ? words : numeric} ${label(c.other)}.` });
+        if (!ok) out.push({ record: r, field: c.field, severity: c.severity, message: msg((a instanceof Date ? COMPARE_DATES : COMPARE)[c.op], { other: label(c.other) }) });
       } else if (c.rule === 'requiredIf') {
         const w = values[c.when];
         const applies = c.equals === undefined ? !blank(w) : comparable(w) === comparable(c.equals as FieldValue);
         if (applies && blank(values[c.field])) {
-          out.push({ record: r, field: c.field, severity: c.severity, message: `Required when ${label(c.when)} is ${c.equals === undefined ? 'filled in' : String(c.equals)}.` });
+          const message =
+            c.equals === undefined
+              ? msg('schema.check.requiredWhenFilled', { field: label(c.when) })
+              : msg('schema.check.requiredWhenEquals', { field: label(c.when), value: String(c.equals) });
+          out.push({ record: r, field: c.field, severity: c.severity, message });
         }
       } else {
         const parts = c.fields.map((k) => values[k]);
@@ -618,7 +716,7 @@ export class SchemaController {
         const key = parts.map((v) => valueKey(v).toLowerCase()).join('\u0000');
         const first = seen.get(key);
         if (first === undefined) seen.set(key, r);
-        else out.push({ record: r, field: c.field, severity: c.severity, message: `Same ${c.fields.map(label).join(' and ')} as record ${first + 1}.` });
+        else out.push({ record: r, field: c.field, severity: c.severity, message: msg('schema.check.sameAsRecord', { fields: and(c.fields.map(label)), record: first + 1 }) });
       }
     }
     return out;
@@ -640,13 +738,12 @@ export class SchemaController {
       for (const t of bs.tables) {
         const count = t.recordCount();
         this.counts.set(t, count);
-        const noun = t.byRow ? 'row' : 'column';
         const { min, max } = t.schema.records ?? {};
         if (!t.fixed && min !== undefined && count < min) {
-          issues.push(...this.resolveIssues([{ record: count, message: `This table needs at least ${min} ${noun}${min === 1 ? '' : 's'}.` }], 'table', bs, t));
+          issues.push(...this.resolveIssues([{ record: count, message: msg(t.byRow ? 'schema.table.minRows' : 'schema.table.minColumns', { count: min }) }], 'table', bs, t));
         }
         if (!t.fixed && max !== undefined && count > max) {
-          issues.push(...this.resolveIssues([{ record: max, message: `This table can have at most ${max} ${noun}${max === 1 ? '' : 's'}.` }], 'table', bs, t));
+          issues.push(...this.resolveIssues([{ record: max, message: msg(t.byRow ? 'schema.table.maxRows' : 'schema.table.maxColumns', { count: max }) }], 'table', bs, t));
         }
         const seen = t.fields.map((f) => (f.unique ? new Map<string, number>() : null));
         for (let r = 0; r < count; r++) {
@@ -662,7 +759,7 @@ export class SchemaController {
               const first = dupes.get(k);
               if (first !== undefined) {
                 const fp = t.cell(first, j);
-                push(bs, p, { severity: 'error', message: `Duplicate: ${toA1(fp.row, fp.col)} has the same ${matchLabel(f.label)}.` });
+                push(bs, p, { severity: 'error', message: msg('schema.check.duplicate', { ref: toA1(fp.row, fp.col), field: matchLabel(f.label) }) });
               } else {
                 dupes.set(k, r);
               }
@@ -845,7 +942,7 @@ export class SchemaController {
     try {
       await withTimeout(Promise.resolve(onChange(ctx)), this.timeoutMs, () => abort.abort());
     } catch (e) {
-      const message = e instanceof HookTimeout ? `Business logic ${e.message}, so the changes it would have made weren't applied.` : `Business logic failed: ${(e as Error).message}`;
+      const message = e instanceof HookTimeout ? msg('schema.hook.onChangeTimeout', { duration: e.duration }) : msg('schema.hook.onChangeFailed', { error: failure(e) });
       this.hookResults.set('onChange', [{ severity: 'error', message, sheet: -1, sheetName: '', source: 'workbook' }]);
       this.reindex();
       this.host.changed();
@@ -868,12 +965,11 @@ export class SchemaController {
   }
 
   /** Plans inserting an empty record before `at`; returns a reason when it can't. */
-  insertRecord(t: BoundTable, at: number): EditOp | string {
-    const noun = t.byRow ? 'row' : 'column';
-    if (t.fixed) return `This table's ${noun}s are fixed by the schema.`;
+  insertRecord(t: BoundTable, at: number): EditOp | Message {
+    if (t.fixed) return msg(t.byRow ? 'schema.table.rowsFixed' : 'schema.table.columnsFixed');
     const count = t.recordCount();
     const max = t.schema.records?.max;
-    if (max !== undefined && count >= max) return `This table can have at most ${max} ${noun}s.`;
+    if (max !== undefined && count >= max) return msg(t.byRow ? 'schema.table.maxRows' : 'schema.table.maxColumns', { count: max });
     const pos = Math.min(at, count);
     const ops: EditOp[] = [];
     if (pos < count) {
@@ -890,20 +986,19 @@ export class SchemaController {
         ops.push({ type: 'copy', srcSheet: t.sheet, src: { r1: s.row, c1: s.col, r2: s.row, c2: s.col }, sheet: t.sheet, dst: { r1: d.row, c1: d.col, r2: d.row, c2: d.col } });
       });
     }
-    return ops.length ? { type: 'batch', ops } : `There is nothing to insert.`;
+    return ops.length ? { type: 'batch', ops } : msg('schema.table.nothingToInsert');
   }
 
   /** Plans deleting records first..last, closing the gap; returns a reason when it can't. */
-  deleteRecords(t: BoundTable, first: number, last: number): EditOp | string {
-    const noun = t.byRow ? 'row' : 'column';
-    if (t.fixed) return `This table's ${noun}s are fixed by the schema.`;
+  deleteRecords(t: BoundTable, first: number, last: number): EditOp | Message {
+    if (t.fixed) return msg(t.byRow ? 'schema.table.rowsFixed' : 'schema.table.columnsFixed');
     const count = t.recordCount();
     const a = Math.max(0, first);
     const b = Math.min(last, count - 1);
-    if (b < a) return `Select a ${noun} in the table to delete.`;
+    if (b < a) return msg(t.byRow ? 'schema.table.selectRowToDelete' : 'schema.table.selectColumnToDelete');
     const n = b - a + 1;
     const min = t.schema.records?.min;
-    if (min !== undefined && count - n < min) return `This table needs at least ${min} ${noun}${min === 1 ? '' : 's'}.`;
+    if (min !== undefined && count - n < min) return msg(t.byRow ? 'schema.table.minRows' : 'schema.table.minColumns', { count: min });
     const ops: EditOp[] = [];
     if (b + 1 <= count - 1) {
       ops.push({ type: 'copy', srcSheet: t.sheet, src: t.recordsRect(b + 1, count - 1), sheet: t.sheet, dst: t.recordsRect(a, a + (count - 1 - (b + 1))) });
@@ -915,13 +1010,13 @@ export class SchemaController {
   // ---------------------------------------------------------------------------
   // Saving
 
-  async checkBeforeSave(): Promise<{ ok: true } | { ok: false; message: string; canOverride: boolean }> {
+  async checkBeforeSave(): Promise<{ ok: true } | { ok: false; message: Text; canOverride: boolean }> {
     await this.settled();
     const { errors } = this.summary();
     if (errors) {
       return {
         ok: false,
-        message: `${errors} ${errors === 1 ? 'cell breaks' : 'cells break'} the “${this.schema.name}” schema.`,
+        message: msg('schema.save.errors', { count: errors, schema: this.localized(this.schema.name) }),
         canOverride: this.schema.saveWithErrors === 'confirm',
       };
     }
@@ -929,10 +1024,11 @@ export class SchemaController {
       try {
         const abort = new AbortController();
         const r = await withTimeout(Promise.resolve(this.schema.beforeSave(this.data(abort.signal))), this.timeoutMs, () => abort.abort());
-        if (typeof r === 'string') return { ok: false, message: r, canOverride: false };
+        // The host's own reason, in one language or several.
+        if (typeof r === 'string' || (typeof r === 'object' && r !== null)) return { ok: false, message: r, canOverride: false };
       } catch (e) {
-        if (e instanceof HookTimeout) return { ok: false, message: `The checks before saving ${e.message}. Try saving again.`, canOverride: false };
-        return { ok: false, message: `The save check failed: ${(e as Error).message}`, canOverride: false };
+        if (e instanceof HookTimeout) return { ok: false, message: msg('schema.save.timeout', { duration: e.duration }), canOverride: false };
+        return { ok: false, message: msg('schema.save.failed', { error: failure(e) }), canOverride: false };
       }
     }
     return { ok: true };

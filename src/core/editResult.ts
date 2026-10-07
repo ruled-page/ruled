@@ -1,4 +1,10 @@
+import type { Text } from '../i18n/message';
 import type { CellUpdate, EditResult } from './types';
+
+/** Texts without repeats; messages are compared by content, as each edit makes its own. */
+export function distinctTexts(texts: Text[]): Text[] {
+  return [...new Map(texts.map((t) => [JSON.stringify(t), t])).values()];
+}
 
 /**
  * Combines results of edits applied one after another into one result that
@@ -13,7 +19,7 @@ export function mergeEditResults(results: EditResult[]): EditResult {
     undo: results.slice().reverse().flatMap((r) => r.undo),
     redo: results.flatMap((r) => r.redo),
     skipped: results.reduce((n, r) => n + r.skipped, 0),
-    skippedReasons: [...new Set(results.flatMap((r) => r.skippedReasons))],
+    skippedReasons: distinctTexts(results.flatMap((r) => r.skippedReasons)),
     warnings: results.flatMap((r) => r.warnings),
     newStyles: results.flatMap((r) => r.newStyles),
     editedCount: results.length ? results[results.length - 1].editedCount : 0,

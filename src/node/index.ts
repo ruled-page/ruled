@@ -10,6 +10,7 @@
  *   const out = wb.save();
  */
 import { parseA1, toA1 } from '../core/refs';
+import { english, errorText } from '../i18n';
 import { WorkbookSession, type OpenOptions } from '../core/session';
 import type { CellChange, CellUpdate, DisplayStyle, EditOp, EditResult, Finding } from '../core/types';
 import { bindSchema } from '../schema/binding';
@@ -41,6 +42,16 @@ export interface WorkbookIssue {
   ref?: string;
 }
 
+/** Results in English, as plain text: the server API isn't translated. */
+function inEnglish(r: EditResult): EditResult {
+  return {
+    ...r,
+    skippedReasons: r.skippedReasons.map((x) => english.text(x)),
+    warnings: r.warnings.map((x) => english.text(x)),
+    ...(r.rejected !== undefined ? { rejected: english.text(r.rejected) } : {}),
+  };
+}
+
 export class ServerWorkbook implements WorkbookReaders {
   readonly fileName: string;
   private readonly session: WorkbookSession;
@@ -57,7 +68,12 @@ export class ServerWorkbook implements WorkbookReaders {
 
   private constructor(bytes: Uint8Array, options: OpenWorkbookOptions) {
     this.fileName = options.fileName ?? 'workbook.xlsx';
-    this.session = WorkbookSession.open(bytes, this.fileName, options.locale ?? 'en-US', options);
+    try {
+      this.session = WorkbookSession.open(bytes, this.fileName, options.locale ?? 'en-US', options);
+    } catch (e) {
+      // Files the editor turns away say why in words people read; the server API speaks English.
+      throw new Error(english.text(errorText(e)));
+    }
     const r = this.session.loadResult();
     this.styles = r.styles;
     this.date1904 = r.date1904;
@@ -70,7 +86,8 @@ export class ServerWorkbook implements WorkbookReaders {
       const bound = bindSchema(s, this.views);
       if (bound.binding) {
         this.schema = s;
-        this.note = versionNote(s, r.properties);
+        const note = versionNote(s, r.properties);
+        this.note = note === undefined ? undefined : english.text(note);
         this.controller = new SchemaController(bound.binding, {
           views: () => this.views,
           styles: () => this.styles,
@@ -85,7 +102,7 @@ export class ServerWorkbook implements WorkbookReaders {
         this.controller.validate();
         return;
       }
-      if (!closest || bound.found > closest.found) closest = { schema: s.name, problems: bound.problems, found: bound.found };
+      if (!closest || bound.found > closest.found) closest = { schema: english.localized(s.name), problems: bound.problems.map((p) => english.text(p)), found: bound.found };
     }
     if (schemas.length) this.mismatch = { schema: closest?.found ? closest.schema : undefined, problems: closest?.problems ?? [] };
   }
@@ -109,9 +126,13 @@ export class ServerWorkbook implements WorkbookReaders {
     return this.views.map((v) => v.info.name);
   }
 
-  /** What the file holds that the editor keeps but doesn't show, and how its formulas were calculated. */
+  /** What the file holds that the editor keeps but doesn't show, and how its formulas were calculated (in English). */
   get findings(): Finding[] {
-    return [...this.session.loadResult().findings, ...this.session.ensureEngine().findings];
+    return [...this.session.loadResult().findings, ...this.session.ensureEngine().findings].map((f) => ({
+      ...f,
+      title: english.text(f.title),
+      detail: english.text(f.detail),
+    }));
   }
 
   /** Every schema problem, once all async checks have finished. Empty without a schema. */
@@ -122,7 +143,7 @@ export class ServerWorkbook implements WorkbookReaders {
     await ctl.settled();
     return ctl.issues().map((i) => ({
       severity: i.severity,
-      message: i.message,
+      message: english.text(i.message),
       sheet: i.sheetName,
       ...(i.row !== undefined && i.col !== undefined ? { ref: toA1(i.row, i.col) } : {}),
     }));
@@ -153,9 +174,9 @@ export class ServerWorkbook implements WorkbookReaders {
     const { row, col } = at;
     const ctl = this.controller;
     const prepared = ctl?.prepareInput(s, row, col, text) ?? { text };
-    if ('reject' in prepared) return { updates: [], undo: [], redo: [], skipped: 0, skippedReasons: [], warnings: [], newStyles: [], editedCount: this.session.editedCount, rejected: prepared.reject };
+    if ('reject' in prepared) return inEnglish({ updates: [], undo: [], redo: [], skipped: 0, skippedReasons: [], warnings: [], newStyles: [], editedCount: this.session.editedCount, rejected: prepared.reject });
     const reason = ctl?.readOnlyReason(s, row, col);
-    if (reason) return { updates: [], undo: [], redo: [], skipped: 1, skippedReasons: [reason], warnings: [], newStyles: [], editedCount: this.session.editedCount, rejected: reason };
+    if (reason) return inEnglish({ updates: [], undo: [], redo: [], skipped: 1, skippedReasons: [reason], warnings: [], newStyles: [], editedCount: this.session.editedCount, rejected: reason });
     return this.edit({ type: 'input', sheet: s, row, col, text: prepared.text });
   }
 
@@ -169,12 +190,12 @@ export class ServerWorkbook implements WorkbookReaders {
       : [];
     this.apply(result.updates);
     if (ctl && before.length) await ctl.afterEdit(before);
-    return result;
+    return inEnglish(result);
   }
 
   /** Every change since the workbook was opened. */
   changes(): CellChange[] {
-    return this.session.changes();
+    return this.session.changes().map((c) => (c.note === undefined ? c : { ...c, note: english.text(c.note) }));
   }
 
   get editedCount(): number {
@@ -185,8 +206,9 @@ export class ServerWorkbook implements WorkbookReaders {
    * The schema's last word before saving: its errors (unless the schema saves
    * with confirmation) and its beforeSave hook.
    */
-  checkBeforeSave(): ReturnType<SchemaController['checkBeforeSave']> {
-    return this.controller?.checkBeforeSave() ?? Promise.resolve({ ok: true as const });
+  async checkBeforeSave(): Promise<{ ok: true } | { ok: false; message: string; canOverride: boolean }> {
+    const check = await (this.controller?.checkBeforeSave() ?? Promise.resolve({ ok: true as const }));
+    return check.ok ? check : { ...check, message: english.text(check.message) };
   }
 
   /**
@@ -217,7 +239,7 @@ export async function validateWorkbook(
   const errors = issues.filter((i) => i.severity === 'error').length;
   return {
     ok: !wb.mismatch && errors === 0,
-    ...(wb.schema ? { schema: { id: wb.schema.id, name: wb.schema.name, version: wb.schema.version } } : {}),
+    ...(wb.schema ? { schema: { id: wb.schema.id, name: english.localized(wb.schema.name), version: wb.schema.version } } : {}),
     ...(wb.mismatch ? { mismatch: wb.mismatch } : {}),
     ...(wb.note ? { note: wb.note } : {}),
     errors,

@@ -179,6 +179,41 @@ from React; `--wbe-icon-stroke-width` sets the line weight. React hosts can put
 their own controls at the end of the toolbar with `toolbarEnd`. The demo's
 theme picker (`src/demo/themes.ts`) shows three themes built this way.
 
+### Languages
+
+Every word the editor shows comes from a message catalogue, with i18next
+and react-i18next. English and German are built in; `language` picks one
+(it defaults to `locale`, and "de-CH" falls back to German, anything unknown
+to English), and `setLanguage()` on the store, mount handle or element
+changes it while the editor is open. Each editor has its own i18next
+instance, so a host that uses i18next for its own pages keeps its setup.
+
+Other languages, or different wording, come in as `translations`, keyed by
+language, in i18next's JSON format: `{{name}}` placeholders,
+`{{count, number}}`, and plural keys with the forms the language needs
+(`rows_one`, `rows_few`, `rows_many`, `rows_other` for Polish). Start from the
+exported `en` catalogue:
+
+```ts
+new WorkbookStore({
+  language: 'fr',
+  translations: { fr: { 'toolbar.open': 'Ouvrir', /* … */ }, en: { 'toolbar.saveAsExcel': 'Export' } },
+});
+```
+
+Numbers and dates in the editor's own text follow the language; reading
+typed numbers and dates follows `locale`. Right-to-left languages mirror the
+editor around the grid, which stays left to right as Excel's sheets do.
+
+What the workbook says is shown as written: sheet names, values, and the
+messages its author gave Excel's data validation. Text the host writes in a
+schema (its name and description, field descriptions, rule and hook
+messages) can be given in several languages, `{ en: 'Price', de: 'Preis' }`,
+and hooks are told the editor's language. Messages from the worker reach
+the editor as keys rather than sentences, so changing language changes
+everything on screen. The Node API and the command-line tools answer in
+English.
+
 ### Keyboard and screen readers
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows

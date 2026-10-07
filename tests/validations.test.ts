@@ -7,6 +7,7 @@ import { parseXml } from '../src/core/xml';
 import { generateSchema } from '../src/schema/generate';
 import { SheetView } from '../src/state/sheetView';
 import { listAllows, listOptions, listValidationAt } from '../src/state/validation';
+import { english } from '../src/i18n';
 import { sample } from './helpers';
 
 const ctx = {
@@ -74,8 +75,8 @@ describe('orders.xlsx', () => {
     expect(listValidationAt(orders, 1, 5)).toBeUndefined();
     expect(listValidationAt(orders, 0, 1)).toBeUndefined();
     const finding = r.findings.find((f) => f.kind === 'dataValidation');
-    expect(finding?.detail).toMatch(/6 list rules show a dropdown.*5 number, date, text-length or custom rules check/);
-    expect(finding?.detail).not.toMatch(/not enforced/);
+    expect(english.text(finding?.detail)).toMatch(/6 list rules show a dropdown.*5 number, date, text-length or custom rules check/);
+    expect(english.text(finding?.detail)).not.toMatch(/not enforced/);
   });
 
   it('turns list columns into enum fields when generating a schema', () => {
@@ -168,7 +169,7 @@ describe('Excel validation rules', () => {
 
   it('describes rules for the formula bar', () => {
     const rules = session().loadResult().sheets[0].ruleValidations;
-    expect(rules.map(describeRule)).toEqual([
+    expect(rules.map((rule) => english.text(describeRule(rule)))).toEqual([
       'Whole number between 1 and 1000',
       'Date at least 2026-01-01',
       'Excel checks this cell with =AND(LEN(H2)<=8,ISNUMBER(SEARCH("-",H2)))',

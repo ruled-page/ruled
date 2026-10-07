@@ -1,12 +1,12 @@
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
-import { MOD as mod } from './keys';
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+import { mod } from './keys';
+import { useT } from '../i18n/react';
 
 /** The grid's right-click menu: clipboard, rows and columns, sorting, filtering and find. */
 export function GridMenu({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const menu = store.menu;
   const view = store.view;
   if (!menu || !view) return null;
@@ -18,33 +18,33 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   const wholeCols = rect.r1 === 0 && rect.r2 >= Math.max(view.info.maxRow, 0);
   const locked = view.info.kind !== 'worksheet' || view.info.protected;
   const rowItems: MenuItem[] = [
-    { label: `Insert ${plural(rows, 'row')} above`, onSelect: () => void store.insertRows('above'), disabled: locked || rows >= MAX_ROWS },
-    { label: `Insert ${plural(rows, 'row')} below`, onSelect: () => void store.insertRows('below'), disabled: locked || rows >= MAX_ROWS },
-    { label: `Delete ${plural(rows, 'row')}`, onSelect: () => void store.deleteRows(), disabled: locked, danger: true },
+    { label: t('menu.insertRowsAbove', { count: rows }), onSelect: () => void store.insertRows('above'), disabled: locked || rows >= MAX_ROWS },
+    { label: t('menu.insertRowsBelow', { count: rows }), onSelect: () => void store.insertRows('below'), disabled: locked || rows >= MAX_ROWS },
+    { label: t('menu.deleteRows', { count: rows }), onSelect: () => void store.deleteRows(), disabled: locked, danger: true },
   ];
   const colItems: MenuItem[] = [
-    { label: `Insert ${plural(cols, 'column')} left`, onSelect: () => void store.insertCols('left'), disabled: locked || cols >= MAX_COLS },
-    { label: `Insert ${plural(cols, 'column')} right`, onSelect: () => void store.insertCols('right'), disabled: locked || cols >= MAX_COLS },
-    { label: `Delete ${plural(cols, 'column')}`, onSelect: () => void store.deleteCols(), disabled: locked, danger: true },
-    { label: 'Column width…', onSelect: () => store.set('columnWidthFor', sel.col) },
+    { label: t('menu.insertColumnsLeft', { count: cols }), onSelect: () => void store.insertCols('left'), disabled: locked || cols >= MAX_COLS },
+    { label: t('menu.insertColumnsRight', { count: cols }), onSelect: () => void store.insertCols('right'), disabled: locked || cols >= MAX_COLS },
+    { label: t('menu.deleteColumns', { count: cols }), onSelect: () => void store.deleteCols(), disabled: locked, danger: true },
+    { label: t('menu.columnWidth'), onSelect: () => store.set('columnWidthFor', sel.col) },
   ];
   const filtered = !!view.filter;
   const dataItems: MenuItem[] = [
-    { label: 'Sort A to Z', onSelect: () => void store.sort(false), disabled: locked },
-    { label: 'Sort Z to A', onSelect: () => void store.sort(true), disabled: locked },
-    { label: 'Filter by values…', onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
-    ...(filtered ? [{ label: 'Show all rows (clear filter)', onSelect: () => store.clearFilter() }] : []),
+    { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
+    { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
+    { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
+    ...(filtered ? [{ label: t('menu.clearFilter'), onSelect: () => store.clearFilter() }] : []),
   ];
   const items: MenuItem[] = [
-    { label: 'Cut', hint: `${mod}X`, onSelect: () => void store.copySelection(true), disabled: locked },
-    { label: 'Copy', hint: `${mod}C`, onSelect: () => void store.copySelection(false) },
-    { label: 'Paste', hint: `${mod}V`, onSelect: () => void store.pasteFromClipboard(), disabled: locked },
+    { label: t('menu.cut'), hint: mod(t, 'X'), onSelect: () => void store.copySelection(true), disabled: locked },
+    { label: t('menu.copy'), hint: mod(t, 'C'), onSelect: () => void store.copySelection(false) },
+    { label: t('menu.paste'), hint: mod(t, 'V'), onSelect: () => void store.pasteFromClipboard(), disabled: locked },
     { separator: true },
     ...(menu.kind === 'column' || (wholeCols && !wholeRows) ? colItems : menu.kind === 'row' || wholeRows ? rowItems : [...rowItems, { separator: true } as const, ...colItems]),
     { separator: true },
     ...dataItems,
     { separator: true },
-    { label: 'Find and replace…', hint: `${mod}F`, onSelect: () => store.set('findOpen', true) },
+    { label: t('menu.find'), hint: mod(t, 'F'), onSelect: () => store.set('findOpen', true) },
   ];
   return <ContextMenu x={menu.x} y={menu.y} items={items} onClose={() => store.set('menu', undefined)} />;
 }

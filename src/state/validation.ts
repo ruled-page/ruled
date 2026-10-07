@@ -1,4 +1,5 @@
 import { inRect } from '../core/refs';
+import { msg, type Message } from '../i18n/message';
 import { VT, type DisplayStyle, type ListValidation, type SheetInfo } from '../core/types';
 import { displayText } from './format';
 import type { SheetView } from './sheetView';
@@ -51,4 +52,4 @@ export function listAllows(options: readonly string[], text: string): boolean {
 }
 
 /** Excel's own wording when a value isn't allowed and the rule has no message. */
-export const DEFAULT_LIST_ERROR = "This value doesn't match the data validation restrictions defined for this cell.";
+export const DEFAULT_LIST_ERROR: Message = msg('store.validation.defaultError');

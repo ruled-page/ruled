@@ -1,3 +1,4 @@
+import type { Text } from '../i18n/message';
 import type { StructuralOp } from '../core/refTransform';
 import type { OpenOptions } from '../core/session';
 import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
@@ -33,5 +34,5 @@ export type WorkerResponse =
    * is: what the file holds, the cells that differ from it, and the engine's
    * report if it is already built (otherwise a 'calc' message follows).
    */
-  | { id: number; type: 'restructured'; result: LoadResult; updates: CellUpdate[]; editedCount: number; report?: CalcReport; warnings: string[] }
-  | { id: number; type: 'error'; message: string };
+  | { id: number; type: 'restructured'; result: LoadResult; updates: CellUpdate[]; editedCount: number; report?: CalcReport; warnings: Text[] }
+  | { id: number; type: 'error'; message: string; text?: Text };

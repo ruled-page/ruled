@@ -1,5 +1,6 @@
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import { DetailedCellError, HyperFormula, type RawCellContent, type SerializedNamedExpression } from 'hyperformula';
+import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import { registerExcelFunctions } from './excelFunctions';
 import { engineFormula, stripFunctionPrefixes } from './formula';
 import type { CellContent } from './types';
@@ -7,34 +8,67 @@ import type { CellContent } from './types';
 let registered: Set<string> | undefined;
 let probe: HyperFormula | undefined;
 
+/** Why the engine can't calculate a formula. */
+export type Unsupported =
+  | { kind: 'function'; name: string }
+  | { kind: 'tableRefs' | 'externalLinks' | 'threeD' | 'syntax' | 'array' | 'sharedFormula' };
+
+const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
+  tableRefs: 'core.unsupported.tableRefs',
+  externalLinks: 'core.unsupported.externalLinks',
+  threeD: 'core.unsupported.threeD',
+  syntax: 'core.unsupported.syntax',
+  array: 'core.unsupported.array',
+  sharedFormula: 'core.unsupported.sharedFormula',
+};
+
+const EXPLANATIONS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
+  tableRefs: 'core.cellReason.tableRefs',
+  externalLinks: 'core.cellReason.externalLinks',
+  threeD: 'core.cellReason.threeD',
+  syntax: 'core.cellReason.syntax',
+  array: 'core.cellReason.array',
+  sharedFormula: 'core.cellReason.sharedFormula',
+};
+
+/** What isn't calculated, as the recalculation report lists it: "LET function". */
+export function unsupportedLabel(u: Unsupported): Message {
+  return u.kind === 'function' ? msg('core.unsupported.function', { name: u.name }) : msg(LABELS[u.kind]);
+}
+
+/** Why a formula isn't calculated, in a sentence about its cell. */
+export function unsupportedExplanation(u: Unsupported): Message {
+  return u.kind === 'function' ? msg('core.cellReason.function', { name: u.name }) : msg(EXPLANATIONS[u.kind]);
+}
+
 /**
  * Why the engine cannot calculate this formula, or undefined when it can.
  * Checked up front so a formula is judged on its own content, not on errors
  * it inherits from the cells it references.
  */
-export function unsupportedReason(fileFormula: string): string | undefined {
+export function unsupportedReason(fileFormula: string): Unsupported | undefined {
   registerExcelFunctions();
   registered ??= new Set(HyperFormula.getRegisteredFunctionNames('enGB'));
   let tokens;
   try {
     tokens = tokenize(fileFormula, { mergeRefs: true, allowTernary: false });
   } catch {
-    return 'Formula syntax';
+    return { kind: 'syntax' };
   }
   for (const t of tokens) {
-    if (t.type === 'structured') return 'Table references (Table[Column])';
+    if (t.type === 'structured') return { kind: 'tableRefs' };
     if (t.type === 'func') {
       const name = stripFunctionPrefixes(t.value).toUpperCase();
-      if (!registered.has(name)) return `${name.replace(/^_XLUDF\./, '')} function`;
+      if (!registered.has(name)) return { kind: 'function', name: name.replace(/^_XLUDF\./, '') };
     }
     if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
-      if (t.value.includes('[')) return 'Links to other workbooks';
+      if (t.value.includes('[')) return { kind: 'externalLinks' };
       const ref = parseA1Ref(t.value, { allowTernary: false });
-      if (ref && 'context' in ref && (ref.context?.length ?? 0) > 1) return '3-D references (Sheet1:Sheet3!A1)';
+      if (ref && 'context' in ref && (ref.context?.length ?? 0) > 1) return { kind: 'threeD' };
     }
   }
   probe ??= HyperFormula.buildEmpty({ licenseKey: 'gpl-v3' });
-  if (!probe.validateFormula(engineFormula(fileFormula))) return 'Formula syntax';
+  if (!probe.validateFormula(engineFormula(fileFormula))) return { kind: 'syntax' };
   return undefined;
 }
 
@@ -283,8 +317,9 @@ export function valuesMatch(excel: EngineValue, engine: EngineValue): boolean {
   return excel === engine;
 }
 
-export function describeValue(v: EngineValue): string {
-  if (v === null) return '(empty)';
+/** A value as a message shows it: a number, "text" in quotes, an error code, or "(empty)". */
+export function describeValue(v: EngineValue): Text {
+  if (v === null) return msg('core.value.empty');
   if (typeof v === 'object') return v.error;
   if (typeof v === 'string') return JSON.stringify(v);
   return String(v).toUpperCase() === 'TRUE' || String(v).toUpperCase() === 'FALSE' ? String(v).toUpperCase() : String(v);

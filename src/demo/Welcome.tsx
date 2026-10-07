@@ -1,55 +1,28 @@
+import { Trans, useTranslation } from 'react-i18next';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from '../ui/icons';
+import { DEMO_NS, i18next } from './i18n';
+import type { DemoKey } from './locales/en';
 
-export const SAMPLES = [
-  {
-    file: 'kitchen-sink.xlsx',
-    title: 'Sales report',
-    detail: 'Charts, a chart sheet, a table, validation, notes, pictures, and a few formulas this editor can’t calculate.',
-  },
-  {
-    file: 'orders.xlsx',
-    title: 'Order log',
-    detail: 'Excel’s own data validation: dropdown lists (inline, named, OFFSET and dependent INDIRECT) and number, date, text-length and custom-formula rules.',
-  },
-  {
-    file: 'formatting.xlsx',
-    title: 'Formatting',
-    detail: 'Borders, text running into empty cells, notes, conditional formatting, table styles and frozen rows.',
-  },
-  {
-    file: 'pivot.xlsx',
-    title: 'Pivot table',
-    detail: 'A pivot table plus filled-down formulas, which Excel stores in a compact shared form.',
-  },
-  {
-    file: 'big.xlsx',
-    title: '100,000 rows',
-    detail: '1.1 million cells and 300,000 formulas. Create it with npm run samples.',
-  },
+interface Sample {
+  file: string;
+  title: DemoKey;
+  detail: DemoKey;
+}
+
+export const SAMPLES: Sample[] = [
+  { file: 'kitchen-sink.xlsx', title: 'sample.salesReport.title', detail: 'sample.salesReport.detail' },
+  { file: 'orders.xlsx', title: 'sample.orders.title', detail: 'sample.orders.detail' },
+  { file: 'formatting.xlsx', title: 'sample.formatting.title', detail: 'sample.formatting.detail' },
+  { file: 'pivot.xlsx', title: 'sample.pivot.title', detail: 'sample.pivot.detail' },
+  { file: 'big.xlsx', title: 'sample.big.title', detail: 'sample.big.detail' },
 ];
 
-export const SCHEMA_SAMPLES = [
-  {
-    file: 'price-list.xlsx',
-    title: 'Price list',
-    detail: 'Records as rows. Types, patterns, a pick list, an async catalogue check, and a lookup that fills new rows.',
-  },
-  {
-    file: 'forecast.xlsx',
-    title: 'Quarterly forecast',
-    detail: 'Records as columns, with calculated rows and a rule that quarters follow on from each other.',
-  },
-  {
-    file: 'budget.xlsx',
-    title: 'Half-year budget',
-    detail: 'A fixed grid of categories by month, a sign-off cell and an async check against a budget service.',
-  },
-  {
-    file: 'price-list-old.xlsx',
-    title: 'Price list, old layout',
-    detail: 'One renamed column, so the schema doesn’t match and the file opens as a plain spreadsheet.',
-  },
+export const SCHEMA_SAMPLES: Sample[] = [
+  { file: 'price-list.xlsx', title: 'sample.priceList.title', detail: 'sample.priceList.detail' },
+  { file: 'forecast.xlsx', title: 'sample.forecast.title', detail: 'sample.forecast.detail' },
+  { file: 'budget.xlsx', title: 'sample.budget.title', detail: 'sample.budget.detail' },
+  { file: 'price-list-old.xlsx', title: 'sample.priceListOld.title', detail: 'sample.priceListOld.detail' },
 ];
 
 export async function openSample(store: WorkbookStore, file: string): Promise<void> {
@@ -58,62 +31,56 @@ export async function openSample(store: WorkbookStore, file: string): Promise<vo
   // Dev servers answer missing files with the app's HTML, so check for a zip signature.
   const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
   if (head[0] !== 0x50 || head[1] !== 0x4b) {
-    store.toast('error', `Sample ${file} was not found. Run “npm run samples” to create it.`);
+    // The demo's own message, so it comes from the demo's i18next rather than the editor's catalogue.
+    store.toast('error', i18next.t('welcome.sampleMissing', { file }));
     return;
   }
   await store.open(file, bytes);
 }
 
+function SampleList({ store, samples, icon }: { store: WorkbookStore; samples: Sample[]; icon: 'schema' | 'sheet' }) {
+  const { t } = useTranslation(DEMO_NS);
+  return (
+    <ul className="samples-list">
+      {samples.map((s) => (
+        <li key={s.file}>
+          <button onClick={() => void openSample(store, s.file)}>
+            <Icon name={icon} />
+            <span>
+              <strong>{t(s.title)}</strong>
+              <span>{t(s.detail)}</span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () => void }) {
+  const { t } = useTranslation(DEMO_NS);
   return (
     <div className="welcome">
       <div className="welcome-card">
-        <h1>Edit an Excel workbook in the browser</h1>
-        <p className="lede">
-          Open a .xlsx file, change cells, paste from Excel, drag to fill, and save it back as .xlsx. Formulas recalculate as you
-          edit. Charts, pivot tables, macros and formatting are kept in the saved file, even the ones this editor can’t display.
-        </p>
+        <h1>{t('welcome.heading')}</h1>
+        <p className="lede">{t('welcome.lede')}</p>
         <button className="dropzone" onClick={onOpen}>
           <Icon name="open" size={22} />
           <span>
-            <strong>Choose a workbook</strong> or drop it anywhere on this page
+            <Trans t={t} i18nKey="welcome.choose" components={{ strong: <strong /> }} />
           </span>
-          <span className="muted">.xlsx or .xlsm, processed entirely in your browser</span>
+          <span className="muted">{t('welcome.fileTypes')}</span>
         </button>
-        <h2>Samples checked by a schema</h2>
-        <ul className="samples-list">
-          {SCHEMA_SAMPLES.map((s) => (
-            <li key={s.file}>
-              <button onClick={() => void openSample(store, s.file)}>
-                <Icon name="schema" />
-                <span>
-                  <strong>{s.title}</strong>
-                  <span>{s.detail}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <h2>{t('welcome.schemaSamples')}</h2>
+        <SampleList store={store} samples={SCHEMA_SAMPLES} icon="schema" />
         <p className="muted small schema-note">
-          {store.schemas.length} schema{store.schemas.length === 1 ? ' is' : 's are'} registered.{' '}
+          {t('welcome.schemaCount', { count: store.schemas.length })}{' '}
           <button className="link" onClick={() => store.set('designerOpen', true)}>
-            Manage, import or create schemas
+            {t('welcome.manageSchemas')}
           </button>
         </p>
-        <h2>Plain workbooks</h2>
-        <ul className="samples-list">
-          {SAMPLES.map((s) => (
-            <li key={s.file}>
-              <button onClick={() => void openSample(store, s.file)}>
-                <Icon name="sheet" />
-                <span>
-                  <strong>{s.title}</strong>
-                  <span>{s.detail}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <h2>{t('welcome.plainSamples')}</h2>
+        <SampleList store={store} samples={SAMPLES} icon="sheet" />
       </div>
     </div>
   );

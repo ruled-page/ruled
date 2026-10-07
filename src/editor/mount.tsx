@@ -20,6 +20,8 @@ export interface EditorHandle {
   registerSchema(schema: WorkbookSchema): void;
   /** Changes the theme tokens while the editor is open. */
   setTheme(theme: EditorTheme | undefined): void;
+  /** Changes the language of the editor's text while it is open. */
+  setLanguage(language: string): void;
   /** Cells changed since the workbook was opened. */
   readonly editedCount: number;
   /** Calls `listener` whenever the editor's state changes; returns an unsubscribe function. */
@@ -49,6 +51,7 @@ export function mountWorkbookEditor(element: HTMLElement, options: StoreOptions 
     },
     registerSchema: (schema) => store.registerSchema(schema),
     setTheme: (theme) => store.setTheme(theme),
+    setLanguage: (language) => store.setLanguage(language),
     get editedCount() {
       return store.editedCount;
     },

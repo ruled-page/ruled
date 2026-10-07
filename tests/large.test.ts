@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
+import { english } from '../src/i18n';
 import { CellFlag, has, open, sample, sheetIndex, updateAt, valueOf } from './helpers';
 
 describe('live recalculation off', () => {
@@ -8,7 +9,7 @@ describe('live recalculation off', () => {
     const s = WorkbookSession.open(sample('kitchen-sink.xlsx'), 'k.xlsx', 'en-US', { recalc: 'off' });
     const report = s.ensureEngine();
     expect(report.off).toBe(true);
-    expect(report.findings[0].title).toBe('Live recalculation is off');
+    expect(english.text(report.findings[0].title)).toBe('Live recalculation is off');
     const summary = sheetIndex(s, 'Summary');
     // B9 sums B5:B8; changing B5 doesn't recalculate it here.
     const r = s.apply({ type: 'input', sheet: summary, row: 4, col: 1, text: '1' });

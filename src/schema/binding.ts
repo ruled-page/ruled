@@ -1,3 +1,4 @@
+import { msg, type MessageKey, type Text } from '../i18n/message';
 import { parseA1, toA1 } from '../core/refs';
 import { VT, type Rect } from '../core/types';
 import type { SheetView } from '../state/sheetView';
@@ -149,18 +150,21 @@ export class BoundTable {
   }
 
   /** Problems that stop this table from matching the sheet. */
-  problems(sheetName: string): string[] {
-    const out: string[] = [];
-    const check = (p: Pos, match: TextMatch, what: string) => {
+  problems(sheetName: string): Text[] {
+    const out: Text[] = [];
+    // The message when the cell holds other text, and when it is empty.
+    const check = (p: Pos, match: TextMatch, keys: readonly [MessageKey, MessageKey]) => {
       if (match === '*') return;
-      const text = cellText(this.view, p.row, p.col);
-      if (!textMatches(match, text)) {
-        out.push(`${sheetName}!${toA1(p.row, p.col)} should be ${describeMatch(match)} (${what}) but ${text ? `is "${text}"` : 'is empty'}.`);
+      const actual = cellText(this.view, p.row, p.col);
+      if (!textMatches(match, actual)) {
+        out.push(msg(actual ? keys[0] : keys[1], { cell: `${sheetName}!${toA1(p.row, p.col)}`, expected: describeMatch(match), actual }));
       }
     };
-    if (this.header) this.fields.forEach((f, i) => check(this.headerCell(i), f.label, 'field label'));
-    this.labels?.forEach((l, i) => check(this.labelCell(i), l, 'record label'));
-    if (this.schema.corner !== undefined && this.header && this.labels) check(this.cornerCell, this.schema.corner, 'corner label');
+    if (this.header) this.fields.forEach((f, i) => check(this.headerCell(i), f.label, ['schema.bind.fieldLabel', 'schema.bind.fieldLabelEmpty']));
+    this.labels?.forEach((l, i) => check(this.labelCell(i), l, ['schema.bind.recordLabel', 'schema.bind.recordLabelEmpty']));
+    if (this.schema.corner !== undefined && this.header && this.labels) {
+      check(this.cornerCell, this.schema.corner, ['schema.bind.cornerLabel', 'schema.bind.cornerLabelEmpty']);
+    }
     return out;
   }
 }
@@ -187,21 +191,21 @@ export interface Binding {
 
 export interface BindResult {
   binding?: Binding;
-  problems: string[];
+  problems: Text[];
   /** How many of the schema's sheets were found, to pick the closest schema when none match. */
   found: number;
 }
 
 /** Places a schema on a workbook's sheets and reports anything that doesn't line up. */
 export function bindSchema(schema: WorkbookSchema, views: SheetView[]): BindResult {
-  const problems: string[] = [];
+  const problems: Text[] = [];
   const sheets: BoundSheet[] = [];
   let found = 0;
   const used = new Set<number>();
   for (const ss of schema.sheets) {
     const index = views.findIndex((v, i) => !used.has(i) && v.info.kind === 'worksheet' && textMatches(ss.name, v.info.name));
     if (index < 0) {
-      if (!ss.optional) problems.push(`The workbook has no sheet named ${describeMatch(ss.name)}.`);
+      if (!ss.optional) problems.push(msg('schema.bind.noSheet', { expected: describeMatch(ss.name) }));
       continue;
     }
     found++;
@@ -214,9 +218,9 @@ export function bindSchema(schema: WorkbookSchema, views: SheetView[]): BindResu
       const pos = parseA1(c.ref) ?? { row: 0, col: 0 };
       const labelPos = c.label ? parseA1(c.label.ref) ?? undefined : undefined;
       if (c.label && labelPos) {
-        const text = cellText(view, labelPos.row, labelPos.col);
-        if (!textMatches(c.label.text, text)) {
-          problems.push(`${name}!${c.label.ref} should be ${describeMatch(c.label.text)} but ${text ? `is "${text}"` : 'is empty'}.`);
+        const actual = cellText(view, labelPos.row, labelPos.col);
+        if (!textMatches(c.label.text, actual)) {
+          problems.push(msg(actual ? 'schema.bind.label' : 'schema.bind.labelEmpty', { cell: `${name}!${c.label.ref}`, expected: describeMatch(c.label.text), actual }));
         }
       }
       return { schema: c, pos, labelPos };

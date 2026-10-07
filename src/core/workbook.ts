@@ -1,3 +1,4 @@
+import { msg, TextError, type Message, type MessageKey, type Text } from '../i18n/message';
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
@@ -44,27 +45,31 @@ const EMU_PER_PX = 9525;
 /** Hidden-column and width ranges are only expanded this far past the used range. */
 const COLUMN_PADDING = 64;
 
-const CHART_TYPE_LABELS: Record<string, string> = {
-  barChart: 'Bar',
-  bar3DChart: '3-D bar',
-  lineChart: 'Line',
-  line3DChart: '3-D line',
-  pieChart: 'Pie',
-  pie3DChart: '3-D pie',
-  doughnutChart: 'Doughnut',
-  areaChart: 'Area',
-  area3DChart: '3-D area',
-  scatterChart: 'Scatter',
-  bubbleChart: 'Bubble',
-  radarChart: 'Radar',
-  stockChart: 'Stock',
-  surfaceChart: 'Surface',
-  surface3DChart: '3-D surface',
-  ofPieChart: 'Pie of pie',
+const CHART_TYPES: Record<string, MessageKey> = {
+  barChart: 'core.chartType.bar',
+  bar3DChart: 'core.chartType.bar3D',
+  lineChart: 'core.chartType.line',
+  line3DChart: 'core.chartType.line3D',
+  pieChart: 'core.chartType.pie',
+  pie3DChart: 'core.chartType.pie3D',
+  doughnutChart: 'core.chartType.doughnut',
+  areaChart: 'core.chartType.area',
+  area3DChart: 'core.chartType.area3D',
+  scatterChart: 'core.chartType.scatter',
+  bubbleChart: 'core.chartType.bubble',
+  radarChart: 'core.chartType.radar',
+  stockChart: 'core.chartType.stock',
+  surfaceChart: 'core.chartType.surface',
+  surface3DChart: 'core.chartType.surface3D',
+  ofPieChart: 'core.chartType.pieOfPie',
 };
 
-function plural(n: number, one: string, many = one + 's'): string {
-  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+/**
+ * Texts joined into one list, "a, b, c" by default or "a; b; c" with
+ * 'core.list.clauses': each item is translated before it is joined.
+ */
+export function joinTexts(items: Text[], key: MessageKey = 'core.list.items'): Text {
+  return items.slice(0, -1).reduceRight<Text>((rest, first) => msg(key, { first, rest }), items[items.length - 1] ?? '');
 }
 
 function colWidthPx(width: number): number {
@@ -82,7 +87,7 @@ function anchorOf(node: XmlNode | undefined): Anchor | undefined {
   };
 }
 
-function readChart(pkg: OoxmlPackage, path: string): { title?: string; type?: string } {
+function readChart(pkg: OoxmlPackage, path: string): { title?: string; type?: Text } {
   const xml = pkg.text(path);
   if (!xml) return {};
   const root = parseXml(xml);
@@ -96,11 +101,12 @@ function readChart(pkg: OoxmlPackage, path: string): { title?: string; type?: st
     if (series.length === 1) title = descendants(child(series[0], 'tx'), 'v').map((v) => v.text).join('').trim();
   }
   const plot = child(chart, 'plotArea');
-  let type: string | undefined;
+  let type: Text | undefined;
   for (const c of plot?.children ?? []) {
     if (c.name.endsWith('Chart')) {
-      type = CHART_TYPE_LABELS[c.name] ?? c.name.replace(/Chart$/, '');
-      if (c.name === 'barChart' && attr(child(c, 'barDir'), 'val') === 'col') type = 'Column';
+      // Kinds of chart without a message keep Excel's name for them.
+      type = CHART_TYPES[c.name] ? msg(CHART_TYPES[c.name]) : c.name.replace(/Chart$/, '');
+      if (c.name === 'barChart' && attr(child(c, 'barDir'), 'val') === 'col') type = msg('core.chartType.column');
       break;
     }
   }
@@ -151,7 +157,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
   const workbookPath =
     rootRels.find((r) => r.type === 'officeDocument')?.target ?? (pkg.has('xl/workbook.xml') ? 'xl/workbook.xml' : '');
   const wbXml = pkg.text(workbookPath);
-  if (!wbXml) throw new Error('The workbook part is missing from this file.');
+  if (!wbXml) throw new TextError(msg('core.open.noWorkbookPart'));
   const wb = parseXml(wbXml);
   const wbRels = pkg.rels(workbookPath);
   const relById = new Map(wbRels.map((r) => [r.id, r]));
@@ -177,12 +183,12 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
   });
 
   // Pivot caches, keyed by their definition part path, to describe each pivot's source.
-  const pivotSources = new Map<string, string>();
+  const pivotSources = new Map<string, Text>();
   for (const r of relOfType('pivotCacheDefinition')) {
     const def = pkg.text(r.target);
     if (!def) continue;
     const ws = descendants(parseXml(def), 'worksheetSource')[0];
-    const src = ws ? [attr(ws, 'sheet'), attr(ws, 'ref') ?? attr(ws, 'name')].filter(Boolean).join('!') : 'an external source';
+    const src = ws ? [attr(ws, 'sheet'), attr(ws, 'ref') ?? attr(ws, 'name')].filter(Boolean).join('!') : msg('core.pivot.externalSource');
     pivotSources.set(r.target, src);
   }
 
@@ -223,8 +229,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'hiddenSheet',
         severity: 'info',
-        title: `Hidden sheet "${name}"`,
-        detail: 'Kept in the file but not shown, as in Excel.',
+        title: msg('core.finding.hiddenSheet.title', { sheet: name }),
+        detail: msg('core.finding.hiddenSheet.detail'),
         sheet: name,
       });
     }
@@ -238,8 +244,14 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'chartsheet',
         severity: 'warn',
-        title: `Chart sheet "${name}"`,
-        detail: `${chart?.chartType ? chart.chartType + ' chart' : 'A chart'}${chart?.title ? ` titled "${chart.title}"` : ''} that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.`,
+        title: msg('core.finding.chartsheet.title', { sheet: name }),
+        detail: chart?.chartType
+          ? chart.title
+            ? msg('core.finding.chartsheet.detailTypedTitled', { type: chart.chartType, title: chart.title })
+            : msg('core.finding.chartsheet.detailTyped', { type: chart.chartType })
+          : chart?.title
+            ? msg('core.finding.chartsheet.detailTitled', { title: chart.title })
+            : msg('core.finding.chartsheet.detail'),
         sheet: name,
       });
       return { info, path, colStyles: [] };
@@ -248,8 +260,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'macro',
         severity: 'warn',
-        title: `Unsupported sheet "${name}"`,
-        detail: 'A dialog or macro sheet from older versions of Excel. Kept in the file; not shown in this editor.',
+        title: msg('core.finding.unsupportedSheet.title', { sheet: name }),
+        detail: msg('core.finding.unsupportedSheet.detail'),
         sheet: name,
       });
       return { info, path, colStyles: [] };
@@ -307,8 +319,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'mergedCells',
         severity: 'info',
-        title: 'Merged cells spanning rows',
-        detail: `${plural(tallMerges, 'merged range')} span more than one row. Their value is shown in the top-left cell only; the merge is kept in the file.`,
+        title: msg('core.finding.mergedCells.title'),
+        detail: msg('core.finding.mergedCells.detail', { count: tallMerges }),
         sheet: name,
       });
     }
@@ -316,8 +328,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'frozenRows',
         severity: 'info',
-        title: 'Frozen rows',
-        detail: `Excel freezes the top ${plural(info.frozenRows, 'row')} on this sheet. This editor can only freeze columns; the setting is kept in the file.`,
+        title: msg('core.finding.frozenRows.title'),
+        detail: msg('core.finding.frozenRows.detail', { count: info.frozenRows }),
         sheet: name,
       });
     }
@@ -328,22 +340,22 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'protection',
         severity: 'info',
-        title: 'Protected sheet',
-        detail: 'This sheet is protected in Excel, so it is read-only here.',
+        title: msg('core.finding.protectedSheet.title'),
+        detail: msg('core.reason.protected'),
         sheet: name,
       });
     }
 
     const blocked: BlockedRegion[] = [];
     for (const a of scan.arrayRanges) {
-      blocked.push({ ...a, kind: 'array', reason: 'This cell is part of an array formula. Edit it in Excel.' });
+      blocked.push({ ...a, kind: 'array', reason: msg('core.reason.arrayFormula') });
     }
     if (scan.arrayRanges.length) {
       findings.push({
         kind: 'arrayFormula',
         severity: 'info',
-        title: 'Array formulas',
-        detail: `${plural(scan.arrayRanges.length, 'array or spill formula')} cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.`,
+        title: msg('core.finding.arrayFormulas.title'),
+        detail: msg('core.finding.arrayFormulas.detail', { count: scan.arrayRanges.length }),
         sheet: name,
         where: scan.arrayRanges.slice(0, 5).map(rangeToA1).join(', '),
       });
@@ -354,8 +366,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'conditionalFormat',
         severity: 'info',
-        title: 'Conditional formatting',
-        detail: `${plural(info.conditionalFormats.length, 'rule')}. Shown here and updated as you edit; kept in the file for Excel.`,
+        title: msg('core.finding.conditionalFormat.title'),
+        detail: msg('core.finding.conditionalFormat.detail', { count: info.conditionalFormats.length }),
         sheet: name,
       });
     }
@@ -364,15 +376,15 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     info.ruleValidations = validations.rules;
     const dvCount = validations.lists.length + validations.rules.length + validations.other;
     if (dvCount) {
-      const parts: string[] = [];
-      if (validations.lists.length) parts.push(`${plural(validations.lists.length, 'list rule')} show a dropdown and check typed values as Excel does`);
-      if (validations.rules.length) parts.push(`${plural(validations.rules.length, 'number, date, text-length or custom rule')} check typed values as Excel does`);
-      if (validations.other) parts.push(`${plural(validations.other, 'other rule')} are kept in the file but not enforced here`);
+      const parts: Message[] = [];
+      if (validations.lists.length) parts.push(msg('core.finding.dataValidation.lists', { count: validations.lists.length }));
+      if (validations.rules.length) parts.push(msg('core.finding.dataValidation.rules', { count: validations.rules.length }));
+      if (validations.other) parts.push(msg('core.finding.dataValidation.other', { count: validations.other }));
       findings.push({
         kind: 'dataValidation',
         severity: 'info',
-        title: 'Data validation',
-        detail: `${parts.join('; ')}. Pasted values aren't checked, as in Excel.`,
+        title: msg('core.finding.dataValidation.title'),
+        detail: msg('core.finding.dataValidation.detail', { rules: joinTexts(parts, 'core.list.clauses') }),
         sheet: name,
       });
     }
@@ -381,8 +393,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'hyperlink',
         severity: 'info',
-        title: 'Hyperlinks',
-        detail: `${plural(linkCount, 'link')}. Kept in the file; not clickable here.`,
+        title: msg('core.finding.hyperlinks.title'),
+        detail: msg('core.finding.hyperlinks.detail', { count: linkCount }),
         sheet: name,
       });
     }
@@ -391,8 +403,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'sparkline',
         severity: 'info',
-        title: 'Sparklines',
-        detail: `${plural(sparkCount, 'sparkline group')}. Kept in the file and redrawn by Excel; not shown here.`,
+        title: msg('core.finding.sparklines.title'),
+        detail: msg('core.finding.sparklines.detail', { count: sparkCount }),
         sheet: name,
       });
     }
@@ -401,8 +413,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'autoFilter',
         severity: 'info',
-        title: 'Filter',
-        detail: "Kept in the file. Rows it hides stay hidden here. Filtering in this editor only changes what you see; the file's filter is saved as it was.",
+        title: msg('core.finding.filter.title'),
+        detail: msg('core.finding.filter.detail'),
         sheet: name,
       });
     }
@@ -410,8 +422,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'richText',
         severity: 'info',
-        title: 'Mixed formatting inside cells',
-        detail: `${plural(scan.richTextCells, 'cell')} use more than one font style within their text. The text is shown plainly; editing one of those cells keeps its text but not the mixed formatting.`,
+        title: msg('core.finding.richText.title'),
+        detail: msg('core.finding.richText.detail', { count: scan.richTextCells }),
         sheet: name,
       });
     }
@@ -425,22 +437,23 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         const pxml = pkg.text(r.target);
         if (!pxml) continue;
         const pt = parseXml(pxml);
-        const pname = attr(pt, 'name') ?? 'Pivot table';
+        const pname = attr(pt, 'name');
+        const shownName: Text = pname ?? msg('core.pivot.defaultName');
         const ref = attr(child(pt, 'location'), 'ref') ?? '';
         const range = parseRange(ref);
         const cacheRel = pkg.rels(r.target).find((x) => x.type === 'pivotCacheDefinition');
         const source = cacheRel ? pivotSources.get(cacheRel.target) : undefined;
         if (range) {
-          blocked.push({ ...range, kind: 'pivot', reason: `This cell is part of pivot table "${pname}". Change the pivot table in Excel.` });
-          info.objects.push({ kind: 'pivot', name: pname, from: { row: range.r1, col: range.c1, rowOffPx: 0, colOffPx: 0 } });
+          blocked.push({ ...range, kind: 'pivot', reason: msg('core.reason.pivot', { name: shownName }) });
+          info.objects.push({ kind: 'pivot', name: pname ?? '', from: { row: range.r1, col: range.c1, rowOffPx: 0, colOffPx: 0 } });
           info.maxRow = Math.max(info.maxRow, range.r2);
           info.maxCol = Math.max(info.maxCol, range.c2);
         }
         findings.push({
           kind: 'pivot',
           severity: 'warn',
-          title: `Pivot table "${pname}"`,
-          detail: `Built from ${source ?? 'another range'}. Kept in the file and set to refresh when the file is opened in Excel, so it picks up your edits. Its cells can't be edited here.`,
+          title: msg('core.finding.pivot.title', { name: shownName }),
+          detail: msg('core.finding.pivot.detail', { source: source ?? msg('core.pivot.otherRange') }),
           sheet: name,
           where: ref,
         });
@@ -477,15 +490,14 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
             r2: range.r1,
             c2: range.c2,
             kind: 'tableHeader',
-            reason: `This is a column name in table "${tname}". Excel stores table column names separately, so rename the column in Excel.`,
+            reason: msg('core.reason.tableHeader', { name: tname }),
           });
         }
         findings.push({
           kind: 'table',
           severity: 'info',
-          title: `Table "${tname}"`,
-          detail:
-            'Kept in the file. Its column names (header row) can’t be edited here, and rows typed directly below it are not added to the table.',
+          title: msg('core.finding.table.title', { name: tname }),
+          detail: msg('core.finding.table.detail'),
           sheet: name,
           where: ref,
         });
@@ -501,8 +513,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         findings.push({
           kind: 'slicer',
           severity: 'info',
-          title: r.type === 'slicer' ? 'Slicers' : 'Timelines',
-          detail: 'Kept in the file; not shown in this editor.',
+          title: msg(r.type === 'slicer' ? 'core.finding.slicers.title' : 'core.finding.timelines.title'),
+          detail: msg('core.finding.slicers.detail'),
           sheet: name,
         });
       }
@@ -511,12 +523,14 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     if (info.notes.length) {
       const threadCount = threads.length;
       const noteCount = info.notes.length - threadCount;
-      const what = [noteCount ? plural(noteCount, 'note') : '', threadCount ? plural(threadCount, 'comment thread') : ''].filter(Boolean).join(' and ');
+      const notesText = msg('core.finding.comments.notes', { count: noteCount });
+      const threadsText = msg('core.finding.comments.threads', { count: threadCount });
+      const what = noteCount && threadCount ? msg('core.finding.comments.notesAndThreads', { notes: notesText, threads: threadsText }) : noteCount ? notesText : threadsText;
       findings.push({
         kind: 'comment',
         severity: 'info',
-        title: 'Notes and comments',
-        detail: `${what}. Marked in the corner of their cells and shown when you point at the cell or select it. Kept in the file; they can't be added or changed here.`,
+        title: msg('core.finding.comments.title'),
+        detail: msg('core.finding.comments.detail', { what }),
         sheet: name,
       });
     }
@@ -527,8 +541,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'chart',
         severity: 'warn',
-        title: c.title ? `Chart "${c.title}"` : 'Chart',
-        detail: `${c.chartType ? c.chartType + ' chart' : 'Chart'}. Kept in the file and redrawn by Excel from the edited data when the file is opened. Shown here as a placeholder only.`,
+        title: c.title ? msg('core.finding.chart.titleNamed', { title: c.title }) : msg('core.finding.chart.title'),
+        detail: c.chartType ? msg('core.finding.chart.detailTyped', { type: c.chartType }) : msg('core.finding.chart.detail'),
         sheet: name,
         where: at,
       });
@@ -538,8 +552,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'image',
         severity: 'info',
-        title: 'Pictures',
-        detail: `${plural(images, 'picture')}. Kept in the file; shown here as placeholders.`,
+        title: msg('core.finding.pictures.title'),
+        detail: msg('core.finding.pictures.detail', { count: images }),
         sheet: name,
       });
     }
@@ -548,8 +562,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'shape',
         severity: 'info',
-        title: 'Shapes and text boxes',
-        detail: `${plural(shapes, 'shape')}. Kept in the file; shown here as placeholders.`,
+        title: msg('core.finding.shapes.title'),
+        detail: msg('core.finding.shapes.detail', { count: shapes }),
         sheet: name,
       });
     }
@@ -558,8 +572,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       findings.push({
         kind: 'control',
         severity: 'info',
-        title: 'Form controls',
-        detail: `${plural(controls, 'button or form control')}. Kept in the file; not shown or usable here.`,
+        title: msg('core.finding.controls.title'),
+        detail: msg('core.finding.controls.detail', { count: controls }),
         sheet: name,
       });
     }
@@ -579,8 +593,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     findings.push({
       kind: 'macro',
       severity: 'warn',
-      title: 'Macros (VBA)',
-      detail: 'This workbook contains macros. They are kept in the file but cannot run here.',
+      title: msg('core.finding.macros.title'),
+      detail: msg('core.finding.macros.detail'),
     });
   }
   const ext: Relationship[] = relOfType('externalLink');
@@ -588,37 +602,37 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     findings.push({
       kind: 'externalLink',
       severity: 'warn',
-      title: 'Links to other workbooks',
-      detail: `${plural(ext.length, 'linked workbook')}. Kept in the file. Formulas that use them show Excel's last value and are not recalculated here.`,
+      title: msg('core.finding.externalLinks.title'),
+      detail: msg('core.finding.externalLinks.detail', { count: ext.length }),
     });
   }
   if (relOfType('connections').length || pkg.list().some((p) => p.startsWith('xl/queryTables/'))) {
     findings.push({
       kind: 'connection',
       severity: 'info',
-      title: 'Data connections',
-      detail: 'External data connections or Power Query. Kept in the file; not refreshed here.',
+      title: msg('core.finding.connections.title'),
+      detail: msg('core.finding.connections.detail'),
     });
   }
   if (relOfType('slicerCache').length || relOfType('timelineCache').length) {
     if (!findings.some((f) => f.kind === 'slicer')) {
-      findings.push({ kind: 'slicer', severity: 'info', title: 'Slicers', detail: 'Kept in the file; not shown in this editor.' });
+      findings.push({ kind: 'slicer', severity: 'info', title: msg('core.finding.slicers.title'), detail: msg('core.finding.slicers.detail') });
     }
   }
   if (pkg.list().some((p) => p.startsWith('xl/richData/'))) {
     findings.push({
       kind: 'cellImage',
       severity: 'info',
-      title: 'Pictures or data types in cells',
-      detail: 'Some cells hold pictures or linked data types. Kept in the file; shown as their fallback value here.',
+      title: msg('core.finding.cellImages.title'),
+      detail: msg('core.finding.cellImages.detail'),
     });
   }
   if (child(wb, 'workbookProtection')) {
     findings.push({
       kind: 'protection',
       severity: 'info',
-      title: 'Workbook structure is protected',
-      detail: 'Kept in the file. This editor does not add, remove or rename sheets anyway.',
+      title: msg('core.finding.workbookProtection.title'),
+      detail: msg('core.finding.workbookProtection.detail'),
     });
   }
 

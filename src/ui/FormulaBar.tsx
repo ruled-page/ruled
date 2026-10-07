@@ -6,65 +6,75 @@ import { editText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import type { Translator } from '../i18n';
+import { msg } from '../i18n/message';
+import { useT } from '../i18n/react';
 
 type Tone = 'info' | 'warn' | 'lock' | 'edit' | 'error' | 'field' | 'note';
 
 /** One line for a cell's note or comment thread. */
-export function noteSummary(note: CellNote): string {
+export function noteSummary(t: Translator, note: CellNote): string {
   const [first, ...replies] = note.entries;
-  const who = first?.author ? `${first.author}: ` : '';
-  const more = replies.length ? ` (${replies.length} ${replies.length === 1 ? 'reply' : 'replies'})` : '';
-  return `${note.kind === 'thread' ? 'Comment' : 'Note'} — ${who}${(first?.text ?? '').replace(/\s+/g, ' ').trim()}${more}`;
+  const text = (first?.text ?? '').replace(/\s+/g, ' ').trim();
+  const author = first?.author;
+  const thread = note.kind === 'thread';
+  const summary = author
+    ? t(thread ? 'formulaBar.commentBy' : 'formulaBar.noteBy', { author, text })
+    : t(thread ? 'formulaBar.comment' : 'formulaBar.note', { text });
+  return replies.length ? t('formulaBar.withReplies', { summary, count: replies.length }) : summary;
 }
 
-function cellNote(store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
+/** Excel's input message for a cell: its title, if it has one, and its text. */
+function prompt(t: Translator, title: string | undefined, text: string): string {
+  return title ? t('formulaBar.titledPrompt', { title, prompt: text }) : text;
+}
+
+function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
   const readOnly = view.readOnlyReason(sel.row, sel.col);
-  if (readOnly) return { tone: 'lock', text: readOnly };
+  if (readOnly) return { tone: 'lock', text: t.text(readOnly) };
   const ctl = store.schema;
   const issues = ctl?.cellIssues(store.active, sel.row, sel.col) ?? [];
   if (issues.length) {
-    return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text: issues.map((i) => i.message).join(' ') };
+    return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text: issues.map((i) => t.text(i.message)).join(' ') };
   }
-  if (ctl?.isPending(store.active, sel.row, sel.col)) return { tone: 'info', text: 'Checking…' };
-  let describe = ctl?.describe(store.active, sel.row, sel.col);
+  if (ctl?.isPending(store.active, sel.row, sel.col)) return { tone: 'info', text: t('formulaBar.checking') };
+  const described = ctl?.describe(store.active, sel.row, sel.col);
+  let describe = described ? t.text(described) : undefined;
   const dv = describe ? undefined : store.listAt(store.active, sel.row, sel.col);
   if (dv) {
     const options = store.listOptions(dv, sel.row, sel.col);
     describe = dv.prompt
-      ? `${dv.promptTitle ? dv.promptTitle + ': ' : ''}${dv.prompt}`
+      ? prompt(t, dv.promptTitle, dv.prompt)
       : options
-        ? `Choose from the list: ${options.slice(0, 8).join(', ')}${options.length > 8 ? '…' : ''}`
-        : 'Excel restricts this cell to a list.';
+        ? t('formulaBar.chooseFromList', { options: `${options.slice(0, 8).join(', ')}${options.length > 8 ? '…' : ''}` })
+        : t('formulaBar.restrictedList');
   } else if (!describe) {
     const rule = store.ruleAt(store.active, sel.row, sel.col)?.rule;
-    if (rule) describe = rule.prompt ? `${rule.promptTitle ? rule.promptTitle + ': ' : ''}${rule.prompt}` : describeRule(rule);
+    if (rule) describe = rule.prompt ? prompt(t, rule.promptTitle, rule.prompt) : t.text(describeRule(rule));
   }
   const rec = view.get(sel.row, sel.col);
   const comment = view.noteAt(sel.row, sel.col);
-  if (!rec) return describe ? { tone: 'field', text: describe } : comment ? { tone: 'note', text: noteSummary(comment) } : null;
-  const why = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
+  if (!rec) return describe ? { tone: 'field', text: describe } : comment ? { tone: 'note', text: noteSummary(t, comment) } : null;
+  const reason = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
+  const why = reason ? t.text(reason) : undefined;
   if (rec.flags & CellFlag.Stale) {
-    return {
-      tone: 'warn',
-      text: `${why ? why + ' ' : ''}Its inputs have changed, so the value shown is out of date. Excel recalculates it when the file is opened.`,
-    };
+    return { tone: 'warn', text: why ? t('formulaBar.staleBecause', { reason: why }) : t('formulaBar.stale') };
   }
   if (rec.flags & CellFlag.Edited && rec.flags & CellFlag.Unsupported) {
-    return store.calc?.off
-      ? { tone: 'info', text: 'Live recalculation is off, so this formula isn\'t calculated here. It is saved as typed and Excel calculates it when the file is opened.' }
-      : { tone: 'info', text: "This editor can't calculate this formula. It is saved as typed and Excel calculates it when the file is opened." };
+    return { tone: 'info', text: t(store.calc?.off ? 'formulaBar.recalcOff' : 'formulaBar.cantCalculateEdited') };
   }
   if (rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) {
-    return { tone: 'info', text: `${why ?? "This editor can't calculate this formula."} Showing Excel's saved value.` };
+    return { tone: 'info', text: t('formulaBar.savedValue', { reason: why ?? t('formulaBar.cantCalculate') }) };
   }
   if (describe) return { tone: 'field', text: describe };
-  if (comment) return { tone: 'note', text: noteSummary(comment) };
-  if (rec.flags & CellFlag.Edited) return { tone: 'edit', text: 'Changed in this session.' };
+  if (comment) return { tone: 'note', text: noteSummary(t, comment) };
+  if (rec.flags & CellFlag.Edited) return { tone: 'edit', text: t('formulaBar.edited') };
   return null;
 }
 
 /** Shows the selection; type a cell, range or Sheet!ref and press Enter to go there. */
 function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
+  const t = useT();
   const [draft, setDraft] = useState<string | null>(null);
   // Set while a click is focusing it, so the click's mouseup doesn't undo the select-all.
   const clicked = useRef(false);
@@ -73,8 +83,8 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
       className="name-box"
       value={draft ?? name}
       spellCheck={false}
-      aria-label="Go to cell"
-      title="Selected cell. Type a reference and press Enter to go there."
+      aria-label={t('formulaBar.goTo')}
+      title={t('formulaBar.goToTitle')}
       onMouseDown={(e) => {
         clicked.current = document.activeElement !== e.currentTarget;
       }}
@@ -91,7 +101,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           if (store.goTo(draft ?? name)) setDraft(null);
-          else store.toast('warn', `"${draft}" isn't a cell or range on a sheet in this workbook.`);
+          else store.toast('warn', msg('formulaBar.notARef', { ref: draft }));
         }
         if (e.key === 'Escape') {
           setDraft(null);
@@ -103,6 +113,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
 }
 
 export function FormulaBar({ store, view, selection }: { store: WorkbookStore; view: SheetView; selection: Selection }) {
+  const t = useT();
   const rec = view.get(selection.row, selection.col);
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
   const value = editText(rec, style, store.date1904);
@@ -117,7 +128,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
 
   const rect = selection.rects[0];
   const name = rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col);
-  const note = cellNote(store, view, selection);
+  const note = cellNote(t, store, view, selection);
 
   const commit = () => {
     if (draft !== value) void store.input(selection.row, selection.col, draft);
@@ -136,7 +147,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
         value={draft}
         readOnly={readOnly}
         spellCheck={false}
-        aria-label="Cell contents"
+        aria-label={t('formulaBar.contents')}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChange={(e) => setDraft(e.target.value)}

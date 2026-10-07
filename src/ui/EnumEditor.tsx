@@ -1,6 +1,7 @@
 import type { GridCell, ProvideEditorComponent, TextCell } from '@glideapps/glide-data-grid';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons';
+import { useT } from '../i18n/react';
 
 /** A text cell whose field only allows a fixed list of values. */
 export type EnumCell = TextCell & { enumOptions?: readonly string[] };
@@ -23,6 +24,7 @@ function filterOptions(options: readonly string[], filter: string): string[] {
  * Enter or Tab picks, Escape or clicking elsewhere leaves the cell unchanged.
  */
 export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinishedEditing, initialValue, target }) => {
+  const t = useT();
   const cell = value as EnumCell;
   const options = useMemo(() => cell.enumOptions ?? [], [cell.enumOptions]);
   const current = cell.data.replace(/^'/, '');
@@ -51,9 +53,9 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
         className="enum-filter"
         autoFocus
         value={filter}
-        placeholder={current || 'Choose a value'}
+        placeholder={current || t('dropdown.placeholder')}
         role="combobox"
-        aria-label="Filter values"
+        aria-label={t('dropdown.filter')}
         aria-expanded="true"
         aria-autocomplete="list"
         aria-controls={`${id}-list`}
@@ -77,7 +79,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
           }
         }}
       />
-      <ul className="enum-options" id={`${id}-list`} role="listbox" aria-label="Values" ref={list}>
+      <ul className="enum-options" id={`${id}-list`} role="listbox" aria-label={t('dropdown.values')} ref={list}>
         {filtered.map((o, i) => (
           <li
             key={o}
@@ -95,7 +97,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
             {o === current && <Icon name="check" size={14} />}
           </li>
         ))}
-        {filtered.length === 0 && <li className="empty">No value matches “{filter}”</li>}
+        {filtered.length === 0 && <li className="empty">{t('dropdown.noMatch', { filter })}</li>}
       </ul>
       {current && (
         <button
@@ -104,7 +106,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => choose('', [0, 0])}
         >
-          Clear
+          {t('dropdown.clear')}
         </button>
       )}
     </div>

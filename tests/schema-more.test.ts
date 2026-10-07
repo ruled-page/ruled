@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { parseA1 } from '../src/core/refs';
 import { WorkbookSession } from '../src/core/session';
+import { english } from '../src/i18n';
 import { bindSchema } from '../src/schema/binding';
 import { SchemaController } from '../src/schema/controller';
 import { generateSchema } from '../src/schema/generate';
@@ -76,7 +77,7 @@ function control(s: WorkbookSchema, file = bytes) {
   ctl.validate();
   const at = (ref: string) => {
     const { row, col } = parseA1(ref)!;
-    return ctl.cellIssues(0, row, col).map((i) => i.message);
+    return ctl.cellIssues(0, row, col).map((i) => english.text(i.message));
   };
   return { session, ctl, at };
 }
@@ -118,7 +119,7 @@ describe('hook time limits', () => {
     t.fields[0] = { key: 'task', label: 'Task', type: 'text' };
     const { ctl } = control(s);
     const r = await ctl.checkBeforeSave();
-    expect(r).toMatchObject({ ok: false, message: "The checks before saving didn't finish within 20 ms. Try saving again." });
+    expect(r.ok || english.text(r.message)).toBe("The checks before saving didn't finish within 20 ms. Try saving again.");
   });
 });
 

@@ -1,4 +1,5 @@
 import { isTextFormat, parseValue } from 'numfmt';
+import { msg, type Text } from '../i18n/message';
 import { toFileFormula, validateFormula } from './formula';
 import { localeInfo, normalizeForLocale } from './locale';
 import { EMPTY, type CellContent } from './types';
@@ -13,7 +14,7 @@ export interface ParsedInput {
   /** Number format implied by the input (e.g. "12%" → "0%"), for General cells. */
   numFmt?: string;
   /** Why the input was rejected, e.g. a malformed formula. */
-  error?: string;
+  error?: Text;
 }
 
 /**
@@ -35,7 +36,7 @@ export function parseInput(text: string, cellNumFmt: string, locale = 'en-US'): 
   if (text[0] === '=' && text.length > 1) {
     const body = text.slice(1);
     const problem = validateFormula(body);
-    if (problem) return { content: EMPTY, error: `There's a problem with this formula: ${problem}` };
+    if (problem) return { content: EMPTY, error: msg('core.edit.badFormula', { problem }) };
     return { content: { kind: 'formula', formula: toFileFormula(body) } };
   }
 

@@ -2,7 +2,18 @@ import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import type { StructuralOp } from '../src/core/refTransform';
+import { english, errorText } from '../src/i18n';
 import { loadedFormula, loadedValue, parts, sample, sheetIndex } from './helpers';
+
+/** What a call throws, in English. */
+function thrown(fn: () => unknown): string | undefined {
+  try {
+    fn();
+  } catch (e) {
+    return english.text(errorText(e));
+  }
+  return undefined;
+}
 
 /**
  * A workbook with something of every kind that refers to cells:
@@ -91,7 +102,7 @@ describe('inserting rows', () => {
 
   it('refuses to push data off the sheet', () => {
     const s = WorkbookSession.open(bytes, 'refs.xlsx');
-    expect(() => s.restructure({ type: 'insertRows', sheet: DATA, at: 0, count: 1_048_575 })).toThrow(/off the bottom/);
+    expect(thrown(() => s.restructure({ type: 'insertRows', sheet: DATA, at: 0, count: 1_048_575 }))).toMatch(/off the bottom/);
   });
 });
 
@@ -150,14 +161,14 @@ describe('moving cells', () => {
 
   it('refuses to split merged cells', () => {
     const s = WorkbookSession.open(bytes, 'refs.xlsx');
-    expect(() => s.restructure({ type: 'move', sheet: DATA, src: { r1: 0, c1: 3, r2: 0, c2: 3 }, toSheet: DATA, row: 8, col: 8 })).toThrow(/part of the merged cell/);
+    expect(thrown(() => s.restructure({ type: 'move', sheet: DATA, src: { r1: 0, c1: 3, r2: 0, c2: 3 }, toSheet: DATA, row: 8, col: 8 }))).toMatch(/part of the merged cell/);
   });
 });
 
 describe('change tracking across structural changes', () => {
   it('carries earlier edits to where their cells went, and lists the change', () => {
     const { next } = after({ type: 'insertRows', sheet: DATA, at: 0, count: 1 }, (s) => s.apply({ type: 'input', sheet: DATA, row: 1, col: 0, text: '20' }));
-    expect(next.changes()).toEqual([
+    expect(next.changes().map((c) => (c.note ? { ...c, note: english.text(c.note) } : c))).toEqual([
       { sheet: 'Data', ref: '1:1', before: '', after: '', note: 'Inserted 1 row' },
       { sheet: 'Data', ref: 'A3', before: '2', after: '20' },
     ]);

@@ -1,10 +1,15 @@
 import type { EditorTheme } from '../editor';
+import type { DemoKey } from './locales/en';
 
-/** Example themes, to show that a host can restyle everything through the theme tokens. */
-export const DEMO_THEMES: { name: string; theme?: EditorTheme }[] = [
-  { name: 'Default' },
+/**
+ * Example themes, to show that a host can restyle everything through the
+ * theme tokens. The id is what the demo remembers; the label is translated.
+ */
+export const DEMO_THEMES: { id: string; label: DemoKey; theme?: EditorTheme }[] = [
+  { id: 'default', label: 'theme.default' },
   {
-    name: 'Ocean',
+    id: 'ocean',
+    label: 'theme.ocean',
     theme: {
       accent: '#0b5cad',
       accentStrong: '#084a8c',
@@ -30,7 +35,8 @@ export const DEMO_THEMES: { name: string; theme?: EditorTheme }[] = [
     },
   },
   {
-    name: 'Dark',
+    id: 'dark',
+    label: 'theme.dark',
     theme: {
       colorScheme: 'dark',
       accent: '#3fb27f',

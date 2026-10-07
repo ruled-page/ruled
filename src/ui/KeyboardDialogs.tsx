@@ -2,45 +2,52 @@ import { useId, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { MOD } from './keys';
+import { mod } from './keys';
 import { useDialog } from './useDialog';
+import type { Translator } from '../i18n';
+import { useT } from '../i18n/react';
 
-const SHORTCUTS: { group: string; keys: [string, string][] }[] = [
-  {
-    group: 'Moving around',
-    keys: [
-      ['Arrow keys', 'Move between cells'],
-      ['Tab, Shift+Tab', 'Move right, left'],
-      ['Shift+Arrow keys', 'Select more cells'],
-      [`${MOD}G`, 'Go to a cell: type a reference such as B4 or Prices!B4'],
-      ['F6, Shift+F6', 'Move to the next or previous part of the editor: toolbar, formula bar, sheet, side panel, sheet tabs'],
-    ],
-  },
-  {
-    group: 'Editing',
-    keys: [
-      ['Typing', "Replaces the cell's contents"],
-      ['Enter', 'Edit the cell, or finish editing and move down'],
-      ['Escape', 'Cancel editing'],
-      ['Delete, Backspace', 'Clear the selected cells'],
-      [`${MOD}Z, ${MOD}Y`, 'Undo, redo'],
-      [`${MOD}X, ${MOD}C, ${MOD}V`, 'Cut, copy, paste'],
-      [`${MOD}D, ${MOD}R`, 'Fill down, fill right'],
-    ],
-  },
-  {
-    group: 'Commands',
-    keys: [
-      ['Shift+F10, Menu key', 'Cell menu: insert and delete rows and columns, column width, sort, filter'],
-      [`${MOD}F`, 'Find and replace'],
-      [`${MOD}S`, 'Save'],
-      [`${MOD}/`, 'This list'],
-    ],
-  },
-];
+/** The shortcuts by group, with keys and what they do as the language writes them. */
+function shortcuts(t: Translator): { group: string; keys: [string, string][] }[] {
+  const m = (...keys: string[]) => keys.map((k) => mod(t, k)).join(', ');
+  return [
+    {
+      group: t('shortcuts.moving'),
+      keys: [
+        [t('keys.arrows'), t('shortcuts.moveCells')],
+        [t('keys.tab'), t('shortcuts.moveRightLeft')],
+        [t('keys.shiftArrows'), t('shortcuts.extend')],
+        [m('G'), t('shortcuts.goTo')],
+        [t('keys.f6'), t('shortcuts.regions')],
+      ],
+    },
+    {
+      group: t('shortcuts.editing'),
+      keys: [
+        [t('keys.typing'), t('shortcuts.typing')],
+        [t('keys.enter'), t('shortcuts.enter')],
+        [t('keys.escape'), t('shortcuts.escape')],
+        [t('keys.delete'), t('shortcuts.clear')],
+        [m('Z', 'Y'), t('shortcuts.undoRedo')],
+        [m('X', 'C', 'V'), t('shortcuts.clipboard')],
+        [m('D', 'R'), t('shortcuts.fill')],
+      ],
+    },
+    {
+      group: t('shortcuts.commands'),
+      keys: [
+        [t('keys.menu'), t('shortcuts.menu')],
+        [m('F'), t('shortcuts.find')],
+        [m('S'), t('shortcuts.save')],
+        [m('/'), t('shortcuts.list')],
+      ],
+    },
+  ];
+}
 
 /** Every keyboard shortcut, since the grid's keys differ from a web page's. */
 export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const dialog = useRef<HTMLDivElement>(null);
   const id = useId();
   const close = () => store.set('shortcutsOpen', false);
@@ -51,12 +58,12 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
       <div ref={dialog} className="modal modal-wide shortcuts" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-content">
           <div className="shortcuts-head">
-            <h2 id={`${id}-title`}>Keyboard shortcuts</h2>
-            <button className="btn icon ghost" onClick={close} aria-label="Close">
+            <h2 id={`${id}-title`}>{t('shortcuts.title')}</h2>
+            <button className="btn icon ghost" onClick={close} aria-label={t('shortcuts.close')}>
               <Icon name="close" />
             </button>
           </div>
-          {SHORTCUTS.map((g) => (
+          {shortcuts(t).map((g) => (
             <table key={g.group}>
               <caption>{g.group}</caption>
               <tbody>
@@ -79,6 +86,7 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
 
 /** Sets a column's width from the keyboard, as dragging its edge does. */
 export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const col = store.columnWidthFor;
   const dialog = useRef<HTMLFormElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -88,7 +96,7 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
   const opened = useRef<number | undefined>(undefined);
   if (opened.current !== col) {
     opened.current = col;
-    if (open) setText(String(store.columnWidth(col)));
+    if (open) setText(t.number(store.columnWidth(col), { useGrouping: false, maximumFractionDigits: 2 }));
   }
   const close = () => store.set('columnWidthFor', undefined);
   useDialog(dialog, open, close, { modal: true, initial: input });
@@ -116,9 +124,9 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
         }}
       >
         <div className="modal-content">
-          <h2 id={`${id}-title`}>Width of column {colToLetters(col)}</h2>
+          <h2 id={`${id}-title`}>{t('columnWidth.title', { column: colToLetters(col) })}</h2>
           <label className="field">
-            <span>Width in characters, as Excel measures it (0 to 255)</span>
+            <span>{t('columnWidth.label')}</span>
             <input
               ref={input}
               inputMode="decimal"
@@ -130,14 +138,14 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
             />
           </label>
           <p id={`${id}-note`} className="muted small">
-            Changes how wide it is shown here. The saved file keeps the widths it had.
+            {t('columnWidth.note')}
           </p>
           <div className="modal-actions">
             <button type="button" className="btn" onClick={close}>
-              Cancel
+              {t('dialog.cancel')}
             </button>
             <button type="submit" className="btn primary" disabled={!valid}>
-              Set width
+              {t('columnWidth.set')}
             </button>
           </div>
         </div>

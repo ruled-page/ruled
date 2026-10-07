@@ -218,8 +218,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 280px;
-  padding-left: 10px;
-  border-left: 1px solid var(--wbe-border);
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--wbe-border);
 }
 
 .wbe .badge {
@@ -252,7 +252,7 @@
   position: sticky;
   top: 0;
   background: var(--wbe-surface-alt);
-  text-align: left;
+  text-align: start;
   padding: 5px 8px;
   border-bottom: 1px solid var(--wbe-border);
 }
@@ -278,7 +278,7 @@
   font: inherit;
   color: var(--wbe-accent);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .wbe .changes-table .cell-link:focus-visible {
@@ -396,7 +396,7 @@
 
 .wbe .btn-group .btn:last-child {
   border-radius: 0 var(--wbe-radius) var(--wbe-radius) 0;
-  margin-left: -1px;
+  margin-inline-start: -1px;
 }
 
 .wbe .toggle {
@@ -458,7 +458,7 @@
   height: 100%;
   padding: 0 10px;
   border: 0;
-  border-right: 1px solid var(--wbe-border);
+  border-inline-end: 1px solid var(--wbe-border);
   background: transparent;
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -478,7 +478,7 @@
   width: 34px;
   height: 100%;
   color: var(--wbe-text-subtle);
-  border-right: 1px solid var(--wbe-border);
+  border-inline-end: 1px solid var(--wbe-border);
 }
 
 .wbe .fx.is-formula {
@@ -560,6 +560,11 @@
   min-width: 0;
   position: relative;
   background: var(--wbe-surface);
+}
+
+/* The grid stays left to right in right-to-left languages, as Excel's sheets do unless set otherwise. */
+.wbe .grid-host {
+  direction: ltr;
 }
 
 .wbe .grid-host {
@@ -718,7 +723,7 @@
 
 .wbe .tabs-note {
   align-self: center;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   color: var(--wbe-text-subtle);
   font-size: var(--wbe-font-size-sm);
   white-space: nowrap;
@@ -790,7 +795,7 @@
 .wbe .report {
   width: 400px;
   max-width: 100%;
-  border-left: 1px solid var(--wbe-border);
+  border-inline-start: 1px solid var(--wbe-border);
   background: var(--wbe-surface);
   display: flex;
   flex-direction: column;
@@ -842,14 +847,14 @@
 }
 
 .wbe .shortcuts caption {
-  text-align: left;
+  text-align: start;
   font-weight: 600;
   padding-bottom: 4px;
 }
 
 .wbe .shortcuts th,
 .wbe .shortcuts td {
-  text-align: left;
+  text-align: start;
   vertical-align: top;
   padding: 5px 8px 5px 0;
   border-top: 1px solid var(--wbe-border);
@@ -929,15 +934,15 @@
   border: 1px solid var(--wbe-border);
   border-radius: var(--wbe-radius);
   padding: 8px 10px;
-  border-left-width: 3px;
+  border-inline-start-width: 3px;
 }
 
 .wbe .finding.sev-warn {
-  border-left-color: var(--wbe-warning-accent);
+  border-inline-start-color: var(--wbe-warning-accent);
 }
 
 .wbe .finding.sev-info {
-  border-left-color: var(--wbe-info-accent);
+  border-inline-start-color: var(--wbe-info-accent);
 }
 
 .wbe .finding-main {
@@ -948,7 +953,7 @@
   border: 0;
   background: none;
   padding: 0;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1067,7 +1072,7 @@
 .wbe .swatch.tri::before {
   content: '';
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   border-style: solid;
   border-width: 7px 7px 0 0;
@@ -1192,7 +1197,7 @@
   position: sticky;
   top: 0;
   background: var(--wbe-surface-alt);
-  text-align: left;
+  text-align: start;
   padding: 6px 8px;
   font-weight: 600;
   border-bottom: 1px solid var(--wbe-border);
@@ -1218,7 +1223,7 @@
 
 .wbe .toasts {
   position: absolute;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: 40px;
   display: flex;
   flex-direction: column;
@@ -1235,7 +1240,7 @@
   border-radius: var(--wbe-radius-lg);
   background: var(--wbe-surface);
   box-shadow: var(--wbe-shadow);
-  border-left: 3px solid var(--wbe-accent);
+  border-inline-start: 3px solid var(--wbe-accent);
   line-height: 1.45;
 }
 
@@ -1249,11 +1254,11 @@
 }
 
 .wbe .toast-warn {
-  border-left-color: var(--wbe-warning-accent);
+  border-inline-start-color: var(--wbe-warning-accent);
 }
 
 .wbe .toast-error {
-  border-left-color: var(--wbe-danger);
+  border-inline-start-color: var(--wbe-danger);
 }
 
 .wbe .toast-info svg:first-child {
@@ -1355,7 +1360,7 @@
 
 .wbe .banner-text ul {
   margin: 4px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: var(--wbe-font-size-sm);
 }
 
@@ -1404,7 +1409,7 @@
 }
 
 .wbe .finding.sev-error {
-  border-left-color: var(--wbe-danger);
+  border-inline-start-color: var(--wbe-danger);
 }
 
 .wbe .tone-error-text {
@@ -1457,7 +1462,7 @@
 .wbe .note-tip .when {
   font-weight: 400;
   color: var(--wbe-text-subtle);
-  margin-left: 6px;
+  margin-inline-start: 6px;
 }
 
 .wbe .note-tip .entry + .entry {
@@ -1474,7 +1479,7 @@
 .wbe .swatch.tri-right::before {
   content: '';
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 0;
   border-style: solid;
   border-width: 0 8px 8px 0;
@@ -1491,7 +1496,7 @@
 .wbe .swatch.dot-blue::before {
   content: '';
   position: absolute;
-  right: 2px;
+  inset-inline-end: 2px;
   top: 2px;
   width: 5px;
   height: 5px;
@@ -1559,7 +1564,7 @@
 .wbe .designer-list {
   width: 270px;
   flex: none;
-  border-right: 1px solid var(--wbe-border);
+  border-inline-end: 1px solid var(--wbe-border);
   padding: 12px;
   overflow-y: auto;
   display: flex;
@@ -1612,7 +1617,7 @@
   border: 0;
   background: none;
   padding: 8px 10px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1812,7 +1817,7 @@
 }
 
 .wbe table.fields th {
-  text-align: left;
+  text-align: start;
   font-weight: 600;
   color: var(--wbe-text-muted);
   padding: 4px;
@@ -1888,7 +1893,7 @@
 
 .wbe .test-result ul {
   margin: 4px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: var(--wbe-font-size-sm);
 }
 
@@ -1898,8 +1903,8 @@
   }
 
 .wbe .file-name {
-    border-left: 0;
-    padding-left: 0;
+    border-inline-start: 0;
+    padding-inline-start: 0;
   }
 
 /* Icon-only buttons; each has a title. */
@@ -1928,7 +1933,7 @@
 .wbe .designer-list {
     width: auto;
     max-height: 220px;
-    border-right: 0;
+    border-inline-end: 0;
     border-bottom: 1px solid var(--wbe-border);
   }
 
@@ -1940,7 +1945,7 @@
 @media (max-width: 720px) {
 .wbe .report {
     position: absolute;
-    right: 0;
+    inset-inline-end: 0;
     top: 0;
     bottom: 0;
     z-index: 20;
@@ -2012,7 +2017,7 @@
   border-top: 1px solid var(--wbe-border);
   background: var(--wbe-surface-alt);
   padding: 6px 10px;
-  text-align: left;
+  text-align: start;
   font: inherit;
   color: var(--wbe-text-muted);
   cursor: pointer;
@@ -2045,7 +2050,7 @@
   border: 0;
   border-radius: var(--wbe-radius-sm);
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -2173,7 +2178,7 @@
 .wbe .find-panel {
   position: absolute;
   top: 8px;
-  right: 18px;
+  inset-inline-end: 18px;
   z-index: 30;
   width: min(420px, calc(100% - 36px));
   padding: 8px;
@@ -2215,7 +2220,7 @@
   min-width: 64px;
   font-size: var(--wbe-font-size-sm);
   color: var(--wbe-text-subtle);
-  text-align: right;
+  text-align: end;
 }
 
 .wbe .find-options {
@@ -2223,7 +2228,7 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding-left: 32px;
+  padding-inline-start: 32px;
   font-size: var(--wbe-font-size-sm);
   color: var(--wbe-text-muted);
 }
@@ -2235,7 +2240,7 @@
 }
 
 .wbe .find-where {
-  padding-left: 32px;
+  padding-inline-start: 32px;
   font-size: var(--wbe-font-size-sm);
   color: var(--wbe-text-subtle);
 }

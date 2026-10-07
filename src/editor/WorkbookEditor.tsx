@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
+import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { FilterPicker } from '../ui/FilterPicker';
@@ -7,9 +8,12 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
-import { MOD } from '../ui/keys';
+import { mod } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { copyTheme, themeStyle } from './theme';
+import { I18nextProvider, Trans } from 'react-i18next';
+import { NAMESPACE } from '../i18n';
+import { useT } from '../i18n/react';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
 import { SchemaDesigner } from '../ui/SchemaDesigner';
 import { SheetPanes } from '../ui/SheetPanes';
@@ -64,19 +68,42 @@ export interface WorkbookEditorProps {
 }
 
 function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; canOpen: boolean }) {
+  const t = useT();
   return (
     <div className="center-state">
       {canOpen ? (
         <button className="dropzone" onClick={openPicker}>
           <Icon name="open" size={22} />
           <span>
-            <strong>Choose a workbook</strong> or drop it here
+            <Trans i18nKey="editor.chooseWorkbook" components={{ b: <strong /> }} />
           </span>
-          <span className="muted">.xlsx or .xlsm, processed entirely in your browser</span>
+          <span className="muted">{t('editor.chooseWorkbookNote')}</span>
         </button>
       ) : (
-        <p className="muted">No workbook is open.</p>
+        <p className="muted">{t('editor.noWorkbook')}</p>
       )}
+    </div>
+  );
+}
+
+/** What a chart sheet shows instead of its chart, which the editor doesn't draw. */
+function ChartSheet({ view }: { view: SheetView }) {
+  const t = useT();
+  const chart = view.info.objects.find((o) => o.kind === 'chart');
+  const type = chart?.chartType ? t.text(chart.chartType) : undefined;
+  const title = chart?.title;
+  const what = type
+    ? title
+      ? t('editor.typedChartTitled', { type, title })
+      : t('editor.typedChart', { type })
+    : title
+      ? t('editor.thisChartTitled', { title })
+      : t('editor.thisChart');
+  return (
+    <div className="center-state">
+      <Icon name="chart" size={32} />
+      <h2>{view.info.name}</h2>
+      <p>{t('editor.chartSheet', { chart: what })}</p>
     </div>
   );
 }
@@ -85,24 +112,22 @@ function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; ca
 export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: WorkbookEditorProps) {
   useSyncExternalStore(store.subscribe, store.getVersion);
   const root = useRef<HTMLDivElement>(null);
-  const hintId = useId();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const canOpen = store.features.open;
-  const openPicker = () => {
-    if (canOpen) fileInput.current?.click();
-  };
 
   useEffect(ensurePortal, []);
 
   // Glide opens cell editors in one portal for the whole page; it takes the
-  // theme of the editor being used, however the host set that theme.
+  // theme and language of the editor being used, however the host set them.
   const themeVersion = store.themeVersion;
+  const language = store.t.language;
   useEffect(() => {
     const el = root.current;
     const portal = document.getElementById('portal');
     if (!el || !portal) return;
-    const sync = () => copyTheme(el, portal);
+    const sync = () => {
+      copyTheme(el, portal);
+      portal.lang = el.lang;
+      portal.dir = el.dir;
+    };
     sync();
     el.addEventListener('focusin', sync);
     el.addEventListener('pointerdown', sync, true);
@@ -110,14 +135,14 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
       el.removeEventListener('focusin', sync);
       el.removeEventListener('pointerdown', sync, true);
     };
-  }, [themeVersion]);
+  }, [themeVersion, language]);
 
   useEffect(() => {
     // Shortcuts only apply while focus is in this editor (or its popups).
     const inEditor = (target: EventTarget | null) =>
       target instanceof Node && (root.current?.contains(target) || document.getElementById('portal')?.contains(target));
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+      const command = e.metaKey || e.ctrlKey;
       if (!inEditor(e.target) || !root.current) return;
       // F6 is Excel's key for this; browsers that keep F6 for their address bar leave Ctrl+F6.
       if (e.key === 'F6' && !e.altKey && !e.metaKey && (!store.designerOpen || store.designerPick) && !store.confirmRequest) {
@@ -125,7 +150,7 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
         nextRegion(root.current, store, e.shiftKey);
         return;
       }
-      if (!mod) return;
+      if (!command) return;
       const key = e.key.toLowerCase();
       if (key === '/') {
         e.preventDefault();
@@ -166,6 +191,34 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
     };
   }, [store]);
 
+  return (
+    <div
+      className={`wbe wbe-root ${className ?? ''}`}
+      ref={root}
+      style={themeStyle(store.theme) as CSSProperties}
+      lang={store.t.language}
+      dir={store.t.dir}
+    >
+      <I18nextProvider i18n={store.i18n} defaultNS={NAMESPACE}>
+        <IconContext.Provider value={store.icons}>
+          <EditorApp store={store} emptyState={emptyState} toolbarEnd={toolbarEnd} />
+        </IconContext.Provider>
+      </I18nextProvider>
+    </div>
+  );
+}
+
+/** Everything inside the editor's root, where its language and icons are provided. */
+function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
+  const t = useT();
+  const hintId = useId();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const canOpen = store.features.open;
+  const openPicker = () => {
+    if (canOpen) fileInput.current?.click();
+  };
+
   const openFile = async (file: File | undefined) => {
     if (file) await store.open(file.name, await file.arrayBuffer());
   };
@@ -175,109 +228,98 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
   const ready = store.status === 'ready' && view;
 
   return (
-    <div className={`wbe wbe-root ${className ?? ''}`} ref={root} style={themeStyle(store.theme) as CSSProperties}>
-      <IconContext.Provider value={store.icons}>
-        <div
-          className={`app ${store.panel ? 'with-report' : ''}`}
-          onDragOver={(e) => {
-            if (canOpen && e.dataTransfer.types.includes('Files')) {
-              e.preventDefault();
-              setDragging(true);
-            }
+    <div
+      className={`app ${store.panel ? 'with-report' : ''}`}
+      onDragOver={(e) => {
+        if (canOpen && e.dataTransfer.types.includes('Files')) {
+          e.preventDefault();
+          setDragging(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!canOpen) return;
+        e.preventDefault();
+        setDragging(false);
+        void openFile(e.dataTransfer.files[0]);
+      }}
+    >
+      <Toolbar store={store} onOpen={openPicker} extra={toolbarEnd} />
+      {canOpen && (
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          onChange={(e) => {
+            void openFile(e.target.files?.[0]);
+            e.target.value = '';
           }}
-          onDragLeave={(e) => {
-            if (e.currentTarget === e.target) setDragging(false);
-          }}
-          onDrop={(e) => {
-            if (!canOpen) return;
-            e.preventDefault();
-            setDragging(false);
-            void openFile(e.dataTransfer.files[0]);
-          }}
+        />
+      )}
+      {ready && <SchemaBanner store={store} />}
+      {ready && <Banner store={store} />}
+      {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
+      <div className="workspace">
+        <main
+          className="sheet-area"
+          aria-label={ready ? t('editor.sheetLabel', { name: view.info.name }) : undefined}
+          aria-describedby={ready ? `${hintId}-hint` : undefined}
         >
-          <Toolbar store={store} onOpen={openPicker} extra={toolbarEnd} />
-          {canOpen && (
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              hidden
-              onChange={(e) => {
-                void openFile(e.target.files?.[0]);
-                e.target.value = '';
-              }}
-            />
+          {ready && (
+            <p id={`${hintId}-hint`} className="sr-only">
+              {t('editor.sheetHint', { key: mod(t, '/') })}
+            </p>
           )}
-          {ready && <SchemaBanner store={store} />}
-          {ready && <Banner store={store} />}
-          {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
-          <div className="workspace">
-            <main className="sheet-area" aria-label={ready ? `Sheet ${view.info.name}` : undefined} aria-describedby={ready ? `${hintId}-hint` : undefined}>
-              {ready && (
-                <p id={`${hintId}-hint`} className="sr-only">
-                  Arrow keys and Tab move between cells; type to replace a cell, or press Enter to edit it. Shift+F10 opens the cell menu, F6 moves to the
-                  next part of the editor, and {MOD}/ lists every shortcut.
-                </p>
-              )}
-              {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
-              {store.status === 'loading' && (
-                <div className="center-state" role="status">
-                  <span className="spinner" aria-hidden="true" />
-                  <p>{store.stage}</p>
-                </div>
-              )}
-              {store.status === 'error' && (
-                <div className="center-state error" role="alert">
-                  <Icon name="warn" size={28} />
-                  <p>{store.error}</p>
-                  {canOpen && (
-                    <button className="btn" onClick={openPicker}>
-                      Open another file
-                    </button>
-                  )}
-                </div>
-              )}
-              {ready && view.info.kind === 'worksheet' && (
-                <SheetPanes
-                  store={store}
-                  view={view}
-                  dataVersion={view.version * 31 + store.styles.length}
-                  schemaVersion={store.schemaVersion}
-                  selection={selection}
-                />
-              )}
-              {ready && view.info.kind !== 'worksheet' && (
-                <div className="center-state">
-                  <Icon name="chart" size={32} />
-                  <h2>{view.info.name}</h2>
-                  <p>
-                    {view.info.objects.find((o) => o.kind === 'chart')?.chartType ?? 'This'} chart
-                    {view.info.objects.find((o) => o.kind === 'chart')?.title ? ` “${view.info.objects.find((o) => o.kind === 'chart')?.title}”` : ''}{' '}
-                    fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; this editor doesn’t display charts.
-                  </p>
-                </div>
-              )}
-              {ready && store.findOpen && <FindPanel store={store} />}
-            </main>
-            {ready && <SidePanel store={store} />}
-          </div>
-          {ready && <SheetTabs store={store} />}
-          <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
-          {dragging && (
-            <div className="drop-overlay">
-              <Icon name="open" size={28} />
-              <p>Drop to open</p>
+          {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
+          {store.status === 'loading' && (
+            <div className="center-state" role="status">
+              <span className="spinner" aria-hidden="true" />
+              <p>{t.text(store.stage)}</p>
             </div>
           )}
-          {store.designerOpen && <SchemaDesigner store={store} />}
-          {ready && <GridMenu store={store} />}
-          {ready && <FilterPicker store={store} />}
-          {ready && <ColumnWidthDialog store={store} />}
-          <ShortcutsDialog store={store} />
-          <ConfirmDialog store={store} />
-          <Toasts store={store} />
+          {store.status === 'error' && (
+            <div className="center-state error" role="alert">
+              <Icon name="warn" size={28} />
+              <p>{t.text(store.error)}</p>
+              {canOpen && (
+                <button className="btn" onClick={openPicker}>
+                  {t('editor.openAnother')}
+                </button>
+              )}
+            </div>
+          )}
+          {ready && view.info.kind === 'worksheet' && (
+            <SheetPanes
+              store={store}
+              view={view}
+              dataVersion={view.version * 31 + store.styles.length}
+              schemaVersion={store.schemaVersion}
+              selection={selection}
+            />
+          )}
+          {ready && view.info.kind !== 'worksheet' && <ChartSheet view={view} />}
+          {ready && store.findOpen && <FindPanel store={store} />}
+        </main>
+        {ready && <SidePanel store={store} />}
+      </div>
+      {ready && <SheetTabs store={store} />}
+      <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
+      {dragging && (
+        <div className="drop-overlay">
+          <Icon name="open" size={28} />
+          <p>{t('editor.dropToOpen')}</p>
         </div>
-      </IconContext.Provider>
+      )}
+      {store.designerOpen && <SchemaDesigner store={store} />}
+      {ready && <GridMenu store={store} />}
+      {ready && <FilterPicker store={store} />}
+      {ready && <ColumnWidthDialog store={store} />}
+      <ShortcutsDialog store={store} />
+      <ConfirmDialog store={store} />
+      <Toasts store={store} />
     </div>
   );
 }

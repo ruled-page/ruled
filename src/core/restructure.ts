@@ -1,3 +1,4 @@
+import { msg, TextError } from '../i18n/message';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from './refs';
 import { refMapFor, splits, transformFormula, transformSqref, type FormulaContext, type LineOp, type RefMap, type StructuralOp } from './refTransform';
 import type { Rect } from './types';
@@ -93,25 +94,25 @@ function rewriteText(pkg: OoxmlPackage, path: string, fn: (xml: string) => strin
 
 function check(model: WorkbookModel, op: StructuralOp): void {
   const m = model.sheets[op.sheet];
-  if (!m || m.info.kind !== 'worksheet') throw new Error('Only worksheets can be changed like this.');
-  if (m.info.protected) throw new Error('This sheet is protected in Excel, so it is read-only here.');
+  if (!m || m.info.kind !== 'worksheet') throw new TextError(msg('core.structure.notWorksheet'));
+  if (m.info.protected) throw new TextError(msg('core.reason.protected'));
   const sheets = op.type === 'move' ? [op.sheet, op.toSheet] : [op.sheet];
   for (const s of sheets) {
     const info = model.sheets[s]?.info;
-    if (!info || info.kind !== 'worksheet') throw new Error('Cells can only be moved between worksheets.');
-    if (info.protected) throw new Error(`${info.name} is protected in Excel, so it is read-only here.`);
+    if (!info || info.kind !== 'worksheet') throw new TextError(msg('core.structure.moveNotWorksheet'));
+    if (info.protected) throw new TextError(msg('core.structure.sheetProtected', { sheet: info.name }));
   }
   const scan = m.scan;
   if (op.type === 'insertRows' && scan && scan.maxRow + op.count >= MAX_ROWS) {
-    throw new Error("There isn't room: inserting would push cells with data off the bottom of the sheet.");
+    throw new TextError(msg('core.structure.noRoomBelow'));
   }
   if (op.type === 'insertCols' && scan && scan.maxCol + op.count >= MAX_COLS) {
-    throw new Error("There isn't room: inserting would push cells with data off the right of the sheet.");
+    throw new TextError(msg('core.structure.noRoomRight'));
   }
   if (op.type === 'move') {
     const h = op.src.r2 - op.src.r1;
     const w = op.src.c2 - op.src.c1;
-    if (op.row + h >= MAX_ROWS || op.col + w >= MAX_COLS || op.row < 0 || op.col < 0) throw new Error("The cells don't fit there.");
+    if (op.row + h >= MAX_ROWS || op.col + w >= MAX_COLS || op.row < 0 || op.col < 0) throw new TextError(msg('core.structure.doesNotFit'));
   }
   const blockedAt = (s: number, rect: Rect) => {
     for (const b of model.sheets[s].info.blocked) {
@@ -121,34 +122,34 @@ function check(model: WorkbookModel, op: StructuralOp): void {
     return undefined;
   };
   for (const a of scan?.arrayRanges ?? []) {
-    if (splits(op, a)) throw new Error(`That would change part of the array formula in ${rangeToA1(a)}. Change the whole array, or none of it.`);
+    if (splits(op, a)) throw new TextError(msg('core.structure.splitsArray', { range: rangeToA1(a) }));
   }
   for (const b of m.info.blocked) {
-    if (b.kind === 'pivot' && splits(op, b)) throw new Error(`That would change part of the pivot table at ${rangeToA1(b)}. Change the pivot table in Excel.`);
+    if (b.kind === 'pivot' && splits(op, b)) throw new TextError(msg('core.structure.splitsPivot', { range: rangeToA1(b) }));
   }
   for (const t of m.info.tables) {
     const header = t.headerRows > 0 ? t.rect.r1 : -1;
     if (op.type === 'deleteRows' && header >= op.at && header < op.at + op.count && !(t.rect.r1 >= op.at && t.rect.r2 < op.at + op.count)) {
-      throw new Error(`That would delete the header row of table "${t.name}" but not the table. Delete the whole table, or leave its header.`);
+      throw new TextError(msg('core.structure.deletesTableHeader', { table: t.name }));
     }
     if ((op.type === 'deleteRows' && t.rect.r1 >= op.at && t.rect.r2 < op.at + op.count) || (op.type === 'deleteCols' && t.rect.c1 >= op.at && t.rect.c2 < op.at + op.count)) {
-      throw new Error(`That would delete all of table "${t.name}". Delete the table in Excel.`);
+      throw new TextError(msg('core.structure.deletesTable', { table: t.name }));
     }
-    if (op.type === 'move' && splits(op, t.rect)) throw new Error(`That would move part of table "${t.name}". Move the whole table, or cells outside it.`);
+    if (op.type === 'move' && splits(op, t.rect)) throw new TextError(msg('core.structure.splitsTable', { table: t.name }));
   }
   if (op.type === 'move') {
     for (const merge of m.info.merges) {
-      if (splits(op, merge)) throw new Error(`That would move part of the merged cell ${rangeToA1(merge)}. Move all of it.`);
+      if (splits(op, merge)) throw new TextError(msg('core.structure.splitsMerge', { range: rangeToA1(merge) }));
     }
     if (op.toSheet !== op.sheet) {
       // Merges and tables belong to their sheet's own parts, so they can't follow cells to another sheet.
       const inside = (r: Rect) => r.r1 >= op.src.r1 && r.r2 <= op.src.r2 && r.c1 >= op.src.c1 && r.c2 <= op.src.c2;
-      if (m.info.merges.some(inside)) throw new Error('Merged cells can only be moved within their sheet. Copy them instead.');
-      if (m.info.tables.some((t) => inside(t.rect))) throw new Error('Tables can only be moved within their sheet.');
+      if (m.info.merges.some(inside)) throw new TextError(msg('core.structure.mergeToOtherSheet'));
+      if (m.info.tables.some((t) => inside(t.rect))) throw new TextError(msg('core.structure.tableToOtherSheet'));
     }
     const dst = { r1: op.row, c1: op.col, r2: op.row + op.src.r2 - op.src.r1, c2: op.col + op.src.c2 - op.src.c1 };
     const b = blockedAt(op.toSheet, dst) ?? blockedAt(op.sheet, op.src);
-    if (b) throw new Error(b.reason);
+    if (b) throw new TextError(b.reason);
   }
 }
 

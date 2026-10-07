@@ -1,3 +1,4 @@
+import { msg, TextError, type MessageKey, type Text } from '../i18n/message';
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import type { RawCellContent } from 'hyperformula';
 import { format as formatNumber, isDateFormat } from 'numfmt';
@@ -5,8 +6,11 @@ import {
   CalcEngine,
   describeValue,
   toRaw,
+  unsupportedExplanation,
+  unsupportedLabel,
   unsupportedReason,
   valuesMatch,
+  type Unsupported,
   type EngineSheet,
   type EngineValue,
   type EngineWrite,
@@ -39,7 +43,7 @@ import {
   type Rect,
   type SheetGrid,
 } from './types';
-import { readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
+import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
 import { restructure } from './restructure';
 import { refMapFor, type StructuralOp } from './refTransform';
@@ -96,14 +100,6 @@ interface UntrustedFormula {
 }
 
 const MERGED = '\u0000merged';
-
-function explainUnsupported(reason: string): string {
-  if (reason.endsWith(' function')) return `Uses the ${reason}, which this editor can't calculate.`;
-  if (reason === 'Multi-cell array formulas') return "A multi-cell array or spill formula, which this editor can't calculate.";
-  if (reason === 'Formula syntax') return "Uses formula syntax this editor can't read.";
-  if (reason.startsWith('Shared formula')) return 'Part of a damaged shared formula; Excel will repair it when the file is opened.';
-  return `Uses ${reason.charAt(0).toLowerCase()}${reason.slice(1)}, which this editor can't calculate.`;
-}
 
 export function rowOfIndex(grid: SheetGrid, idx: number): number {
   let lo = 0;
@@ -276,7 +272,7 @@ export class WorkbookSession {
   /** Live recalculation is off: formulas keep Excel's saved values and no engine is built. */
   private recalcOff = false;
   /** What the structural change that made this session broke, to tell the user. */
-  readonly structureWarnings: string[] = [];
+  readonly structureWarnings: Text[] = [];
   /**
    * What changed before the last structural change, carried to where those
    * cells are now: the change list, the cells to mark as edited, and a
@@ -315,15 +311,16 @@ export class WorkbookSession {
     const cells = model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
     const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
     if (cells > maxCells) {
-      throw new Error(`This workbook has ${cells.toLocaleString()} cells; the most this editor can hold is ${maxCells.toLocaleString()}.`);
+      throw new TextError(msg('core.open.tooManyCells', { cells, max: maxCells }));
     }
     const macros = options.macros ?? 'keep';
     if (model.hasMacros && macros === 'block') {
-      throw new Error("This workbook contains macros (VBA), which aren't allowed here. Save it as .xlsx in Excel and open that instead.");
+      throw new TextError(msg('core.open.macrosBlocked'));
     }
     if (model.hasMacros && macros === 'remove') {
-      const f = model.findings.find((x) => x.kind === 'macro' && x.title.startsWith('Macros'));
-      if (f) f.detail = 'This workbook contains macros. They will be removed when you save, and the file is saved as .xlsx.';
+      // The VBA project's finding; unsupported macro sheets name their sheet.
+      const f = model.findings.find((x) => x.kind === 'macro' && !x.sheet);
+      if (f) f.detail = msg('core.finding.macros.removedDetail');
     }
     const session = new WorkbookSession(
       pkg,
@@ -489,10 +486,10 @@ export class WorkbookSession {
     this.stale[w.sheet].delete(key);
   }
 
-  private blockedReason(sheet: number, row: number, col: number): string | undefined {
+  private blockedReason(sheet: number, row: number, col: number): Text | undefined {
     const info = this.sheet(sheet).info;
-    if (info.kind !== 'worksheet') return 'This sheet cannot be edited here.';
-    if (info.protected) return 'This sheet is protected in Excel, so it is read-only here.';
+    if (info.kind !== 'worksheet') return msg('core.reason.notWorksheet');
+    if (info.protected) return msg('core.reason.protected');
     for (const b of info.blocked) if (inRect(b, row, col)) return b.reason;
     for (const m of info.merges) {
       if (inRect(m, row, col) && (row !== m.r1 || col !== m.c1)) return MERGED;
@@ -509,8 +506,9 @@ export class WorkbookSession {
     if (this.recalcOff) return (this.report = this.offReport());
     const t0 = performance.now();
     const sheets = this.model.sheets;
-    const reasons = new Map<string, number>();
-    const cellReasons = new Map<string, string>();
+    // What isn't calculated and how often, keyed by content (each formula makes its own reason).
+    const reasons = new Map<string, { reason: Unsupported; count: number }>();
+    const cellReasons = new Map<string, Text>();
     const samples: CalcSample[] = [];
     const sample = (s: CalcSample) => {
       if (samples.length < 50) samples.push(s);
@@ -531,18 +529,19 @@ export class WorkbookSession {
         formulaCells++;
         const row = rowOfIndex(grid, idx);
         const col = grid.cols[idx];
-        let reason: string | undefined;
-        if (flags & CellFlag.ArrayMember) reason = 'Multi-cell array formulas';
-        else if (flags & CellFlag.Unsupported) reason = 'Shared formula without its master cell';
+        let reason: Unsupported | undefined;
+        if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
+        else if (flags & CellFlag.Unsupported) reason = { kind: 'sharedFormula' };
         else reason = unsupportedReason(formula);
         if (!reason) continue;
         unsupported++;
-        reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
-        cellReasons.set(`${s}:${row}:${col}`, explainUnsupported(reason));
+        const key = JSON.stringify(reason);
+        reasons.set(key, { reason, count: (reasons.get(key)?.count ?? 0) + 1 });
+        cellReasons.set(`${s}:${row}:${col}`, unsupportedExplanation(reason));
         constant[s].add(idx);
         this.calcFlags[s].set(cellKey(row, col), CellFlag.Unsupported);
         this.untrusted.push({ target: { sheet: s, row, col }, reads: formulaReads(formula, s, this.sheetIndex) });
-        sample({ sheet: m.info.name, ref: toA1(row, col), formula: displayFormula(formula), reason });
+        sample({ sheet: m.info.name, ref: toA1(row, col), formula: displayFormula(formula), reason: unsupportedLabel(reason) });
       }
     });
 
@@ -595,17 +594,14 @@ export class WorkbookSession {
         const excel = gridValue(grid, idx);
         const ours = engine.value(p.sheet, p.row, p.col);
         mismatched++;
-        cellReasons.set(
-          `${p.sheet}:${p.row}:${p.col}`,
-          `This editor calculated ${describeValue(ours)} but Excel saved ${describeValue(excel)}, so Excel's value is kept.`,
-        );
+        cellReasons.set(`${p.sheet}:${p.row}:${p.col}`, msg('core.cellReason.mismatch', { engine: describeValue(ours), excel: describeValue(excel) }));
         this.calcFlags[p.sheet].set(cellKey(p.row, p.col), CellFlag.Mismatch);
         this.untrusted.push({ target: p, reads: formulaReads(grid.formulas.get(idx) ?? '', p.sheet, this.sheetIndex) });
         sample({
           sheet: sheets[p.sheet].info.name,
           ref: toA1(p.row, p.col),
           formula: displayFormula(grid.formulas.get(idx) ?? ''),
-          reason: 'Calculated differently from Excel',
+          reason: msg('core.calc.mismatch'),
           excel: describeValue(excel),
           engine: describeValue(ours),
         });
@@ -632,20 +628,22 @@ export class WorkbookSession {
 
     const findings: Finding[] = [];
     if (unsupported) {
-      const list = [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r} (${n.toLocaleString()})`);
+      const list = [...reasons.values()]
+        .sort((a, b) => b.count - a.count)
+        .map(({ reason, count }) => msg('core.calc.reasonCount', { reason: unsupportedLabel(reason), n: count }));
       findings.push({
         kind: 'formulaEngine',
         severity: 'warn',
-        title: 'Formulas not recalculated here',
-        detail: `${unsupported.toLocaleString()} of ${formulaCells.toLocaleString()} formulas use features this editor can't calculate: ${list.join(', ')}. They show Excel's last value and are marked with a grey corner; if their inputs change they turn amber. Excel recalculates them when the file is opened.`,
+        title: msg('core.finding.notRecalculated.title'),
+        detail: msg('core.finding.notRecalculated.detail', { unsupported, total: formulaCells, reasons: joinTexts(list) }),
       });
     }
     if (mismatched) {
       findings.push({
         kind: 'formulaEngine',
         severity: 'warn',
-        title: 'Formulas calculated differently here',
-        detail: `${mismatched.toLocaleString()} formulas gave a different result here than Excel's saved value, so this editor shows Excel's value and does not recalculate them. Excel recalculates them when the file is opened.`,
+        title: msg('core.finding.calculatedDifferently.title'),
+        detail: msg('core.finding.calculatedDifferently.detail', { mismatched }),
       });
     }
 
@@ -656,7 +654,7 @@ export class WorkbookSession {
       unsupported,
       mismatched,
       noCachedValue,
-      unsupportedFunctions: [...reasons.keys()],
+      unsupportedFunctions: [...reasons.values()].map((r) => unsupportedLabel(r.reason)),
       samples,
       updates,
       findings,
@@ -769,8 +767,8 @@ export class WorkbookSession {
         {
           kind: 'formulaEngine',
           severity: 'warn',
-          title: 'Live recalculation is off',
-          detail: `This workbook has ${formulaCells.toLocaleString()} formulas in ${cells.toLocaleString()} cells, more than this editor recalculates live without slowing down (building the engine would take a while and a lot of memory). Formulas show the values Excel last saved, and formulas you type are marked as not calculated; Excel recalculates everything when the file is opened. You can turn live recalculation on from the status bar.`,
+          title: msg('core.finding.recalcOff.title'),
+          detail: msg('core.finding.recalcOff.detail', { formulas: formulaCells, cells }),
         },
       ],
     };
@@ -866,8 +864,8 @@ export class WorkbookSession {
   private get evaluator(): Evaluator {
     const engine = this.engine;
     if (!engine) {
-      // With recalculation off, rules that need formulas are left for Excel to judge.
-      return { calculate: () => ({ error: '#ERROR!', message: 'Live recalculation is off.' }), withValue: (_s, _r, _c, _v, fn) => fn() };
+      // With recalculation off, rules that need formulas are left for Excel to judge (#ERROR! counts as not calculable).
+      return { calculate: () => ({ error: '#ERROR!' }), withValue: (_s, _r, _c, _v, fn) => fn() };
     }
     return {
       calculate: (formula, sheet) => {
@@ -914,7 +912,7 @@ export class WorkbookSession {
     this.ensureEngine();
     if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
     const writes = new Map<string, Write>();
-    const warnings: string[] = [];
+    const warnings: Text[] = [];
     const newStyles: { index: number; style: DisplayStyle }[] = [];
     const put = (w: Write) => writes.set(`${w.sheet}:${w.row}:${w.col}`, w);
     const styleFor = (base: number, numFmt?: string) => {
@@ -946,7 +944,7 @@ export class WorkbookSession {
             put({ sheet: op.sheet, row, col, content, style: styleFor(cur.style, parsed.numFmt) });
           }),
         );
-        if (bad) warnings.push(`${bad} pasted value${bad === 1 ? '' : 's'} looked like a formula but wasn't valid, so ${bad === 1 ? 'it was' : 'they were'} pasted as text.`);
+        if (bad) warnings.push(msg('core.edit.pastedAsText', { count: bad }));
         break;
       }
       case 'clear': {
@@ -968,7 +966,7 @@ export class WorkbookSession {
             put({ sheet: op.sheet, row, col, content: r.content, style: r.style });
           }
         }
-        if (lost) warnings.push(`${lost} formula${lost === 1 ? '' : 's'} couldn't be adjusted for the new position and ${lost === 1 ? 'was' : 'were'} pasted as values.`);
+        if (lost) warnings.push(msg('core.edit.copiedAsValues', { count: lost }));
         break;
       }
       case 'fill': {
@@ -978,7 +976,7 @@ export class WorkbookSession {
       case 'sort': {
         const { rect } = op;
         const merged = this.sheet(op.sheet).info.merges.find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
-        if (merged) return this.emptyResult(`Sorting would move part of the merged cell ${rangeToA1(merged)}. Unmerge it, or sort around it.`);
+        if (merged) return this.emptyResult(msg('core.edit.sortMerged', { range: rangeToA1(merged) }));
         const top = op.header ? rect.r1 + 1 : rect.r1;
         const rows = Array.from({ length: Math.max(0, rect.r2 - top + 1) }, (_, i) => top + i);
         const order = rows
@@ -1000,7 +998,7 @@ export class WorkbookSession {
             put({ sheet: op.sheet, row, col, content: r.content, style: r.style });
           }
         });
-        if (lost) warnings.push(`${lost} formula${lost === 1 ? '' : 's'} couldn't be adjusted for ${lost === 1 ? 'its' : 'their'} new row and ${lost === 1 ? 'was' : 'were'} kept as values.`);
+        if (lost) warnings.push(msg('core.edit.sortedAsValues', { count: lost }));
         break;
       }
       case 'restore': {
@@ -1021,7 +1019,7 @@ export class WorkbookSession {
     return this.commit([...writes.values()], warnings, newStyles);
   }
 
-  private emptyResult(rejected: string): EditResult {
+  private emptyResult(rejected: Text): EditResult {
     return { updates: [], undo: [], redo: [], skipped: 0, skippedReasons: [], warnings: [], newStyles: [], editedCount: this.editedCount, rejected };
   }
 
@@ -1061,7 +1059,7 @@ export class WorkbookSession {
     }
   }
 
-  private planFillWrites(sheet: number, src: Rect, dst: Rect, put: (w: Write) => void): string[] {
+  private planFillWrites(sheet: number, src: Rect, dst: Rect, put: (w: Write) => void): Text[] {
     // The destination may include the source; fill the part beyond it.
     const vertical = dst.r1 < src.r1 || dst.r2 > src.r2;
     const forward = vertical ? dst.r2 > src.r2 : dst.c2 > src.c2;
@@ -1101,14 +1099,15 @@ export class WorkbookSession {
         }
       });
     }
-    return lost ? [`${lost} formula${lost === 1 ? '' : 's'} couldn't be adjusted and ${lost === 1 ? 'was' : 'were'} filled as values.`] : [];
+    return lost ? [msg('core.edit.filledAsValues', { count: lost })] : [];
   }
 
-  private commit(writes: Write[], warnings: string[], newStyles: { index: number; style: DisplayStyle }[]): EditResult {
+  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[]): EditResult {
     const engine = this.engine;
     const undo: CellSnapshot[] = [];
     const redo: CellSnapshot[] = [];
-    const reasons = new Set<string>();
+    // Keyed by content: the same message, made again for each cell, counts once.
+    const reasons = new Map<string, Text>();
     let skipped = 0;
     const applied: Write[] = [];
 
@@ -1117,7 +1116,7 @@ export class WorkbookSession {
       if (reason) {
         if (reason !== MERGED) {
           skipped++;
-          reasons.add(reason);
+          reasons.set(JSON.stringify(reason), reason);
         }
         continue;
       }
@@ -1174,7 +1173,7 @@ export class WorkbookSession {
       undo,
       redo,
       skipped,
-      skippedReasons: [...reasons],
+      skippedReasons: [...reasons.values()],
       warnings,
       newStyles,
       editedCount: this.editedCount,
@@ -1236,9 +1235,7 @@ export class WorkbookSession {
     next.stripMacros = this.stripMacros;
     next.recalcOff = this.recalcOff;
     if (broken) {
-      next.structureWarnings.push(
-        `${broken.toLocaleString()} formula${broken === 1 ? ' now shows' : 's now show'} #REF! because ${broken === 1 ? 'it' : 'they'} used cells that were deleted or pasted over.`,
-      );
+      next.structureWarnings.push(msg('core.structure.brokenRefs', { count: broken, error: '#REF!' }));
     }
 
     // Changes so far follow their cells; changes to cells that were deleted go.
@@ -1303,17 +1300,21 @@ export function compareForSort(a: EngineValue, b: EngineValue, descending: boole
 
 /** A structural change in words, for the change list. */
 function describeStructure(op: StructuralOp, names: string[]): CellChange {
-  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
   if (op.type === 'move') {
     const h = op.src.r2 - op.src.r1;
     const w = op.src.c2 - op.src.c1;
     const dst = rangeToA1({ r1: op.row, c1: op.col, r2: op.row + h, c2: op.col + w });
     const where = op.toSheet !== op.sheet ? `${names[op.toSheet]}!${dst}` : dst;
-    return { sheet: names[op.sheet], ref: rangeToA1(op.src), before: '', after: '', note: `Moved to ${where}` };
+    return { sheet: names[op.sheet], ref: rangeToA1(op.src), before: '', after: '', note: msg('core.change.movedTo', { where }) };
   }
   const rows = op.type === 'insertRows' || op.type === 'deleteRows';
   const end = op.at + op.count - 1;
   const ref = rows ? `${op.at + 1}:${end + 1}` : `${colToLetters(op.at)}:${colToLetters(end)}`;
-  const verb = op.type.startsWith('insert') ? 'Inserted' : 'Deleted';
-  return { sheet: names[op.sheet], ref, before: '', after: '', note: `${verb} ${plural(op.count, rows ? 'row' : 'column')}` };
+  const notes: Record<Exclude<StructuralOp['type'], 'move'>, MessageKey> = {
+    insertRows: 'core.change.insertedRows',
+    insertCols: 'core.change.insertedColumns',
+    deleteRows: 'core.change.deletedRows',
+    deleteCols: 'core.change.deletedColumns',
+  };
+  return { sheet: names[op.sheet], ref, before: '', after: '', note: msg(notes[op.type], { count: op.count }) };
 }

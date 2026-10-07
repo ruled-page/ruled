@@ -1,30 +1,41 @@
 import { parseA1, parseRange } from '../core/refs';
 import type { Finding, FindingKind } from '../core/types';
 import type { WorkbookStore } from '../state/store';
+import type { MessageKey } from '../i18n/message';
+import { useT } from '../i18n/react';
 
-const GROUPS: { title: string; blurb: string; kinds: FindingKind[] }[] = [
+type GroupId = 'kept' | 'recalc' | 'limits';
+
+const GROUPS: { id: GroupId; title: MessageKey; blurb: MessageKey; kinds: FindingKind[] }[] = [
   {
-    title: 'Kept in the file, not shown here',
-    blurb: 'Saved exactly as they were. Excel redraws charts and refreshes pivot tables from your edited data when the file is opened.',
+    id: 'kept',
+    title: 'report.keptTitle',
+    blurb: 'report.keptBlurb',
     kinds: [
       'chart', 'chartsheet', 'pivot', 'image', 'shape', 'control', 'macro', 'externalLink', 'connection', 'slicer',
       'conditionalFormat', 'dataValidation', 'comment', 'sparkline', 'hyperlink', 'cellImage', 'hiddenSheet',
     ],
   },
   {
-    title: 'Recalculation',
-    blurb: 'Formulas recalculate as you edit. The few this editor cannot calculate keep Excel’s value and are recalculated by Excel on open.',
+    id: 'recalc',
+    title: 'report.recalcTitle',
+    blurb: 'report.recalcBlurb',
     kinds: ['formulaEngine'],
   },
   {
-    title: 'Editing limits',
-    blurb: 'Cells this editor will not change, so that saving cannot damage the workbook.',
+    id: 'limits',
+    title: 'report.limitsTitle',
+    blurb: 'report.limitsBlurb',
     kinds: ['table', 'protection', 'arrayFormula', 'mergedCells', 'frozenRows', 'autoFilter', 'richText'],
   },
 ];
 
+/** How many formulas the worker lists as samples at most. */
+const MAX_SAMPLES = 50;
+
 /** The "What's in this file" list: what the editor keeps but can't show, and its limits. */
 export function ReportBody({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const go = (f: Finding) => {
     if (!f.sheet) return;
     const i = store.sheets.findIndex((s) => s.info.name === f.sheet);
@@ -36,41 +47,45 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
     }
   };
   const calc = store.calc;
+  const duration = (ms: number) =>
+    ms < 1000 ? t('report.milliseconds', { n: t.number(ms) }) : t('report.seconds', { n: t.number(ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) });
+  const openMs = (store.timings.unzipMs ?? 0) + (store.timings.parseMs ?? 0);
 
   return (
       <div className="report-body">
-        <p className="report-lede">Nothing listed here is removed when you save.</p>
+        <p className="report-lede">{t('report.lede')}</p>
         {GROUPS.map((g) => {
           const items = store.findings
             .filter((f) => g.kinds.includes(f.kind))
             .sort((a, b) => (a.severity === b.severity ? g.kinds.indexOf(a.kind) - g.kinds.indexOf(b.kind) : a.severity === 'warn' ? -1 : 1));
-          if (!items.length && g.title !== 'Recalculation') return null;
+          const recalc = g.id === 'recalc';
+          if (!items.length && !recalc) return null;
           return (
-            <section key={g.title}>
-              <h3>{g.title}</h3>
-              <p className="blurb">{g.blurb}</p>
-              {g.title === 'Recalculation' && calc && (
+            <section key={g.id}>
+              <h3>{t(g.title)}</h3>
+              <p className="blurb">{t(g.blurb)}</p>
+              {recalc && calc && (
                 <div className="calc-summary">
                   <div>
-                    <strong>{calc.liveCells.toLocaleString()}</strong>
-                    <span>recalculate live</span>
+                    <strong>{t.number(calc.liveCells)}</strong>
+                    <span>{t('report.live', { count: calc.liveCells })}</span>
                   </div>
                   <div>
-                    <strong>{(calc.unsupported + calc.mismatched).toLocaleString()}</strong>
-                    <span>not calculated here</span>
+                    <strong>{t.number(calc.unsupported + calc.mismatched)}</strong>
+                    <span>{t('report.notCalculated', { count: calc.unsupported + calc.mismatched })}</span>
                   </div>
                   <div>
-                    <strong>{calc.buildMs < 1000 ? `${calc.buildMs} ms` : `${(calc.buildMs / 1000).toFixed(1)} s`}</strong>
-                    <span>to check against Excel</span>
+                    <strong>{duration(calc.buildMs)}</strong>
+                    <span>{t('report.checkTime')}</span>
                   </div>
                 </div>
               )}
-              {g.title === 'Recalculation' && !calc && <p className="muted">Building the calculation engine…</p>}
+              {recalc && !calc && <p className="muted">{t('report.building')}</p>}
               <ul className="findings">
                 {items.map((f, i) => (
                   <li key={i} className={`finding sev-${f.severity}`}>
                     <button className="finding-main" onClick={() => go(f)} disabled={!f.sheet}>
-                      <span className="finding-title">{f.title}</span>
+                      <span className="finding-title">{t.text(f.title)}</span>
                       {f.sheet && (
                         <span className="finding-where">
                           {f.sheet}
@@ -78,13 +93,17 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
                         </span>
                       )}
                     </button>
-                    <p>{f.detail}</p>
+                    <p>{t.text(f.detail)}</p>
                   </li>
                 ))}
               </ul>
-              {g.title === 'Recalculation' && calc && calc.samples.length > 0 && (
+              {recalc && calc && calc.samples.length > 0 && (
                 <details className="samples">
-                  <summary>Formulas not calculated here ({calc.samples.length === 50 ? 'first 50' : calc.samples.length})</summary>
+                  <summary>
+                    {calc.samples.length === MAX_SAMPLES
+                      ? t('report.samplesFirst', { n: calc.samples.length })
+                      : t('report.samples', { n: calc.samples.length })}
+                  </summary>
                   <table>
                     <tbody>
                       {calc.samples.map((s, i) => (
@@ -94,11 +113,11 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
                           </td>
                           <td className="mono formula">{s.formula}</td>
                           <td>
-                            {s.reason}
+                            {t.text(s.reason)}
                             {s.excel !== undefined && (
                               <span className="muted">
                                 {' '}
-                                (Excel {s.excel}, here {s.engine})
+                                {t('report.sampleValues', { excel: t.text(s.excel), engine: t.text(s.engine) })}
                               </span>
                             )}
                           </td>
@@ -112,22 +131,21 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
           );
         })}
         <section>
-          <h3>Cell markers</h3>
+          <h3>{t('report.markers')}</h3>
           <ul className="legend">
             <li>
-              <span className="swatch tri grey" /> Formula this editor can't calculate; shows Excel's saved value.
+              <span className="swatch tri grey" /> {t('report.markerUnsupported')}
             </li>
             <li>
-              <span className="swatch tri amber" /> Its inputs changed; Excel recalculates it when the file is opened.
+              <span className="swatch tri amber" /> {t('report.markerStale')}
             </li>
             <li>
-              <span className="swatch edited" /> Changed in this session (toggle with “Highlight changes”).
+              <span className="swatch edited" /> {t('report.markerEdited', { toggle: t('toolbar.highlight') })}
             </li>
           </ul>
         </section>
         <p className="timings muted">
-          Opened in {((store.timings.unzipMs ?? 0) + (store.timings.parseMs ?? 0)).toLocaleString()} ms
-          {calc ? `; formulas checked in ${calc.buildMs.toLocaleString()} ms` : ''}.
+          {calc ? t('report.openedAndChecked', { open: openMs, check: calc.buildMs }) : t('report.opened', { open: openMs })}
         </p>
       </div>
   );

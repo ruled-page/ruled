@@ -1,6 +1,7 @@
 import { schemaFromJSON } from '../schema/json';
 import type { WorkbookSchema } from '../schema/types';
 import { ServerWorkbook, type WorkbookIssue } from './index';
+import { english, errorText } from '../i18n';
 
 export interface CliIO {
   readFile(path: string): Promise<Uint8Array>;
@@ -66,7 +67,7 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
   try {
     args = parseArgs(argv);
   } catch (e) {
-    io.err(`${(e as Error).message}\n\n${USAGE}`);
+    io.err(`${english.text(errorText(e))}\n\n${USAGE}`);
     return 2;
   }
   if (args.help || !args.file) {
@@ -82,12 +83,12 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
       try {
         schemas.push(schemaFromJSON(text));
       } catch (e) {
-        throw new Error(`${path}: ${(e as Error).message}`);
+        throw new Error(`${path}: ${english.text(errorText(e))}`);
       }
     }
     wb = ServerWorkbook.open(await io.readFile(args.file), { fileName: args.file.split(/[\\/]/).pop(), schemas });
   } catch (e) {
-    io.err((e as Error).message);
+    io.err(english.text(errorText(e)));
     return 2;
   }
 
@@ -98,7 +99,7 @@ export async function run(argv: string[], io: CliIO): Promise<number> {
       if (r.rejected) rejected.push(`${s.sheet}!${s.ref}: ${r.rejected}`);
       for (const w of r.warnings) rejected.push(`${s.sheet}!${s.ref}: ${w}`);
     } catch (e) {
-      rejected.push(`${s.sheet}!${s.ref}: ${(e as Error).message}`);
+      rejected.push(`${s.sheet}!${s.ref}: ${english.text(errorText(e))}`);
     }
   }
 

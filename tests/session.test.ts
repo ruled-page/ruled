@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1 } from '../src/core/refs';
+import { english } from '../src/i18n';
 import {
   CellFlag,
   has,
@@ -46,9 +47,9 @@ describe('kitchen-sink.xlsx', () => {
     ]) {
       expect(kinds, k).toContain(k);
     }
-    const charts = s.model.findings.filter((f) => f.kind === 'chart').map((f) => f.title);
+    const charts = s.model.findings.filter((f) => f.kind === 'chart').map((f) => english.text(f.title));
     expect(charts).toEqual(['Chart "Revenue by region"', 'Chart "Share of revenue"']);
-    expect(s.model.findings.find((f) => f.kind === 'chartsheet')?.detail).toContain('Monthly revenue 2026');
+    expect(english.text(s.model.findings.find((f) => f.kind === 'chartsheet')?.detail)).toContain('Monthly revenue 2026');
   });
 
   it('reads values, formats and formulas', () => {
@@ -68,9 +69,10 @@ describe('kitchen-sink.xlsx', () => {
     const report = s.ensureEngine();
     console.log(JSON.stringify({ ...report, updates: report.updates.length }, null, 1));
     expect(report.mismatched).toBe(0);
-    expect(report.unsupportedFunctions.join(' ')).toMatch(/LET/);
-    expect(report.unsupportedFunctions.join(' ')).toMatch(/CONCAT/);
-    expect(report.unsupportedFunctions.join(' ')).toMatch(/Table references/);
+    const unsupported = report.unsupportedFunctions.map((x) => english.text(x)).join(' ');
+    expect(unsupported).toMatch(/LET/);
+    expect(unsupported).toMatch(/CONCAT/);
+    expect(unsupported).toMatch(/Table references/);
     expect(report.liveCells).toBeGreaterThan(200);
   });
 
@@ -135,18 +137,18 @@ describe('kitchen-sink.xlsx', () => {
     const s = open('kitchen-sink.xlsx');
     const header = s.apply({ type: 'input', sheet: sheetIndex(s, 'Data'), ...at('B1'), text: 'Area' });
     expect(header.skipped).toBe(1);
-    expect(header.skippedReasons[0]).toMatch(/table "SalesData"/);
+    expect(english.text(header.skippedReasons[0])).toMatch(/table "SalesData"/);
     const spill = s.apply({ type: 'input', sheet: sheetIndex(s, 'Lookups'), ...at('B10'), text: 'x' });
-    expect(spill.skippedReasons[0]).toMatch(/array formula/);
+    expect(english.text(spill.skippedReasons[0])).toMatch(/array formula/);
     const locked = s.apply({ type: 'input', sheet: sheetIndex(s, 'Reference'), ...at('A2'), text: 'x' });
-    expect(locked.skippedReasons[0]).toMatch(/protected/);
+    expect(english.text(locked.skippedReasons[0])).toMatch(/protected/);
   });
 
   it('rejects malformed formulas and adds _xlfn prefixes to new functions', () => {
     const s = open('kitchen-sink.xlsx');
     const lookups = sheetIndex(s, 'Lookups');
     const bad = s.apply({ type: 'input', sheet: lookups, ...at('E20'), text: '=SUM(A1:A3' });
-    expect(bad.rejected).toMatch(/problem with this formula/);
+    expect(english.text(bad.rejected)).toMatch(/problem with this formula/);
     const ok = s.apply({ type: 'input', sheet: lookups, ...at('E20'), text: '=xlookup("Gadget",F4:F6,G4:G6)' });
     const u = updateAt(ok.updates, s, 'Lookups', 'E20');
     expect(u?.f).toBe('_xlfn.xlookup("Gadget",F4:F6,G4:G6)');
@@ -157,7 +159,7 @@ describe('kitchen-sink.xlsx', () => {
 describe('pivot.xlsx', () => {
   it('finds the pivot table, blocks its cells and expands shared formulas when the master changes', async () => {
     const s = open('pivot.xlsx');
-    expect(s.model.findings.find((f) => f.kind === 'pivot')?.title).toBe('Pivot table "UnitsByRegion"');
+    expect(english.text(s.model.findings.find((f) => f.kind === 'pivot')?.title)).toBe('Pivot table "UnitsByRegion"');
     const pivot = sheetIndex(s, 'Pivot');
     expect(s.apply({ type: 'input', sheet: pivot, ...at('B4'), text: '1' }).skipped).toBe(1);
 
@@ -223,6 +225,6 @@ describe('engine verdicts reach the UI', () => {
     const report = s.ensureEngine();
     const b8 = updateAt(report.updates, s, 'Lookups', 'B8');
     expect(has(b8?.flags, CellFlag.Unsupported)).toBe(true);
-    expect(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:7:1`)).toMatch(/table references/);
+    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:7:1`))).toMatch(/table references/);
   });
 });

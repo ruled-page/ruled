@@ -38,22 +38,24 @@ import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from './gridPalette';
 import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
+import { useT } from '../i18n/react';
 
-/** Everything the grid draws with, from the theme's palette. */
 /**
  * Glide's cell renderers, with text cells read to screen readers as they are
  * shown (6) rather than as they are edited (=B2*C2), which the formula bar
  * gives instead, followed by any problem with them.
  */
 const RENDERERS = AllCellRenderers.map((r) =>
-  r.kind === GridCellKind.Text
-    ? { ...r, getAccessibilityString: (c: SpokenCell) => (c.spokenNote ? `${c.displayData || 'Empty'}, ${c.spokenNote}` : c.displayData) }
-    : r,
+  r.kind === GridCellKind.Text ? { ...r, getAccessibilityString: (c: SpokenCell) => c.spokenText ?? c.displayData } : r,
 ) as typeof AllCellRenderers;
 
-/** A cell with what a screen reader should add to its value: its problems, which the grid only marks in colour. */
-type SpokenCell = TextCell & { spokenNote?: string };
+/**
+ * A cell with what a screen reader should say for it, when that is more than
+ * its value: its problems too, which the grid only marks in colour.
+ */
+type SpokenCell = TextCell & { spokenText?: string };
 
+/** Everything the grid draws with, from the theme's palette. */
 function gridStyles(p: GridPalette) {
   const fontFor = (style: DisplayStyle) => `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${p.font}`;
   let measureCtx: CanvasRenderingContext2D | null = null;
@@ -150,6 +152,7 @@ export function SheetGrid({
   className,
   style: hostStyle,
 }: Props) {
+  const t = useT();
   const ownRef = useRef<DataEditorRef>(null);
   const ref = gridRef ?? ownRef;
   const [images] = useState(() => new ImageWindowLoaderImpl());
@@ -243,9 +246,11 @@ export function SheetGrid({
         if (!options?.length) options = undefined;
       }
       const issues = schema?.cellIssues(sheetIndex, row, view.visibleCols[gc - 1]) ?? [];
-      const spokenNote = issues.length ? issues.map((i) => `${i.severity}: ${i.message}`).join(' ') : undefined;
+      const spokenNote = issues.length
+        ? issues.map((i) => t(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: t.text(i.message) })).join(' ')
+        : undefined;
       const asEnum = (cell: EnumCell): EnumCell & SpokenCell => {
-        const spoken = spokenNote ? { ...cell, spokenNote } : cell;
+        const spoken = spokenNote ? { ...cell, spokenText: t('grid.spokenCell', { value: cell.displayData || t('grid.empty'), note: spokenNote }) } : cell;
         return options ? { ...spoken, enumOptions: options, activationBehaviorOverride: 'second-click' } : spoken;
       };
       if (!rec) {
@@ -291,7 +296,7 @@ export function SheetGrid({
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette],
+    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette, t],
   );
 
   // Text spilling into empty neighbours, worked out per row as rows are drawn.

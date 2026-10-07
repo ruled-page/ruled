@@ -1,5 +1,6 @@
 import { parse, tokenize } from '@borgar/fx';
 import { format } from 'numfmt';
+import { msg, type MessageKey, type Text } from '../i18n/message';
 import { isUnsupportedError, type EngineValue } from './calc';
 import { makeShifter } from './formula';
 import type { CellContent, ListSource, Rect, RuleValidation } from './types';
@@ -144,21 +145,31 @@ function boundText(rule: RuleValidation, formula: string): string {
   return formula;
 }
 
-/** One-line description of a rule, for the formula bar. */
-export function describeRule(rule: RuleValidation): string {
-  const what = { whole: 'Whole number', decimal: 'Number', date: 'Date', time: 'Time', textLength: 'Text length', custom: 'Value' }[rule.kind];
-  if (rule.kind === 'custom') return `Excel checks this cell with =${rule.formula1}`;
-  const a = boundText(rule, rule.formula1);
-  const b = boundText(rule, rule.formula2 ?? '');
-  const op = {
-    between: `between ${a} and ${b}`,
-    notBetween: `not between ${a} and ${b}`,
-    equal: `equal to ${a}`,
-    notEqual: `not equal to ${a}`,
-    greaterThan: `greater than ${a}`,
-    lessThan: `less than ${a}`,
-    greaterThanOrEqual: `at least ${a}`,
-    lessThanOrEqual: `at most ${a}`,
-  }[rule.operator];
-  return `${what} ${op}`;
+const KINDS: Record<Exclude<RuleValidation['kind'], 'custom'>, MessageKey> = {
+  whole: 'core.validation.kind.whole',
+  decimal: 'core.validation.kind.decimal',
+  date: 'core.validation.kind.date',
+  time: 'core.validation.kind.time',
+  textLength: 'core.validation.kind.textLength',
+};
+
+const OPERATORS: Record<RuleValidation['operator'], MessageKey> = {
+  between: 'core.validation.between',
+  notBetween: 'core.validation.notBetween',
+  equal: 'core.validation.equal',
+  notEqual: 'core.validation.notEqual',
+  greaterThan: 'core.validation.greaterThan',
+  lessThan: 'core.validation.lessThan',
+  greaterThanOrEqual: 'core.validation.greaterThanOrEqual',
+  lessThanOrEqual: 'core.validation.lessThanOrEqual',
+};
+
+/** One-line description of a rule, for the formula bar: "Whole number between 1 and 10". */
+export function describeRule(rule: RuleValidation): Text {
+  if (rule.kind === 'custom') return msg('core.validation.custom', { formula: rule.formula1 });
+  return msg(OPERATORS[rule.operator], {
+    what: msg(KINDS[rule.kind]),
+    a: boundText(rule, rule.formula1),
+    b: boundText(rule, rule.formula2 ?? ''),
+  });
 }

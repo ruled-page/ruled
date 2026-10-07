@@ -6,15 +6,19 @@ import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { ReportBody } from './ReportPanel';
 import { Tabs } from './Tabs';
+import { Trans } from 'react-i18next';
+import type { Translator } from '../i18n';
+import { useT } from '../i18n/react';
 
 function IssuesBody({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const ctl = store.schema;
   if (!ctl) {
     return (
       <div className="report-body">
-        <p className="muted">No schema applies to this workbook, so there is nothing to check. Open the schema designer to create one from it.</p>
+        <p className="muted">{t('checks.noSchema')}</p>
         <button className="btn" onClick={() => store.set('designerOpen', true)}>
-          <Icon name="schema" /> Open schema designer
+          <Icon name="schema" /> {t('checks.openDesigner')}
         </button>
       </div>
     );
@@ -29,33 +33,33 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
   return (
     <div className="report-body">
       <p className="report-lede schema-lede">
-        Checked against the <strong>{ctl.schema.name}</strong> schema.
-        {ctl.schema.description ? <span className="muted"> {ctl.schema.description}</span> : null}
+        <Trans i18nKey="checks.checkedAgainst" values={{ name: t.localized(ctl.schema.name) }} components={{ b: <strong /> }} />
+        {ctl.schema.description ? <span className="muted"> {t.localized(ctl.schema.description)}</span> : null}
       </p>
       <div className="calc-summary">
         <div>
-          <strong className={errors ? 'tone-error-text' : ''}>{errors}</strong>
-          <span>errors</span>
+          <strong className={errors ? 'tone-error-text' : ''}>{t.number(errors)}</strong>
+          <span>{t('checks.errors', { count: errors })}</span>
         </div>
         <div>
-          <strong>{warnings}</strong>
-          <span>warnings</span>
+          <strong>{t.number(warnings)}</strong>
+          <span>{t('checks.warnings', { count: warnings })}</span>
         </div>
         <div>
-          <strong>{pending ? <span className="spinner small" /> : 0}</strong>
-          <span>checks running</span>
+          <strong>{pending ? <span className="spinner small" /> : t.number(0)}</strong>
+          <span>{t('checks.running')}</span>
         </div>
       </div>
       {issues.length === 0 && !pending && (
         <p className="all-clear">
-          <Icon name="check" /> Everything matches the schema.
+          <Icon name="check" /> {t('checks.allClear')}
         </p>
       )}
       <ul className="findings">
         {issues.map((i, n) => (
           <li key={n} className={`finding sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
             <button className="finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
-              <span className="finding-title">{i.message}</span>
+              <span className="finding-title">{t.text(i.message)}</span>
               {i.sheetName && (
                 <span className="finding-where">
                   {i.sheetName}
@@ -67,19 +71,19 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
         ))}
       </ul>
       <section>
-        <h3>Markers</h3>
+        <h3>{t('checks.markers')}</h3>
         <ul className="legend">
           <li>
-            <span className="swatch tri-right red" /> Breaks a schema rule.
+            <span className="swatch tri-right red" /> {t('checks.markerError')}
           </li>
           <li>
-            <span className="swatch tri-right orange" /> Warning from a schema rule.
+            <span className="swatch tri-right orange" /> {t('checks.markerWarning')}
           </li>
           <li>
-            <span className="swatch dot-blue" /> A check is still running.
+            <span className="swatch dot-blue" /> {t('checks.markerPending')}
           </li>
           <li>
-            <span className="swatch label-cell" /> Labels fixed by the schema.
+            <span className="swatch label-cell" /> {t('checks.markerLabel')}
           </li>
         </ul>
       </section>
@@ -88,6 +92,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
 }
 
 function ChangesBody({ store }: { store: WorkbookStore }) {
+  const t = useT();
   useEffect(() => {
     void store.refreshChanges();
   }, [store]);
@@ -98,28 +103,27 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     if (sheet < 0 || !pos) return;
     store.reveal(sheet, pos.row, pos.col);
   };
-  const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const time = (at: number) => t.date(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const empty = <span className="muted">{t('changes.empty')}</span>;
   return (
     <div className="report-body">
-      <p className="report-lede schema-lede">
-        {changes.length ? summarize(changes) : 'Nothing has changed since the file was opened.'}
-      </p>
+      <p className="report-lede schema-lede">{changes.length ? summarize(t, changes) : t('changes.none')}</p>
       {changes.length > 0 && (
         <div className="changes-table">
           <table>
             <thead>
               <tr>
-                <th>Cell</th>
-                <th>Was</th>
-                <th>Now</th>
+                <th>{t('changes.cell')}</th>
+                <th>{t('changes.was')}</th>
+                <th>{t('changes.now')}</th>
               </tr>
             </thead>
             <tbody>
-              {changes.slice(0, 500).map((c) => (
+              {changes.slice(0, SHOWN).map((c) => (
                 <tr key={`${c.sheet}!${c.ref}`} onClick={() => go(c.sheet, c.ref)}>
                   <td className="mono">
                     {/* The row is clickable too; the button is the same for keyboards and screen readers. */}
-                    <button className="cell-link" title="Go to this cell" onClick={(e) => {
+                    <button className="cell-link" title={t('changes.goTo')} onClick={(e) => {
                       e.stopPropagation();
                       go(c.sheet, c.ref);
                     }}>
@@ -129,30 +133,30 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
                   </td>
                   {c.note ? (
                     <td colSpan={2} className="change-note">
-                      {c.note}
+                      {t.text(c.note)}
                     </td>
                   ) : (
                     <>
-                      <td>{c.before === '' ? <span className="muted">(empty)</span> : c.before}</td>
-                      <td>{c.formatOnly ? <span className="muted">format only</span> : c.after === '' ? <span className="muted">(empty)</span> : c.after}</td>
+                      <td>{c.before === '' ? empty : c.before}</td>
+                      <td>{c.formatOnly ? <span className="muted">{t('changes.formatOnly')}</span> : c.after === '' ? empty : c.after}</td>
                     </>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
-          {changes.length > 500 && <p className="muted small">Showing the first 500.</p>}
+          {changes.length > SHOWN && <p className="muted small">{t('changes.first', { n: SHOWN })}</p>}
         </div>
       )}
       <section>
-        <h3>History</h3>
-        {store.history.length === 0 && <p className="muted">No edits yet.</p>}
+        <h3>{t('changes.history')}</h3>
+        {store.history.length === 0 && <p className="muted">{t('changes.noEdits')}</p>}
         <ol className="history">
           {[...store.history].reverse().slice(0, 200).map((h, i) => (
             <li key={i}>
               <span className="history-time">{time(h.at)}</span>
               <span>
-                <strong>{h.action}</strong> · {h.cells.toLocaleString()} cell{h.cells === 1 ? '' : 's'}
+                <strong>{t.text(h.action)}</strong> · {t('changes.historyCells', { count: h.cells })}
                 {h.user ? ` · ${h.user}` : ''}
                 {h.refs.length > 0 && <span className="muted"> ({h.refs.join(', ')}{h.cells > h.refs.length ? ', …' : ''})</span>}
               </span>
@@ -164,34 +168,38 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
   );
 }
 
-/** "3 cells differ from the file as it was opened, and 1 change to rows or columns." */
-function summarize(changes: CellChange[]): string {
+/** How many changed cells the Changes panel lists. */
+const SHOWN = 500;
+
+/** "3 cells differ from the file as it was opened, and 1 change to rows, columns or where cells are." */
+function summarize(t: Translator, changes: CellChange[]): string {
   const structural = changes.filter((c) => c.note).length;
   const cells = changes.length - structural;
-  const parts = [];
-  if (cells) parts.push(`${cells.toLocaleString()} cell${cells === 1 ? '' : 's'} differ from the file as it was opened`);
-  if (structural) parts.push(`${structural.toLocaleString()} change${structural === 1 ? '' : 's'} to rows, columns or where cells are`);
-  return `${parts.join(', and ')}.`;
+  if (cells && structural) {
+    return t('changes.summaryBoth', { cells: t('changes.cells', { count: cells }), structural: t('changes.structural', { count: structural }) });
+  }
+  return cells ? t('changes.summaryCells', { count: cells }) : t('changes.summaryStructural', { count: structural });
 }
 
 export function SidePanel({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const panel = store.panel;
   if (!panel) return null;
   return (
-    <aside className="report" aria-label="Workbook details">
+    <aside className="report" aria-label={t('panel.label')}>
       <Tabs
-        label="Workbook details"
+        label={t('panel.label')}
         tabs={[
-          { id: 'issues', label: 'Checks' },
-          { id: 'changes', label: 'Changes' },
-          { id: 'report', label: "What's in this file" },
+          { id: 'issues', label: t('panel.checks') },
+          { id: 'changes', label: t('panel.changes') },
+          { id: 'report', label: t('panel.report') },
         ]}
         value={panel}
         onChange={(id) => store.set('panel', id)}
         head={(tabs) => (
           <div className="report-head">
             {tabs}
-            <button className="btn icon ghost" onClick={() => store.set('panel', null)} aria-label="Close">
+            <button className="btn icon ghost" onClick={() => store.set('panel', null)} aria-label={t('panel.close')}>
               <Icon name="close" />
             </button>
           </div>

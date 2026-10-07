@@ -1,3 +1,4 @@
+import { errorText, msg, TextError, type Text } from '../i18n/message';
 import { WorkbookSession } from '../core/session';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 
@@ -20,7 +21,7 @@ function post(message: WorkerResponse): void {
 }
 
 /** Makes `next` the current session and sends the whole workbook to the UI. */
-function adopt(next: WorkbookSession, id: number, warnings: string[] = []): void {
+function adopt(next: WorkbookSession, id: number, warnings: Text[] = []): void {
   session = next;
   const report = next.calcReport;
   calcSent = !!report;
@@ -104,7 +105,7 @@ scope.onmessage = (e) => {
       case 'undoStructure':
       case 'redoStructure': {
         const to = req.type === 'undoStructure' ? at - 1 : at + 1;
-        if (!sessions[to]) throw new Error(req.type === 'undoStructure' ? "That change can't be undone any more." : 'There is nothing to redo.');
+        if (!sessions[to]) throw new TextError(msg(req.type === 'undoStructure' ? 'core.structure.cantUndo' : 'core.structure.nothingToRedo'));
         at = to;
         adopt(sessions[at], req.id);
         break;
@@ -116,6 +117,6 @@ scope.onmessage = (e) => {
       }
     }
   } catch (err) {
-    post({ id: req.id, type: 'error', message: err instanceof Error ? err.message : String(err) });
+    post({ id: req.id, type: 'error', message: err instanceof Error ? err.message : String(err), text: errorText(err) });
   }
 };

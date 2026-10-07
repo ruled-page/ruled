@@ -1,3 +1,5 @@
+import { english } from '../i18n';
+import { msg, TextError, type Message, type MessageKey, type MessageParams } from '../i18n/message';
 import type { FieldType, TextMatch, WorkbookSchema } from './types';
 
 /** Whether `text` satisfies the expectation: plain strings ignore case and surrounding spaces. */
@@ -8,10 +10,9 @@ export function textMatches(match: TextMatch, text: string): boolean {
 }
 
 /** How an expectation is shown to people. */
-export function describeMatch(match: TextMatch): string {
-  if (typeof match === 'string') return `"${match}"`;
-  const source = match instanceof RegExp ? match.source : match.pattern;
-  return `text matching /${source}/`;
+export function describeMatch(match: TextMatch): Message {
+  if (typeof match === 'string') return msg('schema.match.text', { text: match });
+  return msg('schema.match.pattern', { pattern: match instanceof RegExp ? match.source : match.pattern });
 }
 
 /** Display form of an expectation for labels and headers. */
@@ -40,53 +41,65 @@ export function schemaToJSON(schema: WorkbookSchema): string {
 
 const FIELD_TYPES: FieldType[] = ['text', 'number', 'integer', 'percent', 'date', 'boolean', 'enum'];
 
-/** Parses and sanity-checks a schema exported as JSON. Throws with a readable message. */
+/** Text in one language or several: a non-empty string, or an object of strings. */
+function isLocalized(x: unknown): boolean {
+  if (typeof x === 'string') return x !== '';
+  return !!x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length > 0 && Object.values(x).every((v) => typeof v === 'string');
+}
+
+/**
+ * Parses and sanity-checks a schema exported as JSON. Throws a TextError that
+ * says what is wrong: its `text` to show in the editor's language, its
+ * `message` in English.
+ */
 export function schemaFromJSON(text: string): WorkbookSchema {
+  const fail = (key: MessageKey, params?: MessageParams): never => {
+    const error = new TextError(msg(key, params));
+    error.message = english.text(error.text);
+    throw error;
+  };
   let data: unknown;
   try {
     data = JSON.parse(text);
   } catch (e) {
-    throw new Error(`The schema file isn't valid JSON: ${(e as Error).message}`);
+    fail('schema.json.notJson', { error: (e as Error).message });
   }
-  const fail = (msg: string): never => {
-    throw new Error(`The schema file is not valid: ${msg}`);
-  };
   const s = data as WorkbookSchema;
-  if (!s || typeof s !== 'object') fail('expected an object.');
-  if (typeof s.id !== 'string' || !s.id) fail('"id" is missing.');
-  if (typeof s.name !== 'string' || !s.name) fail('"name" is missing.');
-  if (!Array.isArray(s.sheets) || !s.sheets.length) fail('"sheets" must list at least one sheet.');
-  if (s.version !== undefined && typeof s.version !== 'string') fail('"version" must be text, e.g. "2".');
-  if (s.hookTimeoutMs !== undefined && !(typeof s.hookTimeoutMs === 'number' && s.hookTimeoutMs > 0)) fail('"hookTimeoutMs" must be a positive number of milliseconds.');
+  if (!s || typeof s !== 'object') fail('schema.json.notObject');
+  if (typeof s.id !== 'string' || !s.id) fail('schema.json.noId');
+  if (!isLocalized(s.name)) fail('schema.json.noName');
+  if (!Array.isArray(s.sheets) || !s.sheets.length) fail('schema.json.noSheets');
+  if (s.version !== undefined && typeof s.version !== 'string') fail('schema.json.badVersion');
+  if (s.hookTimeoutMs !== undefined && !(typeof s.hookTimeoutMs === 'number' && s.hookTimeoutMs > 0)) fail('schema.json.badTimeout');
   s.sheets.forEach((sheet, i) => {
-    if (!sheet.name) fail(`sheet ${i + 1} has no name.`);
+    if (!sheet.name) fail('schema.json.sheetNoName', { sheet: i + 1 });
     for (const t of sheet.tables ?? []) {
-      if (!t.key) fail(`a table on sheet ${i + 1} has no key.`);
-      if (typeof t.at !== 'string' || !/^\$?[A-Z]{1,3}\$?\d+$/i.test(t.at)) fail(`table "${t.key}" has an invalid "at" cell.`);
-      if (!Array.isArray(t.fields) || !t.fields.length) fail(`table "${t.key}" has no fields.`);
+      if (!t.key) fail('schema.json.tableNoKey', { sheet: i + 1 });
+      if (typeof t.at !== 'string' || !/^\$?[A-Z]{1,3}\$?\d+$/i.test(t.at)) fail('schema.json.tableBadAt', { table: t.key });
+      if (!Array.isArray(t.fields) || !t.fields.length) fail('schema.json.tableNoFields', { table: t.key });
       const keys = new Set<string>();
       for (const f of t.fields) {
-        if (!f.key) fail(`a field in table "${t.key}" has no key.`);
-        if (keys.has(f.key)) fail(`table "${t.key}" has two fields called "${f.key}".`);
+        if (!f.key) fail('schema.json.fieldNoKey', { table: t.key });
+        if (keys.has(f.key)) fail('schema.json.duplicateField', { table: t.key, field: f.key });
         keys.add(f.key);
-        if (!FIELD_TYPES.includes(f.type)) fail(`field "${f.key}" has unknown type "${String(f.type)}".`);
-        if (f.type === 'enum' && !f.values?.length) fail(`enum field "${f.key}" lists no values.`);
+        if (!FIELD_TYPES.includes(f.type)) fail('schema.json.unknownType', { field: f.key, type: String(f.type) });
+        if (f.type === 'enum' && !f.values?.length) fail('schema.json.enumNoValues', { field: f.key });
         if (f.pattern) {
           try {
             new RegExp(f.pattern);
           } catch {
-            fail(`field "${f.key}" has an invalid pattern.`);
+            fail('schema.json.badPattern', { field: f.key });
           }
         }
       }
       for (const c of t.checks ?? []) {
         const named = [c.field, ...(c.rule === 'compare' ? [c.other] : c.rule === 'requiredIf' ? [c.when] : c.rule === 'uniqueTogether' ? c.fields : [])];
-        for (const k of named) if (k !== '*' && !keys.has(k)) fail(`a "${c.rule}" check in table "${t.key}" names "${k}", which isn't one of its fields.`);
+        for (const k of named) if (k !== '*' && !keys.has(k)) fail('schema.json.unknownCheckField', { rule: c.rule, table: t.key, field: k });
       }
     }
     for (const c of sheet.cells ?? []) {
-      if (!c.key || !c.ref) fail(`a cell on sheet ${i + 1} is missing its key or ref.`);
-      if (!FIELD_TYPES.includes(c.type)) fail(`cell "${c.key}" has unknown type "${String(c.type)}".`);
+      if (!c.key || !c.ref) fail('schema.json.cellNoKey', { sheet: i + 1 });
+      if (!FIELD_TYPES.includes(c.type)) fail('schema.json.cellUnknownType', { cell: c.key, type: String(c.type) });
     }
   });
   return s;

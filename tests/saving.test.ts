@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseInput } from '../src/core/input';
 import { localeInfo, normalizeForLocale, readLocalDate } from '../src/core/locale';
+import { english } from '../src/i18n';
 import { pasteRisks } from '../src/state/pasteRisks';
 import { open, sheetIndex } from './helpers';
 import { parseA1 } from '../src/core/refs';
@@ -33,7 +34,7 @@ describe('locale-aware input', () => {
 describe('strict paste', () => {
   it('finds values that would not read back as pasted', () => {
     const risks = pasteRisks([['03/04/2026', '25/12/2026', '007', '12345678901234567890', 'plain', '42']], 'en-GB');
-    expect(risks.map((r) => [r.text, r.reason, r.becomes])).toEqual([
+    expect(risks.map((r) => [r.text, english.text(r.reason), r.becomes])).toEqual([
       ['03/04/2026', 'ambiguous date', '3 Apr 2026'],
       ['007', 'leading zeros', '7'],
       ['12345678901234567890', 'too many digits', '12345678901234567000'],

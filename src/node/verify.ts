@@ -1,3 +1,4 @@
+import { english, errorText } from '../i18n';
 import { spawnSync } from 'node:child_process';
 import { strFromU8, unzipSync } from 'fflate';
 import { toA1 } from '../core/refs';
@@ -119,7 +120,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
   try {
     original = WorkbookSession.open(bytes, file, 'en-US', { recalc: 'on' });
   } catch (e) {
-    add('Opens', 'fail', (e as Error).message);
+    add('Opens', 'fail', english.text(errorText(e)));
     return report;
   }
   add('Opens', 'pass', `${original.model.sheets.length} sheet${original.model.sheets.length === 1 ? '' : 's'}.`);
@@ -135,7 +136,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     live: calc.liveCells,
     unsupported: calc.unsupported,
     mismatched: calc.mismatched,
-    samples: calc.samples.slice(0, 20).map((x) => ({ where: `${x.sheet}!${x.ref}`, formula: x.formula, excel: x.excel, engine: x.engine, reason: x.reason })),
+    samples: calc.samples.slice(0, 20).map((x) => ({ where: `${x.sheet}!${x.ref}`, formula: x.formula, excel: x.excel === undefined ? undefined : english.text(x.excel), engine: x.engine === undefined ? undefined : english.text(x.engine), reason: english.text(x.reason) })),
   };
   const exact = calc.formulaCells - calc.unsupported - calc.mismatched;
   add(
@@ -152,7 +153,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
   session.ensureEngine();
   for (const p of probes) {
     const r = session.apply({ type: 'input', sheet: p.sheet, row: p.row, col: p.col, text: p.text });
-    if (r.rejected) add(`Edit ${toA1(p.row, p.col)}`, 'fail', r.rejected);
+    if (r.rejected) add(`Edit ${toA1(p.row, p.col)}`, 'fail', english.text(r.rejected));
   }
   report.probes = probes.map((p) => ({ sheet: session.model.sheets[p.sheet].info.name, ref: toA1(p.row, p.col), text: p.text }));
   let edited: Uint8Array;
@@ -160,7 +161,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     edited = session.save();
     report.outputs.edited = edited;
   } catch (e) {
-    add('Saves after editing', 'fail', (e as Error).message);
+    add('Saves after editing', 'fail', english.text(errorText(e)));
     return finish(report);
   }
 

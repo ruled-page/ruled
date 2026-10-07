@@ -1,3 +1,4 @@
+import { msg, type Text } from '../i18n/message';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
 import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
@@ -30,7 +31,7 @@ export class SheetView {
   /** Formats referred to by conditional formatting results. */
   cfStyles: DiffStyle[] = [];
   /** Extra read-only rules, e.g. from a schema. */
-  constraint?: (row: number, col: number) => string | undefined;
+  constraint?: (row: number, col: number) => Text | undefined;
   version = 0;
 
   constructor(info: SheetInfo, grid: SheetGrid | null) {
@@ -200,11 +201,11 @@ export class SheetView {
     return this.mergesByRow.get(row)?.find((m) => col >= m.c1 && col <= m.c2);
   }
 
-  readOnlyReason(row: number, col: number): string | undefined {
-    if (this.info.kind !== 'worksheet') return 'This sheet cannot be edited here.';
-    if (this.info.protected) return 'This sheet is protected in Excel, so it is read-only here.';
+  readOnlyReason(row: number, col: number): Text | undefined {
+    if (this.info.kind !== 'worksheet') return msg('sheet.notWorksheet');
+    if (this.info.protected) return msg('sheet.protected');
     const m = this.mergeAt(row, col);
-    if (m && (m.r1 !== row || m.c1 !== col)) return 'Part of a merged cell. Edit its top-left cell.';
+    if (m && (m.r1 !== row || m.c1 !== col)) return msg('sheet.mergedPart');
     return this.blockedAt(row, col)?.reason ?? this.constraint?.(row, col);
   }
 

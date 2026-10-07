@@ -28,6 +28,7 @@ defineWorkbookEditorElement(mountWorkbookEditor);
 export { defineWorkbookEditorElement, type SaveEventDetail } from './element';
 export type { EditorHandle } from './mount';
 export { SaveConflictError } from '../state/store';
+export { de, en, msg, type Localized, type Message, type Text, type Translations } from '../i18n';
 export type { EditorFeatures, HistoryEntry, SavedWorkbook, StoreOptions as EditorOptions } from '../state/store';
 export type { CellChange } from '../core/types';
 export { defineSchema } from '../schema/types';

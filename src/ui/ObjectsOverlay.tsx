@@ -3,6 +3,8 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import { Icon } from './icons';
+import type { MessageKey } from '../i18n/message';
+import { useT } from '../i18n/react';
 
 interface Box {
   key: string;
@@ -13,12 +15,12 @@ interface Box {
   height: number;
 }
 
-const LABEL: Record<SheetObject['kind'], string> = {
-  chart: 'Chart',
-  image: 'Picture',
-  shape: 'Shape',
-  pivot: 'Pivot table',
-  control: 'Control',
+const LABEL: Record<SheetObject['kind'], MessageKey> = {
+  chart: 'objects.chart',
+  image: 'objects.picture',
+  shape: 'objects.shape',
+  pivot: 'objects.pivot',
+  control: 'objects.control',
 };
 
 /**
@@ -42,6 +44,7 @@ export function ObjectsOverlay({
   /** Height of the column header above the cells. */
   top: number;
 }) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
 
@@ -84,22 +87,25 @@ export function ObjectsOverlay({
 
   return (
     <div className="objects-overlay" ref={host} aria-hidden="true" style={{ top }}>
-      {boxes.map((b) => (
-        <div
-          key={b.key}
-          className={`object-box object-${b.obj.kind} ${b.width < 150 || b.height < 56 ? 'compact' : ''}`}
-          style={{ left: b.left, top: b.top, width: b.width, height: b.height }}
-          title={`${b.obj.title ?? LABEL[b.obj.kind]}: kept in the file, not shown here`}
-        >
-          <div className="object-label">
-            <Icon name={b.obj.kind === 'chart' ? 'chart' : b.obj.kind === 'image' ? 'image' : 'shape'} />
-            <span>
-              {b.obj.title ?? (b.obj.chartType ? `${b.obj.chartType} chart` : LABEL[b.obj.kind])}
-              <em>Kept in file, not shown here</em>
-            </span>
+      {boxes.map((b) => {
+        const label = b.obj.title ?? t(LABEL[b.obj.kind]);
+        return (
+          <div
+            key={b.key}
+            className={`object-box object-${b.obj.kind} ${b.width < 150 || b.height < 56 ? 'compact' : ''}`}
+            style={{ left: b.left, top: b.top, width: b.width, height: b.height }}
+            title={t('objects.title', { name: label })}
+          >
+            <div className="object-label">
+              <Icon name={b.obj.kind === 'chart' ? 'chart' : b.obj.kind === 'image' ? 'image' : 'shape'} />
+              <span>
+                {b.obj.title ?? (b.obj.chartType ? t('objects.typedChart', { type: t.text(b.obj.chartType) }) : label)}
+                <em>{t('objects.kept')}</em>
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

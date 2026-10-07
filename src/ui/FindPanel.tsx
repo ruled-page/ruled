@@ -3,9 +3,12 @@ import { toA1 } from '../core/refs';
 import type { FindQuery, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { useDialog } from './useDialog';
+import { msg } from '../i18n/message';
+import { useT } from '../i18n/react';
 
 /** Find, and find and replace, over the sheet or the whole workbook. */
 export function FindPanel({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [replacement, setReplacement] = useState('');
   const [replacing, setReplacing] = useState(false);
@@ -49,7 +52,7 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
   };
   const replaceAll = async () => {
     const n = await store.replace(query, replacement);
-    store.toast('info', n ? `Replaced in ${n.toLocaleString()} cell${n === 1 ? '' : 's'}.` : 'Nothing was replaced.');
+    store.toast('info', n ? msg('find.replaced', { count: n }) : msg('find.nothingReplaced'));
   };
   const close = () => store.set('findOpen', false);
   // Escape closes it and the focus goes back to the grid; Tab can still leave it for the sheet.
@@ -69,51 +72,51 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
       }}
     >
       <div className="find-row">
-        <button className="btn icon small" onClick={() => setReplacing(!replacing)} aria-label={replacing ? 'Hide replace' : 'Show replace'} title="Replace">
+        <button className="btn icon small" onClick={() => setReplacing(!replacing)} aria-label={t(replacing ? 'find.hideReplace' : 'find.showReplace')} title={t('find.replace')}>
           <Icon name={replacing ? 'minus' : 'plus'} size={14} />
         </button>
-        <input ref={input} placeholder="Find" value={text} onChange={(e) => setText(e.target.value)} aria-label="Find" />
+        <input ref={input} placeholder={t('find.find')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('find.find')} />
         <span className="find-count" aria-live="polite">
-          {text ? (hits.length ? `${at >= 0 ? at + 1 : '–'} of ${hits.length.toLocaleString()}` : 'No matches') : ''}
+          {text ? (hits.length ? t('find.position', { at: at >= 0 ? t.number(at + 1) : '–', total: hits.length }) : t('find.noMatches')) : ''}
         </span>
-        <button className="btn small" onClick={() => go(-1)} disabled={!hits.length} title="Previous (Shift+Enter)">
+        <button className="btn small" onClick={() => go(-1)} disabled={!hits.length} title={t('find.previous')}>
           ↑
         </button>
-        <button className="btn small" onClick={() => go(1)} disabled={!hits.length} title="Next (Enter)">
+        <button className="btn small" onClick={() => go(1)} disabled={!hits.length} title={t('find.next')}>
           ↓
         </button>
-        <button className="btn icon small" onClick={close} aria-label="Close find">
+        <button className="btn icon small" onClick={close} aria-label={t('find.close')}>
           <Icon name="close" size={14} />
         </button>
       </div>
       {replacing && (
         <div className="find-row">
           <span className="find-indent" />
-          <input placeholder="Replace with" value={replacement} onChange={(e) => setReplacement(e.target.value)} aria-label="Replace with" />
+          <input placeholder={t('find.replaceWith')} value={replacement} onChange={(e) => setReplacement(e.target.value)} aria-label={t('find.replaceWith')} />
           <button className="btn small" onClick={() => void replaceOne()} disabled={!hits.length}>
-            Replace
+            {t('find.replace')}
           </button>
           <button className="btn small" onClick={() => void replaceAll()} disabled={!hits.length}>
-            All
+            {t('find.replaceAll')}
           </button>
         </div>
       )}
       <div className="find-options">
         <label>
-          <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> Match case
+          <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> {t('find.matchCase')}
         </label>
         <label>
-          <input type="checkbox" checked={wholeCell} onChange={(e) => setWholeCell(e.target.checked)} /> Whole cell
+          <input type="checkbox" checked={wholeCell} onChange={(e) => setWholeCell(e.target.checked)} /> {t('find.wholeCell')}
         </label>
         {!replacing && (
-          <select value={lookIn} onChange={(e) => setLookIn(e.target.value as FindQuery['lookIn'])} aria-label="Look in">
-            <option value="values">In values</option>
-            <option value="formulas">In formulas</option>
+          <select value={lookIn} onChange={(e) => setLookIn(e.target.value as FindQuery['lookIn'])} aria-label={t('find.lookIn')}>
+            <option value="values">{t('find.inValues')}</option>
+            <option value="formulas">{t('find.inFormulas')}</option>
           </select>
         )}
-        <select value={scope} onChange={(e) => setScope(e.target.value as FindQuery['scope'])} aria-label="Within">
-          <option value="sheet">This sheet</option>
-          <option value="workbook">Workbook</option>
+        <select value={scope} onChange={(e) => setScope(e.target.value as FindQuery['scope'])} aria-label={t('find.within')}>
+          <option value="sheet">{t('find.thisSheet')}</option>
+          <option value="workbook">{t('find.workbook')}</option>
         </select>
       </div>
       {current && scope === 'workbook' && <div className="find-where">{`${store.sheets[current.sheet]?.info.name}!${toA1(current.row, current.col)}`}</div>}

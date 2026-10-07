@@ -3,32 +3,42 @@ import { useMemo } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
+import { Trans } from 'react-i18next';
 import { Icon } from './icons';
-import { MOD } from './keys';
+import { mod } from './keys';
+import { useT } from '../i18n/react';
 
 function SchemaChip({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const ctl = store.schema;
   if (!ctl) {
     if (!store.schemaMismatch) return null;
     return (
-      <button className="chip chip-warn" onClick={() => store.set('designerOpen', true)} title="No schema matched; open the schema designer">
-        <Icon name="warn" size={14} /> <span className="label">No schema</span>
+      <button className="chip chip-warn" onClick={() => store.set('designerOpen', true)} title={t('schemaChip.noneTitle')}>
+        <Icon name="warn" size={14} /> <span className="label">{t('schemaChip.none')}</span>
       </button>
     );
   }
   const { errors, warnings, pending } = ctl.summary();
   const tone = errors ? 'chip-error' : warnings ? 'chip-warn' : 'chip-ok';
   const status = errors
-    ? `${errors} error${errors === 1 ? '' : 's'}`
+    ? t('schemaChip.errors', { count: errors })
     : warnings
-      ? `${warnings} warning${warnings === 1 ? '' : 's'}`
+      ? t('schemaChip.warnings', { count: warnings })
       : pending
-        ? 'Checking…'
-        : 'All checks pass';
+        ? t('schemaChip.checking')
+        : t('schemaChip.allPass');
+  const name = t.localized(ctl.schema.name);
   return (
-    <button className={`chip ${tone}`} onClick={() => store.set('panel', store.panel === 'issues' ? null : 'issues')} title={`Schema: ${ctl.schema.name}`} aria-label={`${ctl.schema.name}: ${status}`} aria-expanded={store.panel === 'issues'}>
+    <button
+      className={`chip ${tone}`}
+      onClick={() => store.set('panel', store.panel === 'issues' ? null : 'issues')}
+      title={t('schemaChip.title', { name })}
+      aria-label={t('schemaChip.label', { name, status })}
+      aria-expanded={store.panel === 'issues'}
+    >
       <Icon name={errors || warnings ? 'warn' : 'check'} size={14} />
-      <span className="label">{ctl.schema.name}</span>
+      <span className="label">{name}</span>
       <span className="chip-status">
         {pending > 0 && <span className="spinner small" />} {status}
       </span>
@@ -37,10 +47,11 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
 }
 
 export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen: () => void; extra?: ReactNode }) {
+  const t = useT();
   const ready = store.status === 'ready';
   const notable = store.findings.filter((f) => f.severity === 'warn').length;
   const target = ready ? store.recordTarget : undefined;
-  const noun = target?.table.byRow === false ? 'column' : 'row';
+  const across = target?.table.byRow === false;
   const exact = store.numbers.display === 'full';
   return (
     <header className="toolbar">
@@ -48,68 +59,74 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         <span className="brand-mark" aria-hidden="true">
           <Icon name="sheet" size={16} />
         </span>
-        <span className="brand-name">Workbook editor</span>
+        <span className="brand-name">{t('toolbar.brand')}</span>
         {store.fileName && <span className="file-name">{store.fileName}</span>}
         {store.editedCount > 0 && (
-          <button className="badge badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title="Show what changed">
-            {store.editedCount.toLocaleString()} {store.editedCount === 1 ? 'change' : 'changes'}
+          <button className="badge badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title={t('toolbar.changesTitle')}>
+            {t('toolbar.changes', { count: store.editedCount })}
           </button>
         )}
         {ready && <SchemaChip store={store} />}
-        {store.busy && <span className="spinner" role="status" aria-label="Working" />}
+        {store.busy && <span className="spinner" role="status" aria-label={t('toolbar.working')} />}
       </div>
       <div className="toolbar-actions">
         {store.features.open && (
-          <button className="btn" onClick={onOpen} title="Open a workbook" aria-label="Open">
-            <Icon name="open" /> <span className="label">Open</span>
+          <button className="btn" onClick={onOpen} title={t('toolbar.openTitle')} aria-label={t('toolbar.open')}>
+            <Icon name="open" /> <span className="label">{t('toolbar.open')}</span>
           </button>
         )}
         <div className="btn-group">
-          <button className="btn icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title="Undo (⌘Z)" aria-label="Undo">
+          <button className="btn icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
             <Icon name="undo" />
           </button>
-          <button className="btn icon" disabled={!store.redoStack.length} onClick={() => void store.redo()} title="Redo (⇧⌘Z)" aria-label="Redo">
+          <button className="btn icon" disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
             <Icon name="redo" />
           </button>
         </div>
         {target && (
           <div className="btn-group">
-            <button className="btn" onClick={() => void store.insertRecord()} title={`Insert a ${noun} into this table`}>
-              <Icon name="plus" /> <span className="label">Insert {noun}</span>
+            <button className="btn" onClick={() => void store.insertRecord()} title={t(across ? 'toolbar.insertColumnTitle' : 'toolbar.insertRowTitle')}>
+              <Icon name="plus" /> <span className="label">{t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}</span>
             </button>
-            <button className="btn" disabled={target.append} onClick={() => void store.deleteRecords()} title={`Delete the selected ${noun}s from this table`}>
-              <Icon name="minus" /> <span className="label">Delete {noun}</span>
+            <button className="btn" disabled={target.append} onClick={() => void store.deleteRecords()} title={t(across ? 'toolbar.deleteColumnTitle' : 'toolbar.deleteRowTitle')}>
+              <Icon name="minus" /> <span className="label">{t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}</span>
             </button>
           </div>
         )}
-        <label className={`toggle ${!ready ? 'disabled' : ''}`} title="Show every stored digit and copy exact values">
+        <label className={`toggle ${!ready ? 'disabled' : ''}`} title={t('toolbar.exactTitle')}>
           <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
-          <span>Exact numbers</span>
+          <span>{t('toolbar.exact')}</span>
         </label>
-        <label className={`toggle ${!ready ? 'disabled' : ''}`} title="Tint cells changed in this session">
+        <label className={`toggle ${!ready ? 'disabled' : ''}`} title={t('toolbar.highlightTitle')}>
           <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
-          <span>Highlight changes</span>
+          <span>{t('toolbar.highlight')}</span>
         </label>
         {store.features.schemas && (
-          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title="Create, import and export schemas" aria-label="Schemas">
-            <Icon name="schema" /> <span className="label">Schemas</span>
+          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
+            <Icon name="schema" /> <span className="label">{t('toolbar.schemas')}</span>
           </button>
         )}
-        <button className={`btn ${store.panel === 'report' ? 'active' : ''}`} disabled={!ready} onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')} title="What's in this file" aria-label={notable ? `What's in this file (${notable} to note)` : "What's in this file"}>
-          <Icon name="info" /> <span className="label">What's in this file</span>
-          {notable > 0 && <span className="count">{notable}</span>}
+        <button
+          className={`btn ${store.panel === 'report' ? 'active' : ''}`}
+          disabled={!ready}
+          onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
+          title={t('toolbar.report')}
+          aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
+        >
+          <Icon name="info" /> <span className="label">{t('toolbar.report')}</span>
+          {notable > 0 && <span className="count">{t.number(notable)}</span>}
         </button>
-        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={`Keyboard shortcuts (${MOD}/)`} aria-label="Keyboard shortcuts">
+        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: mod(t, '/') })} aria-label={t('toolbar.shortcuts')}>
           <Icon name="keyboard" />
         </button>
         {extra}
         {store.features.save && store.hasSaveHandler && store.features.download && (
-          <button className="btn icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title="Download a copy (.xlsx)" aria-label="Download a copy">
+          <button className="btn icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title={t('toolbar.downloadTitle')} aria-label={t('toolbar.download')}>
             <Icon name="download" />
           </button>
         )}
         {store.features.save && (
-          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title="Save (⌘S)">
+          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
             <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
           </button>
         )}
@@ -119,13 +136,14 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
 }
 
 export function SchemaBanner({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const m = store.schemaMismatch;
   if (!m && store.schemaNote) {
     return (
       <div className="banner" role="status">
         <Icon name="schema" />
         <div className="banner-text">
-          <p>{store.schemaNote}</p>
+          <p>{t.text(store.schemaNote)}</p>
         </div>
       </div>
     );
@@ -137,59 +155,54 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
       <div className="banner-text">
         <p>
           {m.name ? (
-            <>
-              This file doesn't match the <strong>{m.name}</strong> schema, so it's open as a plain spreadsheet with no schema checks.
-            </>
+            <Trans i18nKey="banner.mismatchNamed" values={{ name: t.localized(m.name) }} components={{ b: <strong /> }} />
           ) : (
-            <>
-              This file doesn't match {m.tried === 1 ? 'the registered schema' : `any of the ${m.tried} registered schemas`}, so it's open as a
-              plain spreadsheet with no schema checks.
-            </>
+            t('banner.mismatch', { count: m.tried })
           )}
         </p>
         {m.problems.length > 0 && (
           <ul>
-            {m.problems.slice(0, 3).map((p) => (
-              <li key={p}>{p}</li>
+            {m.problems.slice(0, 3).map((p, i) => (
+              <li key={i}>{t.text(p)}</li>
             ))}
-            {m.problems.length > 3 && <li>…and {m.problems.length - 3} more.</li>}
+            {m.problems.length > 3 && <li>{t('banner.moreProblems', { count: m.problems.length - 3 })}</li>}
           </ul>
         )}
       </div>
       <button className="link" onClick={() => store.set('designerOpen', true)}>
-        Open schema designer
+        {t('banner.openDesigner')}
       </button>
     </div>
   );
 }
 
 export function Banner({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const summary = useMemo(() => {
     const count = (kinds: Finding['kind'][]) => store.findings.filter((f) => kinds.includes(f.kind)).length;
     const parts: string[] = [];
     const charts = count(['chart', 'chartsheet']);
     const pivots = count(['pivot']);
-    if (charts) parts.push(`${charts} chart${charts === 1 ? '' : 's'}`);
-    if (pivots) parts.push(`${pivots} pivot table${pivots === 1 ? '' : 's'}`);
-    if (count(['macro'])) parts.push('macros');
-    if (count(['externalLink'])) parts.push('links to other workbooks');
+    if (charts) parts.push(t('banner.charts', { count: charts }));
+    if (pivots) parts.push(t('banner.pivots', { count: pivots }));
+    if (count(['macro'])) parts.push(t('banner.macros'));
+    if (count(['externalLink'])) parts.push(t('banner.externalLinks'));
     const notCalculated = (store.calc?.unsupported ?? 0) + (store.calc?.mismatched ?? 0);
-    if (notCalculated) parts.push(`${notCalculated.toLocaleString()} formula${notCalculated === 1 ? '' : 's'} this editor can't recalculate`);
+    if (notCalculated) parts.push(t('banner.notCalculated', { count: notCalculated }));
     return parts;
-  }, [store.findings, store.calc]);
+  }, [store.findings, store.calc, t]);
 
   if (store.bannerDismissed || !summary.length) return null;
-  const list = summary.length > 1 ? `${summary.slice(0, -1).join(', ')} and ${summary[summary.length - 1]}` : summary[0];
   return (
     <div className="banner" role="status">
       <Icon name="info" />
       <p>
-        This workbook has {list}. <strong>Everything is kept when you save</strong>, even what this editor can't show.
+        <Trans i18nKey="banner.workbookHas" values={{ list: t.list(summary) }} components={{ b: <strong /> }} />
       </p>
       <button className="link" onClick={() => store.set('panel', 'report')}>
-        Review details
+        {t('banner.reviewDetails')}
       </button>
-      <button className="btn icon ghost" onClick={() => store.set('bannerDismissed', true)} aria-label="Dismiss">
+      <button className="btn icon ghost" onClick={() => store.set('bannerDismissed', true)} aria-label={t('banner.dismiss')}>
         <Icon name="close" />
       </button>
     </div>
@@ -197,10 +210,12 @@ export function Banner({ store }: { store: WorkbookStore }) {
 }
 
 export function SheetTabs({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const hidden = store.sheets.filter((s) => s.info.state !== 'visible').length;
   const bound = new Set(store.schema?.binding.sheets.map((s) => s.sheet) ?? []);
+  const schemaName = t.localized(store.schema?.schema.name);
   return (
-    <nav className="sheet-tabs" aria-label="Sheets">
+    <nav className="sheet-tabs" aria-label={t('tabs.label')}>
       {store.sheets.map((s, i) =>
         s.info.state !== 'visible' ? null : (
           <button
@@ -209,7 +224,7 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
             aria-current={i === store.active ? 'true' : undefined}
             style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
             onClick={() => store.setActive(i)}
-            title={bound.has(i) ? `Checked by the “${store.schema?.schema.name}” schema` : undefined}
+            title={bound.has(i) ? t('tabs.checkedBy', { name: schemaName }) : undefined}
           >
             {s.info.kind === 'chartsheet' && <Icon name="chart" size={13} />}
             {s.info.protected && <Icon name="lock" size={12} />}
@@ -219,8 +234,8 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
         ),
       )}
       {hidden > 0 && (
-        <span className="tabs-note" title="Hidden sheets are kept in the file but not shown, as in Excel.">
-          {hidden} hidden
+        <span className="tabs-note" title={t('tabs.hiddenTitle')}>
+          {t('tabs.hidden', { count: hidden })}
         </span>
       )}
     </nav>
@@ -228,6 +243,7 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
 }
 
 export function StatusBar({ store, view, selection }: { store: WorkbookStore; view?: SheetView; selection?: Selection }) {
+  const t = useT();
   const stats = useMemo(() => {
     if (!view || !selection) return null;
     const total = selection.rects.reduce((n, r) => n + (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1), 0);
@@ -250,35 +266,35 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
   }, [view, view?.version, selection]);
 
   const calc = store.calc;
-  const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
+  const fmt = (n: number) => t.number(n, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
   return (
     <footer className="status-bar">
       <span className="status-calc" role="status">
         {store.status === 'ready' && !calc && (
           <>
-            <span className="spinner small" /> Building calculation engine…
+            <span className="spinner small" /> {t('status.building')}
           </>
         )}
         {calc?.off && (
           <>
-            <span className="dot" /> Live recalculation off ({calc.formulaCells.toLocaleString()} formulas)
+            <span className="dot" /> {t('status.recalcOff', { count: calc.formulaCells })}
             {store.recalcStarting ? (
               <span className="muted">
-                <span className="spinner small" /> Building calculation engine…
+                <span className="spinner small" /> {t('status.building')}
               </span>
             ) : (
-              <button className="link" onClick={() => void store.enableRecalc()} title="Building the engine for a workbook this size takes a while and uses a lot of memory">
-                Turn on
+              <button className="link" onClick={() => void store.enableRecalc()} title={t('status.turnOnTitle')}>
+                {t('status.turnOn')}
               </button>
             )}
           </>
         )}
         {calc && !calc.off && (
           <>
-            <span className="dot ok" /> {calc.liveCells.toLocaleString()} formulas recalculate live
+            <span className="dot ok" /> {t('status.live', { count: calc.liveCells })}
             {calc.unsupported + calc.mismatched > 0 && (
               <button className="link" onClick={() => store.set('panel', 'report')}>
-                {(calc.unsupported + calc.mismatched).toLocaleString()} not calculated here
+                {t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}
               </button>
             )}
           </>
@@ -286,17 +302,17 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
       </span>
       {view?.filter && (
         <span className="status-filter">
-          Filtered: {view.filteredCount.toLocaleString()} row{view.filteredCount === 1 ? '' : 's'} hidden
+          {t('status.filtered', { count: view.filteredCount })}
           <button className="link" onClick={() => store.clearFilter()}>
-            Show all
+            {t('status.showAll')}
           </button>
         </span>
       )}
       {stats && (
         <span className="status-stats">
-          {stats.nums > 0 && <span>Average: {fmt(stats.sum / stats.nums)}</span>}
-          <span>Count: {stats.count.toLocaleString()}</span>
-          {stats.nums > 0 && <span>Sum: {fmt(stats.sum)}</span>}
+          {stats.nums > 0 && <span>{t('status.average', { value: fmt(stats.sum / stats.nums) })}</span>}
+          <span>{t('status.count', { value: t.number(stats.count) })}</span>
+          {stats.nums > 0 && <span>{t('status.sum', { value: fmt(stats.sum) })}</span>}
         </span>
       )}
     </footer>

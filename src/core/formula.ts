@@ -6,6 +6,7 @@ import {
   translateTokensToR1C1,
   type Token,
 } from '@borgar/fx';
+import { msg, type Text } from '../i18n/message';
 import { toA1 } from './refs';
 
 /**
@@ -77,9 +78,12 @@ export function toFileFormula(userFormula: string): string {
   return stringifyTokens(out);
 }
 
-/** Returns an error message when the formula is not valid Excel syntax. */
-export function validateFormula(userFormula: string): string | undefined {
-  if (!userFormula.trim()) return 'The formula is empty.';
+/**
+ * Returns what is wrong when the formula is not valid Excel syntax: a
+ * message, or the parser's own (English) description.
+ */
+export function validateFormula(userFormula: string): Text | undefined {
+  if (!userFormula.trim()) return msg('core.formula.empty');
   try {
     parse(tokens(userFormula));
     return undefined;

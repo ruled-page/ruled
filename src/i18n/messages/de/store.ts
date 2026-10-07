@@ -1,0 +1,129 @@
+import type { store as en } from '../en/store';
+
+/** German messages; every English key needs one (the type checks it). */
+export const store: Record<keyof typeof en, string> = {
+  'store.noWorkbook': 'Es ist keine Arbeitsmappe geöffnet.',
+
+  'store.open.discardTitle': 'Änderungen verwerfen?',
+  'store.open.discardBody': 'Sie haben nicht gespeicherte Änderungen in {{fileName}}. Wenn Sie eine andere Datei öffnen, werden sie verworfen.',
+  'store.open.discardConfirm': 'Verwerfen und öffnen',
+  'store.open.notExcel': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) können geöffnet werden.',
+  'store.open.reading': '{{fileName}} wird gelesen…',
+
+  'store.draft.title': 'Nicht gespeicherte Änderungen wiederherstellen?',
+  'store.draft.body_one':
+    'Diese Datei wurde am {{when}} bearbeitet und nicht gespeichert ({{count, number}} geänderte Zelle). Diese Änderungen wiederherstellen?',
+  'store.draft.body_other':
+    'Diese Datei wurde am {{when}} bearbeitet und nicht gespeichert ({{count, number}} geänderte Zellen). Diese Änderungen wiederherstellen?',
+  'store.draft.restore': 'Änderungen wiederherstellen',
+  'store.draft.discard': 'Verwerfen',
+
+  'store.save.failed': 'Speichern nicht möglich: {{reason}}',
+  'store.save.blocked': 'Nicht gespeichert. {{reason}}',
+  'store.save.withErrorsTitle': 'Trotz Fehlern speichern?',
+  'store.save.withErrorsBody': '{{reason}} Die Datei trotzdem speichern?',
+  'store.save.withErrorsConfirm': 'Trotzdem speichern',
+  'store.save.reviewTitle_one': '{{count, number}} geänderte Zelle speichern?',
+  'store.save.reviewTitle_other': '{{count, number}} geänderte Zellen speichern?',
+  'store.save.reviewBody': 'Prüfen Sie jeden Wert, bevor er in die Datei übernommen wird.',
+  'store.save.reviewConfirm': 'Speichern',
+  'store.save.reviewCell': 'Zelle',
+  'store.save.reviewWas': 'Vorher',
+  'store.save.reviewNow': 'Jetzt',
+  'store.save.formatChanged': '{{value}} (Format geändert)',
+  'store.save.saved': '{{fileName}} gespeichert.',
+  'store.save.savedChanges_one': '{{fileName}} mit {{count, number}} geänderten Zelle gespeichert.',
+  'store.save.savedChanges_other': '{{fileName}} mit {{count, number}} geänderten Zellen gespeichert.',
+  'store.save.savedUnchanged': '{{fileName}} gespeichert (unverändert).',
+  'store.save.notSaved': 'Nicht gespeichert: {{reason}}',
+  'store.save.downloaded': '{{fileName}} heruntergeladen.',
+
+  'store.conflict.title': 'Diese Arbeitsmappe wurde an anderer Stelle geändert',
+  'store.conflict.reason': 'Jemand anderes hat eine neuere Version dieser Arbeitsmappe gespeichert.',
+  'store.conflict.body': '{{reason}} Ihre Änderungen sind noch vorhanden. Möchten Sie sie als Kopie herunterladen, damit nichts verloren geht?',
+  'store.conflict.download': 'Meine Kopie herunterladen',
+  'store.conflict.keepEditing': 'Weiter bearbeiten',
+  'store.conflict.copyName': '{{name}} (meine Änderungen){{extension}}',
+
+  'store.edit.skipped_one': '{{count, number}} Zelle wurde nicht geändert. {{reason}}',
+  'store.edit.skipped_other': '{{count, number}} Zellen wurden nicht geändert. {{reason}}',
+  'store.cf.tooManyCells_one':
+    '{{count, number}} Regel der bedingten Formatierung im Tabellenblatt {{sheet}} umfasst zu viele Zellen, um hier angezeigt zu werden.',
+  'store.cf.tooManyCells_other':
+    '{{count, number}} Regeln der bedingten Formatierung im Tabellenblatt {{sheet}} umfassen zu viele Zellen, um hier angezeigt zu werden.',
+
+  'store.history.edit': 'Bearbeiten',
+  'store.history.paste': 'Einfügen',
+  'store.history.fill': 'Ausfüllen',
+  'store.history.clear': 'Inhalte löschen',
+  'store.history.restore': 'Rückgängig oder Wiederholen',
+  'store.history.sort': 'Sortieren',
+  'store.history.businessLogic': 'Von der Geschäftslogik ausgefüllt',
+  'store.history.restoredDraft': 'Nicht gespeicherte Änderungen wiederhergestellt',
+  'store.history.undo': 'Rückgängig',
+  'store.history.redo': 'Wiederholen',
+  'store.history.undoStep': 'Rückgängig: {{action}}',
+  'store.history.redoStep': 'Wiederholen: {{action}}',
+  'store.history.sortAscending': 'Von A bis Z sortieren',
+  'store.history.sortDescending': 'Von Z bis A sortieren',
+  'store.history.replace': 'Ersetzen',
+  'store.history.fillDown': 'Nach unten ausfüllen',
+  'store.history.fillRight': 'Nach rechts ausfüllen',
+  'store.history.insertedRows_one': '{{count, number}} Zeile eingefügt',
+  'store.history.insertedRows_other': '{{count, number}} Zeilen eingefügt',
+  'store.history.deletedRows_one': '{{count, number}} Zeile gelöscht',
+  'store.history.deletedRows_other': '{{count, number}} Zeilen gelöscht',
+  'store.history.insertedColumns_one': '{{count, number}} Spalte eingefügt',
+  'store.history.insertedColumns_other': '{{count, number}} Spalten eingefügt',
+  'store.history.deletedColumns_one': '{{count, number}} Spalte gelöscht',
+  'store.history.deletedColumns_other': '{{count, number}} Spalten gelöscht',
+  'store.history.moved': '{{range}} verschoben',
+  'store.history.movedTo': '{{range}} nach {{sheet}} verschoben',
+  'store.history.movedElsewhere': '{{range}} in ein anderes Tabellenblatt verschoben',
+
+  'store.sort.noData': 'Wählen Sie eine Zelle in einem Datenblock aus, um ihn zu sortieren.',
+  'store.replace.readOnly_one': '{{count, number}} passende Zelle ist hier schreibgeschützt und wurde nicht geändert.',
+  'store.replace.readOnly_other': '{{count, number}} passende Zellen sind hier schreibgeschützt und wurden nicht geändert.',
+
+  'store.clipboard.cutBlocked':
+    'Zum Einfügen hier ausgeschnitten. Der Browser hat nicht erlaubt, es für andere Apps in die Zwischenablage zu legen; verwenden Sie dafür ⌘X oder Strg+X.',
+  'store.clipboard.copyBlocked':
+    'Zum Einfügen hier kopiert. Der Browser hat nicht erlaubt, es für andere Apps in die Zwischenablage zu legen; verwenden Sie dafür ⌘C oder Strg+C.',
+  'store.clipboard.readBlocked': 'Der Browser hat das Lesen der Zwischenablage nicht erlaubt. Verwenden Sie stattdessen ⌘V oder Strg+V.',
+
+  'store.replaceFormula.title_one': 'Eine Formel ersetzen?',
+  'store.replaceFormula.title_other': '{{count, number}} Formeln ersetzen?',
+  'store.replaceFormula.body_one':
+    'Diese Zelle enthält eine Formel. Sie wird durch einen festen Wert ersetzt, und die Formel ist nicht in der gespeicherten Datei enthalten. Sie können dies rückgängig machen.',
+  'store.replaceFormula.body_other':
+    'Einige dieser Zellen enthalten Formeln. Sie werden durch feste Werte ersetzt, und diese Formeln sind nicht in der gespeicherten Datei enthalten. Sie können dies rückgängig machen.',
+  'store.replaceFormula.confirm_one': 'Formel ersetzen',
+  'store.replaceFormula.confirm_other': 'Formeln ersetzen',
+
+  'store.paste.riskTitle_one': 'Einen eingefügten Wert prüfen',
+  'store.paste.riskTitle_other': '{{count, number}} eingefügte Werte prüfen',
+  'store.paste.riskBody':
+    'Diese Werte würden anders gespeichert, als sie zu lesen sind. Möchten Sie sie wie angezeigt einfügen oder genau als Text beibehalten?',
+  'store.paste.asShown': 'Wie angezeigt einfügen',
+  'store.paste.keepText': 'Als Text beibehalten',
+  'store.paste.riskPasted': 'Eingefügt',
+  'store.paste.riskBecomes': 'Würde zu',
+  'store.paste.riskBecause': 'Grund',
+  'store.paste.ambiguousDate': 'mehrdeutiges Datum',
+  'store.paste.tooManyDigits': 'zu viele Stellen',
+  'store.paste.leadingZeros': 'führende Nullen',
+  'store.paste.rejected': 'Es wurde nichts eingefügt. {{reason}}',
+  'store.paste.large_one': '{{count, number}} Zelle wird eingefügt…',
+  'store.paste.large_other': '{{count, number}} Zellen werden eingefügt…',
+
+  'store.validation.defaultError': 'Dieser Wert entspricht nicht den für diese Zelle definierten Einschränkungen für die Datenüberprüfung.',
+  'store.validation.titled': '{{title}}: {{message}}',
+  'store.validation.keepAnyway': '{{message}} Diesen Wert trotzdem beibehalten?',
+  'store.validation.keepValue': 'Wert beibehalten',
+  'store.validation.notInList': 'Nicht in der Liste',
+  'store.validation.notAllowed': 'Wert nicht zulässig',
+
+  'sheet.notWorksheet': 'Dieses Blatt kann hier nicht bearbeitet werden.',
+  'sheet.protected': 'Dieses Tabellenblatt ist in Excel geschützt und daher hier schreibgeschützt.',
+  'sheet.mergedPart': 'Teil einer verbundenen Zelle. Bearbeiten Sie die Zelle oben links.',
+};

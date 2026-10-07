@@ -2,12 +2,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { useDialog } from './useDialog';
+import { msg } from '../i18n/message';
+import { useT } from '../i18n/react';
 
 /**
  * Picks which values of a column to show, like Excel's filter list. Rows are
  * hidden on screen only; the file's own filter is left as it was.
  */
 export function FilterPicker({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const at = store.filterPicker;
   const choices = useMemo(() => (at ? store.filterChoices(at.col) : undefined), [store, at]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -40,7 +43,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
 
   useEffect(() => {
     if (at && !choices) {
-      store.toast('info', 'Select a cell in a block of data with headings to filter it.');
+      store.toast('info', msg('filter.noData'));
       store.set('filterPicker', undefined);
     }
   }, [store, at, choices]);
@@ -63,9 +66,9 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   };
 
   return (
-    <div className="filter-picker" ref={ref} style={pos} role="dialog" aria-label="Filter by values">
-      <div className="filter-title">Show rows where {heading ? `“${heading}”` : `column ${colToLetters(at.col)}`} is</div>
-      <input className="filter-search" placeholder="Search values" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+    <div className="filter-picker" ref={ref} style={pos} role="dialog" aria-label={t('filter.label')}>
+      <div className="filter-title">{heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}</div>
+      <input className="filter-search" placeholder={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
       <label className="filter-all">
         <input
           type="checkbox"
@@ -79,20 +82,20 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
             setChecked(next);
           }}
         />
-        Select all{search ? ' shown' : ''}
+        {t(search ? 'filter.selectAllShown' : 'filter.selectAll')}
       </label>
       <ul className="filter-values">
         {shown.map((v) => (
           <li key={v.text}>
             <label>
               <input type="checkbox" checked={checked.has(v.text)} onChange={() => toggle(v.text)} />
-              <span className={v.text ? undefined : 'muted'}>{v.text || '(Blanks)'}</span>
-              <span className="filter-count">{v.count.toLocaleString()}</span>
+              <span className={v.text ? undefined : 'muted'}>{v.text || t('filter.blanks')}</span>
+              <span className="filter-count">{t.number(v.count)}</span>
             </label>
           </li>
         ))}
       </ul>
-      <p className="filter-note">Filtering changes what you see here. The file is saved with its own filter, as it was.</p>
+      <p className="filter-note">{t('filter.note')}</p>
       <div className="filter-actions">
         {choices.allowed && (
           <button
@@ -102,15 +105,15 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
               store.set('filterPicker', undefined);
             }}
           >
-            Clear
+            {t('filter.clear')}
           </button>
         )}
         <span className="spacer" />
         <button className="btn" onClick={() => store.set('filterPicker', undefined)}>
-          Cancel
+          {t('dialog.cancel')}
         </button>
         <button className="btn primary" onClick={apply} disabled={!checked.size}>
-          Show
+          {t('filter.show')}
         </button>
       </div>
     </div>

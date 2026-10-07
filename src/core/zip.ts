@@ -1,4 +1,5 @@
 import { strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
+import { msg, TextError } from '../i18n/message';
 import { attr, children, parseXml } from './xml';
 
 export interface Relationship {
@@ -31,7 +32,8 @@ export const DEFAULT_LIMITS: Required<PackageLimits> = {
   maxParts: 20_000,
 };
 
-const mb = (n: number) => `${Math.round(n / 1024 / 1024).toLocaleString()} MB`;
+/** Bytes in whole megabytes, for messages that say "200 MB". */
+const mb = (n: number) => Math.round(n / 1024 / 1024);
 
 /** An .xlsx/.xlsm file opened as its constituent parts. */
 export class OoxmlPackage {
@@ -47,15 +49,13 @@ export class OoxmlPackage {
   static open(bytes: Uint8Array, limits: PackageLimits = {}): OoxmlPackage {
     const lim = { ...DEFAULT_LIMITS, ...limits };
     if (bytes.length > lim.maxFileBytes) {
-      throw new Error(`This file is ${mb(bytes.length)}; the most this editor accepts is ${mb(lim.maxFileBytes)}.`);
+      throw new TextError(msg('core.open.tooBig', { size: mb(bytes.length), max: mb(lim.maxFileBytes) }));
     }
     if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
-      throw new Error(
-        'This file is password-protected or in the old .xls format. Only .xlsx and .xlsm files are supported.',
-      );
+      throw new TextError(msg('core.open.oldFormat'));
     }
     if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-      throw new Error('This file is not an Excel workbook (.xlsx or .xlsm).');
+      throw new TextError(msg('core.open.notWorkbook'));
     }
     // Sizes come from the zip directory, so they are checked before anything is inflated.
     let total = 0;
@@ -64,12 +64,10 @@ export class OoxmlPackage {
       filter: (f) => {
         parts++;
         total += f.originalSize;
-        if (parts > lim.maxParts) throw new Error(`This file has more than ${lim.maxParts.toLocaleString()} parts, which is more than a workbook should.`);
-        if (total > lim.maxUnzippedBytes) {
-          throw new Error(`This file unpacks to more than ${mb(lim.maxUnzippedBytes)}, which is more than this editor can hold.`);
-        }
+        if (parts > lim.maxParts) throw new TextError(msg('core.open.tooManyParts', { max: lim.maxParts }));
+        if (total > lim.maxUnzippedBytes) throw new TextError(msg('core.open.unpacksTooBig', { max: mb(lim.maxUnzippedBytes) }));
         if (f.originalSize > 10 * 1024 * 1024 && f.originalSize / Math.max(1, f.size) > lim.maxRatio) {
-          throw new Error(`Part ${f.name} is compressed suspiciously well (${Math.round(f.originalSize / Math.max(1, f.size))}:1), so the file was not opened.`);
+          throw new TextError(msg('core.open.zipBomb', { part: f.name, ratio: Math.round(f.originalSize / Math.max(1, f.size)) }));
         }
         return true;
       },
@@ -82,7 +80,7 @@ export class OoxmlPackage {
       order.push(path);
     }
     if (!files.has('[Content_Types].xml')) {
-      throw new Error('This file is not a valid Office Open XML package.');
+      throw new TextError(msg('core.open.notPackage'));
     }
     return new OoxmlPackage(files, order);
   }

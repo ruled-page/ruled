@@ -8,6 +8,7 @@ import type { TableInfo } from '../src/core/types';
 import { effectiveStyle } from '../src/state/cellStyle';
 import { excelTextWidth, fitNumber, rowOverflows } from '../src/state/overflow';
 import { SheetView } from '../src/state/sheetView';
+import { english } from '../src/i18n';
 import { sample } from './helpers';
 
 function load(file: string) {
@@ -71,7 +72,7 @@ describe('formatting.xlsx', () => {
       entries: [{ author: 'Alex Analyst', text: 'This is a note on A34.\nIt has two lines.' }],
     });
     expect(borders.noteAt(33, 1)?.entries[0]).toMatchObject({ author: 'Sam Reviewer', text: 'Checked against the ledger.' });
-    expect(r.findings.find((f) => f.kind === 'comment')?.detail).toMatch(/^2 notes\. Marked/);
+    expect(english.text(r.findings.find((f) => f.kind === 'comment')?.detail)).toMatch(/^2 notes\. Marked/);
   });
 });
 

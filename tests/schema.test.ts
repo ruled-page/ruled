@@ -3,6 +3,7 @@ import { parseA1 } from '../src/core/refs';
 import { WorkbookSession } from '../src/core/session';
 import type { EditOp } from '../src/core/types';
 import { budgetSchema, forecastSchema, priceListSchema } from '../src/demo/schemas';
+import { english, type Text } from '../src/i18n';
 import { bindSchema } from '../src/schema/binding';
 import { SchemaController } from '../src/schema/controller';
 import { generateSchema } from '../src/schema/generate';
@@ -47,7 +48,7 @@ function control(file: string, schema: WorkbookSchema) {
   };
   const issuesAt = (ref: string) => {
     const { row, col } = parseA1(ref)!;
-    return ctl.cellIssues(0, row, col).map((i) => i.message);
+    return ctl.cellIssues(0, row, col).map((i) => english.text(i.message));
   };
   return { ...w, ctl, edit, issuesAt };
 }
@@ -58,8 +59,8 @@ describe('binding', () => {
     expect(ok.problems).toEqual([]);
     const old = bindSchema(priceListSchema, load('price-list-old.xlsx').views);
     expect(old.binding).toBeUndefined();
-    expect(old.problems).toEqual(['Prices!C1 should be "Category" (field label) but is "Group".']);
-    expect(bindSchema(priceListSchema, load('kitchen-sink.xlsx').views).problems[0]).toMatch(/no sheet named "Prices"/);
+    expect(old.problems.map((p) => english.text(p))).toEqual(['Prices!C1 should be "Category" (field label) but is "Group".']);
+    expect(english.text(bindSchema(priceListSchema, load('kitchen-sink.xlsx').views).problems[0])).toMatch(/no sheet named "Prices"/);
   });
 });
 
@@ -87,11 +88,11 @@ describe('price list (records as rows)', () => {
       const { row, col } = parseA1(ref)!;
       return ctl.readOnlyReason(0, row, col);
     };
-    expect(at('A1')).toMatch(/Column names/);
+    expect(english.text(at('A1'))).toMatch(/Column names/);
     expect(at('B2')).toBeUndefined();
     expect(at('A16')).toBeUndefined();
-    expect(at('A17')).toMatch(/Only the “Price list” schema's tables/);
-    expect(at('H2')).toMatch(/Only the/);
+    expect(english.text(at('A17'))).toMatch(/Only the “Price list” schema's tables/);
+    expect(english.text(at('H2'))).toMatch(/Only the/);
   });
 
   it('stores typed input as the field type', () => {
@@ -136,8 +137,8 @@ describe('forecast (records as columns)', () => {
     expect(issuesAt('D1')).toEqual(['Quarters should follow on from each other; a quarter is missing before this one.']);
     expect(issuesAt('E3')).toEqual(['Must be at least 0.']);
     expect(ctl.readOnlyReason(0, 0, 5)).toBeUndefined();
-    expect(ctl.readOnlyReason(0, 0, 6)).toMatch(/Only the/);
-    expect(ctl.readOnlyReason(0, 1, 0)).toMatch(/Row names/);
+    expect(english.text(ctl.readOnlyReason(0, 0, 6))).toMatch(/Only the/);
+    expect(english.text(ctl.readOnlyReason(0, 1, 0))).toMatch(/Row names/);
   });
 });
 
@@ -146,9 +147,9 @@ describe('budget (fixed grid)', () => {
     const { ctl, issuesAt } = control('budget.xlsx', budgetSchema);
     expect(issuesAt('D5')).toEqual(['Travel is over the monthly cap of 5,000.']);
     expect(issuesAt('B8')).toEqual(['Required.']);
-    expect(ctl.readOnlyReason(0, 1, 0)).toMatch(/Row labels/);
-    expect(ctl.readOnlyReason(0, 8, 1)).toMatch(/read-only/);
-    expect(ctl.insertRecord(ctl.binding.sheets[0].tables[0], 1)).toMatch(/fixed/);
+    expect(english.text(ctl.readOnlyReason(0, 1, 0))).toMatch(/Row labels/);
+    expect(english.text(ctl.readOnlyReason(0, 8, 1))).toMatch(/read-only/);
+    expect(english.text(ctl.insertRecord(ctl.binding.sheets[0].tables[0], 1) as Text)).toMatch(/fixed/);
     await ctl.settled();
     expect(ctl.summary().pending).toBe(0);
   });
@@ -156,7 +157,7 @@ describe('budget (fixed grid)', () => {
   it('asks before saving with errors when the schema allows it', async () => {
     const { ctl } = control('budget.xlsx', budgetSchema);
     const r = await ctl.checkBeforeSave();
-    expect(r).toEqual({ ok: false, message: '1 cell breaks the “Half-year budget” schema.', canOverride: true });
+    expect(r.ok || { ...r, message: english.text(r.message) }).toEqual({ ok: false, message: '1 cell breaks the “Half-year budget” schema.', canOverride: true });
   });
 });
 

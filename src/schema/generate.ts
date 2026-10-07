@@ -1,3 +1,5 @@
+import { BUILT_IN, createI18n, translator, type Translator } from '../i18n';
+import type { LocalizedMap, MessageKey, MessageParams } from '../i18n/message';
 import { toA1 } from '../core/refs';
 import { VT, type DisplayStyle } from '../core/types';
 import { isDateStyle, type CellRecord } from '../state/format';
@@ -31,15 +33,23 @@ function toKey(label: string, used: Set<string>): string {
   return unique;
 }
 
+let builtIn: [string, Translator][] | undefined;
+
+/** A message in every built-in language, for text the generator writes into a schema. */
+function inEveryLanguage(key: MessageKey, params: MessageParams): LocalizedMap {
+  builtIn ??= Object.keys(BUILT_IN).map((language) => [language, translator(createI18n(language))]);
+  return Object.fromEntries(builtIn.map(([language, t]) => [language, t(key, params)]));
+}
+
 /** "SKU-1001" → ^SKU-\d{4}$ when every value has the same shape. */
-function inferPattern(texts: string[]): { pattern: string; hint: string } | undefined {
+function inferPattern(texts: string[]): { pattern: string; hint: LocalizedMap } | undefined {
   if (texts.length < 3) return undefined;
   const shape = (s: string) =>
     s.replace(/[A-Z]+|[a-z]+|\d+|./g, (m) => (/^\d+$/.test(m) ? `\\d{${m.length}}` : /^[A-Za-z]+$/.test(m) ? m : m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   // Letters must be identical to count as the same shape; digits only need the same length.
   const first = shape(texts[0]);
   if (!/\\d/.test(first) || !texts.every((t) => shape(t) === first)) return undefined;
-  return { pattern: `^${first}$`, hint: `like ${texts[0]}` };
+  return { pattern: `^${first}$`, hint: inEveryLanguage('schema.generate.patternHint', { example: texts[0] }) };
 }
 
 function decimalsOf(n: number): number {

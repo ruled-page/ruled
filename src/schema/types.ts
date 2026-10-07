@@ -1,3 +1,4 @@
+import type { Localized } from '../i18n/message';
 /**
  * Schemas let a consumer of the editor describe the workbooks it expects:
  * which sheets exist, where tables sit, what each field holds, and the
@@ -31,11 +32,18 @@ export type Severity = 'error' | 'warning';
  */
 export type TextMatch = string | RegExp | { pattern: string; flags?: string };
 
-/** What a check returns: nothing when the value is fine, otherwise a message. */
-export type CheckResult = string | { message: string; severity?: Severity } | null | undefined | void;
+/**
+ * What a check returns: nothing when the value is fine, otherwise a message.
+ * The message can be given in several languages ({ en: 'Too high', de: 'Zu hoch' });
+ * the editor shows the one that fits its language best. Or use `ctx.language`
+ * to write it in the editor's language.
+ */
+export type CheckResult = Localized | { message: Localized; severity?: Severity } | null | undefined | void;
 
 export interface FieldContext {
   sheet: string;
+  /** The editor's language (BCP 47, such as "en-US" or "de"), for messages in that language. */
+  language: string;
   table?: string;
   /** Record index within the table (0-based), when the field belongs to a table. */
   record?: number;
@@ -62,8 +70,11 @@ export interface FieldSchema {
   maxLength?: number;
   /** Regular expression the text form of the value must match. */
   pattern?: string;
-  /** How to describe the pattern to people, e.g. "like SKU-1234". */
-  patternHint?: string;
+  /**
+   * How to describe the pattern to people, e.g. "like SKU-1234", shown as
+   * "Should be like SKU-1234."; in one language or several.
+   */
+  patternHint?: Localized;
   /** Allowed values for "enum" fields; typed input is matched ignoring case. */
   values?: string[];
   /** No two records may share a value. */
@@ -71,14 +82,15 @@ export interface FieldSchema {
   readOnly?: boolean;
   /** Whether cells may, must or must not hold formulas. Default "allow". */
   formula?: 'allow' | 'forbid' | 'require';
-  /** Shown in the formula bar when a cell of this field is selected. */
-  description?: string;
+  /** Shown in the formula bar when a cell of this field is selected; in one language or several. */
+  description?: Localized;
   /** Code hook: extra check, sync or async. Async checks re-run only when the value changes. */
   validate?: (value: FieldValue, ctx: FieldContext) => CheckResult | Promise<CheckResult>;
 }
 
 export interface IssueInput {
-  message: string;
+  /** In one language or several: { en: 'Too high', de: 'Zu hoch' }. */
+  message: Localized;
   severity?: Severity;
   /** Pin the issue to a record and/or field of the table it came from. */
   record?: number;
@@ -112,6 +124,8 @@ export interface SheetData {
 
 export interface WorkbookData {
   sheet(name: string): SheetData | undefined;
+  /** The editor's language (BCP 47, such as "en-US" or "de"), for messages in that language. */
+  language: string;
   /** Aborted when the workbook changes again before this check finishes. */
   signal: AbortSignal;
 }
@@ -214,14 +228,15 @@ export interface ChangeContext extends WorkbookData {
 
 export interface WorkbookSchema {
   id: string;
-  name: string;
+  /** Shown to people; in one language or several. */
+  name: Localized;
   /**
    * Saving stamps the file with the schema's id and version, so it is checked
    * against this schema first when it is opened again, and a file saved under
    * another version says so.
    */
   version?: string;
-  description?: string;
+  description?: Localized;
   sheets: SheetSchema[];
   /** Whether sheets the schema doesn't describe can be edited. Default "editable". */
   otherSheets?: 'editable' | 'readOnly';
@@ -238,8 +253,8 @@ export interface WorkbookSchema {
   validate?: (ctx: WorkbookData) => IssueInput[] | void | Promise<IssueInput[] | void>;
   /** Code hook: business logic run after each edit; may fill other cells via ctx.set. */
   onChange?: (ctx: ChangeContext) => void | Promise<void>;
-  /** Code hook: last check before saving. Return a message to stop the save. */
-  beforeSave?: (ctx: WorkbookData) => true | string | void | Promise<true | string | void>;
+  /** Code hook: last check before saving. Return a message (in one language or several) to stop the save. */
+  beforeSave?: (ctx: WorkbookData) => true | Localized | void | Promise<true | Localized | void>;
 }
 
 /** Identity helper so schema files get type checking and completion. */

@@ -9,8 +9,29 @@ import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { Tabs } from './Tabs';
 import { useDialog } from './useDialog';
+import type { Translator } from '../i18n';
+import { errorText, msg, type Localized, type MessageKey, type Text } from '../i18n/message';
+import { useT } from '../i18n/react';
 
 const TYPES: FieldType[] = ['text', 'number', 'integer', 'percent', 'date', 'boolean', 'enum'];
+
+const TYPE_LABELS: Record<FieldType, MessageKey> = {
+  text: 'designer.type.text',
+  number: 'designer.type.number',
+  integer: 'designer.type.integer',
+  percent: 'designer.type.percent',
+  date: 'designer.type.date',
+  boolean: 'designer.type.boolean',
+  enum: 'designer.type.enum',
+};
+
+function typeOptions(t: Translator) {
+  return TYPES.map((type) => (
+    <option key={type} value={type}>
+      {t(TYPE_LABELS[type])}
+    </option>
+  ));
+}
 
 /** True when the schema carries code hooks that JSON can't hold. */
 function hasHooks(schema: WorkbookSchema): boolean {
@@ -59,6 +80,26 @@ function boundText(b: number | string | undefined, type: FieldType): string {
   return String(b);
 }
 
+/**
+ * Host-written text after it is edited in `language`. A plain string is
+ * replaced. In a map of languages only that language's entry changes (under
+ * the key the map already uses for it, else the base language, such as "de"),
+ * and the other languages are kept.
+ */
+function editLocalized(value: Localized | undefined, language: string, text: string): Localized {
+  if (value === undefined || typeof value === 'string') return text;
+  const lng = language.toLowerCase();
+  const base = lng.split('-')[0];
+  const keys = Object.keys(value);
+  const key = keys.find((k) => k.toLowerCase() === lng) ?? keys.find((k) => k.toLowerCase() === base) ?? base;
+  return { ...value, [key]: text };
+}
+
+/** True when host-written text is empty in every language it has. */
+function isBlank(value: Localized): boolean {
+  return typeof value === 'string' ? value === '' : Object.values(value).every((v) => v === '');
+}
+
 interface FieldRowProps {
   field: FieldSchema;
   onChange: (f: FieldSchema) => void;
@@ -66,6 +107,7 @@ interface FieldRowProps {
 }
 
 function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
+  const t = useT();
   const set = <K extends keyof FieldSchema>(k: K, v: FieldSchema[K]) => {
     const next = { ...f, [k]: v };
     if (v === undefined || v === false || v === '') delete next[k];
@@ -75,65 +117,63 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
   return (
     <tr>
       <td>
-        <input value={matchLabel(f.label)} onChange={(e) => set('label', parseLabel(e.target.value))} aria-label="Label" />
+        <input value={matchLabel(f.label)} onChange={(e) => set('label', parseLabel(e.target.value))} aria-label={t('designer.field.label')} />
       </td>
       <td>
-        <input className="mono" value={f.key} onChange={(e) => set('key', e.target.value.replace(/\s+/g, ''))} aria-label="Key" />
+        <input className="mono" value={f.key} onChange={(e) => set('key', e.target.value.replace(/\s+/g, ''))} aria-label={t('designer.field.key')} />
       </td>
       <td>
-        <select value={f.type} onChange={(e) => set('type', e.target.value as FieldType)} aria-label="Type">
-          {TYPES.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
+        <select value={f.type} onChange={(e) => set('type', e.target.value as FieldType)} aria-label={t('designer.field.type')}>
+          {typeOptions(t)}
         </select>
       </td>
       <td className="center">
-        <input type="checkbox" checked={!!f.required} onChange={(e) => set('required', e.target.checked)} aria-label="Required" />
+        <input type="checkbox" checked={!!f.required} onChange={(e) => set('required', e.target.checked)} aria-label={t('designer.field.required')} />
       </td>
       <td className="center">
-        <input type="checkbox" checked={!!f.unique} onChange={(e) => set('unique', e.target.checked)} aria-label="Unique" />
+        <input type="checkbox" checked={!!f.unique} onChange={(e) => set('unique', e.target.checked)} aria-label={t('designer.field.unique')} />
       </td>
       <td className="center">
-        <input type="checkbox" checked={!!f.readOnly} onChange={(e) => set('readOnly', e.target.checked)} aria-label="Read-only" />
+        <input type="checkbox" checked={!!f.readOnly} onChange={(e) => set('readOnly', e.target.checked)} aria-label={t('designer.field.readOnly')} />
       </td>
       <td>
-        <select value={f.formula ?? 'allow'} onChange={(e) => set('formula', e.target.value === 'allow' ? undefined : (e.target.value as FieldSchema['formula']))} aria-label="Formulas">
-          <option value="allow">allow</option>
-          <option value="require">require</option>
-          <option value="forbid">forbid</option>
+        <select value={f.formula ?? 'allow'} onChange={(e) => set('formula', e.target.value === 'allow' ? undefined : (e.target.value as FieldSchema['formula']))} aria-label={t('designer.field.formulas')}>
+          <option value="allow">{t('designer.field.formulaAllow')}</option>
+          <option value="require">{t('designer.field.formulaRequire')}</option>
+          <option value="forbid">{t('designer.field.formulaForbid')}</option>
         </select>
       </td>
       {f.type === 'text' ? (
         <>
           <td>
-            <input className="narrow" value={f.minLength ?? ''} placeholder="length" onChange={(e) => set('minLength', numberOrUndefined(e.target.value))} aria-label="Shortest length" title="Fewest characters" />
+            <input className="narrow" value={f.minLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('minLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.minLength')} title={t('designer.field.minLengthTitle')} />
           </td>
           <td>
-            <input className="narrow" value={f.maxLength ?? ''} placeholder="length" onChange={(e) => set('maxLength', numberOrUndefined(e.target.value))} aria-label="Longest length" title="Most characters" />
+            <input className="narrow" value={f.maxLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('maxLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.maxLength')} title={t('designer.field.maxLengthTitle')} />
           </td>
         </>
       ) : (
         <>
           <td>
-            <input className="narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label="Minimum" />
+            <input className="narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.minimum')} />
           </td>
           <td>
-            <input className="narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? 'YYYY-MM-DD' : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label="Maximum" />
+            <input className="narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.maximum')} />
           </td>
         </>
       )}
       <td>
-        <input className="narrow" value={f.decimals ?? ''} disabled={!numeric} onChange={(e) => set('decimals', numberOrUndefined(e.target.value))} aria-label="Decimal places" />
+        <input className="narrow" value={f.decimals ?? ''} disabled={!numeric} onChange={(e) => set('decimals', numberOrUndefined(e.target.value))} aria-label={t('designer.field.decimals')} />
       </td>
       <td>
         {f.type === 'enum' ? (
-          <input value={(f.values ?? []).join(', ')} placeholder="a, b, c" onChange={(e) => set('values', e.target.value.split(',').map((v) => v.trim()).filter(Boolean))} aria-label="Allowed values" />
+          <input value={(f.values ?? []).join(', ')} placeholder={t('designer.field.valuesPlaceholder')} onChange={(e) => set('values', e.target.value.split(',').map((v) => v.trim()).filter(Boolean))} aria-label={t('designer.field.values')} />
         ) : (
-          <input className="mono" value={f.pattern ?? ''} placeholder="regular expression" disabled={f.type === 'boolean'} onChange={(e) => set('pattern', e.target.value || undefined)} aria-label="Pattern" />
+          <input className="mono" value={f.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={f.type === 'boolean'} onChange={(e) => set('pattern', e.target.value || undefined)} aria-label={t('designer.field.pattern')} />
         )}
       </td>
       <td>
-        <button className="btn icon ghost" onClick={onRemove} aria-label="Remove field" title="Remove field">
+        <button className="btn icon ghost" onClick={onRemove} aria-label={t('designer.field.remove')} title={t('designer.field.remove')}>
           <Icon name="trash" size={14} />
         </button>
       </td>
@@ -144,26 +184,44 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
 type CompareOp = Extract<DeclarativeRule, { rule: 'compare' }>['op'];
 const OPS: CompareOp[] = ['<', '<=', '>', '>=', '=', '<>'];
 
+const MONOTONIC: Record<Extract<DeclarativeRule, { rule: 'monotonic' }>['direction'], MessageKey> = {
+  nonIncreasing: 'designer.checks.line.nonIncreasing',
+  nonDecreasing: 'designer.checks.line.nonDecreasing',
+  increasing: 'designer.checks.line.increasing',
+  decreasing: 'designer.checks.line.decreasing',
+};
+
 /** One line describing a check, as the designer lists it. */
-function describeCheck(c: DeclarativeRule): string {
-  const f = c.field === '*' ? 'every field' : c.field;
+function describeCheck(c: DeclarativeRule, t: Translator): string {
+  const field = c.field === '*' ? t('designer.checks.everyField') : c.field;
+  const value = (v: number | string | boolean) => (typeof v === 'number' ? t.number(v, { maximumFractionDigits: 15 }) : String(v));
   switch (c.rule) {
     case 'monotonic':
-      return `${f}: ${c.direction} down the table`;
+      return t(MONOTONIC[c.direction], { field });
     case 'firstEquals':
-      return `${f}: first value is ${c.value}`;
-    case 'sum':
-      return `${f}: total ${c.equals !== undefined ? `= ${c.equals}` : ''}${c.max !== undefined ? ` ≤ ${c.max}` : ''}${c.min !== undefined ? ` ≥ ${c.min}` : ''}`;
+      return t('designer.checks.line.firstEquals', { field, value: value(c.value) });
+    case 'sum': {
+      // Comparison signs read the same in every language.
+      const bounds = [
+        c.equals !== undefined ? `= ${value(c.equals)}` : '',
+        c.max !== undefined ? `≤ ${value(c.max)}` : '',
+        c.min !== undefined ? `≥ ${value(c.min)}` : '',
+      ];
+      return t('designer.checks.line.sum', { field, bounds: bounds.filter(Boolean).join(' ') });
+    }
     case 'compare':
-      return `${f} ${c.op} ${c.other} in every record`;
+      return t('designer.checks.line.compare', { field, op: c.op, other: c.other });
     case 'requiredIf':
-      return `${f}: required when ${c.when} ${c.equals === undefined ? 'is filled in' : `is ${c.equals}`}`;
+      return c.equals === undefined
+        ? t('designer.checks.line.requiredIfFilled', { field, when: c.when })
+        : t('designer.checks.line.requiredIfEquals', { field, when: c.when, value: value(c.equals) });
     case 'uniqueTogether':
-      return `${c.fields.join(' + ')}: unique together`;
+      return t('designer.checks.line.uniqueTogether', { fields: c.fields.join(' + ') });
   }
 }
 
 function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: TableSchema) => void }) {
+  const t = useT();
   const [kind, setKind] = useState<DeclarativeRule['rule']>('monotonic');
   const [field, setField] = useState('*');
   const [other, setOther] = useState(table.fields[1]?.key ?? table.fields[0]?.key ?? '');
@@ -189,13 +247,13 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
   ));
   return (
     <div className="checks">
-      <h5>Table checks</h5>
-      {checks.length === 0 && <p className="muted small">None. Field rules above still apply.</p>}
+      <h5>{t('designer.checks.heading')}</h5>
+      {checks.length === 0 && <p className="muted small">{t('designer.checks.none')}</p>}
       <ul>
         {checks.map((c, i) => (
           <li key={i}>
-            <span>{describeCheck(c)}</span>
-            <button className="btn icon ghost" aria-label="Remove check" onClick={() => onChange({ ...table, checks: checks.filter((_, j) => j !== i) })}>
+            <span>{describeCheck(c, t)}</span>
+            <button className="btn icon ghost" aria-label={t('designer.checks.remove')} onClick={() => onChange({ ...table, checks: checks.filter((_, j) => j !== i) })}>
               <Icon name="trash" size={14} />
             </button>
           </li>
@@ -209,45 +267,45 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
             setKind(k);
             setParam(k === 'monotonic' ? 'nonIncreasing' : k === 'firstEquals' ? '100' : k === 'sum' ? '0' : '');
           }}
-          aria-label="Check type"
+          aria-label={t('designer.checks.kind')}
         >
-          <option value="monotonic">Values only go one way</option>
-          <option value="firstEquals">First value equals</option>
-          <option value="sum">Total at most</option>
-          <option value="compare">Compare two fields</option>
-          <option value="requiredIf">Required when another is set</option>
-          <option value="uniqueTogether">Unique together</option>
+          <option value="monotonic">{t('designer.checks.kindMonotonic')}</option>
+          <option value="firstEquals">{t('designer.checks.kindFirstEquals')}</option>
+          <option value="sum">{t('designer.checks.kindSum')}</option>
+          <option value="compare">{t('designer.checks.kindCompare')}</option>
+          <option value="requiredIf">{t('designer.checks.kindRequiredIf')}</option>
+          <option value="uniqueTogether">{t('designer.checks.kindUniqueTogether')}</option>
         </select>
-        <select value={perRecord ? target : field} onChange={(e) => setField(e.target.value)} aria-label="Field">
-          {!perRecord && <option value="*">every field</option>}
+        <select value={perRecord ? target : field} onChange={(e) => setField(e.target.value)} aria-label={t('designer.checks.field')}>
+          {!perRecord && <option value="*">{t('designer.checks.everyField')}</option>}
           {fieldOptions}
         </select>
         {kind === 'monotonic' && (
-          <select value={param} onChange={(e) => setParam(e.target.value)} aria-label="Direction">
-            <option value="nonIncreasing">never go up</option>
-            <option value="nonDecreasing">never go down</option>
-            <option value="increasing">always go up</option>
-            <option value="decreasing">always go down</option>
+          <select value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.direction')}>
+            <option value="nonIncreasing">{t('designer.checks.nonIncreasing')}</option>
+            <option value="nonDecreasing">{t('designer.checks.nonDecreasing')}</option>
+            <option value="increasing">{t('designer.checks.increasing')}</option>
+            <option value="decreasing">{t('designer.checks.decreasing')}</option>
           </select>
         )}
-        {(kind === 'firstEquals' || kind === 'sum') && <input className="narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label="Value" />}
+        {(kind === 'firstEquals' || kind === 'sum') && <input className="narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.value')} />}
         {kind === 'compare' && (
-          <select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label="Comparison">
+          <select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label={t('designer.checks.comparison')}>
             {OPS.map((o) => (
               <option key={o}>{o}</option>
             ))}
           </select>
         )}
-        {kind === 'requiredIf' && <span className="muted small">when</span>}
-        {kind === 'uniqueTogether' && <span className="muted small">with</span>}
+        {kind === 'requiredIf' && <span className="muted small">{t('designer.checks.when')}</span>}
+        {kind === 'uniqueTogether' && <span className="muted small">{t('designer.checks.with')}</span>}
         {perRecord && (
-          <select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? 'When field' : 'Other field'}>
+          <select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? t('designer.checks.whenField') : t('designer.checks.otherField')}>
             {fieldOptions}
           </select>
         )}
-        {kind === 'requiredIf' && <input className="narrow" value={param} placeholder="has any value" onChange={(e) => setParam(e.target.value)} aria-label="Equals" />}
+        {kind === 'requiredIf' && <input className="narrow" value={param} placeholder={t('designer.checks.anyValue')} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.equals')} />}
         <button className="btn" onClick={add} disabled={perRecord && target === other}>
-          <Icon name="plus" size={14} /> Add
+          <Icon name="plus" size={14} /> {t('designer.checks.add')}
         </button>
       </div>
     </div>
@@ -256,6 +314,7 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
 
 /** The sheet's single cells (a form beside or above its tables). */
 function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cells: CellSchema[]) => void }) {
+  const t = useT();
   if (!cells.length) return null;
   const set = (i: number, patch: Partial<CellSchema>) => {
     const next = { ...cells[i], ...patch } as CellSchema;
@@ -264,20 +323,20 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
   };
   return (
     <div className="table-block">
-      <h5>Single cells</h5>
+      <h5>{t('designer.cells.heading')}</h5>
       <div className="fields-wrap">
         <table className="fields">
           <thead>
             <tr>
-              <th>Cell</th>
-              <th>Label cell</th>
-              <th>Label</th>
-              <th>Key</th>
-              <th>Type</th>
-              <th title="Required">Req</th>
-              <th>Min</th>
-              <th>Max</th>
-              <th>Values / pattern</th>
+              <th>{t('designer.cells.cell')}</th>
+              <th>{t('designer.cells.labelCell')}</th>
+              <th>{t('designer.field.label')}</th>
+              <th>{t('designer.field.key')}</th>
+              <th>{t('designer.field.type')}</th>
+              <th title={t('designer.field.required')}>{t('designer.field.requiredShort')}</th>
+              <th>{t('designer.field.min')}</th>
+              <th>{t('designer.field.max')}</th>
+              <th>{t('designer.field.valuesOrPattern')}</th>
               <th />
             </tr>
           </thead>
@@ -287,42 +346,40 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
               return (
                 <tr key={i}>
                   <td>
-                    <input className="mono narrow" value={c.ref} onChange={(e) => set(i, { ref: e.target.value.toUpperCase() })} aria-label="Cell" />
+                    <input className="mono narrow" value={c.ref} onChange={(e) => set(i, { ref: e.target.value.toUpperCase() })} aria-label={t('designer.cells.cell')} />
                   </td>
                   <td>
-                    <input className="mono narrow" value={c.label?.ref ?? ''} onChange={(e) => set(i, { label: e.target.value ? { ref: e.target.value.toUpperCase(), text: c.label?.text ?? '' } : undefined })} aria-label="Label cell" />
+                    <input className="mono narrow" value={c.label?.ref ?? ''} onChange={(e) => set(i, { label: e.target.value ? { ref: e.target.value.toUpperCase(), text: c.label?.text ?? '' } : undefined })} aria-label={t('designer.cells.labelCell')} />
                   </td>
                   <td>
-                    <input value={c.label ? matchLabel(c.label.text) : ''} disabled={!c.label} onChange={(e) => set(i, { label: { ref: c.label!.ref, text: parseLabel(e.target.value) } })} aria-label="Label text" />
+                    <input value={c.label ? matchLabel(c.label.text) : ''} disabled={!c.label} onChange={(e) => set(i, { label: { ref: c.label!.ref, text: parseLabel(e.target.value) } })} aria-label={t('designer.cells.labelText')} />
                   </td>
                   <td>
-                    <input className="mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label="Key" />
+                    <input className="mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label={t('designer.field.key')} />
                   </td>
                   <td>
-                    <select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label="Type">
-                      {TYPES.map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
+                    <select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label={t('designer.field.type')}>
+                      {typeOptions(t)}
                     </select>
                   </td>
                   <td className="center">
-                    <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked })} aria-label="Required" />
+                    <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked })} aria-label={t('designer.field.required')} />
                   </td>
                   <td>
-                    <input className="narrow" value={boundText(c.min, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { min: boundOrUndefined(e.target.value, c.type) })} aria-label="Minimum" />
+                    <input className="narrow" value={boundText(c.min, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { min: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.minimum')} />
                   </td>
                   <td>
-                    <input className="narrow" value={boundText(c.max, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { max: boundOrUndefined(e.target.value, c.type) })} aria-label="Maximum" />
+                    <input className="narrow" value={boundText(c.max, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { max: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.maximum')} />
                   </td>
                   <td>
                     {c.type === 'enum' ? (
-                      <input value={(c.values ?? []).join(', ')} placeholder="a, b, c" onChange={(e) => set(i, { values: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} aria-label="Allowed values" />
+                      <input value={(c.values ?? []).join(', ')} placeholder={t('designer.field.valuesPlaceholder')} onChange={(e) => set(i, { values: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} aria-label={t('designer.field.values')} />
                     ) : (
-                      <input className="mono" value={c.pattern ?? ''} placeholder="regular expression" disabled={c.type === 'boolean'} onChange={(e) => set(i, { pattern: e.target.value || undefined })} aria-label="Pattern" />
+                      <input className="mono" value={c.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={c.type === 'boolean'} onChange={(e) => set(i, { pattern: e.target.value || undefined })} aria-label={t('designer.field.pattern')} />
                     )}
                   </td>
                   <td>
-                    <button className="btn icon ghost" onClick={() => onChange(cells.filter((_, j) => j !== i))} aria-label="Remove cell" title="Remove cell">
+                    <button className="btn icon ghost" onClick={() => onChange(cells.filter((_, j) => j !== i))} aria-label={t('designer.cells.remove')} title={t('designer.cells.remove')}>
                       <Icon name="trash" size={14} />
                     </button>
                   </td>
@@ -341,6 +398,7 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
  * bar, so the grid can be used; adding reads the table or cell from what is selected.
  */
 function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: WorkbookSchema; kind: 'table' | 'cell' }) {
+  const t = useT();
   const view = store.view;
   const sel = store.selection;
   const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
@@ -355,13 +413,13 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
       d.sheets.push(sheet);
     }
     if (kind === 'table') {
-      const keys = new Set(d.sheets.flatMap((s) => (s.tables ?? []).map((t) => t.key)));
+      const keys = new Set(d.sheets.flatMap((s) => (s.tables ?? []).map((tb) => tb.key)));
       const base = view.info.name.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'table';
       let key = base;
       for (let n = 2; keys.has(key); n++) key = `${base}${n}`;
       const table = inferTable(view, store.styles, key, { row: rect.r1, col: rect.c1 }, 'rows', false, store.sheets);
       if (!table.fields.length) {
-        store.toast('warn', `There are no headings at ${toA1(rect.r1, rect.c1)}. Select from the table's heading row.`);
+        store.toast('warn', msg('designer.pick.noHeadings', { ref: toA1(rect.r1, rect.c1) }));
         return;
       }
       sheet.tables = [...(sheet.tables ?? []), table];
@@ -381,29 +439,28 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
     <div
       className="pick-bar"
       role="dialog"
-      aria-label="Pick cells for the schema"
+      aria-label={t('designer.pick.label')}
       onKeyDown={(e) => {
         if (e.key === 'Escape') store.set('designerPick', undefined);
       }}
     >
       <Icon name="schema" />
       <span>
-        {kind === 'table'
-          ? 'Select the table’s heading row (or its top-left cell) on the sheet, then add it.'
-          : 'Select the cell to check; a label just to its left is picked up too.'}{' '}
-        <span className="sr-only">F6 moves between the sheet and this bar.</span>
+        {kind === 'table' ? t('designer.pick.tableHint') : t('designer.pick.cellHint')}{' '}
+        <span className="sr-only">{t('designer.pick.f6')}</span>
       </span>
       <button className="btn primary" onClick={add}>
-        Add {kind === 'table' ? `table at ${toA1(rect.r1, rect.c1)}` : `cell ${toA1(sel.row, sel.col)}`}
+        {kind === 'table' ? t('designer.pick.addTable', { ref: toA1(rect.r1, rect.c1) }) : t('designer.pick.addCell', { ref: toA1(sel.row, sel.col) })}
       </button>
       <button className="btn" onClick={() => store.set('designerPick', undefined)}>
-        Back
+        {t('designer.pick.back')}
       </button>
     </div>
   );
 }
 
 export function SchemaDesigner({ store }: { store: WorkbookStore }) {
+  const t = useT();
   // The draft lives in the store, so it survives closing the designer or picking cells on the sheet.
   const draft = store.schemaDraft ?? null;
   const setDraft = (d: WorkbookSchema | null) => store.set('schemaDraft', d ?? undefined);
@@ -413,8 +470,8 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   const [originalHadHooks, setOriginalHadHooks] = useState(() => (store.schema ? hasHooks(store.schema.schema) : false));
   const [mode, setMode] = useState<'form' | 'json'>('form');
   const [jsonText, setJsonText] = useState('');
-  const [jsonError, setJsonError] = useState('');
-  const [testResult, setTestResult] = useState<{ ok: boolean; problems: string[] } | null>(null);
+  const [jsonError, setJsonError] = useState<Text>('');
+  const [testResult, setTestResult] = useState<{ ok: boolean; problems: Text[] } | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -458,7 +515,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   const generate = () => {
     const schema = generateSchema(store.sheets, store.styles, store.fileName || 'workbook');
     if (!schema.sheets.length) {
-      store.toast('warn', 'No table with a header row was found to build a schema from.');
+      store.toast('warn', msg('designer.toast.noTables'));
       return;
     }
     startFrom(schema);
@@ -471,9 +528,10 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
       store.registerSchema(schema);
       startFrom(schema);
       const applied = store.schema?.schema.id === schema.id;
-      store.toast(applied ? 'info' : 'warn', applied ? `Imported “${schema.name}” and applied it to this workbook.` : `Imported “${schema.name}”. It doesn't match the open workbook.`);
+      const name = t.localized(schema.name);
+      store.toast(applied ? 'info' : 'warn', msg(applied ? 'designer.toast.importedApplied' : 'designer.toast.importedNoMatch', { name }));
     } catch (e) {
-      store.toast('error', (e as Error).message);
+      store.toast('error', errorText(e));
     }
   };
 
@@ -484,7 +542,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
       setJsonError('');
       return parsed;
     } catch (e) {
-      setJsonError((e as Error).message);
+      setJsonError(errorText(e));
       return null;
     }
   };
@@ -502,7 +560,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
     try {
       schemaFromJSON(schemaToJSON(d));
     } catch (e) {
-      store.toast('error', (e as Error).message);
+      store.toast('error', errorText(e));
       return;
     }
     store.registerSchema(d);
@@ -512,7 +570,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
     if (applied) {
       store.set('designerOpen', false);
       store.set('panel', 'issues');
-      store.toast('info', `Applied “${d.name}”.`);
+      store.toast('info', msg('designer.toast.applied', { name: t.localized(d.name) }));
     } else {
       test();
     }
@@ -538,32 +596,32 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
       >
         <header className="designer-head">
           <h2 id={`${titleId}-title`}>
-            <Icon name="schema" /> Schemas
+            <Icon name="schema" /> {t('designer.title')}
           </h2>
-          <button className="btn icon ghost" onClick={() => store.set('designerOpen', false)} aria-label="Close">
+          <button className="btn icon ghost" onClick={() => store.set('designerOpen', false)} aria-label={t('designer.close')}>
             <Icon name="close" />
           </button>
         </header>
         <div className="designer-body">
           <nav className="designer-list">
-            <h3>Registered</h3>
-            <p className="muted small">Each workbook is checked against these in order; the first that fits applies.</p>
+            <h3>{t('designer.list.heading')}</h3>
+            <p className="muted small">{t('designer.list.intro')}</p>
             <ul>
               {store.schemas.map((s) => (
                 <li key={s.id} className={draft?.id === s.id ? 'selected' : ''}>
                   <button className="schema-item" onClick={() => startFrom(s)}>
-                    <strong>{s.name}</strong>
+                    <strong>{t.localized(s.name)}</strong>
                     <span className="mono small">{s.id}</span>
                     <span className="tags">
-                      {s.id === activeId && <span className="tag tag-ok">applied</span>}
-                      {hasHooks(s) && <span className="tag">code hooks</span>}
+                      {s.id === activeId && <span className="tag tag-ok">{t('designer.list.applied')}</span>}
+                      {hasHooks(s) && <span className="tag">{t('designer.list.codeHooks')}</span>}
                     </span>
                   </button>
                   <div className="item-actions">
-                    <button className="btn icon ghost" title="Export JSON" aria-label={`Export ${s.name}`} onClick={() => download(`${s.id}.schema.json`, schemaToJSON(s))}>
+                    <button className="btn icon ghost" title={t('designer.exportJson')} aria-label={t('designer.list.export', { name: t.localized(s.name) })} onClick={() => download(`${s.id}.schema.json`, schemaToJSON(s))}>
                       <Icon name="download" size={14} />
                     </button>
-                    <button className="btn icon ghost" title="Remove" aria-label={`Remove ${s.name}`} onClick={() => store.removeSchema(s.id)}>
+                    <button className="btn icon ghost" title={t('designer.list.removeTitle')} aria-label={t('designer.list.remove', { name: t.localized(s.name) })} onClick={() => store.removeSchema(s.id)}>
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
@@ -571,11 +629,11 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
               ))}
             </ul>
             <div className="list-actions">
-              <button className="btn primary" disabled={!ready} onClick={generate} title={ready ? '' : 'Open a workbook first'}>
-                <Icon name="sparkle" /> Generate from this workbook
+              <button className="btn primary" disabled={!ready} onClick={generate} title={ready ? '' : t('designer.list.generateNeedsWorkbook')}>
+                <Icon name="sparkle" /> {t('designer.list.generate')}
               </button>
               <button className="btn" onClick={() => importInput.current?.click()}>
-                <Icon name="upload" /> Import JSON…
+                <Icon name="upload" /> {t('designer.list.import')}
               </button>
               <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => {
                 void onImport(e.target.files?.[0]);
@@ -588,16 +646,16 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
             {!draft && (
               <div className="center-state static">
                 <Icon name="schema" size={28} />
-                <p>Pick a schema to edit, generate one from the open workbook, or import a .schema.json file.</p>
+                <p>{t('designer.empty')}</p>
               </div>
             )}
             {draft && (
               <>
                 <Tabs
-                  label="Edit the schema as"
+                  label={t('designer.editAs')}
                   tabs={[
-                    { id: 'form', label: 'Form' },
-                    { id: 'json', label: 'JSON' },
+                    { id: 'form', label: t('designer.tab.form') },
+                    { id: 'json', label: t('designer.tab.json') },
                   ]}
                   value={mode}
                   onChange={(next) => {
@@ -611,64 +669,70 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                     <div className="editor-tabs">
                       {tabs}
                       {originalHadHooks && (
-                        <p className="hint warn">This schema has code hooks (async checks, business logic). They aren't part of the JSON, so applying or exporting it here leaves them out.</p>
+                        <p className="hint warn">{t('designer.hooksWarning')}</p>
                       )}
                     </div>
                   )}
                 >
                   {mode === 'json' ? (
                     <div className="json-editor">
-                      <textarea className="mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label="Schema JSON" />
-                      {jsonError && <p className="hint error">{jsonError}</p>}
+                      <textarea className="mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label={t('designer.json.label')} />
+                      {jsonError && <p className="hint error">{t.text(jsonError)}</p>}
                     </div>
                   ) : (
                     <div className="form">
                       <div className="grid-form">
                         <label>
-                          Name
-                          <input value={draft.name} onChange={(e) => edit((d) => void (d.name = e.target.value))} />
+                          {t('designer.schema.name')}
+                          <input value={t.localized(draft.name)} onChange={(e) => edit((d) => void (d.name = editLocalized(d.name, t.language, e.target.value)))} />
                         </label>
                         <label>
-                          Id
+                          {t('designer.schema.id')}
                           <input className="mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
                         </label>
                         <label>
-                          Version
-                          <input className="mono" value={draft.version ?? ''} placeholder="e.g. 2" onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title="Saved files are stamped with it; a file saved under another version says so when opened" />
+                          {t('designer.schema.version')}
+                          <input className="mono" value={draft.version ?? ''} placeholder={t('designer.schema.versionPlaceholder')} onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title={t('designer.schema.versionTitle')} />
                         </label>
                         <label>
-                          Hook time limit (s)
+                          {t('designer.schema.hookTimeout')}
                           <input className="narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
                             const n = numberOrUndefined(e.target.value);
                             d.hookTimeoutMs = n === undefined ? undefined : Math.round(n * 1000);
                           })} />
                         </label>
                         <label className="wide">
-                          Description
-                          <input value={draft.description ?? ''} onChange={(e) => edit((d) => void (d.description = e.target.value || undefined))} />
+                          {t('designer.schema.description')}
+                          <input
+                            value={t.localized(draft.description)}
+                            onChange={(e) => edit((d) => {
+                              const next = editLocalized(d.description, t.language, e.target.value);
+                              d.description = isBlank(next) ? undefined : next;
+                            })}
+                          />
                         </label>
                         <label>
-                          Other sheets
+                          {t('designer.schema.otherSheets')}
                           <select value={draft.otherSheets ?? 'editable'} onChange={(e) => edit((d) => void (d.otherSheets = e.target.value as 'editable'))}>
-                            <option value="editable">editable</option>
-                            <option value="readOnly">read-only</option>
+                            <option value="editable">{t('designer.schema.editable')}</option>
+                            <option value="readOnly">{t('designer.schema.readOnly')}</option>
                           </select>
                         </label>
                         <label>
-                          Saving with errors
+                          {t('designer.schema.saveWithErrors')}
                           <select value={draft.saveWithErrors ?? 'block'} onChange={(e) => edit((d) => void (d.saveWithErrors = e.target.value as 'block'))}>
-                            <option value="block">blocked</option>
-                            <option value="confirm">asks first</option>
+                            <option value="block">{t('designer.schema.saveBlocked')}</option>
+                            <option value="confirm">{t('designer.schema.saveConfirm')}</option>
                           </select>
                         </label>
                         <label>
-                          Numbers
+                          {t('designer.schema.numbers')}
                           <select
                             value={draft.numbers?.display === 'full' ? 'exact' : 'formatted'}
                             onChange={(e) => edit((d) => void (d.numbers = e.target.value === 'exact' ? { display: 'full', copy: 'raw' } : undefined))}
                           >
-                            <option value="formatted">as formatted</option>
-                            <option value="exact">exact (every digit)</option>
+                            <option value="formatted">{t('designer.schema.numbersFormatted')}</option>
+                            <option value="exact">{t('designer.schema.numbersExact')}</option>
                           </select>
                         </label>
                       </div>
@@ -677,21 +741,21 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                         <div key={si} className="sheet-block">
                           <div className="sheet-head">
                             <label>
-                              Sheet
+                              {t('designer.sheet.name')}
                               <input value={matchLabel(sheet.name)} onChange={(e) => edit((d) => void (d.sheets[si].name = parseLabel(e.target.value)))} />
                             </label>
                             <label>
-                              Cells outside its tables
+                              {t('designer.sheet.outside')}
                               <select value={sheet.outside ?? 'readOnly'} onChange={(e) => edit((d) => void (d.sheets[si].outside = e.target.value as 'readOnly'))}>
-                                <option value="readOnly">read-only</option>
-                                <option value="editable">editable</option>
+                                <option value="readOnly">{t('designer.schema.readOnly')}</option>
+                                <option value="editable">{t('designer.schema.editable')}</option>
                               </select>
                             </label>
                             <label className="inline">
-                              <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> optional
+                              <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> {t('designer.sheet.optional')}
                             </label>
-                            {!viewFor(sheet) && ready && <span className="tag tag-warn">not in this workbook</span>}
-                            <button className="btn icon ghost" aria-label="Remove sheet" title="Remove sheet" onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
+                            {!viewFor(sheet) && ready && <span className="tag tag-warn">{t('designer.sheet.missing')}</span>}
+                            <button className="btn icon ghost" aria-label={t('designer.sheet.remove')} title={t('designer.sheet.remove')} onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
                               <Icon name="trash" size={14} />
                             </button>
                           </div>
@@ -703,66 +767,68 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                             <div key={ti} className="table-block">
                               <div className="table-head">
                                 <label>
-                                  Table
+                                  {t('designer.table.key')}
                                   <input className="mono" value={table.key} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].key = e.target.value))} />
                                 </label>
                                 <label>
-                                  Starts at
+                                  {t('designer.table.at')}
                                   <input className="mono narrow" value={table.at} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].at = e.target.value.toUpperCase()))} />
                                 </label>
                                 <label>
-                                  Records run
+                                  {t('designer.table.orientation')}
                                   <select value={table.orientation ?? 'rows'} onChange={(e) => reread(si, ti, { orientation: e.target.value as 'rows' })}>
-                                    <option value="rows">down (one per row)</option>
-                                    <option value="columns">across (one per column)</option>
+                                    <option value="rows">{t('designer.table.rows')}</option>
+                                    <option value="columns">{t('designer.table.columns')}</option>
                                   </select>
                                 </label>
-                                <label className="inline" title="The first column (or row) holds fixed labels, so the records are fixed too">
-                                  <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} /> fixed{' '}
-                                  {table.orientation === 'columns' ? 'columns' : 'rows'}
+                                <label className="inline" title={t('designer.table.fixedTitle')}>
+                                  <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} />{' '}
+                                  {table.orientation === 'columns' ? t('designer.table.fixedColumns') : t('designer.table.fixedRows')}
                                 </label>
                                 {!table.records?.labels && (
                                   <>
                                     <label>
-                                      Min
+                                      {t('designer.table.minRecords')}
                                       <input className="narrow" value={table.records?.min ?? ''} onChange={(e) => edit((d) => {
-                                        const t = d.sheets[si].tables![ti];
-                                        t.records = { ...t.records, min: numberOrUndefined(e.target.value) };
+                                        const tb = d.sheets[si].tables![ti];
+                                        tb.records = { ...tb.records, min: numberOrUndefined(e.target.value) };
                                       })} />
                                     </label>
                                     <label>
-                                      Max
+                                      {t('designer.table.maxRecords')}
                                       <input className="narrow" value={table.records?.max ?? ''} onChange={(e) => edit((d) => {
-                                        const t = d.sheets[si].tables![ti];
-                                        t.records = { ...t.records, max: numberOrUndefined(e.target.value) };
+                                        const tb = d.sheets[si].tables![ti];
+                                        tb.records = { ...tb.records, max: numberOrUndefined(e.target.value) };
                                       })} />
                                     </label>
                                   </>
                                 )}
-                                <button className="btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title="Infer the fields again from the workbook">
-                                  Re-read from workbook
+                                <button className="btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title={t('designer.table.rereadTitle')}>
+                                  {t('designer.table.reread')}
                                 </button>
                               </div>
                               {table.records?.labels && (
                                 <p className="muted small">
-                                  Fixed {table.orientation === 'columns' ? 'column' : 'row'} labels: {table.records.labels.map((l) => matchLabel(l)).join(', ')}
+                                  {t(table.orientation === 'columns' ? 'designer.table.fixedColumnLabels' : 'designer.table.fixedRowLabels', {
+                                    labels: table.records.labels.map((l) => matchLabel(l)).join(', '),
+                                  })}
                                 </p>
                               )}
                               <div className="fields-wrap">
                                 <table className="fields">
                                   <thead>
                                     <tr>
-                                      <th>Label</th>
-                                      <th>Key</th>
-                                      <th>Type</th>
-                                      <th title="Required">Req</th>
-                                      <th title="Unique">Uniq</th>
-                                      <th title="Read-only">R/O</th>
-                                      <th>Formulas</th>
-                                      <th>Min</th>
-                                      <th>Max</th>
-                                      <th title="Decimal places">DP</th>
-                                      <th>Values / pattern</th>
+                                      <th>{t('designer.field.label')}</th>
+                                      <th>{t('designer.field.key')}</th>
+                                      <th>{t('designer.field.type')}</th>
+                                      <th title={t('designer.field.required')}>{t('designer.field.requiredShort')}</th>
+                                      <th title={t('designer.field.unique')}>{t('designer.field.uniqueShort')}</th>
+                                      <th title={t('designer.field.readOnly')}>{t('designer.field.readOnlyShort')}</th>
+                                      <th>{t('designer.field.formulas')}</th>
+                                      <th>{t('designer.field.min')}</th>
+                                      <th>{t('designer.field.max')}</th>
+                                      <th title={t('designer.field.decimals')}>{t('designer.field.decimalsShort')}</th>
+                                      <th>{t('designer.field.valuesOrPattern')}</th>
                                       <th />
                                     </tr>
                                   </thead>
@@ -778,9 +844,9 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                   </tbody>
                                 </table>
                               </div>
-                              <ChecksEditor table={table} onChange={(t) => edit((d) => void (d.sheets[si].tables![ti] = t))} />
+                              <ChecksEditor table={table} onChange={(next) => edit((d) => void (d.sheets[si].tables![ti] = next))} />
                               <button className="btn ghost small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
-                                <Icon name="trash" size={14} /> Remove table
+                                <Icon name="trash" size={14} /> {t('designer.table.remove')}
                               </button>
                             </div>
                           ))}
@@ -788,12 +854,14 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                       ))}
                       {ready && (
                         <div className="pick-actions">
-                          <span className="muted small">Add from the open workbook — select cells on {store.view?.info.name ?? 'the sheet'}:</span>
+                          <span className="muted small">
+                            {store.view ? t('designer.pick.prompt', { sheet: store.view.info.name }) : t('designer.pick.promptNoSheet')}
+                          </span>
                           <button className="btn" onClick={() => store.set('designerPick', 'table')}>
-                            <Icon name="plus" size={14} /> Table from a selection…
+                            <Icon name="plus" size={14} /> {t('designer.pick.table')}
                           </button>
                           <button className="btn" onClick={() => store.set('designerPick', 'cell')}>
-                            <Icon name="plus" size={14} /> Single cell…
+                            <Icon name="plus" size={14} /> {t('designer.pick.cell')}
                           </button>
                         </div>
                       )}
@@ -805,11 +873,11 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                   <div className={`test-result ${testResult.ok ? 'ok' : 'bad'}`}>
                     <Icon name={testResult.ok ? 'check' : 'warn'} />
                     <div>
-                      <strong>{testResult.ok ? 'Matches the open workbook.' : "Doesn't match the open workbook."}</strong>
+                      <strong>{testResult.ok ? t('designer.test.matches') : t('designer.test.noMatch')}</strong>
                       {testResult.problems.length > 0 && (
                         <ul>
-                          {testResult.problems.map((p) => (
-                            <li key={p}>{p}</li>
+                          {testResult.problems.map((p, i) => (
+                            <li key={i}>{t.text(p)}</li>
                           ))}
                         </ul>
                       )}
@@ -826,14 +894,14 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
               const d = currentDraft();
               if (d) download(`${d.id}.schema.json`, schemaToJSON(d));
             }}>
-              <Icon name="download" /> Export JSON
+              <Icon name="download" /> {t('designer.exportJson')}
             </button>
             <span className="spacer" />
             <button className="btn" disabled={!ready} onClick={test}>
-              Test against this workbook
+              {t('designer.test.run')}
             </button>
             <button className="btn primary" onClick={apply}>
-              <Icon name="check" /> Apply
+              <Icon name="check" /> {t('designer.apply')}
             </button>
           </footer>
         )}

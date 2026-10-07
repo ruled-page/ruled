@@ -2,8 +2,10 @@ import { useId, useRef } from 'react';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { useDialog } from './useDialog';
+import { useT } from '../i18n/react';
 
 export function ConfirmDialog({ store }: { store: WorkbookStore }) {
+  const t = useT();
   const req = store.confirmRequest;
   const confirmBtn = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
@@ -27,15 +29,15 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
           <Icon name={danger ? 'warn' : 'info'} size={20} />
         </div>
         <div className="modal-content">
-          <h2 id={`${id}-title`}>{req.title}</h2>
-          <p id={`${id}-body`}>{req.body}</p>
+          <h2 id={`${id}-title`}>{t.text(req.title)}</h2>
+          <p id={`${id}-body`}>{t.text(req.body)}</p>
           {req.details && (
             <div className="modal-table">
               <table>
                 <thead>
                   <tr>
-                    {req.details.header.map((h) => (
-                      <th key={h}>{h}</th>
+                    {req.details.header.map((h, i) => (
+                      <th key={i}>{t.text(h)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -44,27 +46,27 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
                     <tr key={i}>
                       {row.map((cell, j) => (
                         <td key={j} className={j === 0 ? 'mono' : ''}>
-                          {cell === '' ? <span className="muted">(empty)</span> : cell}
+                          {cell === '' ? <span className="muted">{t('dialog.empty')}</span> : cell}
                         </td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {!!req.details.more && <p className="muted small">…and {req.details.more.toLocaleString()} more.</p>}
+              {!!req.details.more && <p className="muted small">{t('dialog.more', { count: req.details.more })}</p>}
             </div>
           )}
           <div className="modal-actions">
             <button className="btn" onClick={() => req.resolve('cancel')}>
-              {req.cancelLabel ?? 'Cancel'}
+              {req.cancelLabel ? t.text(req.cancelLabel) : t('dialog.cancel')}
             </button>
             {req.alternateLabel && (
               <button className="btn" onClick={() => req.resolve('alternate')}>
-                {req.alternateLabel}
+                {t.text(req.alternateLabel)}
               </button>
             )}
             <button ref={confirmBtn} className={`btn ${danger ? 'danger' : 'primary'}`} onClick={() => req.resolve('confirm')}>
-              {req.confirmLabel}
+              {t.text(req.confirmLabel)}
             </button>
           </div>
         </div>
@@ -74,14 +76,15 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
 }
 
 export function Toasts({ store }: { store: WorkbookStore }) {
+  const t = useT();
   return (
     <div className="toasts" role="status">
-      {store.toasts.map((t) => (
+      {store.toasts.map((toast) => (
         // Errors interrupt; the rest wait for a pause.
-        <div key={t.id} className={`toast toast-${t.kind}`} role={t.kind === 'error' ? 'alert' : undefined}>
-          <Icon name={t.kind === 'info' ? 'check' : t.kind === 'warn' ? 'info' : 'warn'} />
-          <span>{t.text}</span>
-          <button className="btn icon ghost" onClick={() => store.dismissToast(t.id)} aria-label="Dismiss">
+        <div key={toast.id} className={`toast toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
+          <Icon name={toast.kind === 'info' ? 'check' : toast.kind === 'warn' ? 'info' : 'warn'} />
+          <span>{t.text(toast.text)}</span>
+          <button className="btn icon ghost" onClick={() => store.dismissToast(toast.id)} aria-label={t('toast.dismiss')}>
             <Icon name="close" size={14} />
           </button>
         </div>

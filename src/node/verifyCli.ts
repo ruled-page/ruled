@@ -1,4 +1,5 @@
 import { reportMarkdown, verifyWorkbook, type VerifyReport } from './verify';
+import { english, errorText } from '../i18n';
 
 export interface VerifyIO {
   /** The workbook files under a path: the file itself, or the .xlsx and .xlsm files in a folder. */
@@ -53,7 +54,7 @@ export async function runVerify(argv: string[], io: VerifyIO): Promise<number> {
     try {
       files = await io.list(p);
     } catch (e) {
-      io.err((e as Error).message);
+      io.err(english.text(errorText(e)));
       return 2;
     }
     for (const file of files) {

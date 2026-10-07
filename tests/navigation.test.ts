@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { english } from '../src/i18n';
 import type { WorkbookStore } from '../src/state/store';
 import { opened, testStore } from './storeHarness';
 
@@ -64,7 +65,7 @@ describe('filling from the keyboard', () => {
     expect(text(store, 3, 2)?.n).toBe(3);
     expect(text(store, 3, 3)?.f).toBe('B4*C4');
     expect(text(store, 3, 3)?.n).toBe(3);
-    expect(store.history.at(-1)?.action).toBe('Fill down');
+    expect(english.text(store.history.at(-1)?.action)).toBe('Fill down');
     store.dispose();
   });
 
@@ -76,7 +77,7 @@ describe('filling from the keyboard', () => {
     store.goTo('C4');
     await store.fillDown(true);
     expect(text(store, 3, 2)?.n).toBe(4);
-    expect(store.history.at(-1)?.action).toBe('Fill right');
+    expect(english.text(store.history.at(-1)?.action)).toBe('Fill right');
     store.dispose();
   });
 

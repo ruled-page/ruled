@@ -1,3 +1,4 @@
+import type { Text } from '../i18n/message';
 /** Inclusive, 0-based cell rectangle. */
 export interface Rect {
   r1: number;
@@ -205,7 +206,8 @@ export interface SheetObject {
   kind: 'chart' | 'image' | 'shape' | 'pivot' | 'control';
   name: string;
   title?: string;
-  chartType?: string;
+  /** The kind of chart ("Bar", "Pie"), to show as "{{type}} chart"; Excel's own name for kinds without a message. */
+  chartType?: Text;
   from?: Anchor;
   to?: Anchor;
   /** Size in pixels when the object is anchored to one cell only. */
@@ -214,7 +216,7 @@ export interface SheetObject {
 
 export interface BlockedRegion extends Rect {
   kind: 'pivot' | 'array' | 'tableHeader';
-  reason: string;
+  reason: Text;
 }
 
 export interface MergeRange extends Rect {}
@@ -340,8 +342,8 @@ export interface Finding {
   kind: FindingKind;
   /** "warn" items are surfaced in the banner when the file opens. */
   severity: 'info' | 'warn';
-  title: string;
-  detail: string;
+  title: Text;
+  detail: Text;
   sheet?: string;
   where?: string;
 }
@@ -362,9 +364,10 @@ export interface CalcSample {
   sheet: string;
   ref: string;
   formula: string;
-  reason: string;
-  excel?: string;
-  engine?: string;
+  reason: Text;
+  /** Excel's saved value and the engine's, as describeValue words them. */
+  excel?: Text;
+  engine?: Text;
 }
 
 export interface CalcReport {
@@ -375,13 +378,14 @@ export interface CalcReport {
   unsupported: number;
   mismatched: number;
   noCachedValue: number;
-  unsupportedFunctions: string[];
+  /** What the formulas that aren't calculated use, such as "LET function", each once. */
+  unsupportedFunctions: Text[];
   samples: CalcSample[];
   /** Value corrections for formulas the file had no saved value for. */
   updates: CellUpdate[];
   findings: Finding[];
   /** Why each formula is not calculated here, keyed by "sheet:row:col". */
-  cellReasons: Map<string, string>;
+  cellReasons: Map<string, Text>;
   /** Live recalculation is off for this workbook; no engine was built. */
   off?: boolean;
 }
@@ -408,7 +412,7 @@ export interface CellChange {
   /** Only the cell's format changed. */
   formatOnly?: boolean;
   /** A change to rows, columns or where cells are, rather than to one cell; `ref` is the rows, columns or range. */
-  note?: string;
+  note?: Text;
 }
 
 export interface CellSnapshot {
@@ -446,10 +450,10 @@ export interface EditResult {
   undo: CellSnapshot[];
   redo: CellSnapshot[];
   skipped: number;
-  skippedReasons: string[];
-  warnings: string[];
+  skippedReasons: Text[];
+  warnings: Text[];
   newStyles: { index: number; style: DisplayStyle }[];
   editedCount: number;
   /** Set when the input could not be accepted at all, e.g. a malformed formula. */
-  rejected?: string;
+  rejected?: Text;
 }
