@@ -1,6 +1,6 @@
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, MergeRange, Rect, SheetGrid, SheetInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -131,6 +131,11 @@ export class SheetView {
     const own = this.info.rowStyles[row];
     if (own !== undefined) return own;
     return this.info.colStyles.find((c) => col >= c.min && col <= c.max)?.style ?? 0;
+  }
+
+  tableAt(row: number, col: number): TableInfo | undefined {
+    for (const t of this.info.tables) if (inRect(t.rect, row, col)) return t;
+    return undefined;
   }
 
   noteAt(row: number, col: number): CellNote | undefined {

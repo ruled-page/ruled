@@ -71,6 +71,59 @@ export interface CellBorders {
   bottom?: BorderEdge;
 }
 
+/**
+ * A differential format: only the parts of a style that a table style or a
+ * conditional format changes. Inner `horizontal` and `vertical` edges apply
+ * between the cells of the region it covers.
+ */
+export interface DiffStyle {
+  fill?: string;
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  border?: CellBorders & { horizontal?: BorderEdge; vertical?: BorderEdge };
+}
+
+export type TableElement =
+  | 'wholeTable'
+  | 'headerRow'
+  | 'totalRow'
+  | 'firstColumn'
+  | 'lastColumn'
+  | 'firstRowStripe'
+  | 'secondRowStripe'
+  | 'firstColumnStripe'
+  | 'secondColumnStripe'
+  | 'firstHeaderCell'
+  | 'lastHeaderCell'
+  | 'firstTotalCell'
+  | 'lastTotalCell';
+
+/** A table style resolved to formats per element, with its stripe sizes. */
+export interface TableLook {
+  elements: Partial<Record<TableElement, DiffStyle>>;
+  rowStripe: number;
+  colStripe: number;
+}
+
+/** An Excel table (ListObject). */
+export interface TableInfo {
+  name: string;
+  rect: Rect;
+  headerRows: number;
+  totalsRows: number;
+  columns: string[];
+  style?: string;
+  showFirstColumn: boolean;
+  showLastColumn: boolean;
+  showRowStripes: boolean;
+  showColumnStripes: boolean;
+  /** How the table is drawn; missing when its style is unknown or "none". */
+  look?: TableLook;
+}
+
 export interface DisplayStyle {
   numFmt: string;
   bold: boolean;
@@ -195,6 +248,7 @@ export interface SheetInfo {
   blocked: BlockedRegion[];
   objects: SheetObject[];
   notes: CellNote[];
+  tables: TableInfo[];
   protected: boolean;
   showGridLines: boolean;
   tabColor?: string;

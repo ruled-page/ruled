@@ -31,7 +31,7 @@ const isEmpty = (rec: CellRecord | null) => !rec || rec.t === VT.None;
 export function rowOverflows(
   view: SheetView,
   row: number,
-  styles: DisplayStyle[],
+  styleOf: (col: number, rec: CellRecord) => DisplayStyle,
   date1904: boolean,
   measure: (text: string, style: DisplayStyle) => number,
 ): Overflow[] {
@@ -42,7 +42,7 @@ export function rowOverflows(
   const out: Overflow[] = [];
   const free = (c: number) => c >= 0 && isEmpty(view.get(row, c)) && !view.mergeAt(row, c);
   for (const [col, rec] of cells) {
-    const style = styles[rec.style] ?? styles[0];
+    const style = styleOf(col, rec);
     if (style.wrap || style.hAlign === 'fill' || style.hAlign === 'justify' || view.mergeAt(row, col)) continue;
     const gc = view.gridCol(col);
     if (gc < 0) continue;

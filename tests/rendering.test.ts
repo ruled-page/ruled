@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { mergeNotes, parsePersons, parseThreads } from '../src/core/comments';
 import { parseA1 } from '../src/core/refs';
 import { WorkbookSession } from '../src/core/session';
+import { StyleBook, tintColor } from '../src/core/styles';
+import { builtinTableLook, tableCellFormat } from '../src/core/tableStyles';
+import type { TableInfo } from '../src/core/types';
+import { effectiveStyle } from '../src/state/cellStyle';
 import { fitNumber, rowOverflows } from '../src/state/overflow';
 import { SheetView } from '../src/state/sheetView';
 import { sample } from './helpers';
@@ -50,7 +54,7 @@ describe('formatting.xlsx', () => {
   it('spills text into empty neighbours the way Excel does', () => {
     const at = (ref: string) => {
       const { row } = parseA1(ref)!;
-      return rowOverflows(borders, row, r.styles, false, measure).map((o) => [o.col, o.from, o.to, o.align]);
+      return rowOverflows(borders, row, (_c, rec) => r.styles[rec.style], false, measure).map((o) => [o.col, o.from, o.to, o.align]);
     };
     expect(at('A25')).toEqual([[0, 0, 4, 'left']]);
     expect(at('F26')).toEqual([[5, 3, 5, 'right']]);
@@ -127,5 +131,84 @@ describe('threaded comments', () => {
       [8, 2, 'thread'],
       [4, 0, 'note'],
     ]);
+  });
+});
+
+describe('theme tints', () => {
+  it("match the colours Excel's palette shows", () => {
+    const cases: [string, number, string][] = [
+      ['#4472C4', 0.8, '#D9E1F2'], ['#4472C4', 0.6, '#B4C6E7'], ['#4472C4', 0.4, '#8EA9DB'],
+      ['#4472C4', -0.25, '#305496'], ['#4472C4', -0.5, '#203764'], ['#ED7D31', 0.8, '#FCE4D6'],
+      ['#70AD47', -0.25, '#548235'], ['#FFC000', 0.8, '#FFF2CC'], ['#A5A5A5', 0.8, '#EDEDED'],
+      ['#000000', 0.5, '#808080'], ['#FFFFFF', -0.15, '#D9D9D9'], ['#000000', 0.35, '#595959'],
+    ];
+    expect(cases.map(([c, t]) => tintColor(c, t))).toEqual(cases.map(([, , want]) => want));
+  });
+});
+
+describe('table styles', () => {
+  const { r, views } = load('formatting.xlsx');
+  const sheet = views[2];
+  const theme = new StyleBook(undefined, undefined, 'en-US').theme;
+
+  it('reads every table with its style options', () => {
+    expect(sheet.info.tables.map((t) => [t.name, t.style, t.totalsRows, t.showRowStripes, t.showColumnStripes, t.showFirstColumn])).toEqual([
+      ['Styled1', 'TableStyleMedium2', 1, true, false, false],
+      ['Styled2', 'TableStyleLight9', 0, true, false, false],
+      ['Styled3', 'TableStyleDark2', 0, true, true, true],
+      ['Styled4', 'TableStyleMedium14', 0, true, false, false],
+      ['Styled5', 'TableStyleLight1', 0, true, false, false],
+      ['Styled6', 'TableStyleLight15', 0, false, true, false],
+    ]);
+    expect(sheet.info.tables.every((t) => t.look)).toBe(true);
+  });
+
+  it('draws headers, stripes and total rows from the theme accent', () => {
+    // XlsxWriter files use the Office 2007 theme, whose accent 1 is 4F81BD.
+    const at = (row: number, col: number) => effectiveStyle(sheet, r.styles, row, col);
+    expect(at(0, 0)).toMatchObject({ fill: '#4F81BD', color: '#FFFFFF', bold: true });
+    expect(at(1, 1).fill).toBe('#DCE6F1');
+    expect(at(2, 1).fill).toBeUndefined();
+    expect(at(2, 1).border?.top?.color).toBe('#95B3D7');
+    expect(at(5, 0)).toMatchObject({ bold: true, border: { top: { pattern: 'double' } } });
+    expect(at(7, 0).fill).toBeUndefined();
+  });
+
+  it('layers elements from the whole table up to the header', () => {
+    const t: TableInfo = {
+      name: 'T', rect: { r1: 0, c1: 0, r2: 4, c2: 2 }, headerRows: 1, totalsRows: 0, columns: [],
+      showFirstColumn: true, showLastColumn: false, showRowStripes: true, showColumnStripes: false,
+      look: builtinTableLook('TableStyleDark1', theme),
+    };
+    expect(tableCellFormat(t, 0, 0)).toMatchObject({ fill: '#000000', bold: true });
+    expect(tableCellFormat(t, 1, 0)?.border?.right).toMatchObject({ width: 2, color: '#FFFFFF' });
+    expect(tableCellFormat(t, 1, 1)?.fill).not.toBe(tableCellFormat(t, 2, 1)?.fill);
+    expect(tableCellFormat(t, 5, 1)).toBeUndefined();
+    expect(builtinTableLook('TableStyleMedium29', theme)).toBeDefined();
+    expect(builtinTableLook('Fancy', theme)).toBeUndefined();
+  });
+
+  it('uses custom table styles defined in the workbook', () => {
+    const styles = new StyleBook(
+      `<styleSheet xmlns="x"><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellXfs>
+        <dxfs count="2">
+          <dxf><font><b/><color rgb="FFFFFFFF"/></font><fill><patternFill patternType="solid"><bgColor rgb="FF7030A0"/></patternFill></fill></dxf>
+          <dxf><fill><patternFill><bgColor theme="4" tint="0.6"/></patternFill></fill></dxf>
+        </dxfs>
+        <tableStyles count="1"><tableStyle name="Purple" pivot="0" count="2">
+          <tableStyleElement type="headerRow" dxfId="0"/><tableStyleElement type="firstRowStripe" dxfId="1" size="2"/>
+        </tableStyle></tableStyles></styleSheet>`,
+      undefined,
+      'en-US',
+    );
+    const look = styles.tableStyles.get('Purple')!;
+    expect(look.rowStripe).toBe(2);
+    const t: TableInfo = {
+      name: 'T', rect: { r1: 0, c1: 0, r2: 6, c2: 1 }, headerRows: 1, totalsRows: 0, columns: [],
+      showFirstColumn: false, showLastColumn: false, showRowStripes: true, showColumnStripes: false, look,
+    };
+    expect(tableCellFormat(t, 0, 0)).toEqual({ fill: '#7030A0', color: '#FFFFFF', bold: true });
+    // Stripes two rows deep: rows 1-2 striped, 3-4 not, 5-6 striped.
+    expect([1, 2, 3, 4, 5].map((row) => tableCellFormat(t, row, 0)?.fill ?? '-')).toEqual(['#B4C6E7', '#B4C6E7', '-', '-', '#B4C6E7']);
   });
 });

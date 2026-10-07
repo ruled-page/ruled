@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
+import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText, exactText } from '../state/format';
 import { CELL_PADDING, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
@@ -185,7 +186,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
         col = merge.c1;
       }
       const rec = showContent ? view.get(merge ? merge.r1 : row, col) : null;
-      const style = styles[rec?.style ?? 0] ?? styles[0];
+      const style = rec ? effectiveStyle(view, styles, merge ? merge.r1 : row, col, rec.style) : styles[0];
       const readOnly = view.readOnlyReason(row, view.visibleCols[gc - 1]);
       const blocked = view.blockedAt(row, view.visibleCols[gc - 1]);
       const locked = blocked !== undefined && blocked.kind !== 'tableHeader';
@@ -202,7 +203,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
       const asEnum = (cell: EnumCell): EnumCell =>
         options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
       if (!rec) {
-        const baseStyle = styles[merge ? view.styleAt(merge.r1, merge.c1) : view.styleAt(row, col, null)];
+        const baseStyle = merge ? effectiveStyle(view, styles, merge.r1, merge.c1) : effectiveStyle(view, styles, row, col, view.styleAt(row, col, null));
         const bg = baseStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
         return asEnum({
           kind: GridCellKind.Text,
@@ -249,7 +250,7 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
     (row: number) => {
       let list = overflowCache.get(row);
       if (!list) {
-        list = rowOverflows(view, row, styles, date1904, measure);
+        list = rowOverflows(view, row, (col, rec) => effectiveStyle(view, styles, row, col, rec.style), date1904, measure);
         overflowCache.set(row, list);
       }
       return list;
@@ -300,18 +301,18 @@ export function SheetGrid({ store, view, dataVersion, schemaVersion, selection }
 
       // Left and top edges belong to this cell: a border from either side, else a grid line.
       const merge = view.mergeAt(row, col);
-      const style = styles[view.styleAt(merge?.r1 ?? row, merge?.c1 ?? col)] ?? styles[0];
+      const style = effectiveStyle(view, styles, merge?.r1 ?? row, merge?.c1 ?? col);
       const gc = view.gridCol(col);
       const gr = view.gridRow(row);
       if (!merge || col === merge.c1) {
         const leftCol = gc > 0 ? view.visibleCols[gc - 1] : -1;
-        const edge = style.border?.left ?? (leftCol >= 0 ? styles[view.styleAt(row, leftCol)]?.border?.right : undefined);
+        const edge = style.border?.left ?? (leftCol >= 0 ? effectiveStyle(view, styles, row, leftCol).border?.right : undefined);
         if (edge) drawEdge(ctx, 'left', rect.x, rect.y, rect.height, edge);
         else if (gridLines && !overflows.some((o) => o.from < col && col <= o.to)) drawGridLine(ctx, 'left', rect.x, rect.y, rect.height);
       }
       if (!merge || row === merge.r1) {
         const upRow = gr > 0 ? view.visibleRows[gr - 1] : -1;
-        const edge = style.border?.top ?? (upRow >= 0 ? styles[view.styleAt(upRow, col)]?.border?.bottom : undefined);
+        const edge = style.border?.top ?? (upRow >= 0 ? effectiveStyle(view, styles, upRow, col).border?.bottom : undefined);
         if (edge) drawEdge(ctx, 'top', rect.x, rect.y, rect.width, edge);
         else if (gridLines) drawGridLine(ctx, 'top', rect.x, rect.y, rect.width);
       }

@@ -263,9 +263,11 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   with Excel itself. Open a few saved files in Excel before relying on them,
   especially `pivot.xlsx`, whose pivot table was written by hand because
   ExcelJS can't create one.
-- Not drawn: charts (placeholders only), conditional formatting, table
-  styles, mixed fonts inside a cell. Merges spanning several rows show only
-  the top row.
+- Not drawn: charts (placeholders only), conditional formatting, mixed fonts
+  inside a cell. Merges spanning several rows show only the top row.
+- Excel files name their built-in table styles without defining them, so
+  those are drawn from each style family's pattern in the theme colours:
+  close to Excel, not exact. Custom table styles are drawn as defined.
 - Glide can freeze columns but not rows, so frozen rows scroll.
 - No row/column insert or delete, sorting, filtering, or adding/renaming
   sheets. Cut is copy then clear, not a move that updates references.

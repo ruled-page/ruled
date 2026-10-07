@@ -1,4 +1,4 @@
-import type { BorderEdge, CellBorders, DisplayStyle } from './types';
+import type { BorderEdge, CellBorders, DiffStyle, DisplayStyle, TableElement, TableLook } from './types';
 import { attr, child, children, descendants, parseXml, type XmlNode } from './xml';
 
 /** Excel's built-in number formats (en-US). Ids 14 and 22 follow the user's locale. */
@@ -96,49 +96,64 @@ export function parseThemeColors(themeXml: string | undefined): string[] {
   ];
 }
 
-function hexToHsl(hex: string): [number, number, number] {
-  const r = parseInt(hex.slice(0, 2), 16) / 255;
-  const g = parseInt(hex.slice(2, 4), 16) / 255;
-  const b = parseInt(hex.slice(4, 6), 16) / 255;
+/**
+ * Theme tints the way Excel computes them: in Windows' integer HLS space,
+ * where hue, lightness and saturation run 0–240. Float HSL comes out a
+ * shade off from the colours Excel shows.
+ */
+const HLSMAX = 240;
+const RGBMAX = 255;
+const idiv = (a: number, b: number) => Math.trunc(a / b);
+
+function rgbToHls(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  if (max === min) return [0, 0, l];
-  const d = max - min;
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  h /= 6;
-  return [h, s, l];
+  const l = idiv((max + min) * HLSMAX + RGBMAX, 2 * RGBMAX);
+  if (max === min) return [idiv(HLSMAX * 2, 3), l, 0];
+  const s =
+    l <= HLSMAX / 2
+      ? idiv((max - min) * HLSMAX + idiv(max + min, 2), max + min)
+      : idiv((max - min) * HLSMAX + idiv(2 * RGBMAX - max - min, 2), 2 * RGBMAX - max - min);
+  const delta = (c: number) => idiv((max - c) * idiv(HLSMAX, 6) + idiv(max - min, 2), max - min);
+  let h = r === max ? delta(b) - delta(g) : g === max ? idiv(HLSMAX, 3) + delta(r) - delta(b) : idiv(2 * HLSMAX, 3) + delta(g) - delta(r);
+  if (h < 0) h += HLSMAX;
+  if (h > HLSMAX) h -= HLSMAX;
+  return [h, l, s];
 }
 
-function hslToHex(h: number, s: number, l: number): string {
-  const hue = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  let r = l;
-  let g = l;
-  let b = l;
-  if (s !== 0) {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue(p, q, h + 1 / 3);
-    g = hue(p, q, h);
-    b = hue(p, q, h - 1 / 3);
+function hueToRgb(n1: number, n2: number, h: number): number {
+  if (h < 0) h += HLSMAX;
+  if (h > HLSMAX) h -= HLSMAX;
+  if (h < idiv(HLSMAX, 6)) return n1 + idiv((n2 - n1) * h + idiv(HLSMAX, 12), idiv(HLSMAX, 6));
+  if (h < idiv(HLSMAX, 2)) return n2;
+  if (h < idiv(HLSMAX * 2, 3)) return n1 + idiv((n2 - n1) * (idiv(HLSMAX * 2, 3) - h) + idiv(HLSMAX, 12), idiv(HLSMAX, 6));
+  return n1;
+}
+
+function hlsToRgb(h: number, l: number, s: number): [number, number, number] {
+  if (s === 0) {
+    const v = idiv(l * RGBMAX + idiv(HLSMAX, 2), HLSMAX);
+    return [v, v, v];
   }
-  const to = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
-  return (to(r) + to(g) + to(b)).toUpperCase();
+  const m2 = l <= HLSMAX / 2 ? idiv(l * (HLSMAX + s) + idiv(HLSMAX, 2), HLSMAX) : l + s - idiv(l * s + idiv(HLSMAX, 2), HLSMAX);
+  const m1 = 2 * l - m2;
+  const c = (hue: number) => Math.min(RGBMAX, Math.max(0, idiv(hueToRgb(m1, m2, hue) * RGBMAX + idiv(HLSMAX, 2), HLSMAX)));
+  return [c(h + idiv(HLSMAX, 3)), c(h), c(h - idiv(HLSMAX, 3))];
+}
+
+/** A "#RRGGBB" colour lightened (positive) or darkened (negative), as Excel tints theme colours. */
+export function tintColor(color: string, tint: number): string {
+  return '#' + applyTint(color.replace('#', '').toUpperCase(), tint);
 }
 
 function applyTint(hex: string, tint: number): string {
   if (!tint) return hex;
-  const [h, s, l] = hexToHsl(hex);
-  const nl = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint;
-  return hslToHex(h, s, Math.min(1, Math.max(0, nl)));
+  const [h, l, s] = rgbToHls(parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16));
+  const lum = Math.trunc(tint < 0 ? l * (1 + tint) : l * (1 - tint) + (HLSMAX - HLSMAX * (1 - tint)));
+  return hlsToRgb(h, Math.min(HLSMAX, Math.max(0, lum)), s)
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
 }
 
 export function resolveColor(node: XmlNode | undefined, theme: string[], indexed: string[]): string | undefined {
@@ -172,7 +187,7 @@ const BORDER_STYLES: Record<string, Omit<BorderEdge, 'color'>> = {
   double: { width: 3, pattern: 'double' },
 };
 
-export function parseBorder(node: XmlNode | undefined, theme: string[], indexed: string[]): CellBorders | undefined {
+export function parseBorder(node: XmlNode | undefined, theme: string[], indexed: string[]): DiffStyle['border'] {
   if (!node) return undefined;
   const edge = (...names: string[]): BorderEdge | undefined => {
     for (const name of names) {
@@ -182,8 +197,44 @@ export function parseBorder(node: XmlNode | undefined, theme: string[], indexed:
     }
     return undefined;
   };
-  const b: CellBorders = { left: edge('left', 'start'), right: edge('right', 'end'), top: edge('top'), bottom: edge('bottom') };
-  return b.left || b.right || b.top || b.bottom ? b : undefined;
+  const b: DiffStyle['border'] = { left: edge('left', 'start'), right: edge('right', 'end'), top: edge('top'), bottom: edge('bottom') };
+  // Inner edges only mean something in table styles and conditional formats.
+  if (child(node, 'horizontal')) b.horizontal = edge('horizontal');
+  if (child(node, 'vertical')) b.vertical = edge('vertical');
+  return Object.values(b).some((e) => e) ? b : undefined;
+}
+
+/** The outer edges of a border, which is all a cell format uses. */
+function cellBorders(b: DiffStyle['border']): CellBorders | undefined {
+  if (!b || !(b.left || b.right || b.top || b.bottom)) return undefined;
+  const { left, right, top, bottom } = b;
+  return { left, right, top, bottom };
+}
+
+/** A differential format (dxf) from styles.xml, as used by conditional formatting and table styles. */
+function parseDxf(node: XmlNode, theme: string[], indexed: string[]): DiffStyle {
+  const out: DiffStyle = {};
+  const font = child(node, 'font');
+  if (font) {
+    const on = (name: string) => {
+      const n = child(font, name);
+      return n ? attr(n, 'val') !== '0' && attr(n, 'val') !== 'false' : undefined;
+    };
+    out.bold = on('b');
+    out.italic = on('i');
+    out.strike = on('strike');
+    const u = child(font, 'u');
+    if (u) out.underline = attr(u, 'val') !== 'none';
+    out.color = resolveColor(child(font, 'color'), theme, indexed);
+  }
+  const pattern = child(child(node, 'fill'), 'patternFill');
+  if (pattern && attr(pattern, 'patternType') !== 'none') {
+    // In a dxf a solid fill's colour is usually bgColor, unlike in cell formats.
+    out.fill = resolveColor(child(pattern, 'bgColor'), theme, indexed) ?? resolveColor(child(pattern, 'fgColor'), theme, indexed);
+  }
+  out.border = parseBorder(child(node, 'border'), theme, indexed);
+  for (const k of Object.keys(out) as (keyof DiffStyle)[]) if (out[k] === undefined) delete out[k];
+  return out;
 }
 
 const flag = (node: XmlNode | undefined) => !!node && attr(node, 'val') !== '0' && attr(node, 'val') !== 'false';
@@ -213,10 +264,17 @@ export class StyleBook {
   private readonly customNumFmts = new Map<number, string>();
   private readonly derived = new Map<string, number>();
   readonly additions: StyleAddition[] = [];
+  /** Differential formats, by dxfId. */
+  readonly dxfs: DiffStyle[] = [];
+  /** Custom table styles defined in the workbook, by name. */
+  readonly tableStyles = new Map<string, TableLook>();
+  /** Theme colours (hex, no "#") in SpreadsheetML theme-index order. */
+  readonly theme: string[];
   private nextNumFmtId = 164;
 
   constructor(stylesXml: string | undefined, themeXml: string | undefined, locale: string) {
     const theme = parseThemeColors(themeXml);
+    this.theme = theme;
     if (!stylesXml) {
       this.display.push(defaultStyle());
       this.xfRaw.push('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
@@ -258,6 +316,19 @@ export class StyleBook {
     });
 
     const borders = children(child(root, 'borders'), 'border').map((b) => parseBorder(b, theme, indexed));
+    for (const d of children(child(root, 'dxfs'), 'dxf')) this.dxfs.push(parseDxf(d, theme, indexed));
+    for (const ts of children(child(root, 'tableStyles'), 'tableStyle')) {
+      const look: TableLook = { elements: {}, rowStripe: 1, colStripe: 1 };
+      for (const el of children(ts, 'tableStyleElement')) {
+        const type = attr(el, 'type') as TableElement;
+        const dxf = this.dxfs[Number(attr(el, 'dxfId') ?? -1)];
+        if (dxf) look.elements[type] = dxf;
+        const size = Number(attr(el, 'size') ?? 1);
+        if (type === 'firstRowStripe') look.rowStripe = size;
+        if (type === 'firstColumnStripe') look.colStripe = size;
+      }
+      this.tableStyles.set(attr(ts, 'name') ?? '', look);
+    }
 
     const cellXfsNode = child(root, 'cellXfs');
     for (const xf of children(cellXfsNode, 'xf')) {
@@ -277,7 +348,7 @@ export class StyleBook {
         vAlign: attr(align, 'vertical'),
         wrap: attr(align, 'wrapText') === '1' || attr(align, 'wrapText') === 'true',
         indent: Number(attr(align, 'indent') ?? 0),
-        border: borders[Number(attr(xf, 'borderId') ?? 0)],
+        border: cellBorders(borders[Number(attr(xf, 'borderId') ?? 0)]),
       });
     }
     if (this.display.length === 0) this.display.push(defaultStyle());

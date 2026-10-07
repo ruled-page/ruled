@@ -1,6 +1,7 @@
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
 import { StyleBook } from './styles';
+import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePersons, parseThreads } from './comments';
 import type { Anchor, BlockedRegion, CellNote, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
@@ -208,6 +209,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       blocked: [],
       objects: [],
       notes: [],
+      tables: [],
       protected: false,
       showGridLines: true,
     };
@@ -444,6 +446,24 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
         const ref = attr(t, 'ref') ?? '';
         const range = parseRange(ref);
         const headerRows = Number(attr(t, 'headerRowCount') ?? 1);
+        if (range) {
+          const si = child(t, 'tableStyleInfo');
+          const style = attr(si, 'name');
+          const on = (name: string) => attr(si, name) === '1' || attr(si, name) === 'true';
+          info.tables.push({
+            name: tname,
+            rect: range,
+            headerRows,
+            totalsRows: Number(attr(t, 'totalsRowCount') ?? 0),
+            columns: children(child(t, 'tableColumns'), 'tableColumn').map((c) => attr(c, 'name') ?? ''),
+            style,
+            showFirstColumn: on('showFirstColumn'),
+            showLastColumn: on('showLastColumn'),
+            showRowStripes: on('showRowStripes'),
+            showColumnStripes: on('showColumnStripes'),
+            look: style ? (styles.tableStyles.get(style) ?? builtinTableLook(style, styles.theme)) : undefined,
+          });
+        }
         if (range && headerRows > 0) {
           blocked.push({
             r1: range.r1,
