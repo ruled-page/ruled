@@ -11,6 +11,10 @@ export interface EditorHandle {
   getWorkbook(): Promise<SavedWorkbook | undefined>;
   /** Runs the same save flow as the Save button (schema checks, then onSave or a download). */
   save(): Promise<void>;
+  /** Downloads a copy as .xlsx without saving it to the host. */
+  download(): Promise<void>;
+  /** There are changes the host hasn't received through a save yet. */
+  readonly unsaved: boolean;
   /** Adds or replaces a schema and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void;
   /** Cells changed since the workbook was opened. */
@@ -36,6 +40,10 @@ export function mountWorkbookEditor(element: HTMLElement, options: StoreOptions 
     open: (bytes, fileName) => store.open(fileName, bytes instanceof Uint8Array ? (bytes.slice().buffer as ArrayBuffer) : bytes),
     getWorkbook: () => store.save(),
     save: () => store.download(),
+    download: () => store.exportCopy(),
+    get unsaved() {
+      return store.unsaved;
+    },
     registerSchema: (schema) => store.registerSchema(schema),
     get editedCount() {
       return store.editedCount;

@@ -16,8 +16,10 @@ export interface SaveEventDetail extends SavedWorkbook {
  * Attributes: `src` (URL of a workbook to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options, set before connecting).
- * Methods: open(), save(), getWorkbook(), registerSchema().
- * Events: `ready`, `change` (detail: { editedCount }), `save`.
+ * Methods: open(), save(), download(), getWorkbook(), registerSchema().
+ * Events: `ready`, `change` (detail: { editedCount, unsaved }), `save` (detail:
+ * the saved workbook with its bytes, changes, values and readers; call
+ * `detail.waitUntil(promise)` to keep the save pending while you store it).
  */
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
@@ -28,6 +30,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     private handle?: EditorHandle;
     private unsubscribe?: () => void;
     private lastEdited = 0;
+    private lastUnsaved = false;
 
     /** Editor options. Setting them on a connected element re-creates the editor. */
     get options(): StoreOptions {
@@ -51,9 +54,11 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       });
       this.unsubscribe = this.handle.subscribe(() => {
         const edited = this.handle?.editedCount ?? 0;
-        if (edited === this.lastEdited) return;
+        const unsaved = this.handle?.unsaved ?? false;
+        if (edited === this.lastEdited && unsaved === this.lastUnsaved) return;
         this.lastEdited = edited;
-        this.dispatchEvent(new CustomEvent('change', { detail: { editedCount: edited } }));
+        this.lastUnsaved = unsaved;
+        this.dispatchEvent(new CustomEvent('change', { detail: { editedCount: edited, unsaved } }));
       });
       this.dispatchEvent(new CustomEvent('ready'));
       const src = this.getAttribute('src');
@@ -91,6 +96,15 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     save(): Promise<void> {
       return this.handle?.save() ?? Promise.resolve();
+    }
+
+    /** Downloads a copy as .xlsx without saving it to the host. */
+    download(): Promise<void> {
+      return this.handle?.download() ?? Promise.resolve();
+    }
+
+    get unsaved(): boolean {
+      return this.handle?.unsaved ?? false;
     }
 
     getWorkbook() {

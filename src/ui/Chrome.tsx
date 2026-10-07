@@ -97,9 +97,14 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
           <Icon name="info" /> <span className="label">What's in this file</span>
           {notable > 0 && <span className="count">{notable}</span>}
         </button>
+        {store.features.save && store.hasSaveHandler && store.features.download && (
+          <button className="btn icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title="Download a copy (.xlsx)" aria-label="Download a copy">
+            <Icon name="download" />
+          </button>
+        )}
         {store.features.save && (
           <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title="Save (⌘S)">
-            <Icon name="download" /> Save{store.hasSaveHandler ? '' : ' as Excel'}
+            <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
           </button>
         )}
       </div>

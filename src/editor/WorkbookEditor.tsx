@@ -93,7 +93,7 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
       }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (store.warnOnUnload && store.editedCount > 0) e.preventDefault();
+      if (store.warnOnUnload && store.unsaved) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('beforeunload', onBeforeUnload);

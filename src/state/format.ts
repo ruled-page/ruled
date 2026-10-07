@@ -125,3 +125,28 @@ export function editText(rec: CellRecord | null, style: DisplayStyle, date1904: 
   }
   return displayText(rec, style, date1904).text;
 }
+
+/**
+ * A cell's value as JSON: numbers as numbers unless formatted as dates (then
+ * ISO text, with the time when there is one), logicals as booleans, errors
+ * as their text, empty cells as null.
+ */
+export function cellJson(rec: CellRecord | null, style: DisplayStyle, date1904: boolean): string | number | boolean | null {
+  if (!rec) return null;
+  switch (rec.t) {
+    case VT.Number: {
+      const n = rec.n ?? 0;
+      if (!isDate(style.numFmt)) return n;
+      const base = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+      const iso = new Date(base + Math.round(n * 86_400_000)).toISOString();
+      return Number.isInteger(n) ? iso.slice(0, 10) : iso.replace(/\.000Z$/, 'Z');
+    }
+    case VT.String:
+    case VT.Error:
+      return rec.s ?? '';
+    case VT.Bool:
+      return rec.n === 1;
+    default:
+      return null;
+  }
+}

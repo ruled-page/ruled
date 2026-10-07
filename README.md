@@ -103,8 +103,8 @@ Or the element (see `examples/html/index.html`):
 <workbook-editor src="/files/report.xlsx" save-handler="event"></workbook-editor>
 ```
 
-Options include `schemas`, `numbers`, `onSave`, `features` (hide the open,
-save or schema buttons when the host provides them), `user` (recorded in the
+Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
+the open, save, download or schema buttons when the host provides them), `user` (recorded in the
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`
 and `createWorker`. All styles are scoped under `.wbe`.
 
@@ -124,10 +124,23 @@ to turn it on. On the 1.1-million-cell sample that is 1 second and about
 formulas use, adding others when a formula first names them, and sheet XML
 is decoded again when saving rather than kept in memory.
 
-`onSave` receives the file's bytes plus `changes` (each changed cell, before
-and after) and `history`. Without it, saving downloads the file. If the
-stored copy changed since it was opened, throw `SaveConflictError`: the
-editor keeps the user's work and offers it as a download.
+**Saving to the host.** Edits are kept locally as a draft until saved; with
+`onSave` (or the element's `save-handler="event"`), the Save button (labelled
+by `saveLabel`) runs the schema checks and hands the host the saved workbook:
+
+- `bytes` and `fileName`: the .xlsx, ready to upload or store;
+- `values`: when a schema applies, its tables' records keyed by field and its
+  single cells, as plain JSON (dates as ISO text), with `schema` naming the
+  schema, its version and the errors and warnings it found;
+- `cell(sheet, ref)` and `range(sheet, ref?)`: any value, for hosts without a schema;
+- `changes` (each change, before and after) and `history`.
+
+The host can keep the file, the values or both. A separate Download button
+exports a copy without saving it to the host, and leaving the page warns only
+about changes the host hasn't received. Without `onSave`, Save downloads the
+file. If the stored copy changed since it was opened, throw
+`SaveConflictError`: the editor keeps the user's work and offers it as a
+download. `examples/html/index.html` shows what arrives.
 
 ## Sharing it on Cloudflare Pages
 

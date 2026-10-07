@@ -9,6 +9,15 @@
  * Hooks (custom checks, business logic, async calls) are added in code.
  */
 
+/** A value as handed to a host on save: dates as ISO text ("2026-03-01", or with a time), errors as their text. */
+export type JsonValue = string | number | boolean | null;
+
+/**
+ * A workbook's values in the shape of its schema: for each sheet the schema
+ * describes, each table's records keyed by field, and each single cell.
+ */
+export type SchemaValues = Record<string, { tables: Record<string, Record<string, JsonValue>[]>; cells: Record<string, JsonValue> }>;
+
 /** A cell's value as schema code sees it. Dates arrive as Date (UTC midnight). */
 export type FieldValue = string | number | boolean | Date | null | { error: string };
 

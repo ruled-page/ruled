@@ -1,10 +1,10 @@
 import { mergeEditResults } from '../core/editResult';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
-import { inRect, MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
+import { inRect, MAX_COLS, MAX_ROWS, parseA1, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding } from '../schema/binding';
 import { SchemaController } from '../schema/controller';
-import type { FieldValue, NumberOptions, WorkbookSchema } from '../schema/types';
+import type { FieldValue, JsonValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
 import {
   CellFlag,
   VT,
@@ -24,7 +24,7 @@ import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText } from './clipboard';
-import { displayText, editText, exactText } from './format';
+import { cellJson, displayText, editText, exactText } from './format';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
 
@@ -71,16 +71,28 @@ export class SaveConflictError extends Error {
   }
 }
 
-/** The workbook as saved, handed to the host's onSave callback. */
+/**
+ * The workbook as saved, handed to the host's onSave callback (and the
+ * element's `save` event): the file itself, what changed, and its values, so
+ * the host can store the file, the values, or both.
+ */
 export interface SavedWorkbook {
   bytes: Uint8Array;
   fileName: string;
-  /** Cells changed since the workbook was opened. */
+  /** Changes since the workbook was opened: cells, plus any rows or columns inserted or deleted, or cells moved. */
   editedCount: number;
-  /** Each changed cell with its value when opened and now. */
+  /** Each change with its value when opened and now. */
   changes: CellChange[];
   /** What was done, by whom and when, oldest first. */
   history: HistoryEntry[];
+  /** The schema the workbook was checked against, and what it found, when one applied. */
+  schema?: { id: string; name: string; version?: string; errors: number; warnings: number };
+  /** The values in the shape of that schema: each table's records by field, each single cell. */
+  values?: SchemaValues;
+  /** Any cell's value as JSON, e.g. cell('Data', 'B4'); dates come back as ISO text. */
+  cell(sheet: string, ref: string): JsonValue;
+  /** A range's values row by row, e.g. range('Data', 'A1:F200'); without a range, the sheet's used range. */
+  range(sheet: string, ref?: string): JsonValue[][];
 }
 
 export interface EditorFeatures {
@@ -88,6 +100,8 @@ export interface EditorFeatures {
   open: boolean;
   /** Save button and Cmd/Ctrl+S. Default true. */
   save: boolean;
+  /** With a host handling saves, a separate button to download a copy (an export). Default true. */
+  download: boolean;
   /** Schema designer button. Default true. */
   schemas: boolean;
 }
@@ -104,6 +118,8 @@ export interface StoreOptions {
    * shows the error and keeps the changes. Without it, saving downloads the file.
    */
   onSave?: (file: SavedWorkbook) => void | Promise<void>;
+  /** The Save button's label when the host handles saving, e.g. "Save to ITAS". Default "Save". */
+  saveLabel?: string;
   /** Ask before leaving the page with unsaved changes. Default true. */
   warnOnUnload?: boolean;
   /** Parts of the UI to show; hosts that open and save files themselves can hide them. */
@@ -280,7 +296,12 @@ export class WorkbookStore {
   constructor(options: StoreOptions = {}) {
     this.options = options;
     this.schemas = [...(options.schemas ?? [])];
-    this.features = { open: true, save: true, schemas: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, ...options.features };
+  }
+
+  /** The Save button's label. */
+  get saveLabel(): string {
+    return this.hasSaveHandler ? (this.options.saveLabel ?? 'Save') : 'Save as Excel';
   }
 
   /** Whether the host handles saving instead of the browser downloading the file. */
@@ -554,7 +575,22 @@ export class WorkbookStore {
     try {
       const res = await this.request({ type: 'save', properties: this.schemaStamp() } as Omit<WorkerRequest, 'id'>);
       if (res.type !== 'saved') return undefined;
-      return { bytes: res.bytes, fileName: res.fileName, changes: res.changes, history: [...this.history], editedCount: this.editedCount };
+      const ctl = this.schema;
+      const summary = ctl?.summary();
+      return {
+        bytes: res.bytes,
+        fileName: res.fileName,
+        changes: res.changes,
+        history: [...this.history],
+        editedCount: this.editedCount,
+        ...(ctl && summary
+          ? {
+              schema: { id: ctl.schema.id, name: ctl.schema.name, version: ctl.schema.version, errors: summary.errors, warnings: summary.warnings },
+              values: ctl.values(),
+            }
+          : {}),
+        ...this.readers(),
+      };
     } catch (err) {
       this.toast('error', `Could not save: ${(err as Error).message}`);
       return undefined;
@@ -649,6 +685,66 @@ export class WorkbookStore {
   private afterSave(): void {
     clearTimeout(this.draftTimer);
     if (this.draftKey) void deleteDraft(this.draftKey);
+    this.savedSeq = this.changeSeq;
+  }
+
+  /** Bumped by every change; compared with savedSeq to know whether there is anything unsaved. */
+  private changeSeq = 0;
+  private savedSeq = 0;
+
+  /** There are changes the host (or a download) hasn't received yet. */
+  get unsaved(): boolean {
+    return this.editedCount > 0 && this.changeSeq !== this.savedSeq;
+  }
+
+  /** Readers over the workbook as it is now, for the host to pull values from on save. */
+  private readers(): Pick<SavedWorkbook, 'cell' | 'range'> {
+    const sheets = this.sheets;
+    const styles = this.styles;
+    const date1904 = this.date1904;
+    const find = (name: string) => {
+      const view = sheets.find((v) => v.info.name.toLowerCase() === name.toLowerCase());
+      if (!view) throw new Error(`There is no sheet called "${name}".`);
+      return view;
+    };
+    const value = (view: SheetView, row: number, col: number) => {
+      const rec = view.get(row, col);
+      return cellJson(rec, styles[rec?.style ?? 0] ?? styles[0], date1904);
+    };
+    return {
+      cell: (sheet, ref) => {
+        const at = parseA1(ref);
+        if (!at) throw new Error(`"${ref}" isn't a cell reference.`);
+        return value(find(sheet), at.row, at.col);
+      },
+      range: (sheet, ref) => {
+        const view = find(sheet);
+        const rect = ref ? parseRange(ref) : view.info.maxRow < 0 ? null : { r1: 0, c1: 0, r2: view.info.maxRow, c2: view.info.maxCol };
+        if (ref && !rect) throw new Error(`"${ref}" isn't a range.`);
+        if (!rect) return [];
+        const rows: JsonValue[][] = [];
+        const r2 = Math.min(rect.r2, Math.max(view.info.maxRow, rect.r1));
+        const c2 = Math.min(rect.c2, Math.max(view.info.maxCol, rect.c1));
+        for (let r = rect.r1; r <= r2; r++) {
+          const line: JsonValue[] = [];
+          for (let c = rect.c1; c <= c2; c++) line.push(value(view, r, c));
+          rows.push(line);
+        }
+        return rows;
+      },
+    };
+  }
+
+  /**
+   * Downloads a copy of the workbook as it is now, without schema checks.
+   * With a host handling saves this is an export: the host still has unsaved changes.
+   */
+  async exportCopy(): Promise<void> {
+    const saved = await this.save();
+    if (!saved) return;
+    this.downloadFile(saved);
+    if (!this.hasSaveHandler) this.afterSave();
+    this.toast('info', `Downloaded ${saved.fileName}.`);
   }
 
   // ---------------------------------------------------------------------------
@@ -719,6 +815,7 @@ export class WorkbookStore {
 
   private applyResult(r: EditResult): void {
     this.dataVersion++;
+    if (r.undo.length) this.changeSeq++;
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     this.editedCount = r.editedCount;
@@ -830,6 +927,7 @@ export class WorkbookStore {
     this.calc = res.report;
     for (const u of res.updates) this.sheets[u.sheet]?.apply(u);
     this.editedCount = res.editedCount;
+    this.changeSeq++;
     this.active = Math.min(this.active, this.sheets.length - 1);
     this.dataVersion++;
     this.formulaLists.clear();

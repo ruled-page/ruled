@@ -12,6 +12,8 @@ import type {
   FieldSchema,
   FieldValue,
   IssueInput,
+  JsonValue,
+  SchemaValues,
   SetTarget,
   Severity,
   SheetData,
@@ -57,6 +59,16 @@ const EPOCH = Date.UTC(1899, 11, 30);
 const DAY = 86_400_000;
 
 const DEFAULT_HOOK_TIMEOUT_MS = 10_000;
+
+/** A field value as JSON: dates at midnight as "YYYY-MM-DD", other dates as full ISO text. */
+export function toJson(v: FieldValue): JsonValue {
+  if (v instanceof Date) {
+    const iso = v.toISOString();
+    return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.replace(/\.000Z$/, 'Z');
+  }
+  if (v !== null && typeof v === 'object') return v.error;
+  return v;
+}
 
 /** A hook that ran past its time limit. */
 class HookTimeout extends Error {
@@ -341,6 +353,23 @@ export class SchemaController {
         return c ? this.toValue(bs.view.get(c.pos.row, c.pos.col), c.schema) : null;
       },
     };
+  }
+
+  /** Every table's records and every single cell, as plain JSON, for handing to a host on save. */
+  values(): SchemaValues {
+    const out: SchemaValues = {};
+    for (const bs of this.binding.sheets) {
+      const sheet: SchemaValues[string] = { tables: {}, cells: {} };
+      for (const t of bs.tables) {
+        sheet.tables[t.schema.key] = Array.from({ length: t.recordCount() }, (_, r) => {
+          const values = this.recordValues(t, r);
+          return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, toJson(v)]));
+        });
+      }
+      for (const c of bs.cells) sheet.cells[c.schema.key] = toJson(this.toValue(bs.view.get(c.pos.row, c.pos.col), c.schema));
+      out[bs.name] = sheet;
+    }
+    return out;
   }
 
   data(signal: AbortSignal): WorkbookData {
