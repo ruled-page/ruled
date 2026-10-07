@@ -1,4 +1,6 @@
 import { mergeEditResults } from '../core/editResult';
+import type { EditorTheme } from '../editor/theme';
+import type { IconOverrides } from '../ui/icons';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
 import { inRect, MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
@@ -118,6 +120,10 @@ export interface StoreOptions {
   onSave?: (file: SavedWorkbook) => void | Promise<void>;
   /** The Save button's label when the host handles saving, e.g. "Save to ITAS". Default "Save". */
   saveLabel?: string;
+  /** Overrides for the theme tokens (colours, fonts, sizes, corners, shadows); see EditorTheme. */
+  theme?: EditorTheme;
+  /** Replacement icons by name: SVG path data on a 24×24 grid, or (for React hosts) an element. */
+  icons?: IconOverrides;
   /** Ask before leaving the page with unsaved changes. Default true. */
   warnOnUnload?: boolean;
   /** Parts of the UI to show; hosts that open and save files themselves can hide them. */
@@ -286,6 +292,25 @@ export class WorkbookStore {
     this.options = options;
     this.schemas = [...(options.schemas ?? [])];
     this.features = { open: true, save: true, download: true, schemas: true, ...options.features };
+  }
+
+  /** The theme tokens set through options or setTheme. */
+  get theme(): EditorTheme | undefined {
+    return this.options.theme;
+  }
+
+  /** Bumped when the theme changes, so the canvas grid reads its colours again. */
+  themeVersion = 0;
+
+  /** Changes the theme while the editor is open. */
+  setTheme(theme: EditorTheme | undefined): void {
+    this.options.theme = theme;
+    this.themeVersion++;
+    this.notify();
+  }
+
+  get icons(): IconOverrides | undefined {
+    return this.options.icons;
   }
 
   /** The Save button's label. */

@@ -1,6 +1,7 @@
 import type { SavedWorkbook, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
 import type { EditorHandle } from './mount';
+import type { EditorTheme } from './theme';
 
 type Mount = (element: HTMLElement, options?: StoreOptions) => EditorHandle;
 
@@ -16,7 +17,7 @@ export interface SaveEventDetail extends SavedWorkbook {
  * Attributes: `src` (URL of a workbook to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options, set before connecting).
- * Methods: open(), save(), download(), getWorkbook(), registerSchema().
+ * Methods: open(), save(), download(), getWorkbook(), registerSchema(), setTheme().
  * Events: `ready`, `change` (detail: { editedCount, unsaved }), `save` (detail:
  * the saved workbook with its bytes, changes, values and readers; call
  * `detail.waitUntil(promise)` to keep the save pending while you store it).
@@ -113,6 +114,12 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     registerSchema(schema: WorkbookSchema): void {
       this.handle?.registerSchema(schema);
+    }
+
+    /** Changes the theme tokens without re-creating the editor. */
+    setTheme(theme: EditorTheme | undefined): void {
+      this.opts = { ...this.opts, theme };
+      this.handle?.setTheme(theme);
     }
 
     get editedCount(): number {

@@ -16,6 +16,8 @@ export {
   type StoreOptions as EditorOptions,
 } from '../state/store';
 export type { CellChange } from '../core/types';
+export { themeProperty, type EditorTheme, type ThemeToken } from './theme';
+export type { IconName, IconOverrides } from '../ui/icons';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

@@ -1,4 +1,6 @@
-const PATHS: Record<string, string> = {
+import { createContext, useContext, type ReactNode } from 'react';
+
+const PATHS = {
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   image: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9.5a1.5 1.5 0 1 0 0-.01',
   shape: 'M4 4h10v10H4zM14 10a6 6 0 1 1-4 9.5',
@@ -22,12 +24,38 @@ const PATHS: Record<string, string> = {
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   note: 'M4 5h16v11H9l-5 4z',
-};
+} satisfies Record<string, string>;
 
-export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {
+export type IconName = keyof typeof PATHS;
+
+/** Replacement icons: SVG path data drawn on a 24×24 grid with the current text colour, or any element. */
+export type IconOverrides = Partial<Record<IconName, string | ReactNode>>;
+
+/** The host's replacement icons, provided by the editor's root. */
+export const IconContext = createContext<IconOverrides | undefined>(undefined);
+
+export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
+  const custom = useContext(IconContext)?.[name];
+  if (custom !== undefined && typeof custom !== 'string') {
+    return (
+      <span className="wbe-icon" style={{ width: size, height: size }} aria-hidden="true">
+        {custom}
+      </span>
+    );
+  }
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={PATHS[name] ?? PATHS.info} />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      style={{ strokeWidth: 'var(--wbe-icon-stroke-width, 1.8)' }}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={typeof custom === 'string' ? custom : PATHS[name]} />
     </svg>
   );
 }

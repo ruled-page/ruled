@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
@@ -34,7 +35,7 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
   );
 }
 
-export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () => void }) {
+export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen: () => void; extra?: ReactNode }) {
   const ready = store.status === 'ready';
   const notable = store.findings.filter((f) => f.severity === 'warn').length;
   const target = ready ? store.recordTarget : undefined;
@@ -97,6 +98,7 @@ export function Toolbar({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
           <Icon name="info" /> <span className="label">What's in this file</span>
           {notable > 0 && <span className="count">{notable}</span>}
         </button>
+        {extra}
         {store.features.save && store.hasSaveHandler && store.features.download && (
           <button className="btn icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title="Download a copy (.xlsx)" aria-label="Download a copy">
             <Icon name="download" />

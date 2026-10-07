@@ -193,7 +193,7 @@ export function parseBorder(node: XmlNode | undefined, theme: string[], indexed:
     for (const name of names) {
       const side = child(node, name);
       const kind = BORDER_STYLES[attr(side, 'style') ?? ''];
-      if (side && kind) return { ...kind, color: resolveColor(child(side, 'color'), theme, indexed) ?? '#000000' };
+      if (side && kind) return { ...kind, color: resolveColor(child(side, 'color'), theme, indexed) };
     }
     return undefined;
   };

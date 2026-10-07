@@ -61,7 +61,8 @@ export interface SheetGrid {
 export interface BorderEdge {
   width: 1 | 2 | 3;
   pattern: 'solid' | 'dashed' | 'dotted' | 'double';
-  color: string;
+  /** Unset for Excel's automatic colour, which follows the theme's grid text. */
+  color?: string;
 }
 
 export interface CellBorders {

@@ -29,12 +29,9 @@ describe('formatting.xlsx', () => {
   };
 
   it('reads each border style', () => {
-    expect(styleOf('B3').border).toEqual({
-      left: { width: 1, pattern: 'solid', color: '#000000' },
-      right: { width: 1, pattern: 'solid', color: '#000000' },
-      top: { width: 1, pattern: 'solid', color: '#000000' },
-      bottom: { width: 1, pattern: 'solid', color: '#000000' },
-    });
+    // No colour in the file: Excel's automatic colour, which the theme decides.
+    const thin = { width: 1, pattern: 'solid', color: undefined };
+    expect(styleOf('B3').border).toEqual({ left: thin, right: thin, top: thin, bottom: thin });
     const kinds = ['B5', 'B7', 'B9', 'B11', 'B13', 'B17'].map((ref) => {
       const top = styleOf(ref).border?.top;
       return `${top?.width} ${top?.pattern}`;

@@ -142,6 +142,38 @@ file. If the stored copy changed since it was opened, throw
 `SaveConflictError`: the editor keeps the user's work and offers it as a
 download. `examples/html/index.html` shows what arrives.
 
+### Theming
+
+Every colour, font, type size, corner radius, shadow and icon can be
+replaced; layout can't. The look comes from `--wbe-*` custom properties on
+the editor's root, declared with their defaults at the top of
+`src/editor/editor.css`. That includes the grid, which is drawn on a canvas
+and reads its `--wbe-grid-*` properties when it renders. Set them in CSS:
+
+```css
+.wbe {
+  --wbe-accent: #0b5cad;
+  --wbe-font: Georgia, serif;
+  --wbe-grid-selection: #0b5cad;
+}
+```
+
+or through the `theme` option, where each token is the property's name in
+camelCase (`gridHeaderBg` sets `--wbe-grid-header-bg`), and change it later
+with `setTheme(theme)` on the store, the mount handle or the element. The
+`EditorTheme` type lists every token. A dark theme sets `colorScheme: 'dark'`
+along with the surfaces and the grid's colours. Text and borders the workbook
+leaves in Excel's automatic colour follow `gridText` and `gridBorderAuto`, so
+they stay readable; on cells the file fills, automatic text uses
+`gridTextOnFill`, which stays dark because the fills are light. Colours the
+workbook sets itself are kept.
+
+Icons are replaced by name with `icons: { download: 'M12 3v12…' }` (SVG path
+data on a 24×24 grid, drawn in the current text colour), or with any element
+from React; `--wbe-icon-stroke-width` sets the line weight. React hosts can put
+their own controls at the end of the toolbar with `toolbarEnd`. The demo's
+theme picker (`src/demo/themes.ts`) shows three themes built this way.
+
 ## On a server (Node)
 
 The same core runs without a browser, so a server can re-check what users

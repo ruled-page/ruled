@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { WorkbookStore, type SavedWorkbook, type StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
+import type { EditorTheme } from './theme';
 import { WorkbookEditor } from './WorkbookEditor';
 
 /** Controls an editor mounted with mountWorkbookEditor. */
@@ -17,6 +18,8 @@ export interface EditorHandle {
   readonly unsaved: boolean;
   /** Adds or replaces a schema and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void;
+  /** Changes the theme tokens while the editor is open. */
+  setTheme(theme: EditorTheme | undefined): void;
   /** Cells changed since the workbook was opened. */
   readonly editedCount: number;
   /** Calls `listener` whenever the editor's state changes; returns an unsubscribe function. */
@@ -45,6 +48,7 @@ export function mountWorkbookEditor(element: HTMLElement, options: StoreOptions 
       return store.unsaved;
     },
     registerSchema: (schema) => store.registerSchema(schema),
+    setTheme: (theme) => store.setTheme(theme),
     get editedCount() {
       return store.editedCount;
     },

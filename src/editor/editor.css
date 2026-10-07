@@ -20,29 +20,134 @@
 }
 
 .wbe {
-  --green: #1e7145;
-  --green-dark: #155c37;
-  --green-soft: #e3efe8;
-  --ink: #1f2328;
-  --ink-2: #4b5259;
-  --ink-3: #7a828a;
-  --line: #e1e3e3;
-  --line-2: #d0d4d4;
-  --bg: #ffffff;
-  --bg-2: #f6f7f7;
-  --bg-3: #eef0f0;
-  --amber: #b4690e;
-  --amber-soft: #fff4ce;
-  --red: #b42318;
-  --red-soft: #fdecea;
-  --slate: #8a94a6;
-  --radius: 6px;
-  --shadow: 0 8px 28px rgba(16, 24, 32, 0.16), 0 1px 3px rgba(16, 24, 32, 0.08);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  color: var(--ink);
-  background: var(--bg);
-  color-scheme: light;
+  /*
+   * Theme tokens. Every colour, font, type size, corner and shadow the editor
+   * draws comes from these, the grid included, so a host can restyle it
+   * completely: override them on .wbe (or any ancestor) in CSS, or pass
+   * `theme` in the editor's options. See README "Theming".
+   */
+
+  /* "light" or "dark": how the browser draws native controls such as checkboxes and scroll bars */
+  --wbe-color-scheme: light;
+
+  /* Brand and surfaces */
+  --wbe-accent: #1e7145;
+  --wbe-accent-strong: #155c37;
+  --wbe-accent-soft: #e3efe8;
+  --wbe-accent-border: #b9d7c5;
+  --wbe-accent-tint: rgba(30, 113, 69, 0.12);
+  --wbe-on-accent: #ffffff;
+  --wbe-surface: #ffffff;
+  --wbe-surface-alt: #f6f7f7;
+  --wbe-surface-sunken: #eef0f0;
+  --wbe-backdrop: rgba(20, 28, 36, 0.32);
+  --wbe-focus-ring: rgba(30, 113, 69, 0.35);
+
+  /* Text and lines */
+  --wbe-text: #1f2328;
+  --wbe-text-muted: #4b5259;
+  --wbe-text-subtle: #7a828a;
+  --wbe-border: #e1e3e3;
+  --wbe-border-strong: #d0d4d4;
+  --wbe-neutral: #8a94a6;
+
+  /* States */
+  --wbe-success: #2e9e5b;
+  --wbe-success-soft: #f1f7f3;
+  --wbe-success-border: #b9d7c5;
+  --wbe-success-text: #1c4d33;
+  --wbe-warning: #b4690e;
+  --wbe-warning-soft: #fff8e8;
+  --wbe-warning-border: #f2d49b;
+  --wbe-warning-text: #7a4a00;
+  --wbe-warning-accent: #e3a73a;
+  --wbe-danger: #b42318;
+  --wbe-danger-soft: #fdecea;
+  --wbe-danger-border: #f4c3be;
+  --wbe-on-danger: #ffffff;
+  --wbe-info-soft: #eef1f5;
+  --wbe-info-text: #3d4757;
+  --wbe-info-accent: #b8c2cc;
+  --wbe-info-banner-bg: #f1f7f3;
+  --wbe-info-banner-border: #d5e7dc;
+  --wbe-info-banner-text: #1c4d33;
+  --wbe-field-soft: #eef4f0;
+  --wbe-field-text: #285c40;
+  --wbe-note-soft: #f3effc;
+  --wbe-note-text: #4e3a8a;
+  --wbe-note-border: #d9d2f1;
+  --wbe-note-tip-bg: #fffdf2;
+  --wbe-note-tip-border: #d8d2b8;
+  --wbe-placeholder-bg: rgba(241, 247, 243, 0.82);
+  --wbe-placeholder-border: #9fb8a9;
+  --wbe-placeholder-text: #285c40;
+  --wbe-placeholder-text-muted: #4f6e5d;
+  --wbe-dropzone-border: #a9c7b6;
+  --wbe-dropzone-hover-bg: #fbfdfc;
+
+  /* The grid (drawn on a canvas, so read from these when the grid is drawn) */
+  --wbe-grid-bg: #ffffff;
+  --wbe-grid-text: #1f1f1f;
+  /* Text with no colour of its own on a cell the file fills, as Excel draws it */
+  --wbe-grid-text-on-fill: #1f1f1f;
+  --wbe-grid-line: #e1e3e3;
+  /* Cell borders in Excel's automatic colour */
+  --wbe-grid-border-auto: #000000;
+  --wbe-grid-freeze-line: #b7bcc2;
+  --wbe-grid-header-bg: #f4f5f5;
+  --wbe-grid-header-text: #4a4a4a;
+  --wbe-grid-header-line: #d3d6d6;
+  --wbe-grid-header-hover-bg: #eaebeb;
+  --wbe-grid-header-selected-bg: #e3efe8;
+  --wbe-grid-header-selected-text: #1e7145;
+  --wbe-grid-row-header-text: #5f6368;
+  --wbe-grid-text-muted: #5f6368;
+  --wbe-grid-text-light: #9aa0a6;
+  --wbe-grid-bg-alt: #f7f7f7;
+  --wbe-grid-cut-fill: rgba(30, 113, 69, 0.06);
+  --wbe-grid-selection: #1e7145;
+  --wbe-grid-selection-fill: rgba(30, 113, 69, 0.1);
+  --wbe-grid-edited-fill: #fff4ce;
+  --wbe-grid-locked-fill: #f2f4f7;
+  --wbe-grid-label-fill: #eaf2ec;
+  --wbe-grid-error-mark: #d92d20;
+  --wbe-grid-warning-mark: #f79009;
+  --wbe-grid-pending-mark: #2e90fa;
+  --wbe-grid-note-mark: #7f56d9;
+  --wbe-grid-stale-mark: #e8a33d;
+  --wbe-grid-unsupported-mark: #8a94a6;
+  --wbe-grid-dropdown-arrow: #5f6368;
+  /* Fallback fonts after a cell's own (Calibri, say), and the headings' font. */
+  --wbe-grid-font: Calibri, Carlito, 'Aptos Narrow', 'Segoe UI', system-ui, sans-serif;
+  --wbe-grid-header-font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --wbe-grid-header-font-size: 12px;
+  --wbe-grid-header-font-weight: 500;
+
+  /* Type */
+  --wbe-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --wbe-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --wbe-font-size: 13px;
+  --wbe-font-size-xs: 11.5px;
+  --wbe-font-size-sm: 12px;
+  --wbe-font-size-md: 15px;
+  --wbe-font-size-lg: 16px;
+  --wbe-font-size-xl: 17px;
+
+  /* Icons (replace the icons themselves with the `icons` option) */
+  --wbe-icon-stroke-width: 1.8;
+
+  /* Shape */
+  --wbe-radius: 6px;
+  --wbe-radius-sm: 4px;
+  --wbe-radius-lg: 10px;
+  --wbe-shadow: 0 8px 28px rgba(16, 24, 32, 0.16), 0 1px 3px rgba(16, 24, 32, 0.08);
+  --wbe-shadow-sm: 0 4px 14px rgba(16, 24, 40, 0.14);
+
+  font-family: var(--wbe-font);
+  font-size: var(--wbe-font-size);
+  color: var(--wbe-text);
+  background: var(--wbe-surface);
+  color-scheme: var(--wbe-color-scheme);
 }
 
 .wbe * {
@@ -69,8 +174,8 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
+  border-bottom: 1px solid var(--wbe-border);
+  background: var(--wbe-surface);
   min-height: 48px;
   flex-wrap: wrap;
 }
@@ -87,9 +192,9 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
-  background: var(--green);
-  color: #fff;
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-accent);
+  color: var(--wbe-on-accent);
 }
 
 .wbe .brand-name {
@@ -98,17 +203,17 @@
 }
 
 .wbe .file-name {
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 280px;
   padding-left: 10px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--wbe-border);
 }
 
 .wbe .badge {
-  font-size: 11.5px;
+  font-size: var(--wbe-font-size-xs);
   padding: 2px 8px;
   border-radius: 999px;
   white-space: nowrap;
@@ -122,29 +227,29 @@
 .wbe .changes-table {
   max-height: 46vh;
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius);
   margin-bottom: 8px;
 }
 
 .wbe .changes-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .changes-table th {
   position: sticky;
   top: 0;
-  background: var(--bg-2);
+  background: var(--wbe-surface-alt);
   text-align: left;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
 }
 
 .wbe .changes-table td {
   padding: 4px 8px;
-  border-bottom: 1px solid var(--bg-3);
+  border-bottom: 1px solid var(--wbe-surface-sunken);
   word-break: break-word;
 }
 
@@ -153,7 +258,7 @@
 }
 
 .wbe .changes-table tbody tr:hover {
-  background: var(--green-soft);
+  background: var(--wbe-accent-soft);
 }
 
 .wbe .history {
@@ -163,7 +268,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .history li {
@@ -173,13 +278,13 @@
 
 .wbe .history-time {
   flex: none;
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   font-variant-numeric: tabular-nums;
 }
 
 .wbe .badge-edit {
-  background: var(--amber-soft);
-  color: #7a4a00;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .toolbar-actions {
@@ -195,15 +300,15 @@
   gap: 6px;
   height: 30px;
   padding: 0 11px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-surface);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .wbe .btn:hover:not(:disabled) {
-  background: var(--bg-2);
+  background: var(--wbe-surface-alt);
 }
 
 .wbe .btn:disabled {
@@ -223,35 +328,35 @@
 }
 
 .wbe .btn.active {
-  background: var(--green-soft);
-  border-color: #b9d7c5;
+  background: var(--wbe-accent-soft);
+  border-color: var(--wbe-accent-border);
 }
 
 .wbe .btn.primary {
-  background: var(--green);
-  border-color: var(--green);
-  color: #fff;
+  background: var(--wbe-accent);
+  border-color: var(--wbe-accent);
+  color: var(--wbe-on-accent);
   font-weight: 500;
 }
 
 .wbe .btn.primary:hover:not(:disabled) {
-  background: var(--green-dark);
+  background: var(--wbe-accent-strong);
 }
 
 .wbe .btn.danger {
-  background: var(--red);
-  border-color: var(--red);
-  color: #fff;
+  background: var(--wbe-danger);
+  border-color: var(--wbe-danger);
+  color: var(--wbe-on-danger);
 }
 
 .wbe .btn .count {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
-  background: var(--amber-soft);
-  color: #7a4a00;
-  font-size: 11px;
+  border-radius: var(--wbe-radius-lg);
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
+  font-size: var(--wbe-font-size-xs);
   display: inline-grid;
   place-items: center;
 }
@@ -261,11 +366,11 @@
 }
 
 .wbe .btn-group .btn:first-child {
-  border-radius: var(--radius) 0 0 var(--radius);
+  border-radius: var(--wbe-radius) 0 0 var(--wbe-radius);
 }
 
 .wbe .btn-group .btn:last-child {
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0 var(--wbe-radius) var(--wbe-radius) 0;
   margin-left: -1px;
 }
 
@@ -273,7 +378,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   cursor: pointer;
   user-select: none;
 }
@@ -283,14 +388,14 @@
 }
 
 .wbe .toggle input {
-  accent-color: var(--green);
+  accent-color: var(--wbe-accent);
 }
 
 .wbe .link {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--green);
+  color: var(--wbe-accent);
   font-weight: 500;
   cursor: pointer;
   text-decoration: underline;
@@ -304,9 +409,9 @@
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
-  background: #f1f7f3;
-  border-bottom: 1px solid #d5e7dc;
-  color: #1c4d33;
+  background: var(--wbe-info-banner-bg);
+  border-bottom: 1px solid var(--wbe-info-banner-border);
+  color: var(--wbe-info-banner-text);
 }
 
 .wbe .banner p {
@@ -318,9 +423,9 @@
   display: flex;
   align-items: center;
   gap: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
   height: 34px;
-  background: var(--bg);
+  background: var(--wbe-surface);
 }
 
 .wbe .name-box {
@@ -329,9 +434,9 @@
   display: flex;
   align-items: center;
   padding: 0 10px;
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--wbe-border);
   font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -342,12 +447,12 @@
   place-items: center;
   width: 34px;
   height: 100%;
-  color: var(--ink-3);
-  border-right: 1px solid var(--line);
+  color: var(--wbe-text-subtle);
+  border-right: 1px solid var(--wbe-border);
 }
 
 .wbe .fx.is-formula {
-  color: var(--green);
+  color: var(--wbe-accent);
 }
 
 .wbe .formula-input {
@@ -356,17 +461,17 @@
   height: 100%;
   border: 0;
   padding: 0 10px;
-  font: 14px ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font: 14px var(--wbe-font-mono);
   outline: none;
-  color: var(--ink);
+  color: var(--wbe-text);
 }
 
 .wbe .formula-input:focus {
-  box-shadow: inset 0 -2px 0 var(--green);
+  box-shadow: inset 0 -2px 0 var(--wbe-accent);
 }
 
 .wbe .formula-input[readonly] {
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .cell-note {
@@ -377,7 +482,7 @@
   margin: 0 8px;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -392,23 +497,23 @@
 }
 
 .wbe .tone-info {
-  background: #eef1f5;
-  color: #3d4757;
+  background: var(--wbe-info-soft);
+  color: var(--wbe-info-text);
 }
 
 .wbe .tone-warn {
-  background: var(--amber-soft);
-  color: #7a4a00;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .tone-lock {
-  background: var(--bg-3);
-  color: var(--ink-2);
+  background: var(--wbe-surface-sunken);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .tone-edit {
-  background: var(--amber-soft);
-  color: #7a4a00;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 /* Workspace ---------------------------------------------------------------- */
@@ -423,7 +528,7 @@
   flex: 1;
   min-width: 0;
   position: relative;
-  background: var(--bg);
+  background: var(--wbe-surface);
 }
 
 .wbe .grid-host {
@@ -447,7 +552,7 @@
 .wbe .grid-panes > .pane-top {
   flex: none;
   max-height: 50%;
-  border-bottom: 1px solid #b7bcc2;
+  border-bottom: 1px solid var(--wbe-grid-freeze-line);
 }
 
 .wbe .grid-panes > .pane-bottom {
@@ -475,9 +580,9 @@
 .wbe .object-box {
   position: absolute;
   margin-top: -24px;
-  border: 1.5px dashed #9fb8a9;
-  border-radius: 4px;
-  background: rgba(241, 247, 243, 0.82);
+  border: 1.5px dashed var(--wbe-placeholder-border);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-placeholder-bg);
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
@@ -488,8 +593,8 @@
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  color: #285c40;
-  font-size: 12.5px;
+  color: var(--wbe-placeholder-text);
+  font-size: var(--wbe-font-size-sm);
   line-height: 1.3;
 }
 
@@ -512,7 +617,7 @@
 .wbe .object-label em {
   font-style: normal;
   font-weight: 400;
-  color: #4f6e5d;
+  color: var(--wbe-placeholder-text-muted);
 }
 
 .wbe .center-state {
@@ -525,7 +630,7 @@
   gap: 10px;
   padding: 24px;
   text-align: center;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .center-state p {
@@ -536,11 +641,11 @@
 
 .wbe .center-state h2 {
   margin: 0;
-  color: var(--ink);
+  color: var(--wbe-text);
 }
 
 .wbe .center-state.error {
-  color: var(--red);
+  color: var(--wbe-danger);
 }
 
 /* Sheet tabs and status bar ------------------------------------------------ */
@@ -550,8 +655,8 @@
   align-items: stretch;
   gap: 2px;
   padding: 0 8px;
-  border-top: 1px solid var(--line);
-  background: var(--bg-2);
+  border-top: 1px solid var(--wbe-border);
+  background: var(--wbe-surface-alt);
   height: 32px;
   overflow-x: auto;
 }
@@ -563,28 +668,28 @@
   border: 0;
   background: transparent;
   padding: 0 14px;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   cursor: pointer;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
 
 .wbe .tab:hover {
-  background: var(--bg-3);
+  background: var(--wbe-surface-sunken);
 }
 
 .wbe .tab.active {
-  background: var(--bg);
-  color: var(--green);
+  background: var(--wbe-surface);
+  color: var(--wbe-accent);
   font-weight: 600;
-  border-bottom-color: var(--green);
+  border-bottom-color: var(--wbe-accent);
 }
 
 .wbe .tabs-note {
   align-self: center;
   margin-left: 8px;
-  color: var(--ink-3);
-  font-size: 12px;
+  color: var(--wbe-text-subtle);
+  font-size: var(--wbe-font-size-sm);
   white-space: nowrap;
 }
 
@@ -595,10 +700,10 @@
   gap: 16px;
   height: 26px;
   padding: 0 12px;
-  border-top: 1px solid var(--line);
-  background: var(--bg-2);
-  color: var(--ink-2);
-  font-size: 12px;
+  border-top: 1px solid var(--wbe-border);
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text-muted);
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .status-calc {
@@ -624,14 +729,14 @@
 }
 
 .wbe .dot.ok {
-  background: #2e9e5b;
+  background: var(--wbe-success);
 }
 
 .wbe .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid var(--line-2);
-  border-top-color: var(--green);
+  border: 2px solid var(--wbe-border-strong);
+  border-top-color: var(--wbe-accent);
   border-radius: 50%;
   display: inline-block;
   animation: spin 0.8s linear infinite;
@@ -654,8 +759,8 @@
 .wbe .report {
   width: 400px;
   max-width: 100%;
-  border-left: 1px solid var(--line);
-  background: var(--bg);
+  border-left: 1px solid var(--wbe-border);
+  background: var(--wbe-surface);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -666,17 +771,17 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 14px 16px 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
 }
 
 .wbe .report-head h2 {
   margin: 0 0 2px;
-  font-size: 15px;
+  font-size: var(--wbe-font-size-md);
 }
 
 .wbe .report-head p {
   margin: 0;
-  color: var(--green);
+  color: var(--wbe-accent);
   font-weight: 500;
 }
 
@@ -687,20 +792,20 @@
 
 .wbe .report section {
   padding: 12px 0;
-  border-bottom: 1px solid var(--bg-3);
+  border-bottom: 1px solid var(--wbe-surface-sunken);
 }
 
 .wbe .report h3 {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .report .blurb {
   margin: 0 0 10px;
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   line-height: 1.45;
 }
 
@@ -714,18 +819,18 @@
 }
 
 .wbe .finding {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius);
   padding: 8px 10px;
   border-left-width: 3px;
 }
 
 .wbe .finding.sev-warn {
-  border-left-color: #e3a73a;
+  border-left-color: var(--wbe-warning-accent);
 }
 
 .wbe .finding.sev-info {
-  border-left-color: #b8c2cc;
+  border-left-color: var(--wbe-info-accent);
 }
 
 .wbe .finding-main {
@@ -749,19 +854,19 @@
 }
 
 .wbe .finding-where {
-  color: var(--ink-3);
-  font-size: 12px;
+  color: var(--wbe-text-subtle);
+  font-size: var(--wbe-font-size-sm);
   white-space: nowrap;
 }
 
 .wbe .finding-main:not(:disabled):hover .finding-where {
-  color: var(--green);
+  color: var(--wbe-accent);
   text-decoration: underline;
 }
 
 .wbe .finding p {
   margin: 4px 0 0;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   line-height: 1.45;
 }
 
@@ -773,21 +878,21 @@
 }
 
 .wbe .calc-summary div {
-  background: var(--bg-2);
-  border-radius: var(--radius);
+  background: var(--wbe-surface-alt);
+  border-radius: var(--wbe-radius);
   padding: 8px;
   display: flex;
   flex-direction: column;
 }
 
 .wbe .calc-summary strong {
-  font-size: 17px;
+  font-size: var(--wbe-font-size-xl);
   font-variant-numeric: tabular-nums;
 }
 
 .wbe .calc-summary span {
-  color: var(--ink-3);
-  font-size: 11.5px;
+  color: var(--wbe-text-subtle);
+  font-size: var(--wbe-font-size-xs);
 }
 
 .wbe .samples {
@@ -796,7 +901,7 @@
 
 .wbe .samples summary {
   cursor: pointer;
-  color: var(--green);
+  color: var(--wbe-accent);
   font-weight: 500;
 }
 
@@ -804,27 +909,27 @@
   width: 100%;
   border-collapse: collapse;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .samples td {
-  border-top: 1px solid var(--bg-3);
+  border-top: 1px solid var(--wbe-surface-sunken);
   padding: 5px 4px;
   vertical-align: top;
 }
 
 .wbe .mono {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 11.5px;
+  font-family: var(--wbe-font-mono);
+  font-size: var(--wbe-font-size-xs);
 }
 
 .wbe .formula {
   word-break: break-all;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .muted {
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .legend {
@@ -834,7 +939,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .legend li {
@@ -847,8 +952,8 @@
   flex: none;
   width: 16px;
   height: 14px;
-  border: 1px solid var(--line-2);
-  background: #fff;
+  border: 1px solid var(--wbe-border-strong);
+  background: var(--wbe-surface);
   position: relative;
 }
 
@@ -862,20 +967,20 @@
 }
 
 .wbe .swatch.grey::before {
-  border-color: var(--slate) transparent transparent transparent;
+  border-color: var(--wbe-neutral) transparent transparent transparent;
 }
 
 .wbe .swatch.amber::before {
-  border-color: #e8a33d transparent transparent transparent;
+  border-color: var(--wbe-grid-stale-mark) transparent transparent transparent;
 }
 
 .wbe .swatch.edited {
-  background: var(--amber-soft);
+  background: var(--wbe-warning-soft);
 }
 
 .wbe .timings {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 /* Welcome --------------------------------------------------------------------- */
@@ -887,20 +992,20 @@
   align-items: center;
   gap: 6px;
   padding: 28px 16px;
-  border: 1.5px dashed #a9c7b6;
-  border-radius: 10px;
-  background: var(--bg);
+  border: 1.5px dashed var(--wbe-dropzone-border);
+  border-radius: var(--wbe-radius-lg);
+  background: var(--wbe-surface);
   cursor: pointer;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .dropzone:hover {
-  border-color: var(--green);
-  background: #fbfdfc;
+  border-color: var(--wbe-accent);
+  background: var(--wbe-dropzone-hover-bg);
 }
 
 .wbe .dropzone strong {
-  color: var(--green);
+  color: var(--wbe-accent);
 }
 
 /* Dialogs and toasts ------------------------------------------------------------ */
@@ -908,7 +1013,7 @@
 .wbe .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 28, 36, 0.32);
+  background: var(--wbe-backdrop);
   display: grid;
   place-items: center;
   z-index: 10000;
@@ -918,9 +1023,9 @@
 .wbe .modal {
   width: 440px;
   max-width: 100%;
-  background: var(--bg);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border-radius: var(--wbe-radius-lg);
+  box-shadow: var(--wbe-shadow);
   padding: 20px;
   display: flex;
   gap: 14px;
@@ -933,18 +1038,18 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--red-soft);
-  color: var(--red);
+  background: var(--wbe-danger-soft);
+  color: var(--wbe-danger);
 }
 
 .wbe .modal h2 {
   margin: 4px 0 6px;
-  font-size: 16px;
+  font-size: var(--wbe-font-size-lg);
 }
 
 .wbe .modal p {
   margin: 0;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   line-height: 1.5;
 }
 
@@ -958,37 +1063,37 @@
 }
 
 .wbe .modal-icon.calm {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent);
 }
 
 .wbe .modal-table {
   margin-top: 12px;
   max-height: 320px;
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius);
 }
 
 .wbe .modal-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .modal-table th {
   position: sticky;
   top: 0;
-  background: var(--bg-2);
+  background: var(--wbe-surface-alt);
   text-align: left;
   padding: 6px 8px;
   font-weight: 600;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
 }
 
 .wbe .modal-table td {
   padding: 5px 8px;
-  border-bottom: 1px solid var(--bg-3);
+  border-bottom: 1px solid var(--wbe-surface-sunken);
   vertical-align: top;
   word-break: break-word;
 }
@@ -1020,10 +1125,10 @@
   align-items: flex-start;
   gap: 10px;
   padding: 10px 8px 10px 12px;
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: var(--shadow);
-  border-left: 3px solid var(--green);
+  border-radius: var(--wbe-radius-lg);
+  background: var(--wbe-surface);
+  box-shadow: var(--wbe-shadow);
+  border-left: 3px solid var(--wbe-accent);
   line-height: 1.45;
 }
 
@@ -1037,36 +1142,36 @@
 }
 
 .wbe .toast-warn {
-  border-left-color: #e3a73a;
+  border-left-color: var(--wbe-warning-accent);
 }
 
 .wbe .toast-error {
-  border-left-color: var(--red);
+  border-left-color: var(--wbe-danger);
 }
 
 .wbe .toast-info svg:first-child {
-  color: var(--green);
+  color: var(--wbe-accent);
 }
 
 .wbe .toast-warn svg:first-child {
-  color: var(--amber);
+  color: var(--wbe-warning);
 }
 
 .wbe .toast-error svg:first-child {
-  color: var(--red);
+  color: var(--wbe-danger);
 }
 
 .wbe .drop-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(30, 113, 69, 0.12);
-  border: 3px dashed var(--green);
+  background: var(--wbe-accent-tint);
+  border: 3px dashed var(--wbe-accent);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--green);
-  font-size: 16px;
+  color: var(--wbe-accent);
+  font-size: var(--wbe-font-size-lg);
   font-weight: 600;
   z-index: 9000;
   pointer-events: none;
@@ -1081,11 +1186,11 @@
   height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid var(--line-2);
-  background: var(--bg);
+  border: 1px solid var(--wbe-border-strong);
+  background: var(--wbe-surface);
   cursor: pointer;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .chip .label {
@@ -1096,25 +1201,25 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .chip-ok {
-  border-color: #b9d7c5;
-  background: #f1f7f3;
-  color: #1c4d33;
+  border-color: var(--wbe-success-border);
+  background: var(--wbe-success-soft);
+  color: var(--wbe-success-text);
 }
 
 .wbe .chip-warn {
-  border-color: #f2d49b;
-  background: #fff8e8;
-  color: #7a4a00;
+  border-color: var(--wbe-warning-border);
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .chip-error {
-  border-color: #f4c3be;
-  background: var(--red-soft);
-  color: var(--red);
+  border-color: var(--wbe-danger-border);
+  background: var(--wbe-danger-soft);
+  color: var(--wbe-danger);
 }
 
 .wbe .chip-error .chip-status,
@@ -1123,9 +1228,9 @@
 }
 
 .wbe .banner-warn {
-  background: #fff8e8;
-  border-bottom-color: #f2d49b;
-  color: #6b4100;
+  background: var(--wbe-warning-soft);
+  border-bottom-color: var(--wbe-warning-border);
+  color: var(--wbe-warning-text);
   align-items: flex-start;
 }
 
@@ -1144,7 +1249,7 @@
 .wbe .banner-text ul {
   margin: 4px 0 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .panel-tabs {
@@ -1156,15 +1261,15 @@
   border: 0;
   background: none;
   padding: 6px 10px;
-  border-radius: var(--radius);
-  color: var(--ink-2);
+  border-radius: var(--wbe-radius);
+  color: var(--wbe-text-muted);
   cursor: pointer;
   font-weight: 500;
 }
 
 .wbe .panel-tabs button.active {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent);
 }
 
 .wbe .report-head {
@@ -1173,13 +1278,13 @@
 
 .wbe .report-lede {
   margin: 12px 0 4px;
-  color: var(--green);
+  color: var(--wbe-accent);
   font-weight: 500;
   line-height: 1.45;
 }
 
 .wbe .schema-lede {
-  color: var(--ink);
+  color: var(--wbe-text);
   font-weight: 400;
 }
 
@@ -1187,31 +1292,31 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--green);
+  color: var(--wbe-accent);
   font-weight: 500;
 }
 
 .wbe .finding.sev-error {
-  border-left-color: var(--red);
+  border-left-color: var(--wbe-danger);
 }
 
 .wbe .tone-error-text {
-  color: var(--red);
+  color: var(--wbe-danger);
 }
 
 .wbe .tone-error {
-  background: var(--red-soft);
-  color: var(--red);
+  background: var(--wbe-danger-soft);
+  color: var(--wbe-danger);
 }
 
 .wbe .tone-field {
-  background: #eef4f0;
-  color: #285c40;
+  background: var(--wbe-field-soft);
+  color: var(--wbe-field-text);
 }
 
 .wbe .tone-note {
-  background: #f3effc;
-  color: #4e3a8a;
+  background: var(--wbe-note-soft);
+  color: var(--wbe-note-text);
 }
 
 /* Note shown when pointing at a cell that has one. */
@@ -1220,20 +1325,20 @@
   z-index: 40;
   max-width: 280px;
   padding: 8px 10px;
-  background: #fffdf2;
-  border: 1px solid #d8d2b8;
-  border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.14);
-  font-size: 12.5px;
+  background: var(--wbe-note-tip-bg);
+  border: 1px solid var(--wbe-note-tip-border);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow-sm);
+  font-size: var(--wbe-font-size-sm);
   line-height: 1.4;
-  color: var(--ink);
+  color: var(--wbe-text);
   pointer-events: none;
   white-space: pre-wrap;
 }
 
 .wbe .note-tip.thread {
-  background: #fff;
-  border-color: #d9d2f1;
+  background: var(--wbe-surface);
+  border-color: var(--wbe-note-border);
 }
 
 .wbe .note-tip .who {
@@ -1244,19 +1349,19 @@
 
 .wbe .note-tip .when {
   font-weight: 400;
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   margin-left: 6px;
 }
 
 .wbe .note-tip .entry + .entry {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--wbe-border);
 }
 
 .wbe .note-tip .resolved {
   margin-bottom: 6px;
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .swatch.tri-right::before {
@@ -1269,11 +1374,11 @@
 }
 
 .wbe .swatch.red::before {
-  border-color: transparent #d92d20 transparent transparent;
+  border-color: transparent var(--wbe-grid-error-mark) transparent transparent;
 }
 
 .wbe .swatch.orange::before {
-  border-color: transparent #f79009 transparent transparent;
+  border-color: transparent var(--wbe-grid-warning-mark) transparent transparent;
 }
 
 .wbe .swatch.dot-blue::before {
@@ -1284,15 +1389,15 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #2e90fa;
+  background: var(--wbe-grid-pending-mark);
 }
 
 .wbe .swatch.label-cell {
-  background: #eaf2ec;
+  background: var(--wbe-grid-label-fill);
 }
 
 .wbe .small {
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 /* Schema designer -------------------------------------------------------------- */
@@ -1300,9 +1405,9 @@
 .wbe .designer {
   width: min(1180px, 100%);
   height: min(88vh, 900px);
-  background: var(--bg);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border-radius: var(--wbe-radius-lg);
+  box-shadow: var(--wbe-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1314,12 +1419,12 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
 }
 
 .wbe .designer-foot {
   border-bottom: 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--wbe-border);
 }
 
 .wbe .designer-head {
@@ -1328,7 +1433,7 @@
 
 .wbe .designer-head h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--wbe-font-size-lg);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1347,21 +1452,21 @@
 .wbe .designer-list {
   width: 270px;
   flex: none;
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--wbe-border);
   padding: 12px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: var(--bg-2);
+  background: var(--wbe-surface-alt);
 }
 
 .wbe .designer-list h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .designer-list p {
@@ -1380,14 +1485,14 @@
 .wbe .designer-list li {
   display: flex;
   align-items: flex-start;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius-lg);
+  background: var(--wbe-surface);
 }
 
 .wbe .designer-list li.selected {
-  border-color: var(--green);
-  box-shadow: 0 0 0 1px var(--green);
+  border-color: var(--wbe-accent);
+  box-shadow: 0 0 0 1px var(--wbe-accent);
 }
 
 .wbe .schema-item {
@@ -1405,7 +1510,7 @@
 }
 
 .wbe .schema-item .mono {
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
@@ -1423,21 +1528,21 @@
 }
 
 .wbe .tag {
-  font-size: 11px;
+  font-size: var(--wbe-font-size-xs);
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--bg-3);
-  color: var(--ink-2);
+  background: var(--wbe-surface-sunken);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .tag-ok {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent);
 }
 
 .wbe .tag-warn {
-  background: #fff8e8;
-  color: #7a4a00;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .list-actions {
@@ -1474,29 +1579,29 @@
 
 .wbe .hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
   padding: 4px 10px;
-  border-radius: var(--radius);
+  border-radius: var(--wbe-radius);
 }
 
 .wbe .hint.warn {
-  background: #fff8e8;
-  color: #7a4a00;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .hint.error {
-  background: var(--red-soft);
-  color: var(--red);
+  background: var(--wbe-danger-soft);
+  color: var(--wbe-danger);
   margin-top: 8px;
 }
 
 .wbe .json-editor textarea {
   width: 100%;
   min-height: 460px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
   padding: 10px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
   line-height: 1.5;
   resize: vertical;
 }
@@ -1505,8 +1610,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 11.5px;
-  color: var(--ink-2);
+  font-size: var(--wbe-font-size-xs);
+  color: var(--wbe-text-muted);
   font-weight: 500;
 }
 
@@ -1521,19 +1626,19 @@
 .wbe .form input:not([type='checkbox']),
 .wbe .form select {
   height: 28px;
-  border: 1px solid var(--line-2);
-  border-radius: 5px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
   padding: 0 7px;
   font: inherit;
-  font-size: 12.5px;
-  color: var(--ink);
-  background: var(--bg);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text);
+  background: var(--wbe-surface);
   min-width: 0;
 }
 
 .wbe .form input:disabled {
-  background: var(--bg-2);
-  color: var(--ink-3);
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .form input.narrow {
@@ -1543,13 +1648,13 @@
 .wbe .form input:focus,
 .wbe .form select:focus,
 .wbe .json-editor textarea:focus {
-  outline: 2px solid rgba(30, 113, 69, 0.35);
+  outline: 2px solid var(--wbe-focus-ring);
   outline-offset: 0;
-  border-color: var(--green);
+  border-color: var(--wbe-accent);
 }
 
 .wbe .form input[type='checkbox'] {
-  accent-color: var(--green);
+  accent-color: var(--wbe-accent);
 }
 
 .wbe .grid-form {
@@ -1564,8 +1669,8 @@
 }
 
 .wbe .sheet-block {
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius-lg);
   padding: 12px;
   margin-bottom: 12px;
 }
@@ -1581,7 +1686,7 @@
 .wbe .table-block {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed var(--line-2);
+  border-top: 1px dashed var(--wbe-border-strong);
 }
 
 .wbe .table-block > p {
@@ -1596,21 +1701,21 @@
 .wbe table.fields {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe table.fields th {
   text-align: left;
   font-weight: 600;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   padding: 4px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
   white-space: nowrap;
 }
 
 .wbe table.fields td {
   padding: 3px 4px;
-  border-bottom: 1px solid var(--bg-3);
+  border-bottom: 1px solid var(--wbe-surface-sunken);
 }
 
 .wbe table.fields td.center {
@@ -1633,7 +1738,7 @@
 
 .wbe .checks h5 {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .checks ul {
@@ -1646,7 +1751,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12.5px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .add-check {
@@ -1661,23 +1766,23 @@
   gap: 10px;
   margin-top: 12px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--wbe-radius-lg);
 }
 
 .wbe .test-result.ok {
-  background: #f1f7f3;
-  color: #1c4d33;
+  background: var(--wbe-success-soft);
+  color: var(--wbe-success-text);
 }
 
 .wbe .test-result.bad {
-  background: #fff8e8;
-  color: #6b4100;
+  background: var(--wbe-warning-soft);
+  color: var(--wbe-warning-text);
 }
 
 .wbe .test-result ul {
   margin: 4px 0 0;
   padding-left: 18px;
-  font-size: 12.5px;
+  font-size: var(--wbe-font-size-sm);
 }
 
 @media (max-width: 1280px) {
@@ -1717,7 +1822,7 @@
     width: auto;
     max-height: 220px;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--wbe-border);
   }
 
 .wbe .grid-form {
@@ -1732,7 +1837,7 @@
     top: 0;
     bottom: 0;
     z-index: 20;
-    box-shadow: var(--shadow);
+    box-shadow: var(--wbe-shadow);
   }
 
 .wbe .cell-note {
@@ -1749,14 +1854,14 @@
 .wbe .enum-editor {
   display: flex;
   flex-direction: column;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  color: var(--ink);
+  font-family: var(--wbe-font);
+  font-size: var(--wbe-font-size);
+  color: var(--wbe-text);
 }
 
 .wbe .enum-filter {
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--wbe-border);
   padding: 0 8px;
   font: inherit;
   outline: none;
@@ -1782,32 +1887,32 @@
 }
 
 .wbe .enum-options li.active {
-  background: var(--green-soft);
-  color: var(--green-dark);
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent-strong);
 }
 
 .wbe .enum-options li svg {
-  color: var(--green);
+  color: var(--wbe-accent);
 }
 
 .wbe .enum-options li.empty {
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   cursor: default;
 }
 
 .wbe .enum-clear {
   border: 0;
-  border-top: 1px solid var(--line);
-  background: var(--bg-2);
+  border-top: 1px solid var(--wbe-border);
+  background: var(--wbe-surface-alt);
   padding: 6px 10px;
   text-align: left;
   font: inherit;
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   cursor: pointer;
 }
 
 .wbe .enum-clear:hover {
-  background: var(--bg-3);
+  background: var(--wbe-surface-sunken);
 }
 
 /* Right-click menu ---------------------------------------------------------- */
@@ -1817,10 +1922,10 @@
   z-index: 60;
   min-width: 220px;
   padding: 4px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow);
 }
 
 .wbe .context-menu button {
@@ -1831,7 +1936,7 @@
   gap: 16px;
   padding: 6px 10px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--wbe-radius-sm);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -1839,29 +1944,29 @@
 
 .wbe .context-menu button:hover:not(:disabled),
 .wbe .context-menu button:focus-visible {
-  background: var(--green-soft);
+  background: var(--wbe-accent-soft);
   outline: none;
 }
 
 .wbe .context-menu button:disabled {
-  color: var(--ink-3);
+  color: var(--wbe-text-subtle);
   cursor: default;
 }
 
 .wbe .context-menu button.danger:not(:disabled) {
-  color: var(--red);
+  color: var(--wbe-danger);
 }
 
 .wbe .context-menu kbd {
   font: inherit;
-  font-size: 11.5px;
-  color: var(--ink-3);
+  font-size: var(--wbe-font-size-xs);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .menu-separator {
   height: 1px;
   margin: 4px 6px;
-  background: var(--line);
+  background: var(--wbe-border);
 }
 
 /* Filter picker ---------------------------------------------------------------- */
@@ -1871,10 +1976,10 @@
   z-index: 60;
   width: 280px;
   padding: 10px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1889,8 +1994,8 @@
 .wbe .find-panel select {
   height: 28px;
   padding: 0 8px;
-  border: 1px solid var(--line-2);
-  border-radius: 4px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
   font: inherit;
   min-width: 0;
 }
@@ -1908,8 +2013,8 @@
   padding: 4px 0;
   max-height: 220px;
   overflow: auto;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--wbe-border);
+  border-bottom: 1px solid var(--wbe-border);
 }
 
 .wbe .filter-values li {
@@ -1924,14 +2029,14 @@
 }
 
 .wbe .filter-count {
-  color: var(--ink-3);
-  font-size: 12px;
+  color: var(--wbe-text-subtle);
+  font-size: var(--wbe-font-size-sm);
 }
 
 .wbe .filter-note {
   margin: 0;
-  font-size: 12px;
-  color: var(--ink-3);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text-subtle);
 }
 
 .wbe .filter-actions {
@@ -1948,11 +2053,11 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  color: var(--amber);
+  color: var(--wbe-warning);
 }
 
 .wbe .change-note {
-  color: var(--ink-2);
+  color: var(--wbe-text-muted);
   font-style: italic;
 }
 
@@ -1968,10 +2073,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow);
 }
 
 .wbe .find-row {
@@ -2001,8 +2106,8 @@
 
 .wbe .find-count {
   min-width: 64px;
-  font-size: 12px;
-  color: var(--ink-3);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text-subtle);
   text-align: right;
 }
 
@@ -2012,8 +2117,8 @@
   gap: 10px;
   align-items: center;
   padding-left: 32px;
-  font-size: 12px;
-  color: var(--ink-2);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text-muted);
 }
 
 .wbe .find-options label {
@@ -2024,8 +2129,8 @@
 
 .wbe .find-where {
   padding-left: 32px;
-  font-size: 12px;
-  color: var(--ink-3);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text-subtle);
 }
 
 /* Schema designer: adding from the sheet --------------------------------------- */
@@ -2049,12 +2154,19 @@
   align-items: center;
   max-width: calc(100% - 32px);
   padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow);
 }
 
 .wbe .pick-bar > span {
   flex: 1;
+}
+
+.wbe .wbe-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }

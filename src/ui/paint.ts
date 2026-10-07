@@ -7,19 +7,20 @@ export const FREEZE_LINE = '#B7BCC2';
 /**
  * Draws a cell's left or top edge, starting on the boundary pixel (where the
  * grid line sits) and growing into the cell for wider borders. The context is
- * restored afterwards: Glide caches the fill style between cells.
+ * restored afterwards: Glide caches the fill style between cells. `auto` is
+ * the colour for a border in Excel's automatic colour.
  */
-export function drawEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, edge: BorderEdge): void {
+export function drawEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, edge: BorderEdge, auto: string): void {
   ctx.save();
   try {
-    paintEdge(ctx, side, x, y, length, edge);
+    paintEdge(ctx, side, x, y, length, edge, auto);
   } finally {
     ctx.restore();
   }
 }
 
-function paintEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, edge: BorderEdge): void {
-  ctx.fillStyle = edge.color;
+function paintEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, edge: BorderEdge, auto: string): void {
+  ctx.fillStyle = edge.color ?? auto;
   const line = (offset: number, thickness: number, from = 0, len = length) => {
     if (side === 'left') ctx.fillRect(x + offset, y + from, thickness, len);
     else ctx.fillRect(x + from, y + offset, len, thickness);

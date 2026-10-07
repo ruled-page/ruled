@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
 import { FormulaBar } from '../ui/FormulaBar';
 import { GridMenu } from '../ui/GridMenu';
-import { Icon } from '../ui/icons';
+import { Icon, IconContext } from '../ui/icons';
+import { themeStyle } from './theme';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
 import { SchemaDesigner } from '../ui/SchemaDesigner';
 import { SheetPanes } from '../ui/SheetPanes';
@@ -34,6 +35,8 @@ export interface WorkbookEditorProps {
   store: WorkbookStore;
   /** Shown before a workbook is opened; receives a function that opens the file picker. */
   emptyState?: (openPicker: () => void) => ReactNode;
+  /** The host's own controls, at the end of the toolbar before the Save button. */
+  toolbarEnd?: ReactNode;
   className?: string;
 }
 
@@ -56,7 +59,7 @@ function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; ca
 }
 
 /** The workbook editor: toolbar, formula bar, grid, sheet tabs and panels. */
-export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorProps) {
+export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: WorkbookEditorProps) {
   useSyncExternalStore(store.subscribe, store.getVersion);
   const root = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -112,99 +115,101 @@ export function WorkbookEditor({ store, emptyState, className }: WorkbookEditorP
   const ready = store.status === 'ready' && view;
 
   return (
-    <div className={`wbe wbe-root ${className ?? ''}`} ref={root}>
-      <div
-        className={`app ${store.panel ? 'with-report' : ''}`}
-        onDragOver={(e) => {
-          if (canOpen && e.dataTransfer.types.includes('Files')) {
+    <div className={`wbe wbe-root ${className ?? ''}`} ref={root} style={themeStyle(store.theme) as CSSProperties}>
+      <IconContext.Provider value={store.icons}>
+        <div
+          className={`app ${store.panel ? 'with-report' : ''}`}
+          onDragOver={(e) => {
+            if (canOpen && e.dataTransfer.types.includes('Files')) {
+              e.preventDefault();
+              setDragging(true);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (e.currentTarget === e.target) setDragging(false);
+          }}
+          onDrop={(e) => {
+            if (!canOpen) return;
             e.preventDefault();
-            setDragging(true);
-          }
-        }}
-        onDragLeave={(e) => {
-          if (e.currentTarget === e.target) setDragging(false);
-        }}
-        onDrop={(e) => {
-          if (!canOpen) return;
-          e.preventDefault();
-          setDragging(false);
-          void openFile(e.dataTransfer.files[0]);
-        }}
-      >
-        <Toolbar store={store} onOpen={openPicker} />
-        {canOpen && (
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            hidden
-            onChange={(e) => {
-              void openFile(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-        )}
-        {ready && <SchemaBanner store={store} />}
-        {ready && <Banner store={store} />}
-        {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
-        <div className="workspace">
-          <main className="sheet-area">
-            {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
-            {store.status === 'loading' && (
-              <div className="center-state">
-                <span className="spinner" />
-                <p>{store.stage}</p>
-              </div>
-            )}
-            {store.status === 'error' && (
-              <div className="center-state error">
-                <Icon name="warn" size={28} />
-                <p>{store.error}</p>
-                {canOpen && (
-                  <button className="btn" onClick={openPicker}>
-                    Open another file
-                  </button>
-                )}
-              </div>
-            )}
-            {ready && view.info.kind === 'worksheet' && (
-              <SheetPanes
-                store={store}
-                view={view}
-                dataVersion={view.version * 31 + store.styles.length}
-                schemaVersion={store.schemaVersion}
-                selection={selection}
-              />
-            )}
-            {ready && view.info.kind !== 'worksheet' && (
-              <div className="center-state">
-                <Icon name="chart" size={32} />
-                <h2>{view.info.name}</h2>
-                <p>
-                  {view.info.objects.find((o) => o.kind === 'chart')?.chartType ?? 'This'} chart
-                  {view.info.objects.find((o) => o.kind === 'chart')?.title ? ` “${view.info.objects.find((o) => o.kind === 'chart')?.title}”` : ''}{' '}
-                  fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; this editor doesn’t display charts.
-                </p>
-              </div>
-            )}
-            {ready && store.findOpen && <FindPanel store={store} />}
-          </main>
-          {ready && <SidePanel store={store} />}
-        </div>
-        {ready && <SheetTabs store={store} />}
-        <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
-        {dragging && (
-          <div className="drop-overlay">
-            <Icon name="open" size={28} />
-            <p>Drop to open</p>
+            setDragging(false);
+            void openFile(e.dataTransfer.files[0]);
+          }}
+        >
+          <Toolbar store={store} onOpen={openPicker} extra={toolbarEnd} />
+          {canOpen && (
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={(e) => {
+                void openFile(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          )}
+          {ready && <SchemaBanner store={store} />}
+          {ready && <Banner store={store} />}
+          {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
+          <div className="workspace">
+            <main className="sheet-area">
+              {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
+              {store.status === 'loading' && (
+                <div className="center-state">
+                  <span className="spinner" />
+                  <p>{store.stage}</p>
+                </div>
+              )}
+              {store.status === 'error' && (
+                <div className="center-state error">
+                  <Icon name="warn" size={28} />
+                  <p>{store.error}</p>
+                  {canOpen && (
+                    <button className="btn" onClick={openPicker}>
+                      Open another file
+                    </button>
+                  )}
+                </div>
+              )}
+              {ready && view.info.kind === 'worksheet' && (
+                <SheetPanes
+                  store={store}
+                  view={view}
+                  dataVersion={view.version * 31 + store.styles.length}
+                  schemaVersion={store.schemaVersion}
+                  selection={selection}
+                />
+              )}
+              {ready && view.info.kind !== 'worksheet' && (
+                <div className="center-state">
+                  <Icon name="chart" size={32} />
+                  <h2>{view.info.name}</h2>
+                  <p>
+                    {view.info.objects.find((o) => o.kind === 'chart')?.chartType ?? 'This'} chart
+                    {view.info.objects.find((o) => o.kind === 'chart')?.title ? ` “${view.info.objects.find((o) => o.kind === 'chart')?.title}”` : ''}{' '}
+                    fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; this editor doesn’t display charts.
+                  </p>
+                </div>
+              )}
+              {ready && store.findOpen && <FindPanel store={store} />}
+            </main>
+            {ready && <SidePanel store={store} />}
           </div>
-        )}
-        {store.designerOpen && <SchemaDesigner store={store} />}
-        {ready && <GridMenu store={store} />}
-        {ready && <FilterPicker store={store} />}
-        <ConfirmDialog store={store} />
-        <Toasts store={store} />
-      </div>
+          {ready && <SheetTabs store={store} />}
+          <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
+          {dragging && (
+            <div className="drop-overlay">
+              <Icon name="open" size={28} />
+              <p>Drop to open</p>
+            </div>
+          )}
+          {store.designerOpen && <SchemaDesigner store={store} />}
+          {ready && <GridMenu store={store} />}
+          {ready && <FilterPicker store={store} />}
+          <ConfirmDialog store={store} />
+          <Toasts store={store} />
+        </div>
+      </IconContext.Provider>
     </div>
   );
 }

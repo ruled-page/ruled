@@ -20,7 +20,7 @@ import {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { parseClipboardText } from '../state/clipboard';
@@ -32,96 +32,61 @@ import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
-import { drawDataBar, drawEdge, drawGridLine, drawIcon, FREEZE_LINE } from './paint';
+import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from './gridPalette';
+import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
 
-const FONT_STACK = 'Calibri, Carlito, "Aptos Narrow", "Segoe UI", system-ui, sans-serif';
-const EDITED_FILL = '#FFF4CE';
-/** Background for pivot tables and array formulas, which cannot be edited here. */
-const LOCKED_FILL = '#F2F4F7';
-/** Background for labels fixed by a schema. */
-const LABEL_FILL = '#EAF2EC';
-/** Corner marker for cells with a note or comment. */
-const NOTE_MARK = '#7F56D9';
-
-const THEME: Partial<Theme> = {
-  accentColor: '#1E7145',
-  accentFg: '#FFFFFF',
-  accentLight: 'rgba(30, 113, 69, 0.10)',
-  textDark: '#1F1F1F',
-  textMedium: '#5F6368',
-  textLight: '#9AA0A6',
-  textHeader: '#4A4A4A',
-  textHeaderSelected: '#1E7145',
-  bgCell: '#FFFFFF',
-  bgCellMedium: '#F7F7F7',
-  bgHeader: '#F4F5F5',
-  bgHeaderHasFocus: '#E3EFE8',
-  bgHeaderHovered: '#EAEBEB',
-  // Grid lines are drawn with each cell, so borders and overflowing text can replace them.
-  borderColor: 'transparent',
-  horizontalBorderColor: 'transparent',
-  headerBottomBorderColor: '#D3D6D6',
-  headerFontStyle: '500 12px',
-  baseFontStyle: '14.7px',
-  fontFamily: FONT_STACK,
-  editorFontSize: '14.7px',
-  cellHorizontalPadding: 4,
-  cellVerticalPadding: 2,
-  lineHeight: 1.25,
-};
-
-const ROW_HEADER_THEME: Partial<Theme> = {
-  bgCell: '#F4F5F5',
-  textDark: '#5F6368',
-  baseFontStyle: '12px',
-  fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-};
-
-/** The canvas font Glide uses for a cell in this style. */
-function fontFor(style: DisplayStyle): string {
-  return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${FONT_STACK}`;
-}
-
-/** Strikethrough and underline, which Glide doesn't draw. */
-function decorate(ctx: CanvasRenderingContext2D, rect: Rectangle, text: string, align: 'left' | 'right' | 'center', style: DisplayStyle): void {
-  const width = measure(text, style);
-  const x = align === 'right' ? rect.x + rect.width - CELL_PADDING - width : align === 'center' ? rect.x + (rect.width - width) / 2 : rect.x + CELL_PADDING;
-  const mid = rect.y + rect.height / 2;
-  ctx.save();
-  ctx.fillStyle = style.color ?? '#1F1F1F';
-  const thickness = style.bold ? 1.5 : 1;
-  if (style.strike) ctx.fillRect(x, mid, width, thickness);
-  if (style.underline) ctx.fillRect(x, mid + style.fontSizePx * 0.45, width, thickness);
-  ctx.restore();
-}
-
-let measureCtx: CanvasRenderingContext2D | null = null;
-function measure(text: string, style: DisplayStyle): number {
-  measureCtx ??= document.createElement('canvas').getContext('2d');
-  if (!measureCtx) return 0;
-  measureCtx.font = fontFor(style);
-  return measureCtx.measureText(text).width;
-}
-
-const themeCache = new Map<string, Partial<Theme>>();
-function cellTheme(style: DisplayStyle, color: string | undefined, edited: boolean, locked = false): Partial<Theme> | undefined {
-  const fill = edited ? EDITED_FILL : (style.fill ?? (locked ? LOCKED_FILL : undefined));
-  const textColor = color ?? style.color;
-  const plain = !fill && !textColor && !style.bold && !style.italic && Math.abs(style.fontSizePx - 14.7) < 0.2 && /^Calibri$/i.test(style.fontFamily);
-  if (plain) return undefined;
-  const key = `${fill}|${textColor}|${style.bold}|${style.italic}|${style.fontSizePx}|${style.fontFamily}`;
-  let t = themeCache.get(key);
-  if (!t) {
-    // Glide spreads overrides over the base theme, so unset keys must be absent, not undefined.
-    t = {
-      baseFontStyle: `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px`,
-      fontFamily: `"${style.fontFamily}", ${FONT_STACK}`,
-    };
-    if (fill) t.bgCell = fill;
-    if (textColor) t.textDark = textColor;
-    themeCache.set(key, t);
-  }
-  return t;
+/** Everything the grid draws with, from the theme's palette. */
+function gridStyles(p: GridPalette) {
+  const fontFor = (style: DisplayStyle) => `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${p.font}`;
+  let measureCtx: CanvasRenderingContext2D | null = null;
+  const measure = (text: string, style: DisplayStyle) => {
+    measureCtx ??= document.createElement('canvas').getContext('2d');
+    if (!measureCtx) return 0;
+    measureCtx.font = fontFor(style);
+    return measureCtx.measureText(text).width;
+  };
+  const cache = new Map<string, Partial<Theme>>();
+  /** A cell's theme override: its fill (or the edited or locked fill), text colour and font. */
+  const cellTheme = (style: DisplayStyle, color: string | undefined, edited: boolean, locked = false): Partial<Theme> | undefined => {
+    const fill = edited ? p.editedFill : (style.fill ?? (locked ? p.lockedFill : undefined));
+    // Text with no colour of its own on a fill from the file is drawn as Excel draws it, whatever the theme's text colour.
+    const textColor = color ?? style.color ?? (style.fill && !edited ? p.textOnFill : undefined);
+    const plain = !fill && !textColor && !style.bold && !style.italic && Math.abs(style.fontSizePx - 14.7) < 0.2 && /^Calibri$/i.test(style.fontFamily);
+    if (plain) return undefined;
+    const key = `${fill}|${textColor}|${style.bold}|${style.italic}|${style.fontSizePx}|${style.fontFamily}`;
+    let t = cache.get(key);
+    if (!t) {
+      // Glide spreads overrides over the base theme, so unset keys must be absent, not undefined.
+      t = {
+        baseFontStyle: `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px`,
+        fontFamily: `"${style.fontFamily}", ${p.font}`,
+      };
+      if (fill) t.bgCell = fill;
+      if (textColor) t.textDark = textColor;
+      cache.set(key, t);
+    }
+    return t;
+  };
+  /** Strikethrough and underline, which Glide doesn't draw. */
+  const decorate = (ctx: CanvasRenderingContext2D, rect: Rectangle, text: string, align: 'left' | 'right' | 'center', style: DisplayStyle) => {
+    const width = measure(text, style);
+    const x = align === 'right' ? rect.x + rect.width - CELL_PADDING - width : align === 'center' ? rect.x + (rect.width - width) / 2 : rect.x + CELL_PADDING;
+    const mid = rect.y + rect.height / 2;
+    ctx.save();
+    ctx.fillStyle = style.color ?? p.text;
+    const thickness = style.bold ? 1.5 : 1;
+    if (style.strike) ctx.fillRect(x, mid, width, thickness);
+    if (style.underline) ctx.fillRect(x, mid + style.fontSizePx * 0.45, width, thickness);
+    ctx.restore();
+  };
+  return {
+    theme: glideTheme(p),
+    rowHeader: { bgCell: p.headerBg, textDark: p.rowHeaderText, baseFontStyle: p.headerFontSize, fontFamily: p.headerFont } as Partial<Theme>,
+    fontFor,
+    measure,
+    cellTheme,
+    decorate,
+  };
 }
 
 interface Props {
@@ -171,6 +136,14 @@ export function SheetGrid({
   const ref = gridRef ?? ownRef;
   const host = useRef<HTMLDivElement>(null);
   const rows = rowCount ?? view.rowCount - rowStart;
+  // The grid's colours and fonts come from the theme's custom properties, read once laid out.
+  const [palette, setPalette] = useState<GridPalette>(DEFAULT_PALETTE);
+  const themeVersion = store.themeVersion;
+  useLayoutEffect(() => {
+    const next = readGridPalette(host.current);
+    setPalette((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, [themeVersion]);
+  const g = useMemo(() => gridStyles(palette), [palette]);
   const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const styles = store.styles;
@@ -207,7 +180,7 @@ export function SheetGrid({
           allowOverlay: false,
           readonly: true,
           contentAlign: 'center',
-          themeOverride: ROW_HEADER_THEME,
+          themeOverride: g.rowHeader,
           cursor: 'default',
         };
       }
@@ -254,7 +227,7 @@ export function SheetGrid({
         options ? { ...cell, enumOptions: options, activationBehaviorOverride: 'second-click' } : cell;
       if (!rec) {
         const baseStyle = merge ? effectiveStyle(view, styles, merge.r1, merge.c1) : effectiveStyle(view, styles, row, col, view.styleAt(row, col, null));
-        const bg = baseStyle?.fill ?? (locked ? LOCKED_FILL : label ? LABEL_FILL : undefined);
+        const bg = baseStyle?.fill ?? (locked ? palette.lockedFill : label ? palette.labelFill : undefined);
         return asEnum({
           kind: GridCellKind.Text,
           data: '',
@@ -275,7 +248,7 @@ export function SheetGrid({
           // Whether it fits is Excel's call, made with Calibri's widths; where
           // the browser's stand-in font is wider, the number is drawn smaller.
           text = fitNumber(text, rec.n ?? 0, /^general$/i.test(style.numFmt), room, (s) => excelTextWidth(s, style));
-          const drawn = text.startsWith('#') ? 0 : measure(text, style);
+          const drawn = text.startsWith('#') ? 0 : g.measure(text, style);
           if (drawn > room) drawStyle = { ...style, fontSizePx: Math.max(6, Math.floor(((style.fontSizePx * room) / drawn) * 10) / 10) };
         }
       }
@@ -290,12 +263,12 @@ export function SheetGrid({
         span,
         themeOverride:
           label && !style.fill
-            ? { ...cellTheme(drawStyle, color, false, false), bgCell: LABEL_FILL }
-            : cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
+            ? { ...g.cellTheme(drawStyle, color, false, false), bgCell: palette.labelFill }
+            : g.cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart],
+    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette],
   );
 
   // Text spilling into empty neighbours, worked out per row as rows are drawn.
@@ -308,12 +281,12 @@ export function SheetGrid({
     (row: number) => {
       let list = overflowCache.get(row);
       if (!list) {
-        list = rowOverflows(view, row, (col, rec) => effectiveStyle(view, styles, row, col, rec.style), date1904, measure);
+        list = rowOverflows(view, row, (col, rec) => effectiveStyle(view, styles, row, col, rec.style), date1904, g.measure);
         overflowCache.set(row, list);
       }
       return list;
     },
-    [overflowCache, view, styles, date1904],
+    [overflowCache, view, styles, date1904, g],
   );
 
   /** Pixels from the left edge of sheet column `from` to the left edge of `to`, over visible columns. */
@@ -335,8 +308,8 @@ export function SheetGrid({
       const gridLines = view.info.showGridLines;
       if (args.col === 0) {
         drawContent();
-        drawGridLine(ctx, 'top', rect.x, rect.y, rect.width);
-        drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height);
+        drawGridLine(ctx, 'top', rect.x, rect.y, rect.width, palette.line);
+        drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height, palette.line);
         return;
       }
       const col = view.visibleCols[args.col - 1];
@@ -355,14 +328,14 @@ export function SheetGrid({
       if (!own && !cf?.hideValue) {
         drawContent();
         if ((style.strike || style.underline) && args.cell.kind === GridCellKind.Text && args.cell.displayData) {
-          decorate(ctx, rect, args.cell.displayData, args.cell.contentAlign ?? 'left', style);
+          g.decorate(ctx, rect, args.cell.displayData, args.cell.contentAlign ?? 'left', style);
         }
       }
       if (through) {
-        const font = fontFor(through.style);
+        const font = g.fontFor(through.style);
         ctx.save();
         ctx.font = font;
-        ctx.fillStyle = through.color ?? through.style.color ?? '#1F1F1F';
+        ctx.fillStyle = through.color ?? through.style.color ?? (through.style.fill ? palette.textOnFill : palette.text);
         ctx.textAlign = 'left';
         const x = rect.x - offsetBetween(through.col, col) + overflowTextX(through, view.colWidth(through.col));
         ctx.fillText(through.text, x, rect.y + rect.height / 2 + getMiddleCenterBias(ctx, font));
@@ -375,16 +348,16 @@ export function SheetGrid({
       if (!merge || col === merge.c1) {
         const leftCol = gc > 0 ? view.visibleCols[gc - 1] : -1;
         const edge = style.border?.left ?? (leftCol >= 0 ? effectiveStyle(view, styles, row, leftCol).border?.right : undefined);
-        if (edge) drawEdge(ctx, 'left', rect.x, rect.y, rect.height, edge);
-        else if (gridLines && !overflows.some((o) => o.from < col && col <= o.to)) drawGridLine(ctx, 'left', rect.x, rect.y, rect.height);
+        if (edge) drawEdge(ctx, 'left', rect.x, rect.y, rect.height, edge, palette.borderAuto);
+        else if (gridLines && !overflows.some((o) => o.from < col && col <= o.to)) drawGridLine(ctx, 'left', rect.x, rect.y, rect.height, palette.line);
       }
       if (!merge || row === merge.r1) {
         const upRow = gr > 0 ? view.visibleRows[gr - 1] : -1;
         const edge = style.border?.top ?? (upRow >= 0 ? effectiveStyle(view, styles, upRow, col).border?.bottom : undefined);
-        if (edge) drawEdge(ctx, 'top', rect.x, rect.y, rect.width, edge);
-        else if (gridLines) drawGridLine(ctx, 'top', rect.x, rect.y, rect.width);
+        if (edge) drawEdge(ctx, 'top', rect.x, rect.y, rect.width, edge, palette.borderAuto);
+        else if (gridLines) drawGridLine(ctx, 'top', rect.x, rect.y, rect.width, palette.line);
       }
-      if (frozen > 0 && args.col === frozen) drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height, FREEZE_LINE);
+      if (frozen > 0 && args.col === frozen) drawGridLine(ctx, 'left', rect.x + rect.width - 1, rect.y, rect.height, palette.freezeLine);
 
       if (args.highlighted && enumOptionsOf(args.cell)) {
         // Dropdown chevron on selected enum cells, like Excel's list validation.
@@ -395,7 +368,7 @@ export function SheetGrid({
         ctx.moveTo(cx - 3.5, cy - 2);
         ctx.lineTo(cx, cy + 1.5);
         ctx.lineTo(cx + 3.5, cy - 2);
-        ctx.strokeStyle = '#5F6368';
+        ctx.strokeStyle = palette.dropdownArrow;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.restore();
@@ -408,7 +381,7 @@ export function SheetGrid({
         ctx.lineTo(rect.x + 8, rect.y + 1);
         ctx.lineTo(rect.x + 1, rect.y + 8);
         ctx.closePath();
-        ctx.fillStyle = rec.flags & CellFlag.Stale ? '#E8A33D' : '#8A94A6';
+        ctx.fillStyle = rec.flags & CellFlag.Stale ? palette.staleMark : palette.unsupportedMark;
         ctx.fill();
         ctx.restore();
       }
@@ -420,7 +393,7 @@ export function SheetGrid({
         ctx.lineTo(right - 6, rect.y + 1);
         ctx.lineTo(right, rect.y + 7);
         ctx.closePath();
-        ctx.fillStyle = NOTE_MARK;
+        ctx.fillStyle = palette.noteMark;
         ctx.fill();
         ctx.restore();
       }
@@ -434,24 +407,27 @@ export function SheetGrid({
         ctx.lineTo(right - 8, rect.y + 1);
         ctx.lineTo(right, rect.y + 9);
         ctx.closePath();
-        ctx.fillStyle = issues.some((i) => i.severity === 'error') ? '#D92D20' : '#F79009';
+        ctx.fillStyle = issues.some((i) => i.severity === 'error') ? palette.errorMark : palette.warningMark;
         ctx.fill();
       } else if (schema.isPending(sheetIndex, row, col)) {
         ctx.beginPath();
         ctx.arc(right - 4, rect.y + 5, 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#2E90FA';
+        ctx.fillStyle = palette.pendingMark;
         ctx.fill();
       }
       ctx.restore();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen, rowStart],
+    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen, rowStart, g, palette],
   );
 
-  const drawHeader = useCallback<DrawHeaderCallback>((args, drawContent) => {
-    drawContent();
-    if (args.columnIndex > 0) drawGridLine(args.ctx, 'left', args.rect.x, args.rect.y, args.rect.height);
-  }, []);
+  const drawHeader = useCallback<DrawHeaderCallback>(
+    (args, drawContent) => {
+      drawContent();
+    if (args.columnIndex > 0) drawGridLine(args.ctx, 'left', args.rect.x, args.rect.y, args.rect.height, palette.line);
+    },
+    [palette],
+  );
 
   // Grid selection <-> sheet selection. Grid column 0 is the row-number column.
   const toSheetRect = useCallback(
@@ -488,9 +464,9 @@ export function SheetGrid({
     const empty = { columns: CompactSelection.empty(), rows: CompactSelection.empty() };
     // A cut waiting to be pasted gets a dashed outline.
     const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
-    const marks: Highlights = cut ? [{ color: 'rgba(30, 113, 69, 0.06)', range: cut, style: 'dashed' }] : [];
+    const marks: Highlights = cut ? [{ color: palette.cutFill, range: cut, style: 'dashed' }] : [];
     if (gr < rowStart || gr > last) {
-      marks.push(...rects.map((range) => ({ color: 'rgba(30, 113, 69, 0.10)', range, style: 'solid-outline' as const })));
+      marks.push(...rects.map((range) => ({ color: palette.selectionFill, range, style: 'solid-outline' as const })));
       return { gridSelection: { current: undefined, ...empty } as GridSelection, highlights: marks.length ? marks : undefined };
     }
     const cell = { x: gc, y: gr - rowStart, width: 1, height: 1 };
@@ -499,7 +475,7 @@ export function SheetGrid({
       gridSelection: { current: { cell: [gc, gr - rowStart], range: first ?? cell, rangeStack: rest }, ...empty } as GridSelection,
       highlights: marks.length ? marks : undefined,
     };
-  }, [view, selection, rowStart, rows, cutRange]);
+  }, [view, selection, rowStart, rows, cutRange, palette]);
 
   const onSelectionChange = useCallback(
     (sel: GridSelection) => {
@@ -732,7 +708,7 @@ export function SheetGrid({
         smoothScrollY
         cellActivationBehavior="double-click"
         editOnType
-        theme={THEME}
+        theme={g.theme}
         width="100%"
         height="100%"
         minColumnWidth={18}
