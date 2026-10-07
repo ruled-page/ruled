@@ -29,6 +29,8 @@ export interface WorkbookModel {
   names: DefinedName[];
   date1904: boolean;
   findings: Finding[];
+  /** The workbook carries a VBA project. */
+  hasMacros: boolean;
 }
 
 const EMU_PER_PX = 9525;
@@ -576,5 +578,5 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     });
   }
 
-  return { workbookPath, sheets, styles, names, date1904, findings };
+  return { workbookPath, sheets, styles, names, date1904, findings, hasMacros: vba };
 }

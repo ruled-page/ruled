@@ -26,7 +26,7 @@ scope.onmessage = (e) => {
   try {
     switch (req.type) {
       case 'open': {
-        session = WorkbookSession.open(new Uint8Array(req.bytes), req.fileName, req.locale);
+        session = WorkbookSession.open(new Uint8Array(req.bytes), req.fileName, req.locale, req.options);
         calcSent = false;
         post({ id: req.id, type: 'opened', result: session.loadResult() });
         // Let the grid render first; the engine builds in the next task.
@@ -44,7 +44,7 @@ scope.onmessage = (e) => {
       }
       case 'save': {
         if (!session) throw new Error('No workbook is open.');
-        post({ id: req.id, type: 'saved', bytes: session.save(), fileName: session.fileName, changes: session.changes() });
+        post({ id: req.id, type: 'saved', bytes: session.save(), fileName: session.saveFileName, changes: session.changes() });
         break;
       }
       case 'changes': {

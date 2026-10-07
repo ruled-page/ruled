@@ -1,7 +1,8 @@
+import type { OpenOptions } from '../core/session';
 import type { CalcReport, CellChange, EditOp, EditResult, LoadResult } from '../core/types';
 
 export type WorkerRequest =
-  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string }
+  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions }
   | { id: number; type: 'edit'; op: EditOp }
   | { id: number; type: 'save' }
   | { id: number; type: 'changes' };

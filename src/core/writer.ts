@@ -16,6 +16,8 @@ export interface SaveInput {
   cachedValue: (sheet: number, row: number, col: number) => EngineValue | undefined;
   /** Per sheet: untouched formula cells whose result changed. */
   recalculated: Set<number>[];
+  /** Remove the VBA project, making the file a plain .xlsx. */
+  stripMacros?: boolean;
 }
 
 type Patch =
@@ -47,6 +49,8 @@ export function writeWorkbook(input: SaveInput): Uint8Array {
       if (xml) pkg.setText(path, setRootAttr(xml, 'refreshOnLoad', '1'));
     }
   }
+
+  if (input.stripMacros) removeMacros(pkg, model.workbookPath);
 
   if (model.styles.additions.length) {
     const stylesRel = pkg.rels(model.workbookPath).find((r) => r.type === 'styles');
@@ -267,6 +271,32 @@ function minCol(g: SheetGrid): number {
   let min = Infinity;
   for (let i = 0; i < g.cols.length; i++) if (g.cols[i] < min) min = g.cols[i];
   return Number.isFinite(min) ? min : 0;
+}
+
+/**
+ * Turns a macro-enabled workbook into a plain one: drops the VBA project
+ * (and its signatures) and switches the workbook's content type to .xlsx.
+ */
+export function removeMacros(pkg: OoxmlPackage, workbookPath: string): void {
+  const rels = pkg.rels(workbookPath).filter((r) => r.type === 'vbaProject');
+  for (const r of rels) {
+    for (const sub of pkg.rels(r.target)) if (!sub.external) pkg.remove(sub.target);
+    pkg.remove(relsPathFor(r.target));
+    pkg.remove(r.target);
+  }
+  const relsPath = relsPathFor(workbookPath);
+  const relsXml = pkg.text(relsPath);
+  if (relsXml) pkg.setText(relsPath, relsXml.replace(/<(\w+:)?Relationship\b[^>]*\/vbaProject"[^>]*\/>/g, ''));
+  const ct = pkg.text('[Content_Types].xml');
+  if (ct) {
+    pkg.setText(
+      '[Content_Types].xml',
+      ct
+        .replace(/application\/vnd\.ms-excel\.sheet\.macroEnabled\.main\+xml/g, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml')
+        .replace(/<(\w+:)?Override\b[^>]*ContentType="application\/vnd\.ms-office\.vbaProject(Signature\w*)?"[^>]*\/>/g, '')
+        .replace(/<(\w+:)?Default\b[^>]*ContentType="application\/vnd\.ms-office\.vbaProject"[^>]*\/>/g, ''),
+    );
+  }
 }
 
 function removeCalcChain(pkg: OoxmlPackage, workbookPath: string): void {

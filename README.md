@@ -96,8 +96,15 @@ Or the element (see `examples/html/index.html`):
 
 Options include `schemas`, `numbers`, `onSave`, `features` (hide the open,
 save or schema buttons when the host provides them), `user` (recorded in the
-history), `drafts`, `warnOnUnload`, `locale` and `createWorker`. All styles
-are scoped under `.wbe`.
+history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros` and
+`createWorker`. All styles are scoped under `.wbe`.
+
+Opened files are treated as untrusted. Before anything is decompressed the
+editor checks the file size (default limit 200 MB), the total unzipped size
+(1.5 GB), the compression ratio of large parts (zip bombs) and the part
+count; after reading, the cell count (5 million). `macros: 'remove'` strips
+the VBA project on save and saves as .xlsx; `macros: 'block'` refuses
+macro-enabled files. Links to other workbooks are kept but never fetched.
 
 `onSave` receives the file's bytes plus `changes` (each changed cell, before
 and after) and `history`. Without it, saving downloads the file. If the

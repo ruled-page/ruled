@@ -14,6 +14,7 @@ import {
   type ListValidation,
   type Rect,
 } from '../core/types';
+import type { OpenOptions } from '../core/session';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft } from './drafts';
 import { pasteRisks } from './pasteRisks';
@@ -107,6 +108,10 @@ export interface StoreOptions {
   user?: string;
   /** Keep unsaved edits in the browser and offer them back when the same file is reopened. Default true. */
   drafts?: boolean;
+  /** Size and complexity limits for opened files; see OpenOptions. */
+  limits?: OpenOptions['limits'];
+  /** VBA macros: keep them (default), remove them when saving, or refuse such files. */
+  macros?: OpenOptions['macros'];
 }
 
 function defaultWorker(): Worker {
@@ -348,7 +353,7 @@ export class WorkbookStore {
     this.notify();
     try {
       const res = await this.request(
-        { type: 'open', bytes, fileName, locale: this.locale || 'en-US' } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros } } as Omit<WorkerRequest, 'id'>,
         [bytes],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');

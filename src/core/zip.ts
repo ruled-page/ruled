@@ -12,6 +12,27 @@ export interface Relationship {
 
 const decoder = new TextDecoder('utf-8');
 
+/** Limits applied before a package is decompressed, so a hostile file can't exhaust memory. */
+export interface PackageLimits {
+  /** Largest file accepted. Default 200 MB. */
+  maxFileBytes?: number;
+  /** Largest total size once unzipped. Default 1.5 GB. */
+  maxUnzippedBytes?: number;
+  /** Highest unzipped:zipped ratio for a large part, the signature of a zip bomb. Default 200. */
+  maxRatio?: number;
+  /** Most parts in the package. Default 20,000. */
+  maxParts?: number;
+}
+
+export const DEFAULT_LIMITS: Required<PackageLimits> = {
+  maxFileBytes: 200 * 1024 * 1024,
+  maxUnzippedBytes: 1.5 * 1024 * 1024 * 1024,
+  maxRatio: 200,
+  maxParts: 20_000,
+};
+
+const mb = (n: number) => `${Math.round(n / 1024 / 1024).toLocaleString()} MB`;
+
 /** An .xlsx/.xlsm file opened as its constituent parts. */
 export class OoxmlPackage {
   private readonly files: Map<string, Uint8Array>;
@@ -23,7 +44,11 @@ export class OoxmlPackage {
     this.order = order;
   }
 
-  static open(bytes: Uint8Array): OoxmlPackage {
+  static open(bytes: Uint8Array, limits: PackageLimits = {}): OoxmlPackage {
+    const lim = { ...DEFAULT_LIMITS, ...limits };
+    if (bytes.length > lim.maxFileBytes) {
+      throw new Error(`This file is ${mb(bytes.length)}; the most this editor accepts is ${mb(lim.maxFileBytes)}.`);
+    }
     if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
       throw new Error(
         'This file is password-protected or in the old .xls format. Only .xlsx and .xlsm files are supported.',
@@ -32,7 +57,23 @@ export class OoxmlPackage {
     if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
       throw new Error('This file is not an Excel workbook (.xlsx or .xlsm).');
     }
-    const raw = unzipSync(bytes);
+    // Sizes come from the zip directory, so they are checked before anything is inflated.
+    let total = 0;
+    let parts = 0;
+    const raw = unzipSync(bytes, {
+      filter: (f) => {
+        parts++;
+        total += f.originalSize;
+        if (parts > lim.maxParts) throw new Error(`This file has more than ${lim.maxParts.toLocaleString()} parts, which is more than a workbook should.`);
+        if (total > lim.maxUnzippedBytes) {
+          throw new Error(`This file unpacks to more than ${mb(lim.maxUnzippedBytes)}, which is more than this editor can hold.`);
+        }
+        if (f.originalSize > 10 * 1024 * 1024 && f.originalSize / Math.max(1, f.size) > lim.maxRatio) {
+          throw new Error(`Part ${f.name} is compressed suspiciously well (${Math.round(f.originalSize / Math.max(1, f.size))}:1), so the file was not opened.`);
+        }
+        return true;
+      },
+    });
     const files = new Map<string, Uint8Array>();
     const order: string[] = [];
     for (const [path, data] of Object.entries(raw)) {

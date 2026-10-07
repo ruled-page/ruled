@@ -35,8 +35,19 @@ import {
   type SheetGrid,
 } from './types';
 import { readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
-import { writeWorkbook } from './writer';
-import { OoxmlPackage } from './zip';
+import { removeMacros, writeWorkbook } from './writer';
+import { OoxmlPackage, type PackageLimits } from './zip';
+
+export interface OpenOptions {
+  limits?: PackageLimits & {
+    /** Most cells across all sheets. Default 5,000,000. */
+    maxCells?: number;
+  };
+  /** What to do with VBA macros: keep them (default), remove them on save, or refuse the file. */
+  macros?: 'keep' | 'remove' | 'block';
+}
+
+const DEFAULT_MAX_CELLS = 5_000_000;
 
 export interface CellState {
   content: CellContent;
@@ -241,6 +252,13 @@ export class WorkbookSession {
 
   /** Locale used to read typed and pasted dates and numbers. */
   readonly locale: string;
+  /** Remove the VBA project when saving (macro policy "remove"). */
+  private stripMacros = false;
+
+  /** The name the saved file should have; macro-free files can't keep .xlsm. */
+  get saveFileName(): string {
+    return this.stripMacros ? this.fileName.replace(/\.xlsm$/i, '.xlsx') : this.fileName;
+  }
 
   private constructor(pkg: OoxmlPackage, bytes: Uint8Array, fileName: string, model: WorkbookModel, timings: Record<string, number>, locale: string) {
     this.locale = locale;
@@ -258,13 +276,26 @@ export class WorkbookSession {
     this.sheetIndex = new Map(model.sheets.map((s, i) => [s.info.name.toLowerCase(), i]));
   }
 
-  static open(bytes: Uint8Array, fileName: string, locale = 'en-US'): WorkbookSession {
+  static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
     const t0 = performance.now();
-    const pkg = OoxmlPackage.open(bytes);
+    const pkg = OoxmlPackage.open(bytes, options.limits);
     const t1 = performance.now();
     const model = readWorkbook(pkg, locale);
     const t2 = performance.now();
-    return new WorkbookSession(
+    const cells = model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
+    const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
+    if (cells > maxCells) {
+      throw new Error(`This workbook has ${cells.toLocaleString()} cells; the most this editor can hold is ${maxCells.toLocaleString()}.`);
+    }
+    const macros = options.macros ?? 'keep';
+    if (model.hasMacros && macros === 'block') {
+      throw new Error("This workbook contains macros (VBA), which aren't allowed here. Save it as .xlsx in Excel and open that instead.");
+    }
+    if (model.hasMacros && macros === 'remove') {
+      const f = model.findings.find((x) => x.kind === 'macro' && x.title.startsWith('Macros'));
+      if (f) f.detail = 'This workbook contains macros. They will be removed when you save, and the file is saved as .xlsx.';
+    }
+    const session = new WorkbookSession(
       pkg,
       bytes,
       fileName,
@@ -272,6 +303,8 @@ export class WorkbookSession {
       { unzipMs: Math.round(t1 - t0), parseMs: Math.round(t2 - t1) },
       locale,
     );
+    session.stripMacros = model.hasMacros && macros === 'remove';
+    return session;
   }
 
   loadResult(): LoadResult {
@@ -871,8 +904,14 @@ export class WorkbookSession {
 
   /** The workbook as .xlsx bytes. Unchanged workbooks come back byte for byte. */
   save(): Uint8Array {
-    if (this.editedCount === 0) return this.originalBytes;
+    if (this.editedCount === 0) {
+      if (!this.stripMacros) return this.originalBytes;
+      const pkg = this.pkg.clone();
+      removeMacros(pkg, this.model.workbookPath);
+      return pkg.toBytes();
+    }
     return writeWorkbook({
+      stripMacros: this.stripMacros,
       pkg: this.pkg.clone(),
       model: this.model,
       edits: this.edits,
