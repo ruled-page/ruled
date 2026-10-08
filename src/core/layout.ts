@@ -36,6 +36,7 @@ export class SheetLayout {
   /** Outline levels, and marks on collapsed groups' summaries, set for each row and column changed. */
   readonly levels: Record<Axis, Map<number, number>> = { rows: new Map(), cols: new Map() };
   readonly collapsed: Record<Axis, Map<number, boolean>> = { rows: new Map(), cols: new Map() };
+  readonly defaultColWidthPx: number;
   /** The file's layout, copied, as what changes are measured against. */
   private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'>;
   private readonly fileHidden: Record<'rows' | 'cols', Set<number>>;
@@ -53,6 +54,7 @@ export class SheetLayout {
       autoFilter: info.autoFilter,
       outline: info.outline,
     };
+    this.defaultColWidthPx = info.defaultColWidthPx;
     this.fileHidden = { rows: new Set(info.hiddenRows), cols: new Set(info.hiddenCols) };
     this.fileFiltered = new Set();
     const f = info.filter?.rect;
@@ -396,6 +398,8 @@ function writeCols(xml: string, p: string, layout: SheetLayout): string {
     if (layout.hiddenCols.has(col)) put('hidden', layout.hiddenCols.get(col)! && '1');
     if (layout.levels.cols.has(col)) put('outlineLevel', !!layout.levels.cols.get(col) && String(layout.levels.cols.get(col)));
     if (layout.collapsed.cols.has(col)) put('collapsed', layout.collapsed.cols.get(col)! && '1');
+    // A column grouped here is written with the sheet's width, as Excel writes one (truncated, as Excel does: 9.140625 for 64 pixels).
+    if ((attrs.outlineLevel || attrs.collapsed) && !attrs.width) attrs.width = String(Math.floor((layout.defaultColWidthPx / 7) * 256) / 256);
     at[col] = attrs;
   }
   // Back into runs of columns with the same attributes.

@@ -13,7 +13,7 @@ const REPORT = 0;
 const ABOVE = 1;
 const LOCKED = 2;
 
-const open = (b = bytes) => WorkbookSession.open(b, 'outline.xlsx', 'en-US');
+const open = (b: Uint8Array = bytes) => WorkbookSession.open(b, 'outline.xlsx', 'en-US');
 const reopen = (s: WorkbookSession) => open(s.save());
 const info = (s: WorkbookSession, sheet: number) => s.loadResult().sheets[sheet];
 const layout = (s: WorkbookSession, sheet: number, op: LayoutOp): EditResult => s.apply({ type: 'layout', sheet, op });
@@ -58,7 +58,7 @@ describe('outline changes', () => {
     const s = open();
     // Rows 10-11 grouped three deep, the first quarter's columns ungrouped, and South expanded.
     outline(s, REPORT, 'rows', { 9: 3, 10: 3 });
-    outline(s, REPORT, 'cols', { 1: 0, 2: 0, 3: 0 });
+    outline(s, REPORT, 'cols', { 1: 0, 2: 0, 3: 0, 12: 1 });
     outline(s, REPORT, 'rows', {}, { 6: false });
     layout(s, REPORT, { kind: 'hidden', axis: 'rows', lines: { 4: false, 5: false } });
     const xml = sheetXml(s, 1);
@@ -68,9 +68,11 @@ describe('outline changes', () => {
     // B:D, no longer grouped, are now written with E, which is like them.
     expect(xml).toMatch(/<col min="2" max="5" width="8.7109375" customWidth="1"\/>/);
     expect(xml).toMatch(/<col min="6" max="8" width="8.7109375" hidden="1" customWidth="1" outlineLevel="1"\/>/);
+    // A column that had no <col> of its own gets the sheet's width with its level, as Excel writes it.
+    expect(xml).toMatch(/<col min="13" max="13" outlineLevel="1" width="9.140625"\/>/);
     const t = info(reopen(s), REPORT);
     expect(t.outline!.rows).toEqual({ levels: { 1: 2, 2: 2, 3: 1, 4: 2, 5: 2, 6: 1, 9: 3, 10: 3 }, collapsed: [], summaryAfter: true });
-    expect(t.outline!.cols.levels).toEqual({ 5: 1, 6: 1, 7: 1 });
+    expect(t.outline!.cols.levels).toEqual({ 5: 1, 6: 1, 7: 1, 12: 1 });
     expect(t.hiddenRows).toEqual([]);
   });
 

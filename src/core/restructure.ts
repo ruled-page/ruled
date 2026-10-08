@@ -507,7 +507,8 @@ function shiftCols(head: string, op: LineOp): string {
   const COL = /<((?:\w+:)?col)\b([^>]*?)\/>/g;
   const span = (attrs: string) => [Number(/\smin="(\d+)"/.exec(attrs)?.[1]) - 1, Number(/\smax="(\d+)"/.exec(attrs)?.[1]) - 1];
   // Columns inserted inside a group join it, as Excel's do: a <col> spanning where they go
-  // takes them in; between two that end and start there, they need one of their own.
+  // takes them in; between two that end and start there, they need one of their own, like
+  // the column left of them, as Excel's take its width and format.
   let join = 0;
   if (op.type === 'insertCols') {
     const cols = [...head.matchAll(COL)].map((m) => ({ span: span(m[2]), level: outlineLevelOf(m[2]) }));
@@ -517,7 +518,10 @@ function shiftCols(head: string, op: LineOp): string {
   return head.replace(COL, (all, tag: string, attrs: string) => {
     const [min, max] = span(attrs);
     if (Number.isNaN(min) || Number.isNaN(max)) return all;
-    if (join && max === op.at - 1) return `${all}<${tag} min="${op.at + 1}" max="${op.at + op.count}" outlineLevel="${join}"/>`;
+    if (join && max === op.at - 1) {
+      const like = attrs.replace(/\s(min|max|outlineLevel|collapsed)="[^"]*"/g, '');
+      return `${all}<${tag} min="${op.at + 1}" max="${op.at + op.count}"${like} outlineLevel="${join}"/>`;
+    }
     let a = min;
     let b = max;
     if (op.type === 'insertCols') {
