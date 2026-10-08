@@ -8,7 +8,8 @@ import type { CalcReport } from '../src/core/types';
  * the way Excel writes them. Opening the workbook compares the engine with
  * every one, exactly as it does for real files, so the report says where the
  * engine and Excel agree. Data!A1:A10 = 1..10; B1:B5 = apple, Banana, cherry,
- * apple, date; E1:F4 = a 1, b 2, c 3, d 4; E6 is empty.
+ * apple, date; E1:F4 = a 1, b 2, c 3, d 4; E6 is empty. The Examples sheet
+ * holds the tables of Microsoft's examples.
  */
 type Expected = number | string | boolean | { error: string };
 const CASES: [string, Expected][] = [
@@ -132,7 +133,7 @@ const CASES: [string, Expected][] = [
   ['FV(0.06/12,10,-200,-500,1)', 2581.4033740601],
   ['NPV(0.1,-10000,3000,4200,6800)', 1188.4434123352207],
   ['IRR({-70000,12000,15000,18000,21000})', -0.021244848272],
-  // Functions the engine lacks, added for Excel's files; the rest use Excel's documented examples (Examples sheet).
+  // Functions added to the engine, mostly with Microsoft's documented examples (their data on the Examples sheet).
   ['LOOKUP(4.19,Examples!A1:A5,Examples!B1:B5)', 'orange'],
   ['LOOKUP(5.75,Examples!A1:A5,Examples!B1:B5)', 'yellow'],
   ['LOOKUP(7.66,Examples!A1:A5,Examples!B1:B5)', 'blue'],
