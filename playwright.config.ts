@@ -5,6 +5,8 @@ const CI = !!process.env.CI;
 const ANGULAR = !!process.env.E2E_ANGULAR;
 /** The packed library installed into a fresh React app; its test runs when asked for. */
 const HOST_APP = !!process.env.E2E_HOST_APP;
+/** With E2E_BROWSERS=all, the suite runs in Firefox and WebKit (Safari's engine) as well as Chromium. */
+const ALL_BROWSERS = process.env.E2E_BROWSERS === 'all';
 const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
 
 /**
@@ -63,5 +65,17 @@ export default defineConfig({
         ]
       : []),
   ],
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    ...(ALL_BROWSERS
+      ? [
+          // Firefox can't emulate a phone (no isMobile or touch), so the phone tests stay out. A
+          // project's testIgnore replaces the top-level one, so that list is carried over.
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] }, testIgnore: [...testIgnore, '**/mobile.spec.ts'] },
+          // The phone tests ask for a Pixel 7, whose settings would start Chromium; naming the
+          // browser keeps them in WebKit, at a Pixel 7's size and with touch.
+          { name: 'webkit', use: { ...devices['Desktop Safari'], browserName: 'webkit' as const } },
+        ]
+      : []),
+  ],
 });
