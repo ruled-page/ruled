@@ -43,3 +43,30 @@ test('draws charts from the cells, and redraws them as the cells change', async 
   await expect.poll(() => inked(line)).toBeGreaterThan(1000);
   await expect(line).toHaveAccessibleDescription(/^1 series\. Monthly revenue: Jan 2026 \$12,058\.50, Feb 2026 \$12,862\.25/);
 });
+
+/** The <workbook-editor> element of the HTML host page, given options and a workbook. */
+test('shows placeholders, and never loads the chart library, when the host turns charts off', async ({ page }) => {
+  const chartCode: string[] = [];
+  page.on('request', (r) => {
+    if (/ChartView/.test(r.url())) chartCode.push(r.url());
+  });
+  await page.goto('http://localhost:4174/examples/html/');
+  await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
+  await page.evaluate(() => {
+    const editor = document.createElement('workbook-editor');
+    editor.options = { warnOnUnload: false, features: { charts: false } };
+    editor.setAttribute('src', '/samples/kitchen-sink.xlsx');
+    document.getElementById('editor')!.replaceWith(editor);
+  });
+  await expect(page.getByRole('button', { name: 'Monthly Chart' })).toBeVisible();
+
+  const placeholder = page.locator('.object-chart').filter({ hasText: 'Share of revenue' });
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder).toContainText('Kept in file, not shown here');
+  await expect(page.locator('.objects-overlay canvas')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: /chart/ })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Monthly Chart' }).click();
+  await expect(page.getByText('Line chart “Monthly revenue 2026” fills this whole sheet.')).toBeVisible();
+  expect(chartCode).toEqual([]);
+});

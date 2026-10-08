@@ -18,7 +18,7 @@ class Fallback extends Component<{ fallback: ReactNode; children: ReactNode }, {
   }
 }
 
-/** A chart, drawn when the editor draws it; otherwise, and while the drawing loads, its placeholder. */
+/** A chart, drawn when chart drawing is on and it is a kind the editor draws; otherwise, and while the drawing loads, its placeholder. */
 export function ChartSlot({
   store,
   obj,
@@ -35,7 +35,7 @@ export function ChartSlot({
   /** A second drawing of the same chart, which screen readers skip. */
   copy?: boolean;
 }) {
-  if (!obj.chart || obj.chart.unsupported) return placeholder;
+  if (!store.features.charts || !obj.chart || obj.chart.unsupported) return placeholder;
   return (
     <Fallback fallback={placeholder}>
       <Suspense fallback={placeholder}>

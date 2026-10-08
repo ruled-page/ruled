@@ -202,6 +202,18 @@ the open, save, download or schema buttons when the host provides them), `user` 
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
 `onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`.
 
+`features` turns parts of the editor on and off; each is on unless set to
+`false`:
+
+| Feature | What it is |
+| --- | --- |
+| `open` | The Open button, the file picker and dropping a file on the editor |
+| `save` | The Save button and ⌘S / Ctrl+S |
+| `download` | With `onSave`, a separate button to download a copy |
+| `schemas` | The schema designer's button |
+| `report` | "What's in this file" and the banner that sums it up |
+| `charts` | Charts drawn from the workbook's current values. Off, they show as placeholders with their title, and the chart library (Chart.js, about 70 kB gzipped) is never loaded; on, it loads only when a workbook has a chart to draw |
+
 `onEvent` hears what the editor does, for a host's logging or analytics:
 `opened` (with how long it took), `openFailed`, `calculated` (how many
 formulas stay up to date), `saved` (what came of it, and how long it took)

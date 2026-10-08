@@ -152,6 +152,12 @@ export interface EditorFeatures {
    * in a template can turn it off. Default true.
    */
   report: boolean;
+  /**
+   * Charts drawn from the workbook's current values. The chart library loads
+   * only when a workbook has a chart to draw. Off, charts show as placeholders
+   * with their title. Default true.
+   */
+  charts: boolean;
 }
 
 export interface StoreOptions {
@@ -421,7 +427,7 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }
