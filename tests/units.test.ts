@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { planFill } from '../src/core/fill';
-import { displayFormula, makeShifter, toFileFormula, validateFormula } from '../src/core/formula';
+import { displayFormula, engineFormula, expandLets, makeShifter, toFileFormula, validateFormula } from '../src/core/formula';
 import { parseInput } from '../src/core/input';
 import { decodeOoxmlText, encodeOoxmlText } from '../src/core/xml';
 import { clipboardNumbers, parseClipboardText } from '../src/state/clipboard';
@@ -54,6 +54,24 @@ describe('formulas', () => {
   it('rejects malformed formulas', () => {
     expect(validateFormula('SUM(A1')).toBeTruthy();
     expect(validateFormula('SUM(A1:A3)')).toBeUndefined();
+  });
+
+  it('writes LET out for the engine, each name as its value in brackets, the innermost first', () => {
+    expect(expandLets('_xlfn.LET(_xlpm.revenue,F9,_xlpm.cost,_xlpm.revenue*0.6,_xlpm.revenue-_xlpm.cost)')).toBe('((F9)-((F9)*0.6))');
+    // Written without Excel's prefix, as some files have it.
+    expect(expandLets('LET(x, A1*2, x + x)')).toBe('((A1*2) + (A1*2))');
+    // A nested LET's own x is its own.
+    expect(expandLets('LET(x,1,LET(x,2,x)+x)')).toBe('(((2))+(1))');
+    expect(expandLets('SUM(A1:A3)')).toBe('SUM(A1:A3)');
+    expect(engineFormula('_xlfn.LET(_xlpm.n,A1,n*2)')).toBe('=((A1)*2)');
+  });
+
+  it('leaves a LET for Excel when it is volatile, malformed or too long once written out', () => {
+    expect(expandLets('LET(x,RAND(),x+x)')).toBeUndefined();
+    expect(expandLets('LET(x,1)')).toBeUndefined();
+    expect(expandLets('LET(1,2,3)')).toBeUndefined();
+    const doubling = Array.from({ length: 14 }, (_, i) => `x${i + 1},x${i}+x${i}`).join(',');
+    expect(expandLets(`LET(x0,A1,${doubling},x14)`)).toBeUndefined();
   });
 });
 

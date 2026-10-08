@@ -15,6 +15,9 @@ const ENGINE_ONLY = new Set(
   ).split(' '),
 );
 
+/** Excel functions the engine lacks that the editor writes out for it (expandLets). */
+const WRITTEN_OUT = new Set(['LET']);
+
 /** In Excel's file format but not offered by Excel as you type. */
 const NOT_OFFERED = new Set(['ECMA.CEILING', 'QUERYSTRING']);
 
@@ -26,10 +29,10 @@ beforeAll(() => {
 });
 
 describe('the functions offered while typing a formula', () => {
-  it("are marked calculated exactly when the worker's engine registers them", () => {
+  it("are marked calculated exactly when the worker's engine registers them, or the editor writes them out for it", () => {
     const names = knownFunctionNames();
     const calculated = names.filter((n) => functionHelp(n)!.calculated);
-    expect(calculated.filter((n) => !registered.has(n))).toEqual([]);
+    expect(calculated.filter((n) => !registered.has(n) && !WRITTEN_OUT.has(n))).toEqual([]);
     expect(names.filter((n) => !functionHelp(n)!.calculated && registered.has(n))).toEqual([]);
     // Everything the engine calculates is offered, except its own functions.
     expect([...registered].filter((n) => !ENGINE_ONLY.has(n) && !calculated.includes(n))).toEqual([]);
@@ -38,7 +41,8 @@ describe('the functions offered while typing a formula', () => {
 
   it("include every function Excel saves with the _xlfn. prefix, whether calculated or not", () => {
     expect([...FUTURE_FUNCTIONS].filter((n) => !NOT_OFFERED.has(n) && !functionHelp(n))).toEqual([]);
-    expect(functionHelp('LET')).toMatchObject({ calculated: false });
+    expect(functionHelp('LAMBDA')).toMatchObject({ calculated: false });
+    expect(functionHelp('LET')).toMatchObject({ calculated: true });
     expect(functionHelp('xlookup')).toMatchObject({ name: 'XLOOKUP', calculated: true });
   });
 

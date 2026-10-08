@@ -64,10 +64,11 @@ export function displayFormula(fileFormula: string): string {
  * TRUE() and FALSE() functions; it reads exponents only with a lower-case
  * "e" (1e+3, not 1E+3); and it can't read a quote doubled inside a string,
  * so "say ""hi""" becomes ("say "&CHAR(34)&"hi"&CHAR(34)&""), except in an
- * array constant, where & isn't allowed.
+ * array constant, where & isn't allowed. It has no LET either, which is
+ * written out (expandLets).
  */
 export function engineFormula(fileFormula: string): string {
-  let f = stripFunctionPrefixes(fileFormula);
+  let f = stripFunctionPrefixes(expandLets(fileFormula) ?? fileFormula);
   if (/TRUE|FALSE|\dE|""/i.test(f)) {
     try {
       let depth = 0;
@@ -92,6 +93,79 @@ export function engineFormula(fileFormula: string): string {
 
 function tokens(formula: string): Token[] {
   return tokenize(formula, { mergeRefs: true, allowTernary: false });
+}
+
+/**
+ * The arguments of the function call whose name is token `at`, as token
+ * ranges, and where its closing bracket is; undefined if it isn't closed.
+ */
+function callArgs(list: Token[], at: number): { args: [number, number][]; close: number } | undefined {
+  const args: [number, number][] = [];
+  let depth = 0;
+  let start = at + 2;
+  for (let k = at + 1; k < list.length; k++) {
+    const v = list[k].type === 'operator' ? list[k].value : '';
+    if (v === '(' || v === '{') depth++;
+    else if (v === ')' || v === '}') {
+      if (--depth === 0) {
+        args.push([start, k]);
+        return { args, close: k };
+      }
+    } else if (v === ',' && depth === 1) {
+      args.push([start, k]);
+      start = k + 1;
+    }
+  }
+  return undefined;
+}
+
+/** A LET or LAMBDA parameter's name as the formula uses it, with or without Excel's prefix. */
+const parameterName = (t: Token) => t.value.replace(/^_xlpm\./i, '').toUpperCase();
+
+/** Longer than this, a formula with its LETs written out is left for Excel to calculate. */
+const MAX_EXPANDED = 8192;
+
+const bracket = (inner: Token[]): Token[] => [{ type: 'operator', value: '(' } as Token, ...inner, { type: 'operator', value: ')' } as Token];
+
+/**
+ * The formula with every LET call written out, each name replaced by its
+ * value in brackets: LET(x, A1*2, x + x) is ((A1*2) + (A1*2)). That works
+ * out the same as long as nothing in a value is volatile. The innermost LET
+ * goes first, so a name a nested LET reuses means its own value there.
+ * Undefined when a LET can't be read, has a volatile value, or written out
+ * would be too long.
+ */
+export function expandLets(fileFormula: string): string | undefined {
+  if (!/LET\s*\(/i.test(fileFormula)) return fileFormula;
+  let list: Token[];
+  try {
+    list = tokens(fileFormula);
+  } catch {
+    return undefined;
+  }
+  // From the end: the last LET has no other inside it.
+  for (let at = list.length - 1; at >= 0; at--) {
+    if (list[at].type !== 'func' || stripFunctionPrefixes(list[at].value).toUpperCase() !== 'LET' || list[at + 1]?.value !== '(') continue;
+    const call = callArgs(list, at);
+    if (!call || call.args.length < 3 || call.args.length % 2 === 0) return undefined;
+    const values = new Map<string, Token[]>();
+    const written = ([a, b]: [number, number]) => {
+      // Without the spaces around the argument.
+      while (a < b && list[a].type === 'whitespace') a++;
+      while (b > a && list[b - 1].type === 'whitespace') b--;
+      return list.slice(a, b).flatMap((t) => (t.type === 'range_named' ? (values.get(parameterName(t)) ?? [t]) : [t]));
+    };
+    for (let n = 0; n < call.args.length - 1; n += 2) {
+      const name = list.slice(...call.args[n]).filter((t) => t.type !== 'whitespace');
+      if (name.length !== 1 || name[0].type !== 'range_named') return undefined;
+      const value = written(call.args[n + 1]);
+      if (value.some((t) => t.type === 'func' && VOLATILE.has(stripFunctionPrefixes(t.value).toUpperCase()))) return undefined;
+      values.set(parameterName(name[0]), bracket(value));
+    }
+    list = [...list.slice(0, at), ...bracket(written(call.args[call.args.length - 1])), ...list.slice(call.close + 1)];
+    if (list.reduce((n, t) => n + t.value.length, 0) > MAX_EXPANDED) return undefined;
+  }
+  return stringifyTokens(list);
 }
 
 /** Converts a formula typed by the user (without "=") into file form. */
@@ -122,25 +196,9 @@ function lambdaParameters(list: Token[]): Set<number> {
   for (let i = 0; i < list.length; i++) {
     const name = list[i].type === 'func' ? stripFunctionPrefixes(list[i].value).toUpperCase() : '';
     if ((name !== 'LET' && name !== 'LAMBDA') || list[i + 1]?.value !== '(') continue;
-    // The call's arguments, as token ranges, up to its closing parenthesis.
-    const args: [number, number][] = [];
-    let depth = 0;
-    let start = i + 2;
-    let end = list.length;
-    for (let k = i + 1; k < list.length; k++) {
-      const v = list[k].type === 'operator' ? list[k].value : '';
-      if (v === '(' || v === '{') depth++;
-      else if (v === ')' || v === '}') {
-        if (--depth === 0) {
-          args.push([start, k]);
-          end = k;
-          break;
-        }
-      } else if (v === ',' && depth === 1) {
-        args.push([start, k]);
-        start = k + 1;
-      }
-    }
+    const call = callArgs(list, i);
+    if (!call) continue;
+    const { args, close: end } = call;
     const declared = new Set<string>();
     args.slice(0, -1).forEach(([a, b], n) => {
       const solid = list.slice(a, b).filter((t) => t.type !== 'whitespace');

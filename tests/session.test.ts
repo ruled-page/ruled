@@ -74,8 +74,8 @@ describe('kitchen-sink.xlsx', () => {
     console.log(JSON.stringify({ ...report, updates: report.updates.length }, null, 1));
     expect(report.mismatched).toBe(0);
     const unsupported = report.unsupportedFunctions.map((x) => english.text(x)).join(' ');
-    expect(unsupported).toMatch(/LET/);
-    // CONCAT is calculated, and agrees with Excel.
+    // LET is written out for the engine, and agrees with Excel; so is CONCAT.
+    expect(unsupported).not.toMatch(/LET/);
     expect(unsupported).not.toMatch(/CONCAT/);
     // Table references are calculated, as the cells they stand for.
     expect(unsupported).not.toMatch(/Table references/);
@@ -93,10 +93,10 @@ describe('kitchen-sink.xlsx', () => {
     expect(r.rejected).toBeUndefined();
     expect(valueOf(updateAt(r.updates, s, 'Data', 'F2'))).toBeCloseTo((units + 10) * price);
     expect(valueOf(updateAt(r.updates, s, 'Summary', 'F9'))).toBeCloseTo(before + 10 * price);
-    // LET is not supported by the engine: it keeps Excel's value and turns stale,
-    // and so does the formula that reads it.
-    expect(has(updateAt(r.updates, s, 'Summary', 'B16')?.flags, CellFlag.Stale)).toBe(true);
-    expect(has(updateAt(r.updates, s, 'Summary', 'B17')?.flags, CellFlag.Stale)).toBe(true);
+    // LET recalculates, written out for the engine: revenue less 60% of it.
+    expect(valueOf(updateAt(r.updates, s, 'Summary', 'B16'))).toBeCloseTo((before + 10 * price) * 0.4);
+    expect(has(updateAt(r.updates, s, 'Summary', 'B16')?.flags, CellFlag.Stale)).toBe(false);
+    expect(has(updateAt(r.updates, s, 'Summary', 'B17')?.flags, CellFlag.Stale)).toBe(false);
     // A total over a table column recalculates.
     expect(loadedFormula(s, 'Lookups', 'B8')).toBe('SUM(SalesData[Revenue])');
     expect(valueOf(updateAt(r.updates, s, 'Lookups', 'B8'))).toBeCloseTo((loadedValue(s, 'Lookups', 'B8') as number) + 10 * price);
@@ -266,9 +266,10 @@ describe('engine verdicts reach the UI', () => {
   it('sends flags for formulas the engine cannot calculate', () => {
     const s = open('kitchen-sink.xlsx');
     const report = s.ensureEngine();
-    const b16 = updateAt(report.updates, s, 'Summary', 'B16');
-    expect(has(b16?.flags, CellFlag.Unsupported)).toBe(true);
-    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Summary')}:15:1`))).toMatch(/LET function/);
+    // An array formula entered with Ctrl+Shift+Enter over B15:D15.
+    const b15 = updateAt(report.updates, s, 'Lookups', 'B15');
+    expect(has(b15?.flags, CellFlag.Unsupported)).toBe(true);
+    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:14:1`))).toMatch(/array/);
   });
 });
 

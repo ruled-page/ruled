@@ -4,7 +4,7 @@ import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import { installEngineLimits, tooLargeToCalculate } from './engineLimits';
 import type { EngineValue } from './engineValue';
 import { registerExcelFunctions } from './excelFunctions';
-import { engineFormula, stripFunctionPrefixes } from './formula';
+import { engineFormula, expandLets, stripFunctionPrefixes } from './formula';
 import type { CellContent } from './types';
 
 let registered: Set<string> | undefined;
@@ -54,9 +54,12 @@ export function unsupportedReason(fileFormula: string): Unsupported | undefined 
   registerExcelFunctions();
   installEngineLimits();
   registered ??= new Set(HyperFormula.getRegisteredFunctionNames('enGB'));
+  // LET is written out for the engine; one that can't be is left for Excel.
+  const expanded = expandLets(fileFormula);
+  if (expanded === undefined) return { kind: 'function', name: 'LET' };
   let tokens;
   try {
-    tokens = tokenize(fileFormula, { mergeRefs: true, allowTernary: false });
+    tokens = tokenize(expanded, { mergeRefs: true, allowTernary: false });
   } catch {
     return { kind: 'syntax' };
   }

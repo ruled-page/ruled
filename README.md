@@ -825,7 +825,9 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   Excel saved. Table references (`Orders[Total]`, `[@Qty]`,
   `Orders[[#Totals],[Qty]]`) are handed to the engine as the cells they stand
   for (`src/core/tableRefs.ts`), while the file keeps them as written.
-  Formulas the engine can't parse or calculate (LET, LAMBDA, spills…) are
+  The engine has no LET either, so a LET is handed to it written out, each
+  name replaced by its value (`expandLets` in `src/core/formula.ts`).
+  Formulas the engine can't parse or calculate (LAMBDA, spills…) are
   given Excel's value instead, so formulas that depend on them still
   calculate correctly.
 - **Editing** (`session.ts`, `fill.ts`, `input.ts`): typed and pasted text is
