@@ -50,7 +50,7 @@ export interface WorkbookEditorElement extends HTMLElement {
    * re-creates the editor, closing the workbook.
    */
   options: StoreOptions;
-  /** Opens a workbook: true once open, false when the user kept the one already open; rejects saying why it can't. */
+  /** Opens a workbook or CSV file: true once open, false when the user kept the one already open; rejects saying why it can't. */
   open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<boolean>;
   /** Runs the save flow (schema checks, then the `save` event or a download), resolving with what happened. */
   save(): Promise<SaveResult>;
@@ -87,7 +87,7 @@ const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas'];
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
  *
- * Attributes: `src` (URL of a workbook to open), `file-name`, and
+ * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
  * Methods: open(), save(), downloadCopy(), getWorkbook(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser().

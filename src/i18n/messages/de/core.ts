@@ -15,6 +15,11 @@ export const core: Record<keyof typeof en, string> = {
   'core.open.macrosBlocked':
     'Diese Arbeitsmappe enthält Makros (VBA oder Excel 4.0-Makroblätter), die hier nicht zulässig sind. Speichern Sie sie in Excel als .xlsx, und öffnen Sie dann diese Datei.',
   'core.open.activeContentBlocked': 'Diese Arbeitsmappe enthält ActiveX-Steuerelemente oder eingebettete Objekte, die hier nicht zulässig sind.',
+  'core.csv.tooManyCells': 'Diese CSV-Datei hat mehr als {{max, number}} Werte; mehr kann dieser Editor nicht aufnehmen.',
+  'core.csv.tooManyRows': 'Diese CSV-Datei hat mehr als {{max, number}} Zeilen; mehr kann ein Tabellenblatt nicht aufnehmen.',
+  'core.csv.tooManyColumns': 'Diese CSV-Datei hat mehr als {{max, number}} Spalten; mehr kann ein Tabellenblatt nicht aufnehmen.',
+  'core.csv.valueTooLong':
+    'Zeile {{row, number}} dieser CSV-Datei enthält einen Wert mit mehr als {{max, number}} Zeichen; mehr kann eine Zelle nicht aufnehmen. Möglicherweise fehlt ein schließendes Anführungszeichen.',
 
   'core.finding.hiddenSheet.title': 'Ausgeblendetes Tabellenblatt „{{sheet}}“',
   'core.finding.hiddenSheet.detail': 'Bleibt in der Datei erhalten, wird aber wie in Excel nicht angezeigt.',

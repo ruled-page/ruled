@@ -51,6 +51,7 @@ import {
 } from './types';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
+import { csvPackage, isCsvFile } from './csvWorkbook';
 import { restructure } from './restructure';
 import { refMapFor, type StructuralOp } from './refTransform';
 import { OoxmlPackage, type PackageLimits } from './zip';
@@ -301,8 +302,9 @@ export class WorkbookSession {
   /** Per sheet: its layout, once a row, column, pane or merge has been changed. */
   private layouts: (SheetLayout | undefined)[] = [];
 
-  /** The name the saved file should have; macro-free files can't keep .xlsm. */
+  /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
+    if (isCsvFile(this.fileName)) return this.fileName.replace(/\.\w+$/, '.xlsx');
     return this.stripMacros ? this.fileName.replace(/\.xlsm$/i, '.xlsx') : this.fileName;
   }
 
@@ -325,9 +327,11 @@ export class WorkbookSession {
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
     const t0 = performance.now();
-    const pkg = OoxmlPackage.open(bytes, options.limits);
-    const t1 = performance.now();
     const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
+    // A CSV file becomes a workbook package of one sheet, so it is edited and saved like any other.
+    const csv = isCsvFile(fileName);
+    const pkg = csv ? csvPackage(bytes, fileName, locale, maxCells, options.limits) : OoxmlPackage.open(bytes, options.limits);
+    const t1 = performance.now();
     const model = readWorkbook(pkg, locale, { left: maxCells, max: maxCells });
     const t2 = performance.now();
     const cells = model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
@@ -348,7 +352,7 @@ export class WorkbookSession {
     }
     const session = new WorkbookSession(
       pkg,
-      bytes,
+      csv ? null : bytes,
       fileName,
       model,
       { unzipMs: Math.round(t1 - t0), parseMs: Math.round(t2 - t1) },

@@ -68,7 +68,7 @@ export interface WorkbookEditorProps {
   className?: string;
 }
 
-function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; canOpen: boolean }) {
+function DefaultEmptyState({ openPicker, canOpen, csv }: { openPicker: () => void; canOpen: boolean; csv: boolean }) {
   const t = useT();
   return (
     <div className="wbe-center-state">
@@ -78,7 +78,7 @@ function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; ca
           <span>
             <Trans i18nKey="editor.chooseWorkbook" components={{ b: <strong /> }} />
           </span>
-          <span className="wbe-muted">{t('editor.chooseWorkbookNote')}</span>
+          <span className="wbe-muted">{t(csv ? 'editor.chooseWorkbookNoteCsv' : 'editor.chooseWorkbookNote')}</span>
         </button>
       ) : (
         <p className="wbe-muted">{t('editor.noWorkbook')}</p>
@@ -230,7 +230,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   };
 
   const openFile = async (file: File | undefined) => {
-    if (file) await store.open(file.name, await file.arrayBuffer());
+    if (file) await store.open(file.name, await file.arrayBuffer(), { csv: store.features.csv });
   };
 
   const view = store.view;
@@ -261,7 +261,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
         <input
           ref={fileInput}
           type="file"
-          accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept={`.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet${store.features.csv ? ',.csv,.tsv,.txt,text/csv,text/tab-separated-values' : ''}`}
           hidden
           onChange={(e) => {
             void openFile(e.target.files?.[0]);
@@ -285,7 +285,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
               {t('editor.sheetHint', { key: shortcutsKey(t) })}
             </p>
           )}
-          {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
+          {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} csv={store.features.csv} />)}
           {store.status === 'loading' && (
             <div className="wbe-center-state" role="status">
               <span className="wbe-spinner" aria-hidden="true" />

@@ -8,6 +8,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.open.discardBody': 'Sie haben nicht gespeicherte Änderungen in {{fileName}}. Wenn Sie eine andere Datei öffnen, werden sie verworfen.',
   'store.open.discardConfirm': 'Verwerfen und öffnen',
   'store.open.notExcel': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) können geöffnet werden.',
+  'store.open.notSupported': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) und CSV-Dateien (.csv, .tsv oder .txt) können geöffnet werden.',
   'store.open.reading': '{{fileName}} wird gelesen…',
 
   'store.draft.title': 'Nicht gespeicherte Änderungen wiederherstellen?',

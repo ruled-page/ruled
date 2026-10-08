@@ -25,7 +25,16 @@ export function localeInfo(locale: string | undefined): LocaleInfo {
   return info;
 }
 
-const SLASH_DATE = /^\s*(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})(\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)?\s*$/;
+/**
+ * Windows' list separator for a locale, which Excel uses as the delimiter
+ * when it saves CSV: a semicolon where decimals are written with a comma, and
+ * in Switzerland; a comma elsewhere.
+ */
+export function listSeparator(locale: string | undefined): ',' | ';' {
+  return localeInfo(locale).decimalComma || /-CH\b/i.test(locale ?? '') ? ';' : ',';
+}
+
+const SLASH_DATE =/^\s*(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})(\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)?\s*$/;
 
 function expandYear(y: string): number {
   if (y.length === 4) return Number(y);

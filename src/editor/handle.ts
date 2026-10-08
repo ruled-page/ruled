@@ -9,7 +9,8 @@ import type { EditorTheme } from './theme';
  */
 export interface EditorHandle {
   /**
-   * Opens a workbook from its bytes. Resolves true once it is open, and false
+   * Opens a workbook from its bytes, or a CSV file (.csv, .tsv or .txt, by
+   * its name) as a workbook of one sheet. Resolves true once it is open, and false
    * when the user chose to keep the workbook already open, with its unsaved
    * changes. Rejects, saying why, when the file can't be opened; the editor
    * shows the reason too. The bytes are copied, so the caller's stay usable.

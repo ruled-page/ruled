@@ -51,7 +51,7 @@ export function builtinNumFmt(id: number, locale: string): string {
 }
 
 /** Builtin id for a format code, when Excel has one. */
-function builtinIdFor(code: string): number | undefined {
+export function builtinIdFor(code: string): number | undefined {
   for (const [id, c] of Object.entries(BUILTIN_NUMFMTS)) {
     if (c === code && id !== '14' && id !== '22') return Number(id);
   }

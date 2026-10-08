@@ -48,7 +48,7 @@ describe('the editor handle', () => {
     await create();
     await expect(editor.open(new TextEncoder().encode('not a workbook'), 'x.xlsx')).rejects.toThrow('This file is not an Excel workbook (.xlsx or .xlsm).');
     expect(editor.status).toBe('error');
-    await expect(editor.open(bytes, 'notes.txt')).rejects.toThrow(/\.xlsx/);
+    await expect(editor.open(bytes, 'notes.pdf')).rejects.toThrow(/\.xlsx/);
   });
 
   it('says what saving came to', async () => {

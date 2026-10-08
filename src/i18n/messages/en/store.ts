@@ -6,6 +6,7 @@ export const store = {
   'store.open.discardBody': 'You have unsaved changes in {{fileName}}. Opening another file discards them.',
   'store.open.discardConfirm': 'Discard and open',
   'store.open.notExcel': 'Only Excel workbooks (.xlsx or .xlsm) can be opened.',
+  'store.open.notSupported': 'Only Excel workbooks (.xlsx or .xlsm) and CSV files (.csv, .tsv or .txt) can be opened.',
   'store.open.reading': 'Reading {{fileName}}…',
 
   'store.draft.title': 'Restore unsaved changes?',

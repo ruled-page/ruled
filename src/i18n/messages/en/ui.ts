@@ -388,6 +388,7 @@ export const ui = {
     'Arrow keys and Tab move between cells; type to replace a cell, or press Enter to edit it. Shift+F10 opens the cell menu, F6 moves to the next part of the editor, and {{key}} lists every shortcut.',
   'editor.chooseWorkbook': '<b>Choose a workbook</b> or drop it here',
   'editor.chooseWorkbookNote': '.xlsx or .xlsm, processed entirely in your browser',
+  'editor.chooseWorkbookNoteCsv': '.xlsx, .xlsm or .csv, processed entirely in your browser',
   'editor.noWorkbook': 'No workbook is open.',
   'editor.reopen': 'Reopen {{fileName}}',
   'editor.drawingFailed': 'Something went wrong showing the workbook. Your changes are kept.',

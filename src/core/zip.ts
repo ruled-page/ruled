@@ -89,6 +89,13 @@ export class OoxmlPackage {
     return new OoxmlPackage(files, order);
   }
 
+  /** A package built in memory from the text of its parts, in the order given. */
+  static fromParts(parts: Record<string, string>): OoxmlPackage {
+    const files = new Map<string, Uint8Array>();
+    for (const [path, text] of Object.entries(parts)) files.set(path, strToU8(text));
+    return new OoxmlPackage(files, Object.keys(parts));
+  }
+
   /** Decodes a part, checking once that an XML part isn't cut off mid-tag. */
   private decode(path: string, data: Uint8Array): string {
     const s = decoder.decode(data);

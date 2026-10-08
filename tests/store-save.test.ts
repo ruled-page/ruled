@@ -387,11 +387,15 @@ describe('schema checks before saving', () => {
 });
 
 describe('opening a workbook', () => {
-  it('refuses files that are not Excel workbooks by name', async () => {
+  it('refuses files that are not Excel workbooks or CSV files by name, and CSV files when told to', async () => {
     store = await testStore();
-    await store.open('notes.csv', new ArrayBuffer(4));
+    await store.open('notes.pdf', new ArrayBuffer(4));
+    await store.open('notes.csv', new ArrayBuffer(4), { csv: false });
     expect(store.status).toBe('empty');
-    expect(toasts()).toEqual(['Only Excel workbooks (.xlsx or .xlsm) can be opened.']);
+    expect(toasts()).toEqual([
+      'Only Excel workbooks (.xlsx or .xlsm) and CSV files (.csv, .tsv or .txt) can be opened.',
+      'Only Excel workbooks (.xlsx or .xlsm) can be opened.',
+    ]);
   });
 
   it('shows why a file could not be opened', async () => {

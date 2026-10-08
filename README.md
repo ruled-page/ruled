@@ -61,6 +61,8 @@ back as .xlsx without losing what the editor can't display.
   for review before saving.
 - Dates and decimals are read in the user's locale (`3/4/2026` is 3 April in
   the UK, `1.234,5` is 1234.5 in Germany).
+- CSV files (.csv, and tab-separated .tsv and .txt) open as a workbook of one
+  sheet, which saves as .xlsx; see [CSV files](#csv-files).
 - A Changes panel lists every cell that differs from the opened file, old and
   new value, and a timestamped history of actions. Unsaved edits are kept in
   the browser and offered back if the same file is reopened after a crash or
@@ -236,6 +238,7 @@ element with id `wbe-portal` that the editor adds to the page.
 | `report` | "What's in this file" and the banner that sums it up |
 | `charts` | Charts drawn from the workbook's current values. Off, they show as placeholders with their title, and the chart library (Chart.js, about 70 kB gzipped) is never loaded; on, it loads only when a workbook has a chart to draw |
 | `format` | The format bar, for fonts, colours, borders, alignment and number formats; hosts whose users only fill in values can leave it out |
+| `csv` | CSV files (.csv, .tsv and .txt) in the Open button and when dropped |
 
 `onEvent` hears what the editor does, for a host's logging or analytics:
 `opened` (with how long it took), `openFailed`, `calculated` (how many
@@ -399,6 +402,43 @@ Screen readers hear each cell as it is shown (the value, not the formula,
 which the formula bar has), followed by any schema problem the grid marks in
 colour, e.g. "twelve, error: Expected a number."; loading, messages and
 errors are announced. The default and demo themes meet WCAG AA contrast.
+
+## CSV files
+
+The Open button, dropping a file, `open(bytes, fileName)` and the element's
+`src` all take `.csv`, `.tsv` and `.txt` files. One opens as a workbook of a
+single sheet named after the file, read the way Excel reads a CSV file in
+the user's `locale`:
+
+- The encoding comes from a byte order mark (UTF-8, or UTF-16 either way
+  round); without one, the file is read as UTF-8 if it is valid UTF-8 and as
+  Windows-1252 otherwise.
+- The delimiter is the one Excel's `sep=;` first line names, if there is
+  one; a tab for `.tsv`; otherwise whichever of tab, semicolon and comma
+  splits the first hundred records most consistently. When more than one
+  fits equally well the locale's list separator wins (Excel always uses the
+  list separator, a semicolon where decimals are written with a comma).
+- Fields follow RFC 4180: quoted fields can hold delimiters, doubled quotes
+  and line breaks; lines can end CRLF, LF or CR; empty lines are empty rows.
+- Values are read like typed input: numbers, percentages, currencies, dates,
+  times, TRUE and FALSE and error values, with the number format they imply.
+  As in Excel, `007` becomes 7 and digits past the fifteenth are lost, so
+  codes with leading zeros and long IDs don't survive a CSV file.
+- **Unlike Excel, nothing becomes a formula.** A field starting with `=`
+  stays text, as do fields starting with `+`, `-` or `@` that aren't
+  numbers: a CSV file is data from elsewhere, and cells that run when the
+  file is opened are a known way to attack people. A leading apostrophe is
+  kept as part of the text, as Excel keeps it in a CSV file.
+- The limits for workbooks apply: the file's size (`maxFileBytes`) and its
+  number of values (`maxCells`). More rows or columns than a sheet has, or a
+  value longer than a cell's 32,767 characters (usually a quote that is never
+  closed), are refused with a message saying so, where Excel would open part
+  of the file.
+
+Saving writes .xlsx, named after the CSV file (`prices.csv` saves as
+`prices.xlsx`). Editing, drafts, schemas and checks work as for any workbook.
+`features: { csv: false }` stops the Open button and dropping from taking CSV
+files; `open()` still does.
 
 ## Checking it on real files
 

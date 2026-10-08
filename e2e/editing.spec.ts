@@ -113,10 +113,10 @@ test.describe('editing a workbook', () => {
   });
 });
 
-test('refuses files that are not workbooks', async ({ page }) => {
+test('refuses files that are not workbooks or CSV files', async ({ page }) => {
   await page.goto('/');
-  await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
-  await expect(page.getByText('Only Excel workbooks (.xlsx or .xlsm) can be opened.')).toBeVisible();
+  await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles({ name: 'notes.pdf', mimeType: 'application/pdf', buffer: Buffer.from('hello') });
+  await expect(page.getByText('Only Excel workbooks (.xlsx or .xlsm) and CSV files (.csv, .tsv or .txt) can be opened.')).toBeVisible();
 });
 
 test('opens the file picker from the keyboard', async ({ page }) => {

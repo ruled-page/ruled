@@ -386,6 +386,7 @@ export const ui: Record<keyof typeof en, string> = {
     'Pfeiltasten und Tab wechseln zwischen Zellen; tippen Sie, um eine Zelle zu ersetzen, oder drücken Sie die Eingabetaste, um sie zu bearbeiten. Umschalt+F10 öffnet das Zellmenü, F6 wechselt zum nächsten Teil des Editors, und {{key}} listet alle Tastenkombinationen auf.',
   'editor.chooseWorkbook': '<b>Arbeitsmappe auswählen</b> oder hier ablegen',
   'editor.chooseWorkbookNote': '.xlsx oder .xlsm, vollständig in Ihrem Browser verarbeitet',
+  'editor.chooseWorkbookNoteCsv': '.xlsx, .xlsm oder .csv, vollständig in Ihrem Browser verarbeitet',
   'editor.noWorkbook': 'Es ist keine Arbeitsmappe geöffnet.',
   'editor.reopen': '{{fileName}} erneut öffnen',
   'editor.drawingFailed': 'Beim Anzeigen der Arbeitsmappe ist ein Fehler aufgetreten. Ihre Änderungen bleiben erhalten.',

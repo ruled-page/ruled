@@ -13,6 +13,11 @@ export const core = {
   'core.open.tooManyCells': 'This workbook has more than {{max, number}} cells, the most this editor can hold.',
   'core.open.macrosBlocked': "This workbook contains macros (VBA or Excel 4.0 macro sheets), which aren't allowed here. Save it as .xlsx in Excel and open that instead.",
   'core.open.activeContentBlocked': "This workbook contains ActiveX controls or embedded objects, which aren't allowed here.",
+  'core.csv.tooManyCells': 'This CSV file has more than {{max, number}} values, the most this editor can hold.',
+  'core.csv.tooManyRows': 'This CSV file has more than {{max, number}} rows, the most a sheet can hold.',
+  'core.csv.tooManyColumns': 'This CSV file has more than {{max, number}} columns, the most a sheet can hold.',
+  'core.csv.valueTooLong':
+    'Row {{row, number}} of this CSV file has a value longer than {{max, number}} characters, the most a cell can hold. A quote may be missing its closing quote.',
 
   // "What's in this file": what the workbook holds that the editor keeps but doesn't show.
   'core.finding.hiddenSheet.title': 'Hidden sheet "{{sheet}}"',

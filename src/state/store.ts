@@ -28,6 +28,7 @@ import {
   type ValidationAlert,
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
+import { CSV_FILE } from '../core/csv';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
@@ -168,6 +169,8 @@ export interface EditorFeatures {
    * Hosts whose users only fill in values can turn it off. Default true.
    */
   format: boolean;
+  /** CSV files: the Open button and dropping take .csv, .tsv and .txt files as well as workbooks. Default true. */
+  csv: boolean;
 }
 
 export interface StoreOptions {
@@ -446,7 +449,7 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }
@@ -727,11 +730,13 @@ export class WorkbookStore {
   // Opening and saving
 
   /**
-   * Opens a workbook: whether it opened, or why not. The user can decline to
-   * discard edits to the workbook already open; a file that can't be read
-   * leaves the editor showing why.
+   * Opens a workbook, or a CSV file as a workbook of one sheet: whether it
+   * opened, or why not. The user can decline to discard edits to the workbook
+   * already open; a file that can't be read leaves the editor showing why.
+   * `csv: false` refuses CSV files (the editor's own Open button and drop
+   * pass the `csv` feature).
    */
-  async open(fileName: string, bytes: ArrayBuffer): Promise<OpenResult> {
+  async open(fileName: string, bytes: ArrayBuffer, { csv = true }: { csv?: boolean } = {}): Promise<OpenResult> {
     if (this.editedCount > 0 && !(await this.confirm({
       title: msg('store.open.discardTitle'),
       body: msg('store.open.discardBody', { fileName: this.fileName }),
@@ -739,9 +744,10 @@ export class WorkbookStore {
     }))) {
       return { opened: false, cancelled: true };
     }
-    if (!/\.xls[xm]$/i.test(fileName)) {
-      this.toast('error', msg('store.open.notExcel'));
-      return { opened: false, error: msg('store.open.notExcel') };
+    if (!/\.xls[xm]$/i.test(fileName) && !(csv && CSV_FILE.test(fileName))) {
+      const error = msg(csv ? 'store.open.notSupported' : 'store.open.notExcel');
+      this.toast('error', error);
+      return { opened: false, error };
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
     return this.load(fileName, bytes);
