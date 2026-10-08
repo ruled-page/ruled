@@ -78,6 +78,7 @@ test.describe('typing a formula in the formula bar', () => {
   test('keeps the highlighted function in view in a long list, and goes round from the top to the bottom', async ({ page }) => {
     await page.keyboard.type('=C');
     const options = page.getByRole('listbox').getByRole('option');
+    await expect(options.first()).toBeVisible();
     expect(await options.count()).toBeGreaterThan(40);
     await expect(options.last()).not.toBeInViewport();
     await page.keyboard.press('ArrowUp');

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { MAX_COLS, MAX_ROWS } from '../src/core/refs';
 import {
   argumentAt,
@@ -6,10 +6,13 @@ import {
   cycleReference,
   formulaReferences,
   insertFunction,
+  loadFunctionHelp,
   REF_COLORS,
   signature,
   toggleAbsolute,
 } from '../src/core/formulaAssist';
+
+beforeAll(() => loadFunctionHelp());
 import { functionHelp } from '../src/core/functionCatalog';
 
 /** The text with "|" marking the caret, split into the text and the caret's position. */

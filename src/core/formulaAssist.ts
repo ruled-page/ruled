@@ -1,6 +1,6 @@
 import { parseA1Ref, tokenize, type Token } from '@borgar/fx';
 import { stripFunctionPrefixes } from './formula';
-import { functionHelp, functionsStartingWith, type FunctionHelp } from './functionCatalog';
+import type { FunctionHelp } from './functionCatalog';
 import { MAX_COLS, MAX_ROWS } from './refs';
 import type { Rect } from './types';
 
@@ -11,6 +11,24 @@ import type { Rect } from './types';
  * reference between relative and absolute. Formulas here are as typed,
  * starting with "=".
  */
+
+/**
+ * The list of functions, with their arguments and descriptions, loaded the
+ * first time a formula is typed, so pages that never see one don't carry it.
+ * Until it has loaded, no functions are offered or hinted at.
+ */
+let catalog: typeof import('./functionCatalog') | undefined;
+let loading: Promise<void> | undefined;
+
+/** Loads the list of functions; resolves at once when it is there already. */
+export function loadFunctionHelp(): Promise<void> {
+  return (loading ??= import('./functionCatalog').then((m) => {
+    catalog = m;
+  }));
+}
+
+/** Whether the list of functions has loaded. */
+export const functionHelpLoaded = () => catalog !== undefined;
 
 /** How many colours references are given in turn; the theme has a --wbe-formula-ref token for each. */
 export const REF_COLORS = 7;
@@ -87,7 +105,7 @@ export function completionAt(text: string, caret: number): Completion | undefine
   const start = caret - word.length;
   if (start > 1 && !BEFORE_NAME.test(text[start - 1])) return undefined;
   if (contextAt(text, start).literal) return undefined;
-  const matches = functionsStartingWith(word);
+  const matches = catalog?.functionsStartingWith(word) ?? [];
   return matches.length ? { start, end: caret, matches } : undefined;
 }
 
@@ -103,7 +121,7 @@ export function argumentAt(text: string, caret: number): { fn: FunctionHelp; sta
   const { calls } = contextAt(text, caret);
   // Inside plain brackets, the hint is still for the function around them.
   for (let i = calls.length - 1; i >= 0; i--) {
-    const fn = calls[i].name && functionHelp(calls[i].name!);
+    const fn = calls[i].name && catalog?.functionHelp(calls[i].name!);
     if (fn) return { fn, start: calls[i].start, index: calls[i].arg };
     if (calls[i].name) return undefined;
   }

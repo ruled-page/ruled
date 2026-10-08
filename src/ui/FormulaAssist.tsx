@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type Keyboard
 import {
   argumentAt,
   completionAt,
+  functionHelpLoaded,
+  loadFunctionHelp,
   formulaReferences,
   insertFunction,
   signature,
@@ -36,15 +38,20 @@ export interface FormulaAssist {
 /** The help for a field holding `text` with the selection from `start` to `end`; off, it gives none. */
 export function useFormulaAssist(text: string, start: number, end: number, on: boolean): FormulaAssist {
   const formula = on && text.startsWith('=');
+  // The functions' list loads with the first formula; once it has, the help below is worked out again.
+  const [loaded, setLoaded] = useState(functionHelpLoaded);
+  useEffect(() => {
+    if (formula && !loaded) void loadFunctionHelp().then(() => setLoaded(true));
+  }, [formula, loaded]);
   // The list is offered only straight after typing, as in Excel: moving the caret or Escape closes it.
   const [typedAt, setTypedAt] = useState<{ text: string; caret: number }>();
   const [picked, setPicked] = useState({ word: '', index: 0 });
   const caret = start === end ? end : -1;
   const completion = useMemo(
-    () => (formula && typedAt?.text === text && typedAt.caret === caret ? completionAt(text, caret) : undefined),
-    [formula, typedAt, text, caret],
+    () => (formula && loaded && typedAt?.text === text && typedAt.caret === caret ? completionAt(text, caret) : undefined),
+    [formula, loaded, typedAt, text, caret],
   );
-  const hint = useMemo(() => (formula ? argumentAt(text, end) : undefined), [formula, text, end]);
+  const hint = useMemo(() => (formula && loaded ? argumentAt(text, end) : undefined), [formula, loaded, text, end]);
   const refs = useMemo(() => (formula ? formulaReferences(text) : []), [formula, text]);
   // Each new word starts at the top of its list.
   const word = completion ? text.slice(completion.start, completion.end) : '';

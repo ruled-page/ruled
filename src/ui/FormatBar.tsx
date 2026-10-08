@@ -38,7 +38,8 @@ const BORDERS: BorderPlacement[] = ['all', 'outside', 'inside', 'top', 'bottom',
 export function FormatBar({ store }: { store: WorkbookStore }) {
   const t = useT();
   const view = store.view;
-  const disabled = store.status !== 'ready' || view?.info.kind !== 'worksheet' || store.busy;
+  // Not while an edit is in flight: changes queue behind it, and a button that disabled itself would drop the focus.
+  const disabled = store.status !== 'ready' || view?.info.kind !== 'worksheet';
   const s = store.activeStyle;
   const sizePt = Math.round(((s.fontSizePx * 3) / 4) * 2) / 2;
   const kind = numberFormatKind(s.numFmt, store.locale);
