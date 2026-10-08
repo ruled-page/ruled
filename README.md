@@ -8,7 +8,7 @@ back as .xlsx without losing what the editor can't display.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill (series,
   dates, months, "Item 1" → "Item 2"), clear, undo and redo.
-- Formulas recalculate live as you edit (HyperFormula, about 385 of Excel's functions).
+- Formulas recalculate live as you edit (HyperFormula, about 465 of Excel's functions).
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
   open.
