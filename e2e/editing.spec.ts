@@ -26,7 +26,8 @@ test.describe('editing a workbook', () => {
     await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('C4');
   });
 
-  test('pastes from Excel with the exact values behind the rounded text', async ({ page }) => {
+  test('pastes from Excel with the exact values behind the rounded text', async ({ page, browserName }) => {
+    test.skip(browserName === 'firefox', 'Firefox gives a paste event made by a script its own empty clipboard data.');
     await goTo(page, 'C2');
     // What Excel puts on the clipboard for a price shown as 0.33 but worth a third.
     await page.evaluate(() => {
