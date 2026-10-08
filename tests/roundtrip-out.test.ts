@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { strToU8 } from 'fflate';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
-import { parseA1 } from '../src/core/refs';
-import type { CommentChange, LayoutOp } from '../src/core/types';
+import { parseA1, quoteSheetName } from '../src/core/refs';
+import type { CommentChange, LayoutOp, NameChange } from '../src/core/types';
 import { open, sample, sheetIndex } from './helpers';
 
 /**
@@ -59,6 +59,23 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   tf.apply({ type: 'layout', sheet: orders.info.index, op: { kind: 'filter', filter: { rect, columns: { [rect.c1]: ['Nuts'] }, table: 'Orders' }, rows: [rect.r1 + 1] } });
   write('templates.filtered.xlsx', tf);
 
+  // Defined names: one changed, one deleted, one renamed where formulas use it, and new ones for the workbook and for a sheet.
+  const n = open('orders.xlsx');
+  const name = (change: NameChange) => n.apply({ type: 'name', change });
+  name({ from: { name: 'MaxDiscount' }, to: { name: 'MaxDiscount', formula: 'Lists!$I$3', comment: 'Highest discount & "rules"\non two lines' } });
+  name({ from: { name: 'Gizmo' }, to: null });
+  name({ from: { name: 'Widget' }, to: { name: 'Widgets', formula: 'Lists!$E$2:$E$4' } });
+  name({ to: { name: 'Everything', formula: 'Lists!$C$2:$G$5' } });
+  name({ to: { name: 'First', formula: `${quoteSheetName(n.model.sheets[0].info.name)}!$A$1`, localSheet: 0 } });
+  write('orders.names.xlsx', n);
+  // A workbook without names gets the element that holds them.
+  for (const [file, rename] of [['budget.xlsx', ''], ['kitchen-sink.xlsx', 'TaxRate']] as const) {
+    const b = open(file);
+    if (rename) b.apply({ type: 'name', change: { from: { name: rename }, to: { name: 'Tax_Rate', formula: b.model.names[0].formula } } });
+    b.apply({ type: 'name', change: { to: { name: 'Start', formula: `${quoteSheetName(b.model.sheets[0].info.name)}!$A$1:$B$2` } } });
+    write(file.replace('.xlsx', '.names.xlsx'), b);
+  }
+
   const p = open('pivot.xlsx');
   p.apply({ type: 'input', sheet: 0, ...at('E2'), text: '=C2*D2*2' });
   p.apply({ type: 'input', sheet: 0, ...at('C10'), text: '77' });
@@ -75,6 +92,8 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   t.apply({ type: 'input', sheet: arrays, ...at('J1'), text: '=LET(a,2,b,a*Budget,b+1)' });
   t.apply({ type: 'input', sheet: arrays, ...at('K1'), text: '=MAP(Orders[Qty],LAMBDA(q,q*2))' });
   t.apply({ type: 'input', sheet: arrays, ...at('L1'), text: '=A2:A4&"!"' });
+  // A name defined here follows the row inserted below.
+  t.apply({ type: 'name', change: { to: { name: 'Quantities', formula: 'Lines!$C$2:$C$4', localSheet: lines } } });
   write('templates.typed.xlsx', t);
   write('templates.row-inserted.xlsx', t.restructure({ type: 'insertRows', sheet: lines, at: 2, count: 1 }));
 

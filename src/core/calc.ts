@@ -124,6 +124,17 @@ export function toRaw(content: CellContent): RawCellContent {
   }
 }
 
+/**
+ * A name's formula as the engine takes it, or undefined for names it leaves
+ * out: Excel's own (print areas and the like), broken references, and
+ * ranges so large that formulas using them would get past the size limits.
+ */
+function nameExpression(n: EngineName): string | undefined {
+  if (n.name.startsWith('_xlnm.') || /#REF!/.test(n.formula)) return undefined;
+  if (unsupportedReason(n.formula)?.kind === 'tooLarge') return undefined;
+  return engineFormula(n.formula);
+}
+
 function convert(v: unknown): EngineValue {
   if (v instanceof DetailedCellError) return { error: v.value, message: v.message };
   if (v === undefined || v === null) return null;
@@ -178,13 +189,11 @@ export class CalcEngine {
     );
     const valid: SerializedNamedExpression[] = [];
     for (const n of names) {
-      if (n.name.startsWith('_xlnm.') || /#REF!/.test(n.formula)) continue;
-      // A name over a huge range would let formulas that use it past the size limits.
-      if (unsupportedReason(n.formula)?.kind === 'tooLarge') continue;
+      const expression = nameExpression(n);
+      if (expression === undefined) continue;
       const scopeName = n.localSheet !== undefined ? sheets[n.localSheet]?.name : undefined;
       if (n.localSheet !== undefined && !scopeName) continue;
       const scope = scopeName !== undefined ? probe.getSheetId(scopeName) : undefined;
-      const expression = engineFormula(n.formula);
       try {
         if (probe.isItPossibleToAddNamedExpression(n.name, expression, scope)) {
           probe.addNamedExpression(n.name, expression, scope);
@@ -252,18 +261,48 @@ export class CalcEngine {
   /** Applies writes in one batch and returns every cell whose value changed. */
   write(writes: EngineWrite[]): EngineChange[] {
     if (!writes.length) return [];
-    const changes = this.hf.batch(() => {
-      for (const w of writes) {
-        const id = this.ids[w.sheet];
-        if (id === undefined || id < 0) continue;
-        try {
-          this.hf.setCellContents({ sheet: id, row: w.row, col: w.col }, w.raw);
-        } catch {
-          // Content the engine rejects (e.g. an unparseable formula) is stored as text.
-          this.hf.setCellContents({ sheet: id, row: w.row, col: w.col }, "'" + String(w.raw));
+    return this.cellChanges(
+      this.hf.batch(() => {
+        for (const w of writes) {
+          const id = this.ids[w.sheet];
+          if (id === undefined || id < 0) continue;
+          try {
+            this.hf.setCellContents({ sheet: id, row: w.row, col: w.col }, w.raw);
+          } catch {
+            // Content the engine rejects (e.g. an unparseable formula) is stored as text.
+            this.hf.setCellContents({ sheet: id, row: w.row, col: w.col }, "'" + String(w.raw));
+          }
         }
+      }),
+    );
+  }
+
+  /**
+   * Defines a name, replacing the one of that name and scope, or removes it
+   * (formula null). Formulas that use it recalculate, showing #NAME? once it
+   * is gone, as in Excel. `held` is false when the engine can't take the
+   * name, which is then left out as names are when the engine is built.
+   */
+  setName(name: string, localSheet: number | undefined, formula: string | null): { changes: EngineChange[]; held: boolean } {
+    const scope = localSheet === undefined ? undefined : this.ids[localSheet];
+    if (scope !== undefined && scope < 0) return { changes: [], held: false };
+    const expression = formula === null ? undefined : nameExpression({ name, formula, localSheet });
+    let held = false;
+    const changes = this.hf.batch(() => {
+      const exists = this.hf.getNamedExpression(name, scope) !== undefined;
+      if (expression !== undefined && (exists ? this.hf.isItPossibleToChangeNamedExpression(name, expression, scope) : this.hf.isItPossibleToAddNamedExpression(name, expression, scope))) {
+        if (exists) this.hf.changeNamedExpression(name, expression, scope);
+        else this.hf.addNamedExpression(name, expression, scope);
+        held = true;
+      } else if (exists) {
+        this.hf.removeNamedExpression(name, scope);
       }
     });
+    return { changes: this.cellChanges(changes), held };
+  }
+
+  /** The cells among the engine's changes, by our sheet index. */
+  private cellChanges(changes: ReturnType<HyperFormula['batch']>): EngineChange[] {
     const out: EngineChange[] = [];
     for (const c of changes) {
       if (!('address' in c) || !c.address) continue;

@@ -11,9 +11,11 @@ import {
   unsupportedReason,
   valuesMatch,
   type Unsupported,
+  type EngineChange,
   type EngineSheet,
   type EngineWrite,
 } from './calc';
+import { renameInFormula, sameDefinition } from './definedNames';
 import type { EngineValue } from './engineValue';
 import { evaluateConditionalFormats } from './conditionalFormat';
 import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote } from './commentEdits';
@@ -21,9 +23,10 @@ import type { Person } from './comments';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
-import { displayFormula, engineFormula, isVolatile, makeShifter } from './formula';
+import { displayFormula, engineFormula, isVolatile, makeShifter, validateFormula } from './formula';
 import { parseInput } from './input';
 import { SheetLayout } from './layout';
+import { isBuiltinName, isName, nameProblem } from './names';
 import { resolveTableRefs, type TablePlace } from './tableRefs';
 import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from './refs';
 import { findCell } from './sheetScanner';
@@ -41,6 +44,7 @@ import {
   type DisplayStyle,
   type EditOp,
   type CfResult,
+  type DefinedName,
   type EditResult,
   type BorderEdge,
   type BorderPlacement,
@@ -50,6 +54,7 @@ import {
   type ListSource,
   type LoadResult,
   type NoteSnapshot,
+  type NameChange,
   type Rect,
   type SheetGrid,
 } from './types';
@@ -319,6 +324,8 @@ export class WorkbookSession {
   private readonly people: Map<string, Person>;
   /** Per sheet: the file's notes and threads by cell, made when first needed. */
   private fileNotes?: Map<number, CellNote>[];
+  /** The file's defined names, as opened; model.names holds them as they now are. */
+  private readonly fileNames: DefinedName[];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
@@ -344,6 +351,7 @@ export class WorkbookSession {
     this.noteEdits = Array.from({ length: n }, () => new Map());
     this.noteBase = Array.from({ length: n }, () => new Map());
     this.people = new Map(model.people.map((p) => [p.id, p]));
+    this.fileNames = model.names.map((d) => ({ ...d }));
   }
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
@@ -390,6 +398,7 @@ export class WorkbookSession {
     return {
       fileName: this.fileName,
       sheets: this.model.sheets.map((s, i) => (this.noteEdits[i].size ? { ...s.info, notes: this.notesOf(i) } : s.info)),
+      names: this.nameList(),
       grids: this.model.sheets.map((s) => s.scan?.grid ?? null),
       styles: this.model.styles.display,
       findings: this.model.findings,
@@ -401,7 +410,7 @@ export class WorkbookSession {
   }
 
   get editedCount(): number {
-    let n = this.baked.changes.length + this.baked.structure.length + this.noteChanges().length + this.layoutNotes().length;
+    let n = this.baked.changes.length + this.baked.structure.length + this.noteChanges().length + this.layoutNotes().length + this.nameNotes().length;
     this.edits.forEach((m, s) => {
       for (const key of m.keys()) if (!this.baked.keys[s].has(key)) n++;
     });
@@ -411,6 +420,32 @@ export class WorkbookSession {
   /** How each sheet's layout differs from the file's. */
   private layoutNotes(): CellChange[] {
     return this.layouts.flatMap((l, s) => l?.notes(this.model.sheets[s].info.name) ?? []);
+  }
+
+  /** How the names differ from the file's, for the change list. */
+  private nameNotes(): CellChange[] {
+    const out: CellChange[] = [];
+    const note = (n: DefinedName, text: Text) =>
+      out.push({ sheet: n.localSheet !== undefined ? (this.model.sheets[n.localSheet]?.info.name ?? '') : '', ref: n.name, before: '', after: '', note: text });
+    const now = new Map<number, DefinedName>();
+    for (const n of this.model.names) {
+      if (n.fileIndex !== undefined) now.set(n.fileIndex, n);
+      else note(n, msg('names.change.defined', { name: n.name, formula: displayFormula(n.formula) }));
+    }
+    this.fileNames.forEach((was, i) => {
+      const is = now.get(i);
+      if (!is) note(was, msg('names.change.deleted', { name: was.name }));
+      else if (sameDefinition(is, was)) return;
+      else if (is.name !== was.name) note(is, msg('names.change.renamed', { from: was.name, name: is.name, formula: displayFormula(is.formula) }));
+      else if (is.formula === was.formula && is.localSheet === was.localSheet) note(is, msg('names.change.commented', { name: is.name }));
+      else note(is, msg('names.change.changed', { name: is.name, formula: displayFormula(is.formula) }));
+    });
+    return out;
+  }
+
+  /** The names as they now are, copied. */
+  private nameList(): DefinedName[] {
+    return this.model.names.map((d) => ({ ...d }));
   }
 
   private layoutOf(sheet: number): SheetLayout {
@@ -464,7 +499,7 @@ export class WorkbookSession {
         out.push({ sheet: name, ref: toA1(row, col), before, after, ...(before === after ? { formatOnly: true } : {}) });
       }
     });
-    out.push(...this.layoutNotes());
+    out.push(...this.layoutNotes(), ...this.nameNotes());
     return out;
   }
 
@@ -1163,6 +1198,9 @@ export class WorkbookSession {
     if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
     if (op.type === 'comment') return this.applyComment(op);
     if (op.type === 'layout') return this.applyLayout([{ sheet: op.sheet, op: op.op }]);
+    if (op.type === 'name') return this.applyName(op.change);
+    // Names go back first, so the formulas put back with them find them.
+    if (op.type === 'restore' && op.names?.length) return mergeEditResults([this.applyNames(op.names), this.apply({ ...op, names: undefined })]);
     let notes: { undo: NoteSnapshot[]; redo: NoteSnapshot[] } | undefined;
     const writes = new Map<string, Write>();
     const warnings: Text[] = [];
@@ -1348,6 +1386,115 @@ export class WorkbookSession {
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
   }
 
+  /**
+   * Checks a change to a name and makes it. Renaming a name renames it in the
+   * cell formulas and other names that use it, as Excel does.
+   */
+  private applyName(change: NameChange): EditResult {
+    const names = this.model.names;
+    const before = change.from && names.find((n) => isName(n, change.from!));
+    if (change.from && !before) return this.emptyResult(msg('names.error.gone', { name: change.from.name }));
+    const to: DefinedName | null = change.to && {
+      name: change.to.name,
+      formula: change.to.formula,
+      ...(change.to.localSheet !== undefined && { localSheet: change.to.localSheet }),
+      ...(change.to.comment && { comment: change.to.comment }),
+      ...(before?.hidden && { hidden: true }),
+      ...(before?.fileIndex !== undefined && { fileIndex: before.fileIndex }),
+    };
+    const problem = to && this.definitionProblem(to, before);
+    if (problem) return this.emptyResult(problem);
+    const changes: NameChange[] = [{ ...(before && { from: { name: before.name, localSheet: before.localSheet } }), to }];
+    const writes: Write[] = [];
+    if (before && to && before.name !== to.name && before.localSheet === to.localSheet) {
+      const sheetNames = this.model.sheets.map((m) => m.info.name);
+      for (const n of names) {
+        const formula = n === before ? undefined : renameInFormula(n.formula, before, to.name, n.localSheet, names, sheetNames);
+        if (formula !== undefined) changes.push({ from: { name: n.name, localSheet: n.localSheet }, to: { ...n, formula } });
+      }
+      this.model.sheets.forEach((_m, s) =>
+        this.forEachFormula(s, (row, col, formula, style) => {
+          const renamed = renameInFormula(formula, before, to.name, s, names, sheetNames);
+          if (renamed !== undefined) writes.push({ sheet: s, row, col, content: { kind: 'formula', formula: renamed }, style });
+        }),
+      );
+    }
+    const result = this.applyNames(changes);
+    return writes.length ? mergeEditResults([result, this.commit(writes, [], [])]) : result;
+  }
+
+  /** Why a name can't be defined as `to` (replacing `before`): its name, its scope, a clash, or its formula. */
+  private definitionProblem(to: DefinedName, before: DefinedName | undefined): Text | undefined {
+    // A name the file has keeps it, even where Excel's own rules are looser than these.
+    const problem = before && before.name === to.name ? undefined : nameProblem(to.name);
+    if (problem) return problem;
+    if (to.localSheet !== undefined && !this.model.sheets[to.localSheet]) return msg('names.error.noScope');
+    const clash = this.model.names.find((n) => n !== before && isName(n, to));
+    if (clash) {
+      return to.localSheet === undefined
+        ? msg('names.error.takenWorkbook', { name: clash.name })
+        : msg('names.error.takenSheet', { name: clash.name, sheet: this.model.sheets[to.localSheet].info.name });
+    }
+    return validateFormula(to.formula) === undefined ? undefined : msg('names.error.refersToSyntax');
+  }
+
+  /**
+   * Makes changes to the names in order, and recalculates the formulas that
+   * use them. A change to a name that has gone is skipped.
+   */
+  private applyNames(changes: NameChange[]): EditResult {
+    const names = this.model.names;
+    const applied: NameChange[] = [];
+    const undo: NameChange[] = [];
+    const warnings: Text[] = [];
+    const recalculated: EngineChange[] = [];
+    const engine = this.engine;
+    for (const c of changes) {
+      const at = c.from ? names.findIndex((n) => isName(n, c.from!)) : -1;
+      if (c.from && at < 0) continue;
+      const before = at >= 0 ? names[at] : undefined;
+      const to = c.to && { ...c.to };
+      if (to && at >= 0) names[at] = to;
+      else if (to) names.push(to);
+      else names.splice(at, 1);
+      applied.push({ ...(c.from && { from: c.from }), to });
+      undo.unshift({ ...(to && { from: { name: to.name, localSheet: to.localSheet } }), to: before ?? null });
+      if (!engine) continue;
+      if (before && (!to || !isName(before, to))) recalculated.push(...engine.setName(before.name, before.localSheet, null).changes);
+      if (!to) continue;
+      this.ensureSheetsFor(to.formula, to.localSheet ?? -1);
+      if (to.localSheet !== undefined) this.ensureSheetsFor('', to.localSheet);
+      const set = engine.setName(to.name, to.localSheet, this.engineText(to.formula, to.localSheet ?? 0, -1, -1));
+      recalculated.push(...set.changes);
+      if (!set.held && !isBuiltinName(to.name) && !to.formula.includes('#REF!')) warnings.push(msg('names.warn.notCalculated', { name: to.name }));
+    }
+    // A cell recalculated by more than one change ends with the last one's value.
+    const latest = [...new Map(recalculated.map((c) => [`${c.sheet}:${c.row}:${c.col}`, c])).values()];
+    const touched = new Map<string, Pos>();
+    this.absorb(latest, touched);
+    for (const p of this.markStale(latest)) touched.set(`${p.sheet}:${p.row}:${p.col}`, p);
+    return {
+      ...this.emptyResult(''),
+      rejected: undefined,
+      updates: [...touched.values()].map((p) => this.update(p.sheet, p.row, p.col)),
+      warnings,
+      names: { applied, undo, list: this.nameList() },
+    };
+  }
+
+  /** Calls fn for every formula on a sheet as it now is, except array formulas, which stay as they are. */
+  private forEachFormula(sheet: number, fn: (row: number, col: number, formula: string, style: number) => void): void {
+    const grid = this.sheet(sheet).scan?.grid;
+    if (grid) {
+      for (const [idx, formula] of grid.formulas) {
+        if (!(grid.flags[idx] & CellFlag.Formula) || grid.flags[idx] & CellFlag.ArrayMember) continue;
+        const row = rowOfIndex(grid, idx);
+        if (!this.edits[sheet].has(cellKey(row, grid.cols[idx]))) fn(row, grid.cols[idx], formula, grid.styles[idx]);
+      }
+    }
+    for (const [key, st] of this.edits[sheet]) if (st.content.kind === 'formula') fn(Math.floor(key / MAX_COLS), key % MAX_COLS, st.content.formula, st.style);
+  }
+
   private emptyResult(rejected?: Text): EditResult {
     return { updates: [], undo: [], redo: [], skipped: 0, skippedReasons: [], warnings: [], newStyles: [], editedCount: this.editedCount, rejected };
   }
@@ -1491,15 +1638,7 @@ export class WorkbookSession {
     const touched = new Map<string, Pos>();
     const touch = (p: Pos) => touched.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col });
     applied.forEach(touch);
-    for (const c of changes) {
-      const key = cellKey(c.row, c.col);
-      if (touched.has(`${c.sheet}:${c.row}:${c.col}`)) continue;
-      if (this.current(c.sheet, c.row, c.col).content.kind !== 'formula') continue;
-      if (this.isUntrustedOriginal(c.sheet, c.row, c.col)) continue;
-      if (this.newFormulaFlags[c.sheet].has(key)) continue;
-      this.values[c.sheet].set(key, c.value);
-      touch(c);
-    }
+    this.absorb(changes, touched);
     for (const p of this.markStale([...applied, ...changes], newUnsupported)) touch(p);
 
     return {
@@ -1512,6 +1651,20 @@ export class WorkbookSession {
       newStyles,
       editedCount: this.editedCount,
     };
+  }
+
+  /** Takes the engine's new values for the formulas it calculates, noting each cell in `touched`. */
+  private absorb(changes: EngineChange[], touched: Map<string, Pos>): void {
+    for (const c of changes) {
+      const id = `${c.sheet}:${c.row}:${c.col}`;
+      const key = cellKey(c.row, c.col);
+      if (touched.has(id)) continue;
+      if (this.current(c.sheet, c.row, c.col).content.kind !== 'formula') continue;
+      if (this.isUntrustedOriginal(c.sheet, c.row, c.col)) continue;
+      if (this.newFormulaFlags[c.sheet].has(key)) continue;
+      this.values[c.sheet].set(key, c.value);
+      touched.set(id, { sheet: c.sheet, row: c.row, col: c.col });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1533,7 +1686,7 @@ export class WorkbookSession {
 
   /** The workbook with every edit written in, as a package. */
   private savedPackage(): OoxmlPackage {
-    const edited = this.edits.some((m) => m.size) || this.noteEdits.some((m) => m.size) || this.layouts.some((l) => l?.changed);
+    const edited = this.edits.some((m) => m.size) || this.noteEdits.some((m) => m.size) || this.layouts.some((l) => l?.changed) || this.nameNotes().length > 0;
     return edited ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
   }
 
@@ -1555,6 +1708,7 @@ export class WorkbookSession {
       layout: this.layouts,
       notes: this.noteEdits,
       people: this.people,
+      ...(this.nameNotes().length && { names: { file: this.fileNames, now: this.model.names } }),
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

@@ -391,9 +391,37 @@ export interface Finding {
   where?: string;
 }
 
+/** A defined name, as the workbook has it now. */
+export interface DefinedName {
+  name: string;
+  /** What it refers to, as file-form formula text without "=": "Data!$A$1:$A$10". */
+  formula: string;
+  /** Index of the sheet the name is local to, if any. */
+  localSheet?: number;
+  /** Hidden from Excel's Name Manager. */
+  hidden?: boolean;
+  comment?: string;
+  /** Its place among the names the file defines, for one read from the file. */
+  fileIndex?: number;
+}
+
+/** Which name: its name, in any case, and the sheet it is local to, if any. */
+export interface NameRef {
+  name: string;
+  localSheet?: number;
+}
+
+/** A change to the workbook's names: `from` is the name as it was (absent when one is added), `to` what it becomes (null when it is deleted). */
+export interface NameChange {
+  from?: NameRef;
+  to: DefinedName | null;
+}
+
 export interface LoadResult {
   fileName: string;
   sheets: SheetInfo[];
+  /** The workbook's defined names. */
+  names: DefinedName[];
   grids: (SheetGrid | null)[];
   styles: DisplayStyle[];
   findings: Finding[];
@@ -485,8 +513,8 @@ export type EditOp =
   | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect; what?: PastePart; transpose?: boolean }
   /** Drag-fill from the source into the destination, extending series. */
   | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
-  /** Put cells, their notes and threads, and the layout back to an exact earlier state (undo/redo). */
-  | { type: 'restore'; cells: CellSnapshot[]; notes?: NoteSnapshot[]; layout?: LayoutChange[] }
+  /** Put cells, their notes and threads, the layout and the names back to an exact earlier state (undo/redo). */
+  | { type: 'restore'; cells: CellSnapshot[]; notes?: NoteSnapshot[]; layout?: LayoutChange[]; names?: NameChange[] }
   /** Adds, changes or deletes a cell's note or comment thread. */
   | { type: 'comment'; sheet: number; row: number; col: number; change: CommentChange }
   /** Text for scattered cells, parsed like typed input (used by schema hooks). */
@@ -504,6 +532,11 @@ export type EditOp =
    * the workbook's default format.
    */
   | { type: 'format'; sheet: number; rects: Rect[]; change: FormatChange; borders?: { where: BorderPlacement; edge?: BorderEdge }; clear?: boolean }
+  /**
+   * Adds, changes or deletes a defined name. Renaming one renames it in the
+   * formulas that use it, as Excel does.
+   */
+  | { type: 'name'; change: NameChange }
   /** Several operations applied in order and undone as one. */
   | { type: 'batch'; ops: EditOp[] };
 
@@ -584,4 +617,6 @@ export interface EditResult {
   noteUndo?: NoteSnapshot[];
   /** Notes and threads as the edit left them, to show and for redo. */
   noteRedo?: NoteSnapshot[];
+  /** Changes made to the names, those that undo them, and every name as it now is. */
+  names?: { applied: NameChange[]; undo: NameChange[]; list: DefinedName[] };
 }

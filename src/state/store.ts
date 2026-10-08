@@ -388,6 +388,8 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   layout: 'store.history.layout',
   format: 'store.history.format',
   comment: 'store.history.comment',
+  // Changes to names are always labelled with the name.
+  name: 'store.history.edit',
 };
 
 /** Has the browser download a file. */

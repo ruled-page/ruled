@@ -7,17 +7,12 @@ import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePeople, parseThreads, type Person } from './comments';
-import type { Anchor, BlockedRegion, CellNote, Finding, Rect, SheetInfo, SheetObject } from './types';
+import type { Anchor, BlockedRegion, CellNote, DefinedName, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
 
-export interface DefinedName {
-  name: string;
-  formula: string;
-  /** Index of the sheet the name is local to, if any. */
-  localSheet?: number;
-}
+export type { DefinedName } from './types';
 
 export interface SheetModel {
   info: SheetInfo;
@@ -210,9 +205,17 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const sheetNames = sheetNodes.map((s) => attr(s, 'name') ?? '');
   const sheetIndexByName = new Map(sheetNames.map((n, i) => [n.toLowerCase(), i]));
 
-  const names: DefinedName[] = children(child(wb, 'definedNames'), 'definedName').map((d) => {
+  const names: DefinedName[] = children(child(wb, 'definedNames'), 'definedName').map((d, fileIndex) => {
     const local = attr(d, 'localSheetId');
-    return { name: attr(d, 'name') ?? '', formula: d.text, localSheet: local !== undefined ? Number(local) : undefined };
+    const comment = attr(d, 'comment');
+    return {
+      name: attr(d, 'name') ?? '',
+      formula: d.text,
+      localSheet: local !== undefined ? Number(local) : undefined,
+      ...(['1', 'true'].includes(attr(d, 'hidden') ?? '') && { hidden: true }),
+      ...(comment && { comment }),
+      fileIndex,
+    };
   });
 
   const chartContext: ChartContext = { theme: styles.theme, sheetIndex: sheetIndexByName, names };

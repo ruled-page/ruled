@@ -17,11 +17,15 @@ export function mergeEditResults(results: EditResult[]): EditResult {
   const layout = results.filter((r) => r.layout?.applied.length);
   const noteUndo = results.slice().reverse().flatMap((r) => r.noteUndo ?? []);
   const noteRedo = results.flatMap((r) => r.noteRedo ?? []);
+  const named = results.filter((r) => r.names);
   return {
     ...(layout.length && {
       layout: { applied: layout.flatMap((r) => r.layout!.applied), undo: layout.reverse().flatMap((r) => r.layout!.undo) },
     }),
     ...(noteRedo.length ? { noteUndo, noteRedo } : {}),
+    ...(named.length && {
+      names: { applied: named.flatMap((r) => r.names!.applied), undo: named.slice().reverse().flatMap((r) => r.names!.undo), list: named[named.length - 1].names!.list },
+    }),
     updates: [...updates.values()],
     undo: results.slice().reverse().flatMap((r) => r.undo),
     redo: results.flatMap((r) => r.redo),

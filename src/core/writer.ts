@@ -1,11 +1,12 @@
 import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
+import { writeDefinedNames } from './definedNames';
 import { isDynamicArrayFormula } from './formula';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
-import { CellFlag, VT, type CellNote, type FilterState, type Rect, type SheetGrid } from './types';
+import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid } from './types';
 import type { Person } from './comments';
 import { writeComments } from './commentWriter';
 import type { SheetModel, WorkbookModel } from './workbook';
@@ -38,6 +39,8 @@ export interface SaveInput {
   notes?: Map<number, CellNote | null>[];
   /** Everyone who has written a threaded comment, by person id, for those new to the file. */
   people?: ReadonlyMap<string, Person>;
+  /** The defined names as the file had them and as they are now, when they differ. */
+  names?: { file: DefinedName[]; now: DefinedName[] };
 }
 
 type Patch =
@@ -84,6 +87,11 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   // reports the file as damaged if they disagree. It rebuilds the chain
   // itself when the part is missing.
   removeCalcChain(pkg, model.workbookPath);
+
+  if (input.names) {
+    const xml = pkg.text(model.workbookPath);
+    if (xml) pkg.setText(model.workbookPath, writeDefinedNames(xml, input.names.file, input.names.now));
+  }
 
   const wbXml = pkg.text(model.workbookPath);
   if (wbXml) pkg.setText(model.workbookPath, forceFullCalcOnLoad(wbXml));

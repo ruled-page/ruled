@@ -1,0 +1,78 @@
+import type { names as en } from '../en/names';
+
+/** German messages for defined names; every English key needs one (the type checks it). */
+export const names: Record<keyof typeof en, string> = {
+  'names.error.empty': 'Geben Sie einen Namen ein.',
+  'names.error.tooLong': 'Ein Name darf höchstens {{max, number}} Zeichen lang sein.',
+  'names.error.start': 'Ein Name muss mit einem Buchstaben, einem Unterstrich (_) oder einem umgekehrten Schrägstrich (\\) beginnen.',
+  'names.error.space': 'Ein Name darf keine Leerzeichen enthalten; verwenden Sie stattdessen einen Unterstrich (_) oder einen Punkt (.).',
+  'names.error.character': 'Ein Name darf nur Buchstaben, Ziffern, Punkte (.) und Unterstriche (_) enthalten, nicht „{{character}}“.',
+  'names.error.reference': '„{{name}}“ ist ein Zellbezug und kann daher kein Name sein.',
+  'names.error.reserved': '„{{name}}“ ist von Excel reserviert und kann daher kein Name sein.',
+  'names.error.takenWorkbook': 'Die Arbeitsmappe hat bereits einen Namen „{{name}}“.',
+  'names.error.takenSheet': 'Das Blatt {{sheet}} hat bereits einen Namen „{{name}}“.',
+  'names.error.refersToEmpty': 'Geben Sie ein, worauf sich der Name bezieht, etwa =Tabelle1!$A$1:$A$10.',
+  'names.error.refersToSyntax': 'Das ist keine Formel, die Excel lesen kann.',
+  'names.error.noSheet': 'Diese Arbeitsmappe hat kein Blatt „{{sheet}}“.',
+  'names.error.gone': 'Den Namen „{{name}}“ gibt es nicht mehr.',
+  'names.error.noScope': 'Das Blatt, zu dem dieser Name gehört, ist nicht in dieser Arbeitsmappe.',
+
+  'names.warn.notCalculated': 'Formeln, die {{name}} verwenden, werden hier nicht berechnet; Excel berechnet sie beim Öffnen der Datei.',
+
+  'names.change.defined': 'Name {{name}} als {{formula}} definiert',
+  'names.change.changed': 'Name {{name}} in {{formula}} geändert',
+  'names.change.renamed': '{{from}} in {{name}} umbenannt, bezieht sich auf {{formula}}',
+  'names.change.commented': 'Kommentar zum Namen {{name}} geändert',
+  'names.change.deleted': 'Name {{name}} gelöscht',
+
+  'names.history.defined': 'Name {{name}} definieren',
+  'names.history.edited': 'Name {{name}} bearbeiten',
+  'names.history.deleted': 'Name {{name}} löschen',
+
+  'names.goTo.notRange': '{{name}} bezieht sich auf {{formula}}, keinen Zellbereich, und kann daher nicht markiert werden.',
+  'names.goTo.unknown': '„{{text}}“ ist weder eine Zelle noch ein Bereich oder Name in dieser Arbeitsmappe.',
+  'names.goTo.notWorksheet': 'Nur Zellen auf einem Arbeitsblatt können benannt werden.',
+
+  'names.delete.title': 'Den Namen {{name}} löschen?',
+  'names.delete.body': 'Formeln, die ihn verwenden, zeigen #NAME?, bis er wieder definiert wird.',
+  'names.delete.confirm': 'Name löschen',
+
+  'names.box.title': 'Die markierte Zelle oder ihr Name. Geben Sie eine Zelle, einen Bereich oder einen Namen ein und drücken Sie die Eingabetaste, um dorthin zu gehen, oder einen neuen Namen, um die Markierung zu benennen.',
+  'names.box.list': 'Namen',
+  'names.box.show': 'Namen anzeigen',
+  'names.box.none': 'Diese Arbeitsmappe hat noch keine Namen.',
+  'names.box.noMatch': 'Keine Namen beginnen mit „{{text}}“.',
+
+  'names.menu.define': 'Namen definieren…',
+  'names.menu.manager': 'Namens-Manager…',
+
+  'names.define.title': 'Neuer Name',
+  'names.edit.title': 'Namen bearbeiten',
+  'names.field.name': 'Name',
+  'names.field.scope': 'Bereich',
+  'names.field.comment': 'Kommentar',
+  'names.field.refersTo': 'Bezieht sich auf',
+  'names.scope.workbook': 'Arbeitsmappe',
+  'names.scope.fixed': 'Der Bereich eines Namens lässt sich nach dem Definieren nicht mehr ändern.',
+  'names.define.submit': 'OK',
+
+  'names.manager.title': 'Namens-Manager',
+  'names.manager.new': 'Neu…',
+  'names.manager.edit': 'Bearbeiten…',
+  'names.manager.delete': 'Löschen',
+  'names.manager.close': 'Schließen',
+  'names.manager.filter': 'Anzeigen',
+  'names.manager.empty': 'Diese Arbeitsmappe hat noch keine Namen.',
+  'names.manager.noMatch': 'Keine Namen gefunden.',
+  'names.manager.list': 'Namen',
+  'names.filter.all': 'Alle Namen',
+  'names.filter.workbook': 'Auf Arbeitsmappe beschränkte Namen',
+  'names.filter.sheet': 'Auf Arbeitsblatt beschränkte Namen',
+  'names.filter.errors': 'Namen mit Fehlern',
+  'names.filter.noErrors': 'Namen ohne Fehler',
+  'names.col.name': 'Name',
+  'names.col.value': 'Wert',
+  'names.col.refersTo': 'Bezieht sich auf',
+  'names.col.scope': 'Bereich',
+  'names.col.comment': 'Kommentar',
+};
