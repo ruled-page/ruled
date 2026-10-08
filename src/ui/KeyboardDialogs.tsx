@@ -29,6 +29,8 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [t('keys.delete'), t('shortcuts.clear')],
         [`${m('Z')}, ${redoKey(t)}`, t('shortcuts.undoRedo')],
         [m('X', 'C', 'V'), t('shortcuts.clipboard')],
+        [t('keys.accept'), t('shortcuts.complete')],
+        [t('keys.f4'), t('shortcuts.absolute')],
       ],
     },
     {

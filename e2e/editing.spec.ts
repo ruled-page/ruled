@@ -38,7 +38,7 @@ test.describe('editing a workbook', () => {
     });
     // Two at a third each (0.66 had the rounded text been used), in a column wide enough for six digits.
     await expect(shown(page, 'D2')).toHaveText('0.666667');
-    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('0.333333333333333');
+    await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('0.333333333333333');
   });
 
   test('copies the text and an escaped HTML table with exact values', async ({ page }) => {
@@ -89,7 +89,7 @@ test.describe('editing a workbook', () => {
   test('goes to a cell on another sheet from the name box', async ({ page }) => {
     await goTo(page, 'Summary!B1');
     await expect(page.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('=SUM(Lines!D2:D3)');
+    await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('=SUM(Lines!D2:D3)');
   });
 
   test('scrolls a far cell into view, on this sheet or another, and back to it after scrolling away', async ({ page }) => {
@@ -145,8 +145,8 @@ test('a protected form takes input in its unlocked cells only, and hides its pro
   await expect(shown(page, 'B3')).toHaveText('Ana');
   await goTo(page, 'A3');
   await expect(page.getByText('This cell is locked: its sheet is protected in Excel.')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveAttribute('readonly', '');
   // The total's formula is hidden from the formula bar; its value shows.
   await goTo(page, 'B6');
-  await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('373.50');
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('373.50');
 });

@@ -34,7 +34,7 @@ export async function goTo(page: Page, ref: string): Promise<void> {
 /** Types into a cell through the formula bar. */
 export async function setCell(page: Page, ref: string, text: string): Promise<void> {
   await goTo(page, ref);
-  const input = page.getByRole('textbox', { name: 'Cell contents' });
+  const input = page.getByRole('combobox', { name: 'Cell contents' });
   await input.fill(text);
   await input.press('Enter');
 }

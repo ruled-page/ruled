@@ -26,6 +26,8 @@ const LONGEST_NAME = 64;
 interface Call {
   /** The function, or undefined for plain brackets. */
   name?: string;
+  /** Where its name starts. */
+  start: number;
   /** Which argument the scan is in, from 0. */
   arg: number;
   /** Array constants open inside it, whose commas separate values, not arguments. */
@@ -50,8 +52,8 @@ function contextAt(text: string, at: number): { literal: boolean; calls: Call[] 
     } else if (ch === '[') {
       brackets++;
     } else if (ch === '(') {
-      const name = NAME_AT_END.exec(text.slice(Math.max(1, i - LONGEST_NAME), i))?.[0];
-      calls.push({ name: name && stripFunctionPrefixes(name).toUpperCase(), arg: 0, braces: 0 });
+      const name = NAME_AT_END.exec(text.slice(Math.max(1, i - LONGEST_NAME), i))?.[0] ?? '';
+      calls.push({ name: name ? stripFunctionPrefixes(name).toUpperCase() : undefined, start: i - name.length, arg: 0, braces: 0 });
     } else if (ch === ')') {
       calls.pop();
     } else {
@@ -95,14 +97,14 @@ export function insertFunction(text: string, at: Pick<Completion, 'start' | 'end
   return { text: text.slice(0, at.start) + name + bracket + text.slice(at.end), caret: at.start + name.length + 1 };
 }
 
-/** The function whose brackets the caret is in, and which of its arguments (from 0), when Excel has it. */
-export function argumentAt(text: string, caret: number): { fn: FunctionHelp; index: number } | undefined {
+/** The function whose brackets the caret is in, where its name starts, and which of its arguments the caret is in (from 0), when Excel has it. */
+export function argumentAt(text: string, caret: number): { fn: FunctionHelp; start: number; index: number } | undefined {
   if (!text.startsWith('=')) return undefined;
   const { calls } = contextAt(text, caret);
   // Inside plain brackets, the hint is still for the function around them.
   for (let i = calls.length - 1; i >= 0; i--) {
     const fn = calls[i].name && functionHelp(calls[i].name!);
-    if (fn) return { fn, index: calls[i].arg };
+    if (fn) return { fn, start: calls[i].start, index: calls[i].arg };
     if (calls[i].name) return undefined;
   }
   return undefined;

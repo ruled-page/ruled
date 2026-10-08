@@ -42,7 +42,7 @@ test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {
   await page.touchscreen.tap(grid.x + 120, grid.y + 24 + 34 * 2 + 10);
   await expect(page.getByRole('textbox', { name: 'Go to cell' })).not.toHaveValue('A1');
   const name = await page.getByRole('textbox', { name: 'Go to cell' }).inputValue();
-  const input = page.getByRole('textbox', { name: 'Cell contents' });
+  const input = page.getByRole('combobox', { name: 'Cell contents' });
   await input.tap();
   await input.fill('Bracket, edited on a phone');
   await input.press('Enter');
@@ -59,7 +59,7 @@ test('the cell menu opens from the formula bar, without right-clicking', async (
   await menu.getByRole('menuitem', { name: 'Rows' }).tap();
   await page.getByRole('menu', { name: 'Rows' }).getByRole('menuitem', { name: 'Insert 1 row above' }).tap();
   await goTo(page, 'A4');
-  await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('SKU-1002');
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('SKU-1002');
 });
 
 test('dialogs fit the screen', async ({ page }) => {

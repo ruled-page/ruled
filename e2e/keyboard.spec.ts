@@ -33,7 +33,7 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.type('C3');
     await page.keyboard.press('Enter');
     await expect(grid(page)).toHaveCount(1);
-    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('0.5');
+    await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('0.5');
   });
 
   test('fills down from the cell menu, as dragging the fill handle would', async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe('with only a keyboard', () => {
     });
     for (const key of ['Control+r', 'Meta+r', 'Control+d', 'Meta+d', 'Control+g', 'Meta+g', 'Meta+y']) await page.keyboard.press(key);
     expect(await page.evaluate(() => (window as unknown as { taken: string[] }).taken)).toEqual([]);
-    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('Item');
+    await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('Item');
   });
 
   test('⌘G finds the next match, and ⇧⌘G the one before, while finding', async ({ page }) => {

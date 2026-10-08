@@ -3,6 +3,7 @@ import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
+import { formulaReferences } from '../core/formulaAssist';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { withHooksFrom } from '../schema/hooks';
@@ -1923,6 +1924,27 @@ export class WorkbookStore {
     }
     const label = msg(transpose && what === 'all' ? 'store.history.pasteTransposed' : `store.history.paste.${what}`);
     await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst, what, transpose }, 'undo', { label });
+  }
+
+  /** The references in the formula being typed, by sheet, which the grid outlines in their colours. */
+  formulaRefs: { sheet: number; rect: Rect; color: number }[] = [];
+
+  /**
+   * Outlines on the grid the references in a formula being typed in a cell
+   * of the active sheet, as Excel does; anything else (or nothing) clears
+   * them. References to sheets the workbook doesn't have are left out.
+   */
+  showFormulaRefs(text: string | undefined): void {
+    const refs: WorkbookStore['formulaRefs'] = [];
+    for (const r of text ? formulaReferences(text) : []) {
+      const name = r.sheet?.toLowerCase();
+      const sheet = name === undefined ? this.active : this.sheets.findIndex((s) => s.info.name.toLowerCase() === name);
+      if (r.rect && sheet >= 0) refs.push({ sheet, rect: r.rect, color: r.color });
+    }
+    // Only a change of references redraws, not every key typed.
+    if (JSON.stringify(refs) === JSON.stringify(this.formulaRefs)) return;
+    this.formulaRefs = refs;
+    this.notify();
   }
 
   /** The range marked by the last cut, shown with a dashed outline until it is pasted. */

@@ -6,6 +6,7 @@ import {
   ImageWindowLoaderImpl,
   getMiddleCenterBias,
   sprites,
+  withAlpha,
   type DataEditorProps,
   type DataEditorRef,
   type DrawCellCallback,
@@ -38,7 +39,7 @@ import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
-import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from './gridPalette';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
 import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
 import { useT } from '../i18n/react';
 
@@ -163,10 +164,13 @@ export function SheetGrid({
   const rows = rowCount ?? view.rowCount - rowStart;
   // The grid's colours and fonts come from the theme's custom properties, read once laid out.
   const [palette, setPalette] = useState<GridPalette>(DEFAULT_PALETTE);
+  const [refColors, setRefColors] = useState(DEFAULT_REF_COLORS);
   const themeVersion = store.themeVersion;
   useLayoutEffect(() => {
     const next = readGridPalette(host.current);
     setPalette((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    const colors = readRefColors(host.current);
+    setRefColors((prev) => (prev.join() === colors.join() ? prev : colors));
   }, [themeVersion]);
   const g = useMemo(() => gridStyles(palette), [palette]);
   const [region, setRegion] = useState(0);
@@ -490,6 +494,7 @@ export function SheetGrid({
   );
 
   const cutRange = store.cutRange;
+  const formulaRefs = store.formulaRefs;
   // The selection, clipped to this pane. When the active cell is in the other
   // pane, this one shows its part of the selection as a highlight instead.
   const { gridSelection, highlights } = useMemo(() => {
@@ -510,6 +515,16 @@ export function SheetGrid({
     // A cut waiting to be pasted gets a dashed outline.
     const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
     const marks: Highlights = cut ? [{ color: palette.cutFill, range: cut, style: 'dashed' }] : [];
+    // The references in a formula being typed, outlined and lightly filled in their colours, as Excel does.
+    for (const ref of formulaRefs) {
+      const span = ref.sheet === view.info.index ? view.gridSpan(ref.rect) : undefined;
+      if (!span) continue;
+      const y1 = Math.max(rowStart, span.y1);
+      const y2 = Math.min(last, span.y2);
+      if (y1 > y2) continue;
+      const range = { x: span.x1 + 1, y: y1 - rowStart, width: span.x2 - span.x1 + 1, height: y2 - y1 + 1 };
+      marks.push({ color: withAlpha(refColors[ref.color % refColors.length], 0.1), range, style: 'solid' });
+    }
     if (gr < rowStart || gr > last) {
       marks.push(...rects.map((range) => ({ color: palette.selectionFill, range, style: 'solid-outline' as const })));
       return { gridSelection: { current: undefined, ...empty } as GridSelection, highlights: marks.length ? marks : undefined };
@@ -520,7 +535,7 @@ export function SheetGrid({
       gridSelection: { current: { cell: [gc, gr - rowStart], range: first ?? cell, rangeStack: rest }, ...empty } as GridSelection,
       highlights: marks.length ? marks : undefined,
     };
-  }, [view, selection, rowStart, rows, cutRange, palette]);
+  }, [view, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors]);
 
   const onSelectionChange = useCallback(
     (sel: GridSelection) => {

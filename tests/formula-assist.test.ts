@@ -78,6 +78,8 @@ describe('argument hints', () => {
     expect(arg('=IF(SUM(A1,|B1)>2,1)')).toEqual(['SUM', 1]);
     expect(arg('=IF(SUM(A1,B1)>2,|1)')).toEqual(['IF', 1]);
     expect(arg('=_xlfn.XLOOKUP(A1,|')).toEqual(['XLOOKUP', 1]);
+    expect(argumentAt(...at('=1+IF(SUM(A1,|B1)>2,1)'))?.start).toBe(6);
+    expect(argumentAt(...at('=1+IF((A1|'))?.start).toBe(3);
   });
 
   it("aren't moved on by commas in text, sheet names, tables or array constants, and plain brackets keep their function's", () => {

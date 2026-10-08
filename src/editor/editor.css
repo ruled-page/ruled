@@ -128,6 +128,16 @@
   --wbe-grid-header-font-size: 12px;
   --wbe-grid-header-font-weight: 500;
 
+  /* References in a formula being edited take these in turn, in the
+     formula's text and as outlines on the grid, as Excel colours them. */
+  --wbe-formula-ref1: #1f5fc8;
+  --wbe-formula-ref2: #c42b1c;
+  --wbe-formula-ref3: #7a3db8;
+  --wbe-formula-ref4: #1b7a43;
+  --wbe-formula-ref5: #b0287a;
+  --wbe-formula-ref6: #0b7285;
+  --wbe-formula-ref7: #a15c00;
+
   /* Charts take the grid's colours and font. Series the workbook doesn't
      colour get these, in order (space-separated); auto gives them the
      workbook theme's accent colours, as Excel does. */
@@ -625,9 +635,15 @@
   color: var(--wbe-accent);
 }
 
-.wbe .wbe-formula-input {
+.wbe .wbe-formula-field {
+  position: relative;
   flex: 1;
   min-width: 0;
+  height: 100%;
+}
+
+.wbe .wbe-formula-input {
+  width: 100%;
   height: 100%;
   border: 0;
   padding: 0 10px;
@@ -662,6 +678,142 @@
 
 .wbe .wbe-formula-input[readonly] {
   color: var(--wbe-text-subtle);
+}
+
+/* Formula help ------------------------------------------------------------------ */
+
+/* While a formula is typed, its text is drawn again over the field with the
+   references coloured; the field's own text is transparent, its caret and
+   selection still showing. */
+.wbe .wbe-colored > .wbe-formula-input {
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--wbe-text);
+}
+
+.wbe .wbe-formula-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  overflow: hidden;
+  white-space: pre;
+  font: 14px var(--wbe-font-mono);
+  color: var(--wbe-text);
+  pointer-events: none;
+}
+
+.wbe .wbe-formula-text > span {
+  flex: none;
+}
+
+.wbe .wbe-ref-1 {
+  color: var(--wbe-formula-ref1);
+}
+
+.wbe .wbe-ref-2 {
+  color: var(--wbe-formula-ref2);
+}
+
+.wbe .wbe-ref-3 {
+  color: var(--wbe-formula-ref3);
+}
+
+.wbe .wbe-ref-4 {
+  color: var(--wbe-formula-ref4);
+}
+
+.wbe .wbe-ref-5 {
+  color: var(--wbe-formula-ref5);
+}
+
+.wbe .wbe-ref-6 {
+  color: var(--wbe-formula-ref6);
+}
+
+.wbe .wbe-ref-7 {
+  color: var(--wbe-formula-ref7);
+}
+
+/* The functions matching a name being typed, or the arguments of the one the caret is in. */
+.wbe .wbe-fx-popup {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 60;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(640px, calc(100vw - 24px));
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow-sm);
+  font-family: var(--wbe-font);
+  font-size: var(--wbe-font-size);
+  color: var(--wbe-text);
+  overflow: hidden;
+}
+
+.wbe .wbe-fx-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 232px;
+  overflow-y: auto;
+}
+
+.wbe .wbe-fx-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--wbe-font-mono);
+}
+
+.wbe .wbe-fx-list li.wbe-active {
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent-strong);
+}
+
+.wbe .wbe-fx-tag {
+  font-family: var(--wbe-font);
+  font-size: var(--wbe-font-size-xs);
+  color: var(--wbe-text-subtle);
+}
+
+.wbe .wbe-fx-list li.wbe-active .wbe-fx-tag {
+  color: inherit;
+}
+
+.wbe .wbe-fx-about {
+  padding: 6px 10px;
+  border-top: 1px solid var(--wbe-border);
+  background: var(--wbe-surface-alt);
+  font-size: var(--wbe-font-size-sm);
+  color: var(--wbe-text-muted);
+  white-space: normal;
+}
+
+.wbe .wbe-fx-signature {
+  font-family: var(--wbe-font-mono);
+  color: var(--wbe-text);
+  overflow-wrap: anywhere;
+}
+
+.wbe .wbe-fx-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 5px 10px;
+  font-size: var(--wbe-font-size-sm);
+}
+
+.wbe .wbe-fx-hint b {
+  font-weight: 700;
 }
 
 .wbe .wbe-cell-note {
@@ -2196,7 +2348,7 @@
 
 .wbe .wbe-formula-bar > .wbe-name-box,
 .wbe .wbe-formula-bar > .wbe-fx,
-.wbe .wbe-formula-bar > .wbe-formula-input,
+.wbe .wbe-formula-bar > .wbe-formula-field,
 .wbe .wbe-formula-bar > .wbe-cell-menu-btn {
     height: 34px;
   }

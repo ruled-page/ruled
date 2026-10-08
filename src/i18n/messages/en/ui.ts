@@ -120,6 +120,11 @@ export const ui = {
   'formulaBar.withReplies_one': '{{summary}} ({{count, number}} reply)',
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} replies)',
 
+  'formulaHelp.functions': 'Functions',
+  'formulaHelp.notCalculated': 'Not calculated here',
+  'formulaHelp.spokenArgument': '{{name}}, argument {{number}}: {{argument}}',
+  'formulaHelp.spokenFunction': '{{name}} function',
+
   'panel.label': 'Workbook details',
   'panel.checks': 'Checks',
   'panel.changes': 'Changes',
@@ -202,6 +207,8 @@ export const ui = {
   'shortcuts.clear': 'Clear the selected cells',
   'shortcuts.undoRedo': 'Undo, redo',
   'shortcuts.clipboard': 'Cut, copy, paste',
+  'shortcuts.complete': 'In a formula, insert the function highlighted in the list of names that match what you typed (arrow keys move through it, Escape closes it)',
+  'shortcuts.absolute': 'In a formula, switch the reference at the cursor between relative and absolute: A1, $A$1, A$1, $A1',
   'shortcuts.commands': 'Commands',
   'shortcuts.menu': 'Cell menu: fill down and right, insert and delete rows and columns, column width, sort, filter',
   'shortcuts.find': 'Find and replace',
@@ -217,6 +224,8 @@ export const ui = {
   'keys.typing': 'Typing',
   'keys.enter': 'Enter',
   'keys.escape': 'Escape',
+  'keys.accept': 'Tab or Enter',
+  'keys.f4': 'F4',
   'keys.delete': 'Delete, Backspace',
   'keys.menu': 'Shift+F10, Menu key',
 

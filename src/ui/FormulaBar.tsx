@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
 import { CellFlag, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
 import { displayText, editText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
+import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useFormulaAssist } from './FormulaAssist';
 import { Icon } from './icons';
 import type { Translator } from '../i18n';
 import { msg } from '../i18n/message';
@@ -128,6 +129,48 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
     if (!focused) setDraft(value);
   }, [value, focused, selection.row, selection.col]);
 
+  // Help while a formula is typed: its references coloured, functions offered, argument hints and F4.
+  const id = useId();
+  const field = useRef<HTMLDivElement>(null);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [sel, setSel] = useState<[number, number]>([0, 0]);
+  const [scroll, setScroll] = useState(0);
+  const [popupX, setPopupX] = useState(0);
+  const pendingSel = useRef<[number, number]>(undefined);
+  const assist = useFormulaAssist(draft, sel[0], sel[1], focused && !readOnly);
+  const colored = focused && draft.startsWith('=');
+  const apply = (text: string, start: number, end: number) => {
+    setDraft(text);
+    setSel([start, end]);
+    pendingSel.current = [start, end];
+  };
+
+  // The grid outlines the references of a formula typed here.
+  useEffect(() => {
+    if (focused) store.showFormulaRefs(draft);
+  }, [store, focused, draft]);
+  useEffect(() => {
+    if (focused) return () => store.showFormulaRefs(undefined);
+  }, [store, focused]);
+
+  // Once drawn: the caret where the help put it, the coloured text scrolled
+  // with the field's own, and the popup under the name it is about.
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    if (pendingSel.current) {
+      el.setSelectionRange(...pendingSel.current);
+      pendingSel.current = undefined;
+    }
+    if (el.scrollLeft !== scroll) setScroll(el.scrollLeft);
+    const at = anchor.current?.getBoundingClientRect().left;
+    const box = field.current?.getBoundingClientRect();
+    if (at !== undefined && box) {
+      const x = Math.round(Math.max(0, Math.min(at - box.left, box.width - 280)));
+      setPopupX((prev) => (prev === x ? prev : x));
+    }
+  }, [draft, sel, scroll, assist.anchor]);
+
   const rect = selection.rects[0];
   const name = rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col);
   const note = cellNote(t, store, view, selection);
@@ -143,24 +186,56 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
       <div className={`wbe-fx ${rec?.f !== undefined ? 'wbe-is-formula' : ''}`}>
         <Icon name="formula" size={15} />
       </div>
-      <input
-        ref={input}
-        className="wbe-formula-input"
-        value={draft}
-        readOnly={readOnly}
-        spellCheck={false}
-        aria-label={t('formulaBar.contents')}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-          if (e.key === 'Escape') {
-            setDraft(value);
-            input.current?.blur();
-          }
-        }}
-      />
+      <div className={`wbe-formula-field ${colored ? 'wbe-colored' : ''}`} ref={field}>
+        <input
+          ref={input}
+          className="wbe-formula-input"
+          value={draft}
+          readOnly={readOnly}
+          spellCheck={false}
+          role="combobox"
+          aria-label={t('formulaBar.contents')}
+          aria-autocomplete="list"
+          aria-expanded={!!assist.completion}
+          aria-controls={assist.completion ? `${id}-list` : undefined}
+          aria-activedescendant={assist.completion ? `${id}-list-${assist.active}` : undefined}
+          aria-describedby={assist.hint && !assist.completion ? `${id}-hint` : undefined}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            assist.dismiss();
+          }}
+          onChange={(e) => {
+            const start = e.target.selectionStart ?? e.target.value.length;
+            setDraft(e.target.value);
+            setSel([start, e.target.selectionEnd ?? start]);
+            assist.typed(e.target.value, start);
+          }}
+          onSelect={(e) => setSel([e.currentTarget.selectionStart ?? 0, e.currentTarget.selectionEnd ?? 0])}
+          onScroll={(e) => setScroll(e.currentTarget.scrollLeft)}
+          onKeyDown={(e) => {
+            const el = e.currentTarget;
+            if (assistKey(e, assist, draft, el.selectionStart ?? 0, el.selectionEnd ?? 0, apply)) {
+              e.preventDefault();
+              return;
+            }
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') {
+              setDraft(value);
+              input.current?.blur();
+            }
+          }}
+        />
+        {colored && (
+          <div className="wbe-formula-text" aria-hidden="true">
+            <span style={{ transform: `translateX(${-scroll}px)` }}>
+              <FormulaText text={draft} refs={assist.refs} anchor={assist.anchor} anchorRef={anchor} />
+            </span>
+          </div>
+        )}
+        <AssistPopup assist={assist} listId={`${id}-list`} hintId={`${id}-hint`} style={{ left: popupX }} onPick={(i) => pickFunction(assist, draft, i, apply)} />
+        <HintAnnouncer hint={assist.hint} />
+      </div>
       {note && (
         <div className={`wbe-cell-note wbe-tone-${note.tone}`} title={note.text}>
           <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : note.tone === 'note' ? 'note' : 'info'} size={14} />

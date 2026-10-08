@@ -169,6 +169,16 @@ export class SheetView {
     return search(this.visibleCols, col);
   }
 
+  /**
+   * The first and last grid rows and columns showing part of a sheet
+   * rectangle, or undefined when all of it is hidden or beyond the grid.
+   */
+  gridSpan(rect: Rect): { y1: number; y2: number; x1: number; x2: number } | undefined {
+    const [y1, y2] = span(this.visibleRows, rect.r1, rect.r2);
+    const [x1, x2] = span(this.visibleCols, rect.c1, rect.c2);
+    return y1 <= y2 && x1 <= x2 ? { y1, y2, x1, x2 } : undefined;
+  }
+
   get(row: number, col: number): CellRecord | null {
     const o = this.overlay.get(cellKey(row, col));
     if (o) return o;
@@ -287,6 +297,25 @@ export class SheetView {
   rowHeight(row: number): number {
     return this.info.rowHeights[row] ?? this.info.defaultRowHeightPx;
   }
+}
+
+/** In a sorted array, the first index holding at least `lo` and the last holding at most `hi`. */
+function span(arr: Int32Array, lo: number, hi: number): [number, number] {
+  let a = 0;
+  let b = arr.length;
+  while (a < b) {
+    const mid = (a + b) >> 1;
+    if (arr[mid] < lo) a = mid + 1;
+    else b = mid;
+  }
+  let c = a;
+  let d = arr.length;
+  while (c < d) {
+    const mid = (c + d) >> 1;
+    if (arr[mid] <= hi) c = mid + 1;
+    else d = mid;
+  }
+  return [a, c - 1];
 }
 
 function search(arr: Int32Array, v: number): number {

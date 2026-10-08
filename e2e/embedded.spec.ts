@@ -12,7 +12,7 @@ import { goTo, readWorkbook, setCell } from './helpers';
 /** A cell's contents, read from the formula bar (the template freezes its heading row, so the grid is two panes). */
 async function contents(page: Page, ref: string): Promise<string> {
   await goTo(page, ref);
-  return page.getByRole('textbox', { name: 'Cell contents' }).inputValue();
+  return page.getByRole('combobox', { name: 'Cell contents' }).inputValue();
 }
 
 async function openSample(page: Page): Promise<void> {

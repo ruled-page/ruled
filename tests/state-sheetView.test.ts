@@ -138,6 +138,17 @@ describe('the scrollable area', () => {
     expect(view.gridCol(25)).toBe(24);
   });
 
+  it('finds the grid rows and columns that show part of a range', () => {
+    const view = new SheetView(sheetInfo({ hiddenRows: [1, 2], hiddenCols: [0] }), null);
+    expect(view.gridSpan({ r1: 0, c1: 0, r2: 3, c2: 2 })).toEqual({ y1: 0, y2: 1, x1: 0, x2: 1 });
+    // Ranges that start or end in hidden rows, or run past the grid.
+    expect(view.gridSpan({ r1: 1, c1: 1, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 })).toEqual({ y1: 1, y2: view.rowCount - 1, x1: 0, x2: view.colCount - 1 });
+    // All hidden, or all beyond the grid.
+    expect(view.gridSpan({ r1: 1, c1: 1, r2: 2, c2: 1 })).toBeUndefined();
+    expect(view.gridSpan({ r1: 0, c1: 0, r2: 0, c2: 0 })).toBeUndefined();
+    expect(view.gridSpan({ r1: MAX_ROWS - 1, c1: 1, r2: MAX_ROWS - 1, c2: 1 })).toBeUndefined();
+  });
+
   it('uses custom sizes, else the defaults', () => {
     const view = new SheetView(sheetInfo({ colWidths: { 2: 120 }, rowHeights: { 4: 33 } }), null);
     expect(view.colWidth(2)).toBe(120);

@@ -100,6 +100,16 @@ export function readGridPalette(el: Element | null): GridPalette {
   return out;
 }
 
+/** The colours references in a formula being edited take in turn, the same as editor.css declares. */
+export const DEFAULT_REF_COLORS: readonly string[] = ['#1f5fc8', '#c42b1c', '#7a3db8', '#1b7a43', '#b0287a', '#0b7285', '#a15c00'];
+
+/** The reference colours as the stylesheet sets them on `el`: --wbe-formula-ref1, --wbe-formula-ref2… */
+export function readRefColors(el: Element | null): readonly string[] {
+  if (!el || typeof getComputedStyle === 'undefined') return DEFAULT_REF_COLORS;
+  const css = getComputedStyle(el);
+  return DEFAULT_REF_COLORS.map((fallback, i) => css.getPropertyValue(`--wbe-formula-ref${i + 1}`).trim() || fallback);
+}
+
 /** Glide's theme from the palette. Grid lines are drawn with the cells, so Glide's own are off. */
 export function glideTheme(p: GridPalette): Partial<Theme> {
   return {

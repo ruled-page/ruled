@@ -159,6 +159,27 @@ describe('moving around the workbook', () => {
     expect(store.view?.colWidth(1)).toBe(2000);
     expect(new WorkbookStore({ drafts: false }).columnWidth(0)).toBe(9.14);
   });
+
+  it('outlines the references in a formula being typed, by sheet, redrawing only when they change', async () => {
+    await open();
+    store.setActive(1);
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.showFormulaRefs("=SUM(A1:B2)+lines!C3+'Other'!D4+Nowhere!E5+[1]Lines!A1+A1:B2");
+    expect(store.formulaRefs).toEqual([
+      { sheet: 1, rect: { r1: 0, c1: 0, r2: 1, c2: 1 }, color: 0 },
+      { sheet: 0, rect: { r1: 2, c1: 2, r2: 2, c2: 2 }, color: 1 },
+      { sheet: 1, rect: { r1: 3, c1: 3, r2: 3, c2: 3 }, color: 2 },
+      { sheet: 1, rect: { r1: 0, c1: 0, r2: 1, c2: 1 }, color: 0 },
+    ]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    store.showFormulaRefs('=SUM(A1:B2)+lines!C3+\'Other\'!D4+Nowhere!E5+[1]Lines!A1+A1:B2+1');
+    expect(listener).toHaveBeenCalledTimes(1);
+    store.showFormulaRefs('A1');
+    expect(store.formulaRefs).toEqual([]);
+    store.showFormulaRefs(undefined);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('stopping the editor', () => {

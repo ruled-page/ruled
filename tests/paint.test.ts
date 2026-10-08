@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BorderEdge } from '../src/core/types';
-import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from '../src/ui/gridPalette';
+import { REF_COLORS } from '../src/core/formulaAssist';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
 import { FREEZE_LINE, GRID_LINE, drawDataBar, drawEdge, drawGridLine, drawIcon } from '../src/ui/paint';
 
 interface Gradient {
@@ -397,6 +398,17 @@ describe('the grid palette', () => {
       const name = key === 'onSelection' ? '--wbe-on-accent' : `--wbe-grid-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
       expect(declared(name), name).toBe(value);
     }
+  });
+
+  it('reads the colours of references in a formula being edited, falling back for any the stylesheet leaves out', () => {
+    stylesheet({ '--wbe-formula-ref2': ' #ff0000 ' });
+    expect(readRefColors(el)).toEqual([DEFAULT_REF_COLORS[0], '#ff0000', ...DEFAULT_REF_COLORS.slice(2)]);
+    expect(DEFAULT_REF_COLORS).toHaveLength(REF_COLORS);
+    expect(readRefColors(null)).toBe(DEFAULT_REF_COLORS);
+    const css = readFileSync(join(__dirname, '..', 'src', 'editor', 'editor.css'), 'utf8');
+    DEFAULT_REF_COLORS.forEach((value, i) => expect(new RegExp(`--wbe-formula-ref${i + 1}:\\s*([^;]+);`).exec(css)?.[1]).toBe(value));
+    delete (globalThis as { getComputedStyle?: unknown }).getComputedStyle;
+    expect(readRefColors(el)).toBe(DEFAULT_REF_COLORS);
   });
 
   it("maps onto Glide's theme, with Glide's own grid lines off", () => {

@@ -118,6 +118,11 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.withReplies_one': '{{summary}} ({{count, number}} Antwort)',
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} Antworten)',
 
+  'formulaHelp.functions': 'Funktionen',
+  'formulaHelp.notCalculated': 'Wird hier nicht berechnet',
+  'formulaHelp.spokenArgument': '{{name}}, Argument {{number}}: {{argument}}',
+  'formulaHelp.spokenFunction': 'Funktion {{name}}',
+
   'panel.label': 'Details zur Arbeitsmappe',
   'panel.checks': 'Prüfungen',
   'panel.changes': 'Änderungen',
@@ -200,6 +205,8 @@ export const ui: Record<keyof typeof en, string> = {
   'shortcuts.clear': 'Ausgewählte Zellen leeren',
   'shortcuts.undoRedo': 'Rückgängig, Wiederholen',
   'shortcuts.clipboard': 'Ausschneiden, Kopieren, Einfügen',
+  'shortcuts.complete': 'In einer Formel die markierte Funktion aus der Liste der Namen einfügen, die zum Eingegebenen passen (Pfeiltasten wählen, Esc schließt die Liste)',
+  'shortcuts.absolute': 'In einer Formel den Bezug am Cursor zwischen relativ und absolut umschalten: A1, $A$1, A$1, $A1',
   'shortcuts.commands': 'Befehle',
   'shortcuts.menu': 'Zellmenü: nach unten und rechts ausfüllen, Zeilen und Spalten einfügen und löschen, Spaltenbreite, Sortieren, Filtern',
   'shortcuts.find': 'Suchen und Ersetzen',
@@ -215,6 +222,8 @@ export const ui: Record<keyof typeof en, string> = {
   'keys.typing': 'Tippen',
   'keys.enter': 'Eingabe',
   'keys.escape': 'Esc',
+  'keys.accept': 'Tab oder Eingabe',
+  'keys.f4': 'F4',
   'keys.delete': 'Entf, Rücktaste',
   'keys.menu': 'Umschalt+F10, Menütaste',
 
