@@ -43,7 +43,9 @@ back as .xlsx without losing what the editor can't display.
   cell's format, and is undone in one step. Hosts can turn the bar off with
   `features.format`.
 - Change the layout and save it: column widths and row heights (drag a
-  column's or row's edge, or set them from the menu), hide and unhide rows
+  column's or row's edge, double-click it to fit the widest value in the
+  column or the tallest cell in the row as Excel's AutoFit does, or set them
+  from the menu, which has AutoFit too), hide and unhide rows
   and columns, freeze panes, merge and unmerge cells. Merging asks first when
   it would clear values, as Excel does.
 - Outlines, as in Excel: a sheet with grouped rows or columns gets outline
@@ -488,7 +490,7 @@ the whole sheet, and Shift+F10 (or the
 menu key) opens the cell menu with fill down and right, and Fill Series
 (whose options are radio buttons and fields, with the Custom Lists dialog
 behind a button); notes and comments; rows and columns (insert, delete,
-height or width, hide and unhide, group and ungroup, and their groups'
+height or width, AutoFit, hide and unhide, group and ungroup, and their groups'
 detail and levels); merging; freezing panes; sort and filter; and opening,
 inserting, editing and removing links. Its submenus open with the right
 arrow, Enter or Space, and close with the left arrow or Escape. Shift+F2

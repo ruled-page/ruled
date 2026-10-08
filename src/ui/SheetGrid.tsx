@@ -200,6 +200,10 @@ export function SheetGrid({
     setRefColors((prev) => (prev.join() === colors.join() ? prev : colors));
   }, [themeVersion]);
   const g = useMemo(() => gridStyles(palette), [palette]);
+  // AutoFit measures text as it is drawn here.
+  useEffect(() => {
+    store.measureText = g.measure;
+  }, [store, g]);
   const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
@@ -874,7 +878,11 @@ export function SheetGrid({
   }, []);
   const onColumnResize = useCallback(
     (_c: GridColumn, size: number, index: number) => {
+      // Outside a drag, Glide is fitting the column to the rows in view, after
+      // what it takes for a double-click on the edge; the editor fits columns itself (below).
       if (index === 0 || !resizable || !resizing.current) return;
+      // Glide repeats a drag for the other selected columns; the store sizes those with this one at the end.
+      if (index !== resizing.current.index) return;
       resizing.current.moved = true;
       view.colWidths.set(view.visibleCols[index - 1], size);
       onColumnResized();
@@ -921,6 +929,19 @@ export function SheetGrid({
       const b = grid.getBounds(gc, -1);
       if (!b || x < b.x || x >= b.x + b.width) continue;
       return x - b.x <= 5 || b.x + b.width - x <= 5 ? undefined : { axis: 'cols', line: view.visibleCols[gc - 1] };
+    }
+    return undefined;
+  };
+  /** The column whose right edge is under the pointer, among the letters, where a drag resizes it. */
+  const columnEdgeAt = (x: number, y: number): number | undefined => {
+    const grid = ref.current;
+    const corner = header ? grid?.getBounds(0, -1) : undefined;
+    if (!grid || !corner || y < corner.y || y >= corner.y + corner.height) return undefined;
+    for (const gc of columnsInView()) {
+      const b = grid.getBounds(gc, -1);
+      if (!b || x < b.x - 5 || x > b.x + b.width + 5) continue;
+      if (Math.abs(x - (b.x + b.width)) <= 5) return view.visibleCols[gc - 1];
+      if (Math.abs(x - b.x) <= 5 && gc > 1) return view.visibleCols[gc - 2];
     }
     return undefined;
   };
@@ -980,10 +1001,25 @@ export function SheetGrid({
     if (!rowDrag && host.current) host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : '';
   };
   const onHostMouseDown = (e: ReactMouseEvent) => {
+    // A double-click on a column's edge fits it to its widest value, as in Excel.
+    const edge = e.button === 0 && e.detail >= 2 && resizable ? columnEdgeAt(e.clientX, e.clientY) : undefined;
+    if (edge !== undefined) {
+      e.preventDefault();
+      e.stopPropagation();
+      void store.autofit('cols', edge);
+      return;
+    }
     const at = e.button === 0 ? rowEdgeAt(e.clientX, e.clientY) : undefined;
     if (!at) {
       const hit = e.button === 0 ? headingAt(e.clientX, e.clientY) : undefined;
       if (hit) pressHeading(e, hit);
+      return;
+    }
+    // A double-click on the edge fits the row to what it holds, as in Excel.
+    if (e.detail >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      void store.autofit('rows', at.row);
       return;
     }
     e.preventDefault();

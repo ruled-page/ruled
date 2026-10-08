@@ -48,7 +48,9 @@ import { namedRange } from './names';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
+import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit';
 import { displayText, editText, exactText, isDateStyle } from './format';
+import { excelTextWidth } from './overflow';
 import { builtInLists, cleanLists, loadUserLists, saveUserLists } from './fillLists';
 import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
@@ -2377,6 +2379,34 @@ export class WorkbookStore {
    */
   resizedColumn(col: number, px: number): Promise<void> {
     return this.resizeLines('cols', col, Math.round(px));
+  }
+
+  /** Measures text as the grid draws it; the grid sets it, and Excel's character widths stand in without one. */
+  measureText?: MeasureText;
+
+  /**
+   * Fits columns' widths (or rows' heights) to what they hold, as Excel's
+   * AutoFit does: `line` and the other selected lines if it is one of them,
+   * otherwise just `line`; the selected lines without one.
+   */
+  async autofit(axis: 'rows' | 'cols', line?: number): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const selected = this.selectedLines(axis);
+    const lines = line === undefined || selected.includes(line) ? selected : [line];
+    const measure = this.measureText ?? excelTextWidth;
+    const sizes: Record<number, number> = {};
+    for (const l of lines) {
+      const px =
+        axis === 'cols'
+          ? fittedColumnWidth(view, this.styles, l, this.date1904, this.locale, measure)
+          : Math.min(546, fittedRowHeight(view, this.styles, l, this.date1904, this.locale, measure));
+      if (px !== undefined && px !== (axis === 'cols' ? view.colWidth(l) : view.rowHeight(l))) sizes[l] = px;
+    }
+    const count = Object.keys(sizes).length;
+    if (!count) return;
+    const op: LayoutOp = axis === 'cols' ? { kind: 'colWidths', widths: sizes } : { kind: 'rowHeights', heights: sizes };
+    await this.changeLayout(op, msg(axis === 'cols' ? 'store.history.autofitColumns' : 'store.history.autofitRows', { count }));
   }
 
   /** Sets a row's height, and the other selected rows', dragged to in the grid. */

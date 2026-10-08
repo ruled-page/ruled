@@ -57,6 +57,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   ];
   const rowLayout: MenuItem[] = [
     { label: t('menu.rowHeight'), onSelect: () => store.set('rowHeightFor', sel.row), disabled: locked },
+    { label: t('menu.autofitRowHeight'), onSelect: () => void store.autofit('rows'), disabled: locked },
     { label: t('menu.hideRows', { count: rows }), onSelect: () => void store.hideLines('rows'), disabled: store.outlineLocked('rows') },
     ...(store.hasHiddenNear('rows') ? [{ label: t('menu.unhideRows'), onSelect: () => void store.unhideLines('rows'), disabled: store.outlineLocked('rows') }] : []),
     ...outlineItems('rows'),
@@ -68,6 +69,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   ];
   const colLayout: MenuItem[] = [
     { label: t('menu.columnWidth'), onSelect: () => store.set('columnWidthFor', sel.col), disabled: locked },
+    { label: t('menu.autofitColumnWidth'), onSelect: () => void store.autofit('cols'), disabled: locked },
     { label: t('menu.hideColumns', { count: cols }), onSelect: () => void store.hideLines('cols'), disabled: store.outlineLocked('cols') },
     ...(store.hasHiddenNear('cols') ? [{ label: t('menu.unhideColumns'), onSelect: () => void store.unhideLines('cols'), disabled: store.outlineLocked('cols') }] : []),
     ...outlineItems('cols'),

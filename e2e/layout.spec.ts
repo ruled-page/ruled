@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, readWorkbook, shown } from './helpers';
+import { goTo, openFile, ordersWorkbook, readWorkbook, setCell, shown } from './helpers';
 
 /** Opens the cell menu from the keyboard and chooses an item, in a submenu when one is named. */
 async function choose(page: Page, item: string, submenu?: string) {
@@ -115,4 +115,42 @@ test("keeps a column's width when its edge is only pressed, and sets it when dra
   await expect(page.getByRole('button', { name: '1 change' })).toBeVisible();
   await goTo(page, 'A2');
   expect(await width()).toBe('14.29');
+});
+
+test('fits a column to its widest value when its edge is double-clicked, and from the menu', async ({ page }) => {
+  await setCell(page, 'C2', 'A much longer price note');
+  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const box = (await canvas.boundingBox())!;
+  const width = async (col: string) => {
+    await goTo(page, `${col}2`);
+    await choose(page, 'Column width…', 'Columns');
+    const dialog = page.getByRole('dialog', { name: `Width of column ${col}` });
+    const value = Number(await dialog.getByRole('textbox').inputValue());
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    return value;
+  };
+  // Column A (Item, Bolts, Nuts) narrows to fit; its right edge is past the 40 pixel row numbers.
+  await page.mouse.dblclick(box.x + 40 + 64, box.y + 12);
+  await expect(page.getByRole('button', { name: '2 changes' })).toBeVisible();
+  const a = await width('A');
+  expect(a).toBeLessThan(9.14);
+  expect(a).toBeGreaterThan(3);
+  // Column C widens to its note, from the menu.
+  await goTo(page, 'C2');
+  await choose(page, 'AutoFit column width', 'Columns');
+  await expect.poll(() => width('C')).toBeGreaterThan(15);
+});
+
+test('fits a row to its wrapped text when the edge of its number is double-clicked', async ({ page }) => {
+  await setCell(page, 'A2', 'A long item name that wraps over several lines');
+  await goTo(page, 'A2');
+  await page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Wrap text' }).click();
+  const box = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  // Row 2's bottom edge, under the 24 pixel letters.
+  await page.mouse.dblclick(box.x + 20, box.y + 24 + 20 * 2);
+  await goTo(page, 'A2');
+  await choose(page, 'Row height…', 'Rows');
+  const height = Number(await page.getByRole('dialog', { name: 'Height of row 2' }).getByRole('textbox').inputValue());
+  expect(height).toBeGreaterThan(30);
 });
