@@ -4,7 +4,10 @@ Open an Excel workbook in the browser, edit it like a spreadsheet, and save it
 back as .xlsx without losing what the editor can't display.
 
 - View any .xlsx or .xlsm: every sheet, number formats, fonts, fills, column
-  widths, merged cells, hidden, grouped and frozen rows and columns.
+  widths, merged cells, hidden, grouped and frozen rows and columns. As in
+  Excel, a sheet runs to column XFD and row 1,048,576: more rows and columns
+  appear as it is scrolled towards the last shown, and going to a cell
+  beyond them brings them with it.
 - Select as in Excel: a column's letter or a row's number selects it whole,
   dragging across them selects several, Shift+click reaches from the active
   one and Ctrl+click (⌘-click on a Mac) adds another, and the corner above
@@ -63,8 +66,10 @@ back as .xlsx without losing what the editor can't display.
   them. On a protected sheet, rows or columns can be grouped, hidden and
   shown only where its protection lets them be formatted, as in Excel.
 - Defined names, as in Excel: type one in the name box to go to its range
-  (the box lists the names as you type, and shows the name of a selection
-  that is exactly a named range), or type a new one to name the selection.
+  (the box lists the names, with what each refers to, as you type, and
+  shows the name of a selection that is exactly a named range), or type a
+  new one to name the selection. A name or reference on a hidden sheet
+  isn't gone to, as in Excel; the editor says the sheet is hidden.
   "Define name…" and "Name manager…" in the cell menu define, edit, filter
   and delete them, for the workbook or one sheet, with a comment. Formulas
   that use a name recalculate when it changes, renaming one renames it in
@@ -464,8 +469,19 @@ theme's accent colours, as in Excel, or the colours in `chartColors`
 Icons are replaced by name with `icons: { download: 'M12 3v12…' }` (SVG path
 data on a 24×24 grid, drawn in the current text colour), or with any element
 from React; `--wbe-icon-stroke-width` sets the line weight. React hosts can put
-their own controls at the end of the toolbar with `toolbarEnd`. The demo's
-theme picker (`src/demo/themes.ts`) shows three themes built this way.
+their own controls at the end of the toolbar with `toolbarEnd`. Drop-down
+lists are the browser's own, with the theme's `chevronDown` icon for their
+arrow. The toolbar folds its labels into icons, a step at a time, only as
+far as it must to fit, and then wraps onto a second row: it measures what
+it needs in the theme's font and the language, so larger type, longer
+labels or a host's controls never cut a button off.
+
+The demo's theme picker (`src/demo/themes.ts`) shows themes built this way,
+each showing something different: Indigo, a product's own colour through
+the toolbar, grid and charts, with rounder corners; Paper, a warm, flat look
+with a cream grid, square corners and outlines for shadows; Dark; and High
+contrast, for low vision, with black text, strong lines, bolder headings,
+larger type and heavier icons.
 
 ### Languages
 

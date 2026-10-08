@@ -20,6 +20,16 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   changes its size.
 - A banner says when a large workbook opens with live recalculation off,
   with a button to turn it on.
+- A sheet runs to column XFD and row 1,048,576, as in Excel, more rows and
+  columns appearing as it is scrolled; going to a cell beyond them brings
+  them with it.
+- The name box lists what each name refers to, and says a name or reference
+  on a hidden sheet can't be gone to instead of showing the hidden sheet.
+- Drop-down lists draw the theme's arrow, the toolbar folds its labels only
+  as far as it must to fit (and never cuts off a button), and the formula
+  bar uses the interface's font.
+- The demo's themes show more of what theming can do: Indigo, Paper, Dark
+  and High contrast.
 
 ## 0.1.0 (2026-10-08)
 
