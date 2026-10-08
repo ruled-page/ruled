@@ -899,8 +899,8 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   delete. A new note's box is placed beside its cell, hidden, as Excel adds
   one.
 - Links: a link's place in the workbook ("Sheet2!A10") isn't changed when
-  rows or columns move, as in Excel. Links follow cut cells on their sheet,
-  but not to another sheet. Drag-filling doesn't copy links; copying and
+  rows or columns move, as in Excel. Links and notes follow cut cells, to
+  another sheet too. Drag-filling doesn't copy links; copying and
   pasting does, replacing the links where it pastes. Only a formula that is
   a HYPERLINK call is a link, not one with HYPERLINK inside it; with live
   recalculation off, only an address the formula writes as text is known.
