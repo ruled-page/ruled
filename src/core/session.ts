@@ -21,6 +21,7 @@ import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
 import { displayFormula, engineFormula, isVolatile, makeShifter } from './formula';
 import { parseInput } from './input';
+import { resolveTableRefs, type TablePlace } from './tableRefs';
 import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from './refs';
 import { findCell } from './sheetScanner';
 import {
@@ -268,6 +269,7 @@ export class WorkbookSession {
   private readonly newFormulaFlags: Map<number, number>[];
   private readonly stale: Set<number>[];
   private untrusted: UntrustedFormula[] = [];
+  private places?: TablePlace[];
   private readonly sheetIndex: Map<string, number>;
   /**
    * After a change of rows or columns, the file's saved formula values are the
@@ -516,6 +518,27 @@ export class WorkbookSession {
   // ---------------------------------------------------------------------------
   // Calculation engine
 
+  /** The workbook's Excel tables, where structured references point. */
+  private get tablePlaces(): TablePlace[] {
+    return (this.places ??= this.model.sheets.flatMap((m, sheet) =>
+      m.info.tables.map((t) => ({ name: t.name, sheet, sheetName: m.info.name, rect: t.rect, headerRows: t.headerRows, totalsRows: t.totalsRows, columns: t.columns })),
+    ));
+  }
+
+  /**
+   * A formula as the engine gets it, with table references written as the
+   * cells they stand for. One that can't be resolved stays as it is, and the
+   * engine treats the formula as one it can't calculate.
+   */
+  private engineText(formula: string, sheet: number, row: number, col: number): string {
+    if (formula.indexOf('[') === -1) return formula;
+    return resolveTableRefs(formula, { sheet, row, col }, this.tablePlaces) ?? formula;
+  }
+
+  private engineContent(content: CellContent, sheet: number, row: number, col: number): CellContent {
+    return content.kind === 'formula' ? { kind: 'formula', formula: this.engineText(content.formula, sheet, row, col) } : content;
+  }
+
   /** Builds the engine on first use and checks it against Excel's saved values. */
   ensureEngine(): CalcReport {
     if (this.report) return this.report;
@@ -548,7 +571,7 @@ export class WorkbookSession {
         let reason: Unsupported | undefined;
         if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
         else if (flags & CellFlag.Unsupported) reason = { kind: 'sharedFormula' };
-        else reason = unsupportedReason(formula);
+        else reason = unsupportedReason(this.engineText(formula, s, row, col));
         if (!reason) continue;
         unsupported++;
         const key = JSON.stringify(reason);
@@ -556,7 +579,7 @@ export class WorkbookSession {
         cellReasons.set(`${s}:${row}:${col}`, unsupportedExplanation(reason));
         constant[s].add(idx);
         this.calcFlags[s].set(cellKey(row, col), CellFlag.Unsupported);
-        this.untrusted.push({ target: { sheet: s, row, col }, reads: formulaReads(formula, s, this.sheetIndex) });
+        this.untrusted.push({ target: { sheet: s, row, col }, reads: formulaReads(this.engineText(formula, s, row, col), s, this.sheetIndex) });
         sample({ sheet: m.info.name, ref: toA1(row, col), formula: displayFormula(formula), reason: unsupportedLabel(reason) });
       }
     });
@@ -565,7 +588,8 @@ export class WorkbookSession {
     const needed = this.sheetsFormulasUse();
     const engine = new CalcEngine(
       sheets.map((_m, s) => (needed.has(s) ? this.engineSheet(s) : null)),
-      this.model.names,
+      // Names can use table references too; formulas see them as cells, as everywhere else.
+      this.model.names.map((n) => ({ ...n, formula: this.engineText(n.formula, n.localSheet ?? 0, -1, -1) })),
       this.model.date1904,
     );
     this.engine = engine;
@@ -625,7 +649,7 @@ export class WorkbookSession {
         mismatched++;
         cellReasons.set(`${p.sheet}:${p.row}:${p.col}`, msg('core.cellReason.mismatch', { engine: describeValue(ours), excel: describeValue(excel) }));
         this.calcFlags[p.sheet].set(cellKey(p.row, p.col), CellFlag.Mismatch);
-        this.untrusted.push({ target: p, reads: formulaReads(grid.formulas.get(idx) ?? '', p.sheet, this.sheetIndex) });
+        this.untrusted.push({ target: p, reads: formulaReads(this.engineText(grid.formulas.get(idx) ?? '', p.sheet, p.row, p.col), p.sheet, this.sheetIndex) });
         sample({
           sheet: sheets[p.sheet].info.name,
           ref: toA1(p.row, p.col),
@@ -713,7 +737,9 @@ export class WorkbookSession {
       for (let i = start; i < end; i++) {
         const formula = grid.formulas.get(i);
         row[grid.cols[i]] =
-          formula !== undefined && grid.flags[i] & CellFlag.Formula && !constant.has(i) ? toRaw({ kind: 'formula', formula }) : valueRaw(gridValue(grid, i));
+          formula !== undefined && grid.flags[i] & CellFlag.Formula && !constant.has(i)
+            ? toRaw({ kind: 'formula', formula: this.engineText(formula, s, r, grid.cols[i]) })
+            : valueRaw(gridValue(grid, i));
       }
       rows[r] = row;
     }
@@ -723,7 +749,7 @@ export class WorkbookSession {
       while (rows.length <= row) rows.push([]);
       const line = rows[row];
       while (line.length <= col) line.push(null);
-      line[col] = toRaw(st.content);
+      line[col] = toRaw(this.engineContent(st.content, s, row, col));
     }
     return { name: m.info.name, rows };
   }
@@ -758,6 +784,12 @@ export class WorkbookSession {
       for (const l of m.info.listValidations) if (l.source.kind === 'formula') mention(l.source.formula);
     }
     for (const n of this.model.names) mention(n.formula);
+    // A table reference names the table, not its sheet.
+    for (const t of this.tablePlaces) {
+      if (needed.has(t.sheet)) continue;
+      const name = t.name.toLowerCase();
+      if (sheets.some((m, s) => [...(m.scan?.grid.formulas.values() ?? []), ...[...this.edits[s].values()].map((e) => (e.content.kind === 'formula' ? e.content.formula : ''))].some((f) => f.toLowerCase().includes(name)))) needed.add(t.sheet);
+    }
     return needed;
   }
 
@@ -836,7 +868,7 @@ export class WorkbookSession {
     this.edits.forEach((m, s) => {
       for (const [key, st] of m) {
         if (st.content.kind !== 'formula') continue;
-        if (unsupportedReason(st.content.formula)) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
+        if (unsupportedReason(this.engineText(st.content.formula, s, Math.floor(key / MAX_COLS), key % MAX_COLS))) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
         else this.values[s].set(key, this.engine!.value(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
       }
     });
@@ -941,7 +973,7 @@ export class WorkbookSession {
         const untrusted = this.isUntrustedOriginal(sheet, row, col);
         const grid = this.sheet(sheet).scan?.grid;
         const prev = untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : toRaw(this.current(sheet, row, col).content);
-        engine.write([{ sheet, row, col, raw: toRaw(content) }]);
+        engine.write([{ sheet, row, col, raw: toRaw(this.engineContent(content, sheet, row, col)) }]);
         try {
           return fn();
         } finally {
@@ -1203,15 +1235,15 @@ export class WorkbookSession {
       const untrusted = this.isUntrustedOriginal(w.sheet, w.row, w.col);
       const grid = this.sheet(w.sheet).scan?.grid;
       // A formula over the engine's size limits never reaches it.
-      const tooLarge = w.content.kind === 'formula' && unsupportedReason(w.content.formula)?.kind === 'tooLarge';
+      const tooLarge = w.content.kind === 'formula' && unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))?.kind === 'tooLarge';
       return {
         sheet: w.sheet,
         row: w.row,
         col: w.col,
-        raw: untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : tooLarge ? null : toRaw(w.content),
+        raw: untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : tooLarge ? null : toRaw(this.engineContent(w.content, w.sheet, w.row, w.col)),
       };
     });
-    for (const w of applied) if (w.content.kind === 'formula') this.ensureSheetsFor(w.content.formula, w.sheet);
+    for (const w of applied) if (w.content.kind === 'formula') this.ensureSheetsFor(this.engineText(w.content.formula, w.sheet, w.row, w.col), w.sheet);
     const changes = engine?.write(engineWrites) ?? [];
 
     // Formulas typed in this session that the engine can't calculate (all of them, with recalculation off).
@@ -1219,7 +1251,7 @@ export class WorkbookSession {
     for (const w of applied) {
       if (w.content.kind !== 'formula' || this.isUntrustedOriginal(w.sheet, w.row, w.col)) continue;
       const key = cellKey(w.row, w.col);
-      if (!engine || unsupportedReason(w.content.formula)) {
+      if (!engine || unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))) {
         this.newFormulaFlags[w.sheet].set(key, CellFlag.Unsupported);
         newUnsupported.push(w);
       } else {

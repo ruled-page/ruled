@@ -76,7 +76,8 @@ describe('kitchen-sink.xlsx', () => {
     const unsupported = report.unsupportedFunctions.map((x) => english.text(x)).join(' ');
     expect(unsupported).toMatch(/LET/);
     expect(unsupported).toMatch(/CONCAT/);
-    expect(unsupported).toMatch(/Table references/);
+    // Table references are calculated, as the cells they stand for.
+    expect(unsupported).not.toMatch(/Table references/);
     expect(report.liveCells).toBeGreaterThan(200);
   });
 
@@ -95,7 +96,10 @@ describe('kitchen-sink.xlsx', () => {
     // and so does the formula that reads it.
     expect(has(updateAt(r.updates, s, 'Summary', 'B16')?.flags, CellFlag.Stale)).toBe(true);
     expect(has(updateAt(r.updates, s, 'Summary', 'B17')?.flags, CellFlag.Stale)).toBe(true);
-    expect(has(updateAt(r.updates, s, 'Lookups', 'B8')?.flags, CellFlag.Stale)).toBe(true);
+    // A total over a table column recalculates.
+    expect(loadedFormula(s, 'Lookups', 'B8')).toBe('SUM(SalesData[Revenue])');
+    expect(valueOf(updateAt(r.updates, s, 'Lookups', 'B8'))).toBeCloseTo((loadedValue(s, 'Lookups', 'B8') as number) + 10 * price);
+    expect(has(updateAt(r.updates, s, 'Lookups', 'B8')?.flags, CellFlag.Stale)).toBe(false);
     expect(r.undo).toHaveLength(1);
   });
 
@@ -261,9 +265,9 @@ describe('engine verdicts reach the UI', () => {
   it('sends flags for formulas the engine cannot calculate', () => {
     const s = open('kitchen-sink.xlsx');
     const report = s.ensureEngine();
-    const b8 = updateAt(report.updates, s, 'Lookups', 'B8');
-    expect(has(b8?.flags, CellFlag.Unsupported)).toBe(true);
-    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:7:1`))).toMatch(/table references/);
+    const b16 = updateAt(report.updates, s, 'Summary', 'B16');
+    expect(has(b16?.flags, CellFlag.Unsupported)).toBe(true);
+    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Summary')}:15:1`))).toMatch(/LET function/);
   });
 });
 

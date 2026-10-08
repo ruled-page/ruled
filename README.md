@@ -548,9 +548,12 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   Everything else in the package is left untouched.
 - **Calculating** (`src/core/calc.ts`, `session.ts`): all sheets are loaded
   into HyperFormula, then every formula's result is compared with the value
-  Excel saved. Formulas the engine can't parse or calculate (LET, LAMBDA,
-  table references, spills…) are given Excel's value instead, so formulas
-  that depend on them still calculate correctly.
+  Excel saved. Table references (`Orders[Total]`, `[@Qty]`,
+  `Orders[[#Totals],[Qty]]`) are handed to the engine as the cells they stand
+  for (`src/core/tableRefs.ts`), while the file keeps them as written.
+  Formulas the engine can't parse or calculate (LET, LAMBDA, spills…) are
+  given Excel's value instead, so formulas that depend on them still
+  calculate correctly.
 - **Editing** (`session.ts`, `fill.ts`, `input.ts`): typed and pasted text is
   parsed the way Excel parses it (numbers, percentages, currencies, dates,
   formulas), in the user's locale (`3/4/2026` is 4 March in the US and 3 April
