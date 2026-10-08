@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CalcEngine, type EngineValue } from '../src/core/calc';
+import { CalcEngine } from '../src/core/calc';
+import type { EngineValue } from '../src/core/engineValue';
 import { toFileFormula } from '../src/core/formula';
 
 /**
