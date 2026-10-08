@@ -654,6 +654,11 @@ export class WorkbookStore {
     this.options.onError?.(new Error(this.t.text(reason)));
   }
 
+  /** Tells the host about an error the editor recovered from, such as one while drawing. */
+  reportError(error: Error): void {
+    this.options.onError?.(error);
+  }
+
   /** Opens the file again after the editor stopped working, offering back unsaved edits. */
   async reopen(): Promise<void> {
     if (!this.canReopen || !this.source) return;

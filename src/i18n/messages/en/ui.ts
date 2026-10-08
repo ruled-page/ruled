@@ -310,6 +310,8 @@ export const ui = {
   'editor.chooseWorkbookNote': '.xlsx or .xlsm, processed entirely in your browser',
   'editor.noWorkbook': 'No workbook is open.',
   'editor.reopen': 'Reopen {{fileName}}',
+  'editor.drawingFailed': 'Something went wrong showing the workbook. Your changes are kept.',
+  'editor.tryAgain': 'Try again',
   'editor.openAnother': 'Open another file',
   'editor.dropToOpen': 'Drop to open',
   'editor.thisChart': 'This chart',

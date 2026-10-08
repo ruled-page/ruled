@@ -10,6 +10,7 @@ import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
+import { EditorBoundary } from './ErrorBoundary';
 import { copyTheme, themeStyle } from './theme';
 import { I18nextProvider, Trans } from 'react-i18next';
 import { NAMESPACE } from '../i18n';
@@ -206,7 +207,9 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
     >
       <I18nextProvider i18n={store.i18n} defaultNS={NAMESPACE}>
         <IconContext.Provider value={store.icons}>
-          <EditorApp store={store} emptyState={emptyState} toolbarEnd={toolbarEnd} />
+          <EditorBoundary store={store}>
+            <EditorApp store={store} emptyState={emptyState} toolbarEnd={toolbarEnd} />
+          </EditorBoundary>
         </IconContext.Provider>
       </I18nextProvider>
     </div>

@@ -22,7 +22,7 @@ export default defineConfig({
       exclude: [
         'src/ui/**/*.tsx',
         'src/ui/useDialog.ts',
-        'src/editor/{WorkbookEditor.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
+        'src/editor/{WorkbookEditor.tsx,ErrorBoundary.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
         'src/demo/{main.tsx,Welcome.tsx,i18n.ts}',
         'src/embedded/{*.tsx,i18n.ts,format.ts}',
         'src/{demo,embedded}/locales/**',

@@ -308,6 +308,8 @@ export const ui: Record<keyof typeof en, string> = {
   'editor.chooseWorkbookNote': '.xlsx oder .xlsm, vollständig in Ihrem Browser verarbeitet',
   'editor.noWorkbook': 'Es ist keine Arbeitsmappe geöffnet.',
   'editor.reopen': '{{fileName}} erneut öffnen',
+  'editor.drawingFailed': 'Beim Anzeigen der Arbeitsmappe ist ein Fehler aufgetreten. Ihre Änderungen bleiben erhalten.',
+  'editor.tryAgain': 'Erneut versuchen',
   'editor.openAnother': 'Andere Datei öffnen',
   'editor.dropToOpen': 'Zum Öffnen ablegen',
   'editor.thisChart': 'Dieses Diagramm',
