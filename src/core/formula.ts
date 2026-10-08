@@ -59,14 +59,30 @@ export function displayFormula(fileFormula: string): string {
 }
 
 /**
- * How a file formula is given to the calculation engine. HyperFormula has
- * no TRUE/FALSE literals, only the TRUE() and FALSE() functions.
+ * How a file formula is given to the calculation engine, which reads a few
+ * things differently from Excel: it has no TRUE/FALSE literals, only the
+ * TRUE() and FALSE() functions; it reads exponents only with a lower-case
+ * "e" (1e+3, not 1E+3); and it can't read a quote doubled inside a string,
+ * so "say ""hi""" becomes ("say "&CHAR(34)&"hi"&CHAR(34)&""), except in an
+ * array constant, where & isn't allowed.
  */
 export function engineFormula(fileFormula: string): string {
   let f = stripFunctionPrefixes(fileFormula);
-  if (/TRUE|FALSE/i.test(f)) {
+  if (/TRUE|FALSE|\dE|""/i.test(f)) {
     try {
-      f = stringifyTokens(tokens(f).map((t) => (t.type === 'bool' ? { ...t, value: `${t.value}()` } : t)));
+      let depth = 0;
+      f = stringifyTokens(
+        tokens(f).map((t) => {
+          if (t.type === 'operator' && (t.value === '{' || t.value === '}')) depth += t.value === '{' ? 1 : -1;
+          if (t.type === 'bool') return { ...t, value: `${t.value}()` };
+          if (t.type === 'number') return { ...t, value: t.value.toLowerCase() };
+          if (t.type === 'string' && !depth && t.value.slice(1, -1).includes('""')) {
+            const parts = t.value.slice(1, -1).split('""');
+            return { ...t, value: `(${parts.map((part) => `"${part}"`).join('&CHAR(34)&')})` };
+          }
+          return t;
+        }),
+      );
     } catch {
       // Leave the formula as it is; the engine will report it if it cannot parse it.
     }

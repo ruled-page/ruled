@@ -30,6 +30,20 @@ describe('formulas the engine cannot calculate', () => {
   });
 });
 
+describe('formulas written as Excel writes them', () => {
+  it('calculate with upper-case exponents and quotes doubled inside text', () => {
+    const cells = ['1E+3', '9.99E+307>1', 'LOOKUP(9.99E+307,A2:A3)', 'LEN("say ""hi""")', '"""x"""', 'COUNTIF(A2:A3,"a""b")', 'TRUE+1E-1'];
+    for (const f of cells) expect(unsupportedReason(f), f).toBeUndefined();
+    const e = new CalcEngine([sheet('S', [cells.map((f) => toRaw({ kind: 'formula', formula: f })), [3], ['a"b']])], [], false);
+    expect(cells.map((_, c) => e.value(0, 0, c))).toEqual([1000, true, 3, 8, '"x"', 1, 1.1]);
+    e.destroy();
+  });
+
+  it('leave a doubled quote in an array constant for the engine to refuse', () => {
+    expect(unsupportedReason('INDEX({"a""b"},1)')).toEqual({ kind: 'syntax' });
+  });
+});
+
 describe('the engine', () => {
   it('skips names it cannot hold: print areas, broken references and scopes that are gone', () => {
     const e = new CalcEngine(
