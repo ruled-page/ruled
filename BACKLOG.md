@@ -66,6 +66,11 @@ value without saying so.
   HyperFormula, Glide and the rest, so a host app installs them for nothing.
   They can become devDependencies once the type declarations stop importing
   from them, for example by bundling the declarations into one file.
+- **Excel for the web may refuse a workbook whose LET formulas lack Excel's
+  `_xlpm.` prefix** on their names, as `public/samples/kitchen-sink.xlsx`
+  does; desktop Excel opens it. Saving keeps formulas no one edited as the
+  file has them, and formulas typed here get the prefix. Adding it on saving
+  to formulas that lack it would mend such files.
 - **German short month names** come out as numfmt writes them ("März")
   where German Excel writes "Mrz".
 - **A long list in a cell's dropdown** scrolls in a region that axe, in
