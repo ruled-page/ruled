@@ -86,7 +86,7 @@ function retag(el: ElementSpan, changes: Record<string, string | null>): string 
 /**
  * Writes the workbook part with its <sheet> elements in the order given,
  * defined names passed through `name` (which returns the formula and the
- * sheet the name is local to, or null to drop it), and the first workbook
+ * sheet the name is local to, or null to drop it), and each workbook
  * view's active and first tabs passed through `view`.
  */
 function writeBook(
@@ -123,7 +123,7 @@ function writeBook(
   pkg.setText(book.path, xml);
 }
 
-/** The active tab of the workbook's first view. */
+/** The active tab of the workbook's first view, the one Excel opens with. */
 function activeTab(book: Book): number {
   const view = firstElement(book.xml, 'workbookView');
   return Number((view && parseAttrs(view.attrs).activeTab) ?? 0);
