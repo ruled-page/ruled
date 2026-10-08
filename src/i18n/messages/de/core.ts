@@ -67,9 +67,6 @@ export const core: Record<keyof typeof en, string> = {
     '{{count, number}} Zahlen-, Datums-, Textlängen- oder benutzerdefinierte Regeln prüfen eingegebene Werte wie Excel',
   'core.finding.dataValidation.other_one': '{{count, number}} weitere Regel bleibt in der Datei erhalten, wird hier aber nicht angewendet',
   'core.finding.dataValidation.other_other': '{{count, number}} weitere Regeln bleiben in der Datei erhalten, werden hier aber nicht angewendet',
-  'core.finding.hyperlinks.title': 'Hyperlinks',
-  'core.finding.hyperlinks.detail_one': '{{count, number}} Link. Bleibt in der Datei erhalten; hier nicht anklickbar.',
-  'core.finding.hyperlinks.detail_other': '{{count, number}} Links. Bleiben in der Datei erhalten; hier nicht anklickbar.',
   'core.finding.sparklines.title': 'Sparklines',
   'core.finding.sparklines.detail_one':
     '{{count, number}} Sparklinegruppe. Bleibt in der Datei erhalten und wird von Excel neu gezeichnet; wird hier nicht angezeigt.',

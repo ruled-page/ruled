@@ -201,6 +201,8 @@ export interface DisplayStyle {
   unlocked?: boolean;
   /** Its formula is hidden from the formula bar when its sheet is protected. */
   formulaHidden?: boolean;
+  /** Its font is in the theme's hyperlink colour, as Excel's Hyperlink cell style has it. */
+  linkFont?: boolean;
 }
 
 export interface Anchor {
@@ -314,6 +316,22 @@ export interface NoteSnapshot {
   note: CellNote | null;
 }
 
+/** A hyperlink on a range of cells, as a sheet's <hyperlink> element has it. */
+export interface Hyperlink {
+  /** The cells it covers. */
+  rect: Rect;
+  /** An address outside the workbook, as written: a web page, an email or a file. */
+  target?: string;
+  /** A place in the workbook ("Sheet2!A1" or a defined name); with `target`, a part of that page. */
+  location?: string;
+  /** The text the link was given to show. */
+  display?: string;
+  /** Its screen tip. */
+  tooltip?: string;
+  /** Which of the sheet's <hyperlink> elements it is, so it is saved as it was; unset for one made here. */
+  id?: number;
+}
+
 export interface SheetInfo {
   index: number;
   name: string;
@@ -343,6 +361,7 @@ export interface SheetInfo {
   notes: CellNote[];
   tables: TableInfo[];
   conditionalFormats: CfRule[];
+  links: Hyperlink[];
   /** The range of the sheet's own filter (autoFilter), if it has one. */
   autoFilter?: Rect;
   /** The filter that hides rows, the sheet's or a table's, when it picks values the editor can show and change. */
@@ -420,7 +439,7 @@ export interface NameChange {
 export interface LoadResult {
   fileName: string;
   sheets: SheetInfo[];
-  /** The workbook's defined names. */
+  /** The workbook's defined names, which links and the name box can go to. */
   names: DefinedName[];
   grids: (SheetGrid | null)[];
   styles: DisplayStyle[];
@@ -474,6 +493,8 @@ export interface CellUpdate {
   /** Formula in file form, when the cell holds one. */
   f?: string;
   flags: number;
+  /** For a HYPERLINK formula, the address it links to now. */
+  link?: string;
 }
 
 /** A cell that differs from the opened file. Values are as people read them. */
@@ -541,9 +562,9 @@ export type EditOp =
   | { type: 'batch'; ops: EditOp[] };
 
 /**
- * A change to a sheet's layout. Sizes are in pixels, null being the sheet's
- * default; each lists only the rows or columns it changes, so the same kind
- * of change, with the values from before, undoes it.
+ * A change to a sheet's layout, or to its hyperlinks. Sizes are in pixels,
+ * null being the sheet's default; each lists only the rows or columns it
+ * changes, so the same kind of change, with the values from before, undoes it.
  */
 export type LayoutOp =
   | { kind: 'colWidths'; widths: Record<number, number | null> }
@@ -553,7 +574,9 @@ export type LayoutOp =
   | { kind: 'freeze'; rows: number; cols: number }
   /** A filter, or none, and the rows it hides. */
   | { kind: 'filter'; filter: FilterState | null; rows: number[] }
-  | { kind: 'merges'; add: Rect[]; remove: Rect[] };
+  | { kind: 'merges'; add: Rect[]; remove: Rect[] }
+  /** Hyperlinks added and removed; the same change the other way round undoes it. */
+  | { kind: 'links'; add: Hyperlink[]; remove: Hyperlink[] };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

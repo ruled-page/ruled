@@ -1,0 +1,66 @@
+/**
+ * English messages about hyperlinks: showing them, following them, and
+ * adding, changing or removing them.
+ */
+export const links = {
+  'links.finding.title': 'Hyperlinks',
+  'links.finding.detail_one': '{{count, number}} link, which can be followed and edited here.',
+  'links.finding.detail_other': '{{count, number}} links, which can be followed and edited here.',
+
+  'links.change.added': 'Link to {{address}} added',
+  'links.change.changed': 'Link changed to {{address}}',
+  'links.change.removed': 'Link removed',
+
+  'links.history.insert': 'Insert link',
+  'links.history.edit': 'Edit link',
+  'links.history.remove': 'Remove link',
+
+  'links.follow.refused': "This link can't be opened here: “{{address}}”. Only links to web pages (http or https) and email addresses (mailto) can be.",
+  'links.follow.noPlace': "The place this link goes to isn't in the workbook: {{location}}",
+  'links.follow.off': "Links aren't followed in this editor.",
+  'links.follow.none': 'This cell has no link.',
+  'links.follow.blocked': "The browser didn't open the link; it may be blocking pop-ups here.",
+  'links.confirm.title': 'Open this link?',
+  'links.confirm.body': "The workbook links to the address below. Open it only if you trust where it goes. You won't be asked again for this address while the workbook is open.",
+  'links.confirm.emailTitle': 'Write an email?',
+  'links.confirm.emailBody': "The workbook links to the email address below. Opening it starts an email in your email program. You won't be asked again for this address while the workbook is open.",
+  'links.confirm.address': 'Address',
+  'links.confirm.open': 'Open link',
+  'links.confirm.email': 'Write email',
+
+  'links.tip.follow': 'Ctrl+click to follow, or Ctrl+Enter',
+  'links.tip.followApple': '⌘-click to follow, or ⌘Enter',
+  'links.tip.off': "Links aren't followed in this editor",
+  'links.spoken': '{{value}}, link to {{address}}',
+  'links.formulaBar.open': 'Open link to {{address}}',
+  'links.shortcut': "Follow the cell's link",
+
+  'links.menu.open': 'Open link',
+  'links.menu.insert': 'Insert link…',
+  'links.menu.edit': 'Edit link…',
+  'links.menu.remove_one': 'Remove link',
+  'links.menu.remove_other': 'Remove links',
+
+  'links.dialog.insertTitle': 'Insert link',
+  'links.dialog.editTitle': 'Edit link',
+  'links.dialog.text': 'Text to display',
+  'links.dialog.textKept': 'The cells keep what they hold.',
+  'links.dialog.linkTo': 'Link to',
+  'links.dialog.web': 'Web page or email',
+  'links.dialog.place': 'Place in this workbook',
+  'links.dialog.address': 'Address',
+  'links.dialog.addressHint': 'A web page, such as https://example.com, or an email address.',
+  'links.dialog.addressMissing': 'Enter the address to link to.',
+  'links.dialog.addressRefused': 'Links can only go to web pages (http or https) and email addresses.',
+  'links.dialog.sheet': 'Sheet or name',
+  'links.dialog.sheets': 'Sheets',
+  'links.dialog.names': 'Defined names',
+  'links.dialog.cell': 'Cell',
+  'links.dialog.cellHint': 'A cell or range, such as A1 or B2:C4.',
+  'links.dialog.cellInvalid': 'Enter a cell or range, such as A1 or B2:C4.',
+  'links.dialog.tooltip': 'Screen tip',
+  'links.dialog.tooltipHint': 'Shown when the pointer is over the link. Optional.',
+  'links.dialog.remove': 'Remove link',
+  'links.dialog.insert': 'Insert',
+  'links.dialog.save': 'Save',
+};

@@ -23,6 +23,8 @@ import type { Person } from './comments';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
+import { SheetLinks } from './hyperlinks';
+import { copyLinks, isHyperlinkFormula, literalHyperlinkTarget, sortLinks } from './links';
 import { displayFormula, engineFormula, isVolatile, makeShifter, validateFormula } from './formula';
 import { parseInput } from './input';
 import { SheetLayout } from './layout';
@@ -50,6 +52,7 @@ import {
   type BorderPlacement,
   type Finding,
   type FormatChange,
+  type Hyperlink,
   type LayoutChange,
   type ListSource,
   type LoadResult,
@@ -326,6 +329,13 @@ export class WorkbookSession {
   private fileNotes?: Map<number, CellNote>[];
   /** The file's defined names, as opened; model.names holds them as they now are. */
   private readonly fileNames: DefinedName[];
+  /** Per sheet: its hyperlinks, once one has been added, changed or removed. */
+  private links: (SheetLinks | undefined)[] = [];
+  /**
+   * Per sheet: where each HYPERLINK formula's link went when the screen was
+   * last told, so a link that changes while its value doesn't is told too.
+   */
+  private formulaLinks: Map<number, string | undefined>[] = [];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
@@ -417,9 +427,9 @@ export class WorkbookSession {
     return n;
   }
 
-  /** How each sheet's layout differs from the file's. */
+  /** How each sheet's layout and hyperlinks differ from the file's. */
   private layoutNotes(): CellChange[] {
-    return this.layouts.flatMap((l, s) => l?.notes(this.model.sheets[s].info.name) ?? []);
+    return this.model.sheets.flatMap((m, s) => [...(this.layouts[s]?.notes(m.info.name) ?? []), ...(this.links[s]?.notes(m.info.name) ?? [])]);
   }
 
   /** How the names differ from the file's, for the change list. */
@@ -450,6 +460,16 @@ export class WorkbookSession {
 
   private layoutOf(sheet: number): SheetLayout {
     return (this.layouts[sheet] ??= new SheetLayout(this.sheet(sheet).info));
+  }
+
+  private linksOf(sheet: number): SheetLinks {
+    return (this.links[sheet] ??= new SheetLinks(this.sheet(sheet).info.links));
+  }
+
+  /** A change to a sheet's links, unless it changes nothing or the sheet is protected, whose links stay as they are. */
+  private linkChange(sheet: number, change: { add: Hyperlink[]; remove: Hyperlink[] }): LayoutChange[] {
+    if ((!change.add.length && !change.remove.length) || this.sheet(sheet).info.protected) return [];
+    return [{ sheet, op: { kind: 'links', ...change } }];
   }
 
   private mergesOf(sheet: number): Rect[] {
@@ -680,7 +700,21 @@ export class WorkbookSession {
     } else if (st.content.kind !== 'empty') {
       setValue(u, st.content.kind === 'error' ? { error: st.content.value } : st.content.value);
     }
+    const links = (this.formulaLinks[sheet] ??= new Map());
+    if (st.content.kind === 'formula' && isHyperlinkFormula(st.content.formula)) {
+      const link = this.formulaLink(sheet, row, col, st.content.formula);
+      links.set(cellKey(row, col), link);
+      if (link !== undefined) u.link = link;
+    } else {
+      links.delete(cellKey(row, col));
+    }
     return u;
+  }
+
+  /** Where a HYPERLINK formula links to now: as the engine worked it out, else as the formula writes it. */
+  private formulaLink(sheet: number, row: number, col: number, formula: string): string | undefined {
+    const calculated = this.isUntrustedOriginal(sheet, row, col) || this.newFormulaFlags[sheet].has(cellKey(row, col)) ? undefined : this.engine?.hyperlink(sheet, row, col);
+    return calculated ?? literalHyperlinkTarget(formula);
   }
 
   private setCurrent(w: Write): void {
@@ -867,6 +901,12 @@ export class WorkbookSession {
     });
     this.calcFlags.forEach((m, s) => {
       for (const key of m.keys()) send(s, key);
+    });
+    // Where HYPERLINK formulas link to is worked out by the engine.
+    sheets.forEach((m, s) => {
+      const grid = m.scan?.grid;
+      if (!grid) return;
+      for (const [idx, formula] of grid.formulas) if (isHyperlinkFormula(formula)) send(s, cellKey(rowOfIndex(grid, idx), grid.cols[idx]));
     });
 
     const findings: Finding[] = [];
@@ -1205,6 +1245,8 @@ export class WorkbookSession {
     const writes = new Map<string, Write>();
     const warnings: Text[] = [];
     const newStyles: { index: number; style: DisplayStyle }[] = [];
+    /** Changes to links that go with the cells written. */
+    const links: LayoutChange[] = [];
     const put = (w: Write) => writes.set(`${w.sheet}:${w.row}:${w.col}`, w);
     const styleFor = (base: number, numFmt?: string) => {
       if (!numFmt) return base;
@@ -1280,6 +1322,8 @@ export class WorkbookSession {
           }
         }
         if (lost) warnings.push(msg('core.edit.copiedAsValues', { count: lost }));
+        // Links go with the cells, as Excel pastes them.
+        links.push(...this.linkChange(op.sheet, copyLinks(this.linksOf(op.srcSheet).list, op.src, this.linksOf(op.sheet).list, op.dst)));
         break;
       }
       case 'fill': {
@@ -1312,6 +1356,7 @@ export class WorkbookSession {
           }
         });
         if (lost) warnings.push(msg('core.edit.sortedAsValues', { count: lost }));
+        links.push(...this.linkChange(op.sheet, sortLinks(this.linksOf(op.sheet).list, rect, top, order.map((o) => o.row))));
         break;
       }
       case 'restore': {
@@ -1366,10 +1411,11 @@ export class WorkbookSession {
     }
     const committed = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore');
     const result = notes ? { ...committed, noteUndo: notes.undo, noteRedo: notes.redo } : committed;
-    return op.type === 'restore' && op.layout?.length ? mergeEditResults([result, this.applyLayout(op.layout)]) : result;
+    const layout = op.type === 'restore' ? (op.layout ?? []) : links;
+    return layout.length ? mergeEditResults([result, this.applyLayout(layout)]) : result;
   }
 
-  /** Changes rows', columns', panes' and merges' layout, after checking each can be made. */
+  /** Changes rows', columns', panes' and merges' layout, or links, after checking each can be made. */
   private applyLayout(changes: LayoutChange[]): EditResult {
     for (const { sheet, op } of changes) {
       const info = this.sheet(sheet).info;
@@ -1382,7 +1428,7 @@ export class WorkbookSession {
       }
     }
     const undo: LayoutChange[] = [];
-    for (const { sheet, op } of changes) undo.unshift({ sheet, op: this.layoutOf(sheet).apply(op) });
+    for (const { sheet, op } of changes) undo.unshift({ sheet, op: op.kind === 'links' ? this.linksOf(sheet).apply(op) : this.layoutOf(sheet).apply(op) });
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
   }
 
@@ -1640,6 +1686,16 @@ export class WorkbookSession {
     applied.forEach(touch);
     this.absorb(changes, touched);
     for (const p of this.markStale([...applied, ...changes], newUnsupported)) touch(p);
+    // A HYPERLINK formula whose address changed while its text didn't.
+    this.formulaLinks.forEach((m, s) => {
+      for (const [key, was] of m) {
+        const row = Math.floor(key / MAX_COLS);
+        const col = key % MAX_COLS;
+        if (touched.has(`${s}:${row}:${col}`)) continue;
+        const st = this.current(s, row, col);
+        if (st.content.kind !== 'formula' || this.formulaLink(s, row, col, st.content.formula) !== was) touch({ sheet: s, row, col });
+      }
+    });
 
     return {
       updates: [...touched.values()].map((p) => this.update(p.sheet, p.row, p.col)),
@@ -1686,7 +1742,8 @@ export class WorkbookSession {
 
   /** The workbook with every edit written in, as a package. */
   private savedPackage(): OoxmlPackage {
-    const edited = this.edits.some((m) => m.size) || this.noteEdits.some((m) => m.size) || this.layouts.some((l) => l?.changed) || this.nameNotes().length > 0;
+    const edited =
+      this.edits.some((m) => m.size) || this.noteEdits.some((m) => m.size) || this.layouts.some((l) => l?.changed) || this.links.some((l) => l?.changed) || this.nameNotes().length > 0;
     return edited ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
   }
 
@@ -1709,6 +1766,7 @@ export class WorkbookSession {
       notes: this.noteEdits,
       people: this.people,
       ...(this.nameNotes().length && { names: { file: this.fileNames, now: this.model.names } }),
+      links: this.links,
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

@@ -48,6 +48,7 @@ export function sheetInfo(extra: Partial<SheetInfo> = {}): SheetInfo {
     notes: [],
     tables: [],
     conditionalFormats: [],
+    links: [],
     protected: false,
     showGridLines: true,
     ...extra,

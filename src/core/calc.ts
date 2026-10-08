@@ -247,6 +247,14 @@ export class CalcEngine {
     return convert(this.hf.getCellValue({ sheet: id, row, col }));
   }
 
+  /** The address a HYPERLINK formula in this cell links to, as last calculated. */
+  hyperlink(sheet: number, row: number, col: number): string | undefined {
+    const id = this.ids[sheet];
+    if (id === undefined || id < 0) return undefined;
+    const url: unknown = this.hf.getCellHyperlink({ sheet: id, row, col });
+    return url === undefined || url === null ? undefined : String(url);
+  }
+
   /** Whether the engine worked out an array for the formula in this cell, which Excel would spill. */
   isArray(sheet: number, row: number, col: number): boolean {
     const id = this.ids[sheet];

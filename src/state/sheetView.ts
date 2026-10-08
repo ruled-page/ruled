@@ -1,7 +1,8 @@
 import { msg, type Text } from '../i18n/message';
+import { applyLinkChange } from '../core/links';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterState, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -26,6 +27,9 @@ export class SheetView {
   private colLimit = 0;
   readonly colWidths = new Map<number, number>();
   private readonly mergesByRow = new Map<number, MergeRange[]>();
+  /** Links on one row, by row; links over several rows are few, and looked through. */
+  private readonly linksByRow = new Map<number, Hyperlink[]>();
+  private tallLinks: Hyperlink[] = [];
   private readonly notes = new Map<number, CellNote>();
   private readonly cf = new Map<number, CfCell>();
   /** Formats referred to by conditional formatting results. */
@@ -38,6 +42,7 @@ export class SheetView {
     this.info = info;
     this.grid = grid;
     this.indexMerges();
+    this.indexLinks();
     for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
     // The file's own filter: the rows it hides are hidden by it, and showing them again clears it.
     if (info.filter) {
@@ -58,6 +63,17 @@ export class SheetView {
         if (list) list.push(m);
         else this.mergesByRow.set(r, [m]);
       }
+    }
+  }
+
+  private indexLinks(): void {
+    this.linksByRow.clear();
+    this.tallLinks = [];
+    for (const l of this.info.links) {
+      const list = this.linksByRow.get(l.rect.r1);
+      if (l.rect.r1 !== l.rect.r2) this.tallLinks.push(l);
+      else if (list) list.push(l);
+      else this.linksByRow.set(l.rect.r1, [l]);
     }
   }
 
@@ -104,6 +120,10 @@ export class SheetView {
         this.indexMerges();
         break;
       }
+      case 'links':
+        info.links = applyLinkChange(info.links, op).links;
+        this.indexLinks();
+        break;
     }
     this.layoutVersion++;
     this.version++;
@@ -209,7 +229,7 @@ export class SheetView {
   }
 
   apply(u: CellUpdate): void {
-    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags });
+    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags, ...(u.link !== undefined && { link: u.link }) });
     if (u.row >= this.rowLimit - 20 || u.col >= this.colLimit - 2) this.extendTo(u.row + 20, u.col + 2);
     this.version++;
   }
@@ -294,6 +314,12 @@ export class SheetView {
 
   blockedAt(row: number, col: number): BlockedRegion | undefined {
     return this.info.blocked.find((b) => inRect(b, row, col));
+  }
+
+  /** The sheet's own link on a cell (not a HYPERLINK formula's): the first that covers it. */
+  linkAt(row: number, col: number): Hyperlink | undefined {
+    const inCol = (l: Hyperlink) => col >= l.rect.c1 && col <= l.rect.c2;
+    return this.linksByRow.get(row)?.find(inCol) ?? this.tallLinks.find((l) => row >= l.rect.r1 && row <= l.rect.r2 && inCol(l));
   }
 
   mergeAt(row: number, col: number): MergeRange | undefined {

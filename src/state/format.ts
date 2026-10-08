@@ -11,6 +11,8 @@ export interface CellRecord {
   /** Formula in file form. */
   f?: string;
   flags: number;
+  /** For a HYPERLINK formula, the address it links to, once the worker has worked it out. */
+  link?: string;
 }
 
 const dateFormats = new Map<string, boolean>();

@@ -2,6 +2,7 @@ import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
 import { isDynamicArrayFormula } from './formula';
+import { writeHyperlinks, type SheetLinks } from './hyperlinks';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
@@ -41,6 +42,8 @@ export interface SaveInput {
   people?: ReadonlyMap<string, Person>;
   /** The defined names as the file had them and as they are now, when they differ. */
   names?: { file: DefinedName[]; now: DefinedName[] };
+  /** Per sheet: its hyperlinks, where they have been edited. */
+  links?: (SheetLinks | undefined)[];
 }
 
 type Patch =
@@ -67,6 +70,8 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     const rows = layout ? rowAttributes(layout) : new Map<number, Record<string, string | null>>();
     let xml = patches.size || rows.size ? rewriteSheet(m.xml, m.scan, patches, cm, rows) : m.xml;
     if (layout?.changed) xml = writeLayout(xml, m.scan.prefix, layout);
+    const links = input.links?.[s];
+    if (links?.changed) xml = writeHyperlinks(pkg, m.path, xml, m.scan.prefix, links.list);
     if (xml !== m.xml) pkg.setText(m.path, xml);
     // A table's filter is kept in the table's own part: the new one set, a table's that went cleared.
     if (layout?.filter !== undefined) {

@@ -109,7 +109,7 @@ export class SheetLayout {
   }
 
   /** Makes the change, returning the change that undoes it. */
-  apply(op: LayoutOp): LayoutOp {
+  apply(op: Exclude<LayoutOp, { kind: 'links' }>): LayoutOp {
     switch (op.kind) {
       case 'colWidths':
         return { kind: 'colWidths', widths: setEach(op.widths, (c) => this.colWidth(c), (c, px) => this.colWidths.set(c, px)) };

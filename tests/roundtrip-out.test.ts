@@ -76,6 +76,24 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
     write(file.replace('.xlsx', '.names.xlsx'), b);
   }
 
+  // Links changed, added to sheets that had none (one of them with no relationships yet), and removed.
+  const links = (s: WorkbookSession, sheet: number, op: Omit<Extract<LayoutOp, { kind: 'links' }>, 'kind'>) => s.apply({ type: 'layout', sheet, op: { kind: 'links', ...op } });
+  const range = (a: string, b = a) => ({ r1: at(a).row, c1: at(a).col, r2: at(b).row, c2: at(b).col });
+  const h = open('kitchen-sink.xlsx');
+  const summary = sheetIndex(h, 'Summary');
+  links(h, summary, { add: [{ rect: range('A19'), target: 'https://example.com/changed page', tooltip: 'Changed "tip"' }], remove: h.model.sheets[summary].info.links });
+  links(h, data, { add: [{ rect: range('B2', 'C3'), location: "'Summary'!A1", display: 'Summary' }, { rect: range('D5'), target: 'mailto:someone@example.com?subject=Prices & more' }], remove: [] });
+  h.apply({ type: 'copy', srcSheet: data, src: range('B2'), sheet: notes, dst: range('A1', 'A3') });
+  write('kitchen-sink.links.xlsx', h);
+  const o = open('orders.xlsx');
+  links(o, 0, { add: [{ rect: range('A1'), target: 'https://example.com/orders' }, { rect: range('B1'), location: 'A10' }], remove: [] });
+  write('orders.links.xlsx', o);
+  const tl = corpus('templates.xlsx');
+  const linked = sheetIndex(tl, 'Lines');
+  links(tl, linked, { add: [], remove: tl.model.sheets[linked].info.links });
+  links(tl, sheetIndex(tl, 'Request'), { add: [{ rect: range('A1'), target: 'https://example.com/request', display: 'Request' }], remove: [] });
+  write('templates.links.xlsx', tl);
+
   const p = open('pivot.xlsx');
   p.apply({ type: 'input', sheet: 0, ...at('E2'), text: '=C2*D2*2' });
   p.apply({ type: 'input', sheet: 0, ...at('C10'), text: '77' });

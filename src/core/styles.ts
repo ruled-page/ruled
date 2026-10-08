@@ -247,6 +247,8 @@ interface FontInfo {
   sizePt: number;
   family: string;
   color?: string;
+  /** In the theme's hyperlink colour (or followed hyperlink colour), as Excel's Hyperlink cell style is. */
+  link: boolean;
 }
 
 export interface StyleAddition {
@@ -312,6 +314,7 @@ export class StyleBook {
       sizePt: Number(attr(child(f, 'sz'), 'val') ?? 11),
       family: attr(child(f, 'name'), 'val') ?? 'Calibri',
       color: resolveColor(child(f, 'color'), theme, indexed),
+      link: ['10', '11'].includes(attr(child(f, 'color'), 'theme') ?? ''),
     }));
 
     const fills: (string | undefined)[] = children(child(root, 'fills'), 'fill').map((f) => {
@@ -362,6 +365,7 @@ export class StyleBook {
         border: cellBorders(borders[Number(attr(xf, 'borderId') ?? 0)]),
         ...(['0', 'false'].includes(attr(protection, 'locked') ?? '') ? { unlocked: true } : {}),
         ...(['1', 'true'].includes(attr(protection, 'hidden') ?? '') ? { formulaHidden: true } : {}),
+        ...(font?.link ? { linkFont: true } : {}),
       });
     }
     if (this.display.length === 0) this.display.push(defaultStyle());

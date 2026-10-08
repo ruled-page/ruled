@@ -7,6 +7,7 @@ import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePeople, parseThreads, type Person } from './comments';
+import { readHyperlinks } from './hyperlinks';
 import type { Anchor, BlockedRegion, CellNote, DefinedName, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
@@ -260,6 +261,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
       notes: [],
       tables: [],
       conditionalFormats: [],
+      links: [],
       protected: false,
       showGridLines: true,
     };
@@ -419,13 +421,13 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
         sheet: name,
       });
     }
-    const linkCount = children(child(meta, 'hyperlinks'), 'hyperlink').length;
-    if (linkCount) {
+    info.links = readHyperlinks(meta, sheetRels);
+    if (info.links.length) {
       findings.push({
         kind: 'hyperlink',
         severity: 'info',
-        title: msg('core.finding.hyperlinks.title'),
-        detail: msg('core.finding.hyperlinks.detail', { count: linkCount }),
+        title: msg('links.finding.title'),
+        detail: msg('links.finding.detail', { count: info.links.length }),
         sheet: name,
       });
     }
