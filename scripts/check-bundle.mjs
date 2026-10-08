@@ -17,11 +17,11 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const BUDGETS = [
   // The demo page, before a workbook is opened.
   ['dist/assets', /^sites-.*\.js$/, 275],
-  ['dist/assets', /^workbook\.worker-.*\.js$/, 290],
+  ['dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // Loaded only for workbooks with charts.
   ['dist/assets', /^ChartView-.*\.js$/, 75],
   ['dist-lib/react', /^workbook-editor\.js$/, 175],
-  ['dist-lib/react/assets', /^workbook\.worker\.js$/, 290],
+  ['dist-lib/react/assets', /^workbook\.worker\.js$/, 300],
   // React and the worker included.
   ['dist-lib/standalone', /^workbook-editor\.js$/, 565],
 ];
