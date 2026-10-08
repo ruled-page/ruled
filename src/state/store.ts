@@ -1031,7 +1031,7 @@ export class WorkbookStore {
 
   /** The workbook as it is now, as onSave would receive it, without running save checks or onSave. */
   async snapshot(): Promise<SavedWorkbook | undefined> {
-    await this.queue;
+    await this.settled();
     this.busy = true;
     this.notify();
     try {
@@ -1096,7 +1096,7 @@ export class WorkbookStore {
         if (!go) return 'cancelled';
       }
     }
-    await this.queue;
+    await this.settled();
     const outOfDate = outOfDateCells(this.sheets).length;
     if (
       outOfDate &&
@@ -1224,7 +1224,7 @@ export class WorkbookStore {
    * Options override the `csvExport` option.
    */
   async csv(options: CsvOptions = {}): Promise<{ text: string; fileName: string; sheet: string } | undefined> {
-    await this.queue;
+    await this.settled();
     const view = this.view;
     if (this.status !== 'ready' || !view || view.info.kind !== 'worksheet') return undefined;
     const text = sheetCsv(view, this.styles, this.date1904, this.locale, { ...this.options.csvExport, ...options });
@@ -2465,7 +2465,26 @@ export class WorkbookStore {
     });
   }
 
+  /** Typing still being checked before its edit is queued. */
+  private readonly typing = new Set<Promise<void>>();
+
+  /** Once every edit asked for, typing still being checked included, has been made. */
+  private async settled(): Promise<void> {
+    await Promise.all(this.typing);
+    await this.queue;
+  }
+
   async input(row: number, col: number, text: string): Promise<void> {
+    const typed = this.typed(row, col, text);
+    this.typing.add(typed);
+    try {
+      await typed;
+    } finally {
+      this.typing.delete(typed);
+    }
+  }
+
+  private async typed(row: number, col: number, text: string): Promise<void> {
     const view = this.view;
     if (!view) return;
     const reason = view.readOnlyReason(row, col);

@@ -170,6 +170,15 @@ describe('the sheet shown, as CSV', () => {
     expect((await csvLines())?.[2]).toBe(`"Say ""hi""",7.00,,,FALSE,14.00,'-2+3+cmd|calc,,`);
   });
 
+  it('has a value typed just before it was asked for, while it is still being checked', async () => {
+    await open(lines, 'lines.xlsx');
+    void store.input(2, 1, '8');
+    expect((await csvLines())?.[2]).toBe(`"Say ""hi""",8.00,,,FALSE,16.00,'-2+3+cmd|calc,,`);
+    void store.input(2, 1, '9');
+    const saved = await store.snapshot();
+    expect(loadedValue(WorkbookSession.open(saved!.bytes, 'lines.xlsx'), 'Lines', 'B3')).toBe(9);
+  });
+
   it('is nothing without a workbook, and empty for an empty sheet', async () => {
     const files = downloads();
     store = await testStore();
