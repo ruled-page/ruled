@@ -1,28 +1,22 @@
-import { CellError, ErrorType, FunctionArgumentType, FunctionPlugin, HyperFormula, SimpleRangeValue } from 'hyperformula';
+import { CellError, ErrorType, FunctionArgumentType, FunctionPlugin, HyperFormula, SimpleRangeValue, type FunctionPluginDefinition } from 'hyperformula';
 import { format } from 'numfmt';
+import { excelRound } from './functions/common';
+import { InfoFunctions } from './functions/info';
+import { LookupFunctions } from './functions/lookup';
+import { TextFunctions } from './functions/text';
 
 /**
  * Functions where HyperFormula's results differ from Excel's, replaced with
  * versions that follow Excel (each was caught by the calculation-accuracy
  * tests): INT rounds down rather than towards zero, MOD takes the divisor's
  * sign, ROUND works on the decimal value Excel shows (1.005 → 1.01), TEXT
- * understands Excel number formats, DATEDIF and RANK.EQ exist.
+ * understands Excel number formats, DATEDIF and RANK.EQ exist. Functions it
+ * lacks altogether are added from ./functions.
  */
 
 /** A function call as the engine hands it to a plugin method. */
 type Ast = { args: Parameters<FunctionPlugin['runFunction']>[0] };
 type State = Parameters<FunctionPlugin['runFunction']>[1];
-
-/** Rounds the 15-digit decimal value, as Excel does, rather than the binary one. */
-function excelRound(x: number, digits: number, mode: 'half' | 'up' | 'down'): number {
-  if (!Number.isFinite(x) || x === 0) return x;
-  const d = Math.trunc(digits);
-  const sign = x < 0 ? -1 : 1;
-  const [mantissa, exp] = Math.abs(x).toExponential(14).split('e');
-  const shifted = Number(`${mantissa}e${Number(exp) + d}`);
-  const r = mode === 'half' ? Math.round(shifted) : mode === 'up' ? Math.ceil(shifted) : Math.floor(shifted);
-  return sign * Number(`${r}e${-d}`);
-}
 
 const DAY_MS = 86_400_000;
 
@@ -131,19 +125,27 @@ const rank = {
   RANK: rank,
 };
 
-const FUNCTIONS = ['INT', 'MOD', 'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'TEXT', 'DATEDIF', 'RANK.EQ', 'RANK'];
+/** Functions HyperFormula lacks, each plugin with the functions it implements. */
+const ADDED: FunctionPluginDefinition[] = [InfoFunctions, LookupFunctions, TextFunctions] as never[];
+
 let registered = false;
 
-/** Puts the Excel versions in place of HyperFormula's; engines built afterwards use them. */
+/** Puts the Excel versions in place of HyperFormula's, and adds the ones it lacks; engines built afterwards use them. */
 export function registerExcelFunctions(): void {
   if (registered) return;
   registered = true;
-  for (const id of FUNCTIONS) {
-    try {
-      HyperFormula.unregisterFunction(id);
-    } catch {
-      // Not registered before (RANK.EQ, for one).
+  // Excel's #CALC! (an empty array, for one) has no name in the engine.
+  const errors = (HyperFormula.getLanguage('enGB') as unknown as { errors: Record<string, string> }).errors;
+  errors.CALC ??= '#CALC!';
+  const plugins: FunctionPluginDefinition[] = [ExcelCompatPlugin as never, ...ADDED];
+  for (const plugin of plugins) {
+    for (const id of Object.keys(plugin.implementedFunctions)) {
+      try {
+        HyperFormula.unregisterFunction(id);
+      } catch {
+        // Not registered before (RANK.EQ, for one).
+      }
+      HyperFormula.registerFunction(id, plugin, { enGB: { [id]: id } });
     }
-    HyperFormula.registerFunction(id, ExcelCompatPlugin as never, { enGB: { [id]: id } });
   }
 }

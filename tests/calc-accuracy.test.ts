@@ -132,6 +132,39 @@ const CASES: [string, Expected][] = [
   ['FV(0.06/12,10,-200,-500,1)', 2581.4033740601],
   ['NPV(0.1,-10000,3000,4200,6800)', 1188.4434123352207],
   ['IRR({-70000,12000,15000,18000,21000})', -0.021244848272],
+  // Functions the engine lacks, added for Excel's files; the rest use Excel's documented examples (Examples sheet).
+  ['LOOKUP(4.19,Examples!A1:A5,Examples!B1:B5)', 'orange'],
+  ['LOOKUP(5.75,Examples!A1:A5,Examples!B1:B5)', 'yellow'],
+  ['LOOKUP(7.66,Examples!A1:A5,Examples!B1:B5)', 'blue'],
+  ['LOOKUP(0,Examples!A1:A5,Examples!B1:B5)', { error: '#N/A' }],
+  ['LOOKUP("C",{"a","b","c","d";1,2,3,4})', 3],
+  ['LOOKUP("bump",{"a",1;"b",2;"c",3})', 2],
+  ['XMATCH("Grape",{"Apple","Grape","Pear","Banana","Cherry"})', 2],
+  ['XMATCH(4.5,{5,4,3,2,1},1)', 1],
+  ['CONCAT("The"," ","sun"," ","will"," ","come"," ","up"," ","tomorrow.")', 'The sun will come up tomorrow.'],
+  ['NUMBERVALUE("2.500,27",",",".")', 2500.27],
+  ['NUMBERVALUE("3.5%")', 0.035],
+  ['ARRAYTOTEXT(TEXTSPLIT("Dakota Lennon Sanchez"," "),1)', '{"Dakota","Lennon","Sanchez"}'],
+  ['ARRAYTOTEXT(TEXTSPLIT("1,2,3;4,5,6",",",";"),1)', '{"1","2","3";"4","5","6"}'],
+  ['TEXTBEFORE(Examples!C1,"Red")', 'Little '],
+  ['TEXTBEFORE(Examples!C1,"basket")', { error: '#N/A' }],
+  ['TEXTAFTER(Examples!C1,"Red")', " Riding Hood's red hood"],
+  ['TEXTAFTER(Examples!C1,"basket",1,,,"Not found")', 'Not found'],
+  ['VALUETOTEXT(Examples!D2)', '1234.01234'],
+  ['VALUETOTEXT(Examples!D3,1)', '"Hello"'],
+  ['VALUETOTEXT(Examples!E1)', '#VALUE!'],
+  ['ARRAYTOTEXT(Examples!D1:E3,0)', 'TRUE, #VALUE!, 1234.01234, Seattle, Hello, 1123'],
+  ['ARRAYTOTEXT(Examples!D1:E3,1)', '{TRUE,#VALUE!;1234.01234,"Seattle";"Hello",1123}'],
+  ['FIXED(1234.567,1)', '1,234.6'],
+  ['FIXED(1234.567,-1)', '1,230'],
+  ['FIXED(-1234.567,-1,TRUE)', '-1230'],
+  ['FIXED(44.332)', '44.33'],
+  ['TYPE(Examples!F1)', 2],
+  ['TYPE("MR. "&Examples!F1)', 2],
+  ['TYPE(2+Examples!F1)', 16],
+  ['TYPE({1,2;3,4})', 64],
+  ['ERROR.TYPE(1/0)', 2],
+  ['ERROR.TYPE(NA())', 7],
 ];
 
 /**
@@ -139,6 +172,20 @@ const CASES: [string, Expected][] = [
  * Opening a real file keeps Excel's saved value for these and marks them.
  */
 const KNOWN_DIFFERENCES = new Set<string>([]);
+
+/** The data of Microsoft's examples for the functions above, cell by cell. */
+const EXAMPLES: Record<string, ExcelJS.CellValue> = {
+  ...column('A', [4.14, 4.19, 5.17, 5.77, 6.39]),
+  ...column('B', ['red', 'orange', 'yellow', 'green', 'blue']),
+  C1: "Little Red Riding Hood's red hood",
+  ...column('D', [true, 1234.01234, 'Hello']),
+  ...column('E', [{ error: '#VALUE!' }, 'Seattle', 1123]),
+  F1: 'Smith',
+};
+
+function column(col: string, values: ExcelJS.CellValue[], from = 1): Record<string, ExcelJS.CellValue> {
+  return Object.fromEntries(values.map((v, i) => [`${col}${from + i}`, v]));
+}
 
 async function workbook(): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook();
@@ -149,6 +196,8 @@ async function workbook(): Promise<Uint8Array> {
     data.getCell(`E${i + 1}`).value = v;
     data.getCell(`F${i + 1}`).value = i + 1;
   });
+  const examples = wb.addWorksheet('Examples');
+  for (const [ref, value] of Object.entries(EXAMPLES)) examples.getCell(ref).value = value;
   const calc = wb.addWorksheet('Calc');
   CASES.forEach(([formula, result], i) => {
     calc.getCell(`A${i + 1}`).value = formula;

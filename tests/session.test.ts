@@ -75,7 +75,8 @@ describe('kitchen-sink.xlsx', () => {
     expect(report.mismatched).toBe(0);
     const unsupported = report.unsupportedFunctions.map((x) => english.text(x)).join(' ');
     expect(unsupported).toMatch(/LET/);
-    expect(unsupported).toMatch(/CONCAT/);
+    // CONCAT is calculated, and agrees with Excel.
+    expect(unsupported).not.toMatch(/CONCAT/);
     // Table references are calculated, as the cells they stand for.
     expect(unsupported).not.toMatch(/Table references/);
     expect(report.liveCells).toBeGreaterThan(200);
