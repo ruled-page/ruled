@@ -86,3 +86,33 @@ test('resizes a row by dragging the edge of its number', async ({ page }) => {
   const wb = await save(page);
   expect(wb.getWorksheet('Lines')!.getRow(2).height).toBe(30);
 });
+
+test("keeps a column's width when its edge is only pressed, and sets it when dragged", async ({ page }) => {
+  await goTo(page, 'A2');
+  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const box = (await canvas.boundingBox())!;
+  // Column A's right edge, in the heading: a 40 pixel row number column, then A at 64 pixels.
+  const edge = box.x + 40 + 64;
+  const width = async () => {
+    await choose(page, 'Column width…', 'Columns');
+    const dialog = page.getByRole('dialog', { name: 'Width of column A' });
+    const value = await dialog.getByRole('textbox').inputValue();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    return value;
+  };
+  await page.mouse.move(edge, box.y + 12);
+  await page.mouse.down();
+  await page.mouse.up();
+  await goTo(page, 'A2');
+  expect(await width()).toBe('9.14');
+  await expect(page.getByRole('button', { name: /change/ })).toHaveCount(0);
+
+  await page.mouse.move(edge, box.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(edge + 36, box.y + 12, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: '1 change' })).toBeVisible();
+  await goTo(page, 'A2');
+  expect(await width()).toBe('14.29');
+});

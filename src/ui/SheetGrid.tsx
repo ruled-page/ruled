@@ -844,9 +844,16 @@ export function SheetGrid({
 
   // Columns keep the width dragged to, as in Excel, except on a protected sheet.
   const resizable = view.info.kind === 'worksheet' && !view.info.protected;
+  // The column whose edge is being dragged. Glide ends a press on an edge
+  // that never moved with the narrowest width, so only a drag sets one.
+  const resizing = useRef<{ index: number; moved: boolean } | null>(null);
+  const onColumnResizeStart = useCallback((_c: GridColumn, _size: number, index: number) => {
+    resizing.current = { index, moved: false };
+  }, []);
   const onColumnResize = useCallback(
     (_c: GridColumn, size: number, index: number) => {
-      if (index === 0 || !resizable) return;
+      if (index === 0 || !resizable || !resizing.current) return;
+      resizing.current.moved = true;
       view.colWidths.set(view.visibleCols[index - 1], size);
       onColumnResized();
     },
@@ -893,7 +900,11 @@ export function SheetGrid({
 
   const onColumnResizeEnd = useCallback(
     (_c: GridColumn, size: number, index: number) => {
-      if (index > 0 && resizable) void store.resizedColumn(view.visibleCols[index - 1], size);
+      const dragged = resizing.current;
+      // Glide also ends the other selected columns' resizes; the store sizes those with the one dragged.
+      if (!dragged || dragged.index !== index) return;
+      resizing.current = null;
+      if (dragged.moved && index > 0 && resizable) void store.resizedColumn(view.visibleCols[index - 1], size);
     },
     [store, view, resizable],
   );
@@ -993,6 +1004,7 @@ export function SheetGrid({
         fillHandle
         allowedFillDirections="orthogonal"
         onFillPattern={onFillPattern}
+        onColumnResizeStart={onColumnResizeStart}
         onColumnResize={onColumnResize}
         onColumnResizeEnd={onColumnResizeEnd}
         getCellsForSelection
