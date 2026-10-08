@@ -286,7 +286,7 @@ describe('a protected sheet', () => {
     const r = s.apply({ type: 'input', sheet: request, ...at('B5'), text: '100' });
     expect(valueOf(updateAt(r.updates, s, 'Request', 'B7'))).toBe('No');
     // Rows can't go in or out of it.
-    expect(() => s.restructure({ type: 'insertRows', sheet: request, at: 2, count: 1 })).toThrow();
+    expect(() => s.restructure({ type: 'insertRows', sheet: request, at: 2, count: 1 })).toThrow('core.reason.protected');
     expect(english.text(s.model.findings.find((f) => f.kind === 'protection')?.detail)).toMatch(/only the cells it leaves unlocked can be edited/);
   });
 });

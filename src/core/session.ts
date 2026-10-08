@@ -776,7 +776,7 @@ export class WorkbookSession {
     });
     for (const m of sheets) {
       for (const f of m.scan?.grid.formulas.values() ?? []) mention(f);
-      for (const e of [...this.edits[sheets.indexOf(m)].values()]) if (e.content.kind === 'formula') mention(e.content.formula);
+      for (const e of this.edits[sheets.indexOf(m)].values()) if (e.content.kind === 'formula') mention(e.content.formula);
       for (const r of [...m.info.ruleValidations, ...m.info.conditionalFormats]) {
         const fs = 'formulas' in r ? r.formulas : [r.formula1, r.formula2 ?? ''];
         fs.forEach(mention);

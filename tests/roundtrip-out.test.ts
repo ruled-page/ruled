@@ -11,6 +11,7 @@ import { open, sheetIndex } from './helpers';
  * `npm run validate:saves` validates each against the Office Open XML
  * schemas and compares it with its original.
  */
+// oxlint-disable-next-line vitest/expect-expect -- writes files for npm run validate:saves to check
 it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   const dir = process.env.ROUNDTRIP_OUT!;
   const at = (r: string) => parseA1(r)!;

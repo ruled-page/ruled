@@ -137,6 +137,7 @@ export function SubmissionPage({ id }: { id: string }) {
       <section aria-labelledby="lines-heading">
         <h2 id="lines-heading">{t('submission.lines')}</h2>
         <p className="muted small">{t('submission.linesNote')}</p>
+        {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a region that scrolls must take the focus, for keyboard users to scroll it */}
         <div className="table-scroll" tabIndex={0} role="region" aria-labelledby="lines-heading">
           <table className="list lines">
             <thead>

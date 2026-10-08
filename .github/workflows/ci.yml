@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   check:
-    name: Types, unit tests, builds and round trips
+    name: Types, lint, unit tests, builds and round trips
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,11 +29,14 @@ jobs:
       - run: pip install openpyxl
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       # Unit tests, failing if coverage of the logic drops (the screens are covered by the e2e job).
       - run: npm run test:coverage
       - run: npm run build
       - run: npm run build:lib
       - run: npm run build:verify
+      # Size budgets, and the calculation engine kept out of the page's code.
+      - run: npm run check:bundle
       - name: Round-trip the sample workbooks
         run: node dist-verify/verify.js public/samples --structure
       # Microsoft's Open XML SDK checks every saved copy is as valid as its original.
@@ -42,10 +45,10 @@ jobs:
           dotnet-version: '10.0.x'
       - run: npm run validate:saves
 
-  e2e:
-    name: End-to-end, keyboard and accessibility
+  perf:
+    name: Time budgets on a 1.1 million cell workbook
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -53,12 +56,33 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run e2e
+      # big.xlsx is generated rather than committed.
+      - run: npm run samples
+      - run: npm run test:perf
+
+  e2e:
+    name: End-to-end, keyboard and accessibility (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npx playwright test --project=${{ matrix.browser }}
+        env:
+          E2E_BROWSERS: all
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: |
             playwright-report
             test-results

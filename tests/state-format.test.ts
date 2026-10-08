@@ -169,6 +169,7 @@ describe('what the cell editor and formula bar show', () => {
   // replace that leaves them as they were) stores a date, number, error or
   // logical instead. Excel itself only shows the apostrophe for cells with
   // the quote-prefix flag, so whether these should be marked is open.
+  // oxlint-disable-next-line vitest/no-disabled-tests -- kept for the open question above
   it.skip('marks text that would be read as a date, a number in other notation, an error or a padded logical', () => {
     for (const s of ['1/2/2026', '1E5', '(5)', '12:30', '#N/A', 'TRUE ']) expect(editText(str(s), general, false), s).toBe("'" + s);
   });

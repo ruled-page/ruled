@@ -242,9 +242,11 @@ describe('conditional formatting', () => {
   it('applies cell-value and formula rules in priority order', () => {
     for (let i = 0; i < 30; i++) {
       const b = at(`B${i + 2}`)?.style;
-      if (score(i) >= 80) expect(b).toMatchObject({ fill: '#C6EFCE', bold: true });
-      else if (score(i) < 30) expect(b).toMatchObject({ color: '#9C0006', italic: true, ...(late(i) ? { fill: '#FCE4D6' } : {}) });
-      else expect(b?.fill).toBe(late(i) ? '#FCE4D6' : undefined);
+      const fill = late(i) ? '#FCE4D6' : undefined;
+      // High scores are green and bold; low ones red and italic, over the late fill; the rest show only the late fill.
+      const want: Record<string, unknown> = score(i) >= 80 ? { fill: '#C6EFCE', bold: true } : score(i) < 30 ? { color: '#9C0006', italic: true, fill } : { fill };
+      const got = Object.fromEntries(Object.keys(want).map((k) => [k, b?.[k as keyof typeof b]]));
+      expect(got, `B${i + 2}`).toEqual(want);
       expect(at(`A${i + 2}`)?.style?.fill).toBe(late(i) ? '#FCE4D6' : undefined);
     }
   });

@@ -54,6 +54,7 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
     <div className="wbe-context-menu" role="menu" ref={ref} style={pos} onContextMenu={(e) => e.preventDefault()}>
       {items.map((item, i) =>
         'separator' in item ? (
+          // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- a separator, not a control
           <div key={i} className="wbe-menu-separator" role="separator" />
         ) : (
           <button

@@ -53,6 +53,7 @@ export function decodeOoxmlText(s: string): string {
 export function encodeOoxmlText(s: string): string {
   return s
     .replace(/_x([0-9A-Fa-f]{4})_/g, '_x005F_x$1_')
+    // oxlint-disable-next-line no-control-regex -- these are the characters XML can't hold
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, (c) =>
       `_x${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}_`,
     );

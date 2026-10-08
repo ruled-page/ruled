@@ -1340,10 +1340,12 @@ export class WorkbookStore {
         for (let r = rect.r1 - 1; r <= rect.r2 + 1; r++) if (filled(r, c)) return true;
         return false;
       };
-      if (rowHas(rect.r1 - 1)) (rect.r1--, (grew = true));
-      if (rowHas(rect.r2 + 1)) (rect.r2++, (grew = true));
-      if (colHas(rect.c1 - 1)) (rect.c1--, (grew = true));
-      if (colHas(rect.c2 + 1)) (rect.c2++, (grew = true));
+      const r1 = rowHas(rect.r1 - 1) ? rect.r1 - 1 : rect.r1;
+      const r2 = rowHas(rect.r2 + 1) ? rect.r2 + 1 : rect.r2;
+      const c1 = colHas(rect.c1 - 1) ? rect.c1 - 1 : rect.c1;
+      const c2 = colHas(rect.c2 + 1) ? rect.c2 + 1 : rect.c2;
+      grew = r1 !== rect.r1 || r2 !== rect.r2 || c1 !== rect.c1 || c2 !== rect.c2;
+      Object.assign(rect, { r1, r2, c1, c2 });
     }
     return rect;
   }

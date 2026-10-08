@@ -218,7 +218,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     /^xl\/workbook\.xml$|^\[Content_Types\]\.xml$|^xl\/_rels\/workbook\.xml\.rels$|^xl\/styles\.xml$|^docProps\/custom\.xml$|^_rels\/\.rels$/.test(path) ||
     /pivotCacheDefinition\d*\.xml$/.test(path);
   // Folder entries in the zip aren't parts.
-  const missing = Object.keys(before).filter((p) => !p.endsWith('/') && !(p in after) && !/calcChain\.xml$/.test(p));
+  const missing = Object.keys(before).filter((p) => !p.endsWith('/') && !(p in after) && !p.endsWith('calcChain.xml'));
   const changedParts = Object.keys(before).filter((p) => p in after && !touched(p) && !equalBytes(before[p], after[p]));
   add(
     'Charts, pivots, pictures and other parts are kept',

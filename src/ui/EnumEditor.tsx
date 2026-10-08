@@ -51,6 +51,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
     <div className="wbe-enum-editor" style={{ minWidth: Math.max(target.width, 160) }}>
       <input
         className="wbe-enum-filter"
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- the list opens because the user asked for it, and typing filters it
         autoFocus
         value={filter}
         placeholder={current || t('dropdown.placeholder')}

@@ -128,7 +128,7 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
   const rels = new Map(pkg.rels(path).map((r) => [r.id, r]));
   const out: SheetObject[] = [];
   for (const anchor of parseXml(xml).children) {
-    if (!/Anchor$/.test(anchor.name)) continue;
+    if (!anchor.name.endsWith('Anchor')) continue;
     const from = anchorOf(child(anchor, 'from'));
     const to = anchorOf(child(anchor, 'to'));
     const ext = child(anchor, 'ext');

@@ -91,6 +91,7 @@ export const designer: Record<keyof typeof en, string> = {
   'designer.field.decimals': 'Dezimalstellen',
   'designer.field.decimalsShort': 'Dez.',
   'designer.field.valuesOrPattern': 'Werte / Muster',
+  'designer.field.actions': 'Aktionen',
   'designer.field.values': 'Zulässige Werte',
   'designer.field.valuesPlaceholder': 'a, b, c',
   'designer.field.pattern': 'Muster',

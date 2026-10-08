@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    // Rules for code built with the React Compiler, which the editor isn't.
+    "react/refs": "off",
+    "react/set-state-in-effect": "off",
+    // Dialogs are elements with role="dialog" and their own focus handling (src/ui/useDialog.ts), not <dialog>.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // A tab list or menu hands the focus to its items; the container itself takes none.
+    "jsx-a11y/interactive-supports-focus": "off",
+    // Backdrops close dialogs and popups on a click; the keyboard does the same with Escape.
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    // The dropdown list is a <ul role="listbox"> of <li role="option">, as ARIA's listbox pattern has it.
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+    // Arrays are made at their final length up front, for large sheets.
+    "unicorn/no-new-array": "off",
+    "vitest/require-mock-type-parameters": "off",
+    // Vitest's expect takes a message as its second argument.
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    "vitest/expect-expect": ["error", { "assertFunctionNames": ["expect", "expect.*", "check", "checkAll"] }]
+  },
+  "overrides": [
+    {
+      // Expected results copied from Excel and Microsoft's documentation, as written there.
+      "files": ["tests/**"],
+      "rules": { "no-loss-of-precision": "off" }
+    }
+  ],
+  "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "sites", "public", "e2e/host-app", "examples", ".claude"]
+}

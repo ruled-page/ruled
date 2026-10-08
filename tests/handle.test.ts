@@ -88,7 +88,7 @@ describe('the editor handle', () => {
     await storeOf(editor).input(0, 0, '6');
     expect(listener).toHaveBeenCalled();
     stop();
-    expect(() => storeOf({} as EditorHandle)).toThrow();
+    expect(() => storeOf({} as EditorHandle)).toThrow('Not an editor made by createWorkbookEditor().');
   });
 });
 

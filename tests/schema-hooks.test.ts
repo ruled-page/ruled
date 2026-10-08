@@ -219,7 +219,7 @@ describe('business logic after an edit', () => {
     const before = h.ctl.valueAt(LOG, ...rc('C2'));
     h.apply({ type: 'input', sheet: LOG, row: 1, col: 2, text: '11' });
     await h.ctl.afterEdit([
-      { sheet: LOG, ...{ row: 1, col: 2 }, before },
+      { sheet: LOG, row: 1, col: 2, before },
       { sheet: LOG, row: 1, col: 9, before: 7.5 },
       { sheet: LOG, row: 20, col: 20, before: null },
       { sheet: FREE, row: 0, col: 0, before: 'anything' },

@@ -422,7 +422,7 @@ export class SchemaController {
   }
 
   private tableData(bs: BoundSheet, t: BoundTable): TableData {
-    const self = this;
+    const recordValues = (i: number) => this.recordValues(t, i);
     return {
       key: t.schema.key,
       sheet: bs.name,
@@ -431,7 +431,7 @@ export class SchemaController {
         return Array.from({ length: t.recordCount() }, (_, i) => ({
           index: i,
           label: t.labels ? cellText(t.view, t.labelCell(i).row, t.labelCell(i).col) : undefined,
-          values: self.recordValues(t, i),
+          values: recordValues(i),
           ref: (field: string) => {
             const j = Math.max(0, t.fields.findIndex((f) => f.key === field));
             const p = t.cell(i, j);

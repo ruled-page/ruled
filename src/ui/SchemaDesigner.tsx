@@ -337,7 +337,9 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
               <th>{t('designer.field.min')}</th>
               <th>{t('designer.field.max')}</th>
               <th>{t('designer.field.valuesOrPattern')}</th>
-              <th />
+              <th>
+                <span className="wbe-sr-only">{t('designer.field.actions')}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -829,7 +831,9 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                       <th>{t('designer.field.max')}</th>
                                       <th title={t('designer.field.decimals')}>{t('designer.field.decimalsShort')}</th>
                                       <th>{t('designer.field.valuesOrPattern')}</th>
-                                      <th />
+                                      <th>
+                                        <span className="wbe-sr-only">{t('designer.field.actions')}</span>
+                                      </th>
                                     </tr>
                                   </thead>
                                   <tbody>

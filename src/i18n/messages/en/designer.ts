@@ -89,6 +89,7 @@ export const designer = {
   'designer.field.decimals': 'Decimal places',
   'designer.field.decimalsShort': 'DP',
   'designer.field.valuesOrPattern': 'Values / pattern',
+  'designer.field.actions': 'Actions',
   'designer.field.values': 'Allowed values',
   'designer.field.valuesPlaceholder': 'a, b, c',
   'designer.field.pattern': 'Pattern',
