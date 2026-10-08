@@ -2,6 +2,7 @@ import { parseA1Ref, tokenize } from '@borgar/fx';
 import { DetailedCellError, HyperFormula, type RawCellContent, type SerializedNamedExpression } from 'hyperformula';
 import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import { installEngineLimits, tooLargeToCalculate } from './engineLimits';
+import type { EngineValue } from './engineValue';
 import { registerExcelFunctions } from './excelFunctions';
 import { engineFormula, stripFunctionPrefixes } from './formula';
 import type { CellContent } from './types';
@@ -79,8 +80,6 @@ export function unsupportedReason(fileFormula: string): Unsupported | undefined 
   return undefined;
 }
 
-export type EngineValue = number | string | boolean | { error: string; message?: string } | null;
-
 export interface EngineSheet {
   name: string;
   rows: RawCellContent[][];
@@ -105,13 +104,6 @@ export interface EngineChange {
   row: number;
   col: number;
   value: EngineValue;
-}
-
-/** Errors the engine reports when it cannot interpret a formula at all. */
-export function isUnsupportedError(v: EngineValue): v is { error: string; message?: string } {
-  if (!v || typeof v !== 'object') return false;
-  if (v.error === '#ERROR!') return true;
-  return v.error === '#NAME?' && /not recognized|not supported/i.test(v.message ?? '');
 }
 
 export function toRaw(content: CellContent): RawCellContent {

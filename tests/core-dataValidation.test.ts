@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineValue } from '../src/core/calc';
+import type { EngineValue } from '../src/core/engineValue';
 import { checkRule, describeRule, evaluateListFormula, type Evaluator } from '../src/core/dataValidation';
 import type { CellContent, RuleValidation } from '../src/core/types';
 import type { ListContext } from '../src/core/validations';

@@ -1,4 +1,4 @@
-import type { EngineValue } from './calc';
+import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
 import { isDynamicArrayFormula } from './formula';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';

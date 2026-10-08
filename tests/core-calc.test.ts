@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CalcEngine, describeValue, isUnsupportedError, toRaw, unsupportedExplanation, unsupportedLabel, unsupportedReason, valuesMatch, type EngineSheet } from '../src/core/calc';
+import { CalcEngine, describeValue, toRaw, unsupportedExplanation, unsupportedLabel, unsupportedReason, valuesMatch, type EngineSheet } from '../src/core/calc';
+import { isUnsupportedError } from '../src/core/engineValue';
 import { english } from '../src/i18n';
 
 const sheet = (name: string, rows: EngineSheet['rows'] = []): EngineSheet => ({ name, rows });

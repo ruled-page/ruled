@@ -1,4 +1,4 @@
-import type { EngineValue } from './calc';
+import type { EngineValue } from './engineValue';
 import { makeShifter } from './formula';
 import { cellKey, MAX_COLS, parseRange } from './refs';
 import type { StyleBook } from './styles';

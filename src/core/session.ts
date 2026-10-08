@@ -12,9 +12,9 @@ import {
   valuesMatch,
   type Unsupported,
   type EngineSheet,
-  type EngineValue,
   type EngineWrite,
 } from './calc';
+import type { EngineValue } from './engineValue';
 import { evaluateConditionalFormats } from './conditionalFormat';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
