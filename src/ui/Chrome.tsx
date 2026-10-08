@@ -1,5 +1,5 @@
-import type { DragEvent, KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
@@ -47,8 +47,66 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
   );
 }
 
+/**
+ * The toolbar's labels fold into icons in three steps as it runs out of room
+ * (see editor.css); past the last, its actions take a row of their own.
+ */
+const FOLDS = 4;
+
+/**
+ * Folds the toolbar to the first step at which it fits: what its labels need
+ * depends on the language, the theme's font and what the host adds, so it
+ * measures itself rather than folding at fixed widths.
+ */
+function fold(el: HTMLElement): void {
+  const room = el.clientWidth;
+  let step = 0;
+  for (; step < FOLDS; step++) {
+    el.dataset.fold = String(step);
+    el.style.width = 'max-content';
+    const need = el.getBoundingClientRect().width;
+    el.style.width = '';
+    if (need <= room + 0.5) break;
+  }
+  el.dataset.fold = String(step);
+}
+
+/** The toolbar's element, folded again whenever its width, text or theme changes. */
+function useFolding(): RefObject<HTMLDivElement | null> {
+  const bar = useRef<HTMLDivElement>(null);
+  const seen = useRef('');
+  useLayoutEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    // Cheap to read, unlike sizes: what is in the toolbar, and the theme on the editor's root.
+    const now = `${el.textContent}|${el.getElementsByTagName('*').length}|${el.closest('.wbe')?.getAttribute('style') ?? ''}`;
+    if (now === seen.current) return;
+    seen.current = now;
+    fold(el);
+  });
+  useEffect(() => {
+    const el = bar.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let frame = 0;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => fold(el));
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return bar;
+}
+
 export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen: () => void; extra?: ReactNode }) {
   const t = useT();
+  const bar = useFolding();
   const ready = store.status === 'ready';
   const notable = store.findings.filter((f) => f.severity === 'warn').length;
   const target = ready ? store.recordTarget : undefined;
@@ -59,7 +117,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const exact = store.numbers.display === 'full';
   return (
     // Not a <header>: a page that embeds the editor has its own banner landmark.
-    <div className="wbe-toolbar">
+    <div className="wbe-toolbar" ref={bar}>
       <div className="wbe-brand">
         <span className="wbe-brand-mark" aria-hidden="true">
           <Icon name="sheet" size={16} />

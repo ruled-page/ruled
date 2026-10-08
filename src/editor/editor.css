@@ -2366,6 +2366,11 @@
   font-weight: 600;
 }
 
+/* Icons keep their size when a button or chip is short of room. */
+.wbe :is(.wbe-btn, .wbe-chip, .wbe-badge) > svg {
+  flex: none;
+}
+
 .wbe .wbe-chip-status {
   display: inline-flex;
   align-items: center;
@@ -3085,48 +3090,48 @@
   font-size: var(--wbe-font-size-sm);
 }
 
-@container wbe (max-width: 1280px) {
-.wbe .wbe-brand-name {
-    display: none;
-  }
-
-.wbe .wbe-file-name {
-    border-inline-start: 0;
-    padding-inline-start: 0;
-  }
-
-/* Icon-only buttons; the label stays for screen readers. */
-
-.wbe .wbe-toolbar .wbe-btn .wbe-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
+/* As the toolbar runs out of room (the toolbar measures what it needs), the
+   editor's name goes first, then buttons' labels, then toggles' long labels
+   and the schema's name; screen readers still read them all. */
+.wbe .wbe-toolbar:is([data-fold='1'], [data-fold='2'], [data-fold='3'], [data-fold='4']) .wbe-brand-name {
+  display: none;
 }
 
-@container wbe (max-width: 980px) {
-.wbe .wbe-toggle .wbe-toggle-long,
-.wbe .wbe-chip .wbe-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-.wbe .wbe-file-name {
-    max-width: 140px;
-  }
+.wbe .wbe-toolbar:is([data-fold='1'], [data-fold='2'], [data-fold='3'], [data-fold='4']) .wbe-file-name {
+  border-inline-start: 0;
+  padding-inline-start: 0;
 }
 
-/* A toggle keeps a short visible label, its full one read to screen readers. */
-@container wbe (max-width: 980px) {
-.wbe .wbe-toggle .wbe-toggle-short {
-    display: inline;
+.wbe .wbe-toolbar:is([data-fold='2'], [data-fold='3'], [data-fold='4']) .wbe-btn .wbe-label,
+.wbe .wbe-toolbar:is([data-fold='3'], [data-fold='4']) .wbe-toggle .wbe-toggle-long,
+.wbe .wbe-toolbar:is([data-fold='3'], [data-fold='4']) .wbe-chip .wbe-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.wbe .wbe-toolbar:is([data-fold='3'], [data-fold='4']) .wbe-toggle .wbe-toggle-short {
+  display: inline;
+}
+
+.wbe .wbe-toolbar[data-fold='3'] .wbe-file-name {
+  max-width: 140px;
+}
+
+/* Still short of room, wider than a phone (where the actions scroll sideways
+   in a row of their own): everything flows onto a second row, so all of it shows. */
+@container wbe (min-width: 721px) {
+  .wbe .wbe-toolbar[data-fold='4'] {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 6px;
+  }
+
+  .wbe .wbe-toolbar[data-fold='4'] .wbe-toolbar-actions {
+    display: contents;
   }
 }
 
