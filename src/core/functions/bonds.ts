@@ -178,6 +178,9 @@ function yearFrac(calendar: Calendar, start: number, end: number, basis: number)
 const validFrequency = (f: number) => f === 1 || f === 2 || f === 4;
 const validBasis = (b: number) => b >= 0 && b <= 4;
 
+/** The most periods VDB works through, so that a huge life can't hang the editor. */
+const MAX_PERIODS = 1_000_000;
+
 /** The coupon schedule between settlement and maturity: COUPDAYBS, COUPDAYS, COUPDAYSNC, COUPNUM and the dates. */
 interface Coupons {
   previous: CouponDate;
@@ -247,10 +250,16 @@ export class BondFunctions extends ExcelPlugin {
     return new Calendar((this.config as unknown as { nullDate: { year: number; month: number; day: number } }).nullDate);
   }
 
+  /** Whether serials are dates Excel has: from its first day to the end of 9999. */
+  private validDates(...serials: number[]): boolean {
+    const calendar = this.calendar;
+    return serials.every((d) => d >= 0 && calendar.ymd(d)[0] <= 9999);
+  }
+
   /** The coupon periods around settlement, or #NUM! for arguments Excel refuses. */
   private coupons(settlement: number, maturity: number, frequency: number, basis: number): Coupons | CellError {
     const [s, m, f, b] = [settlement, maturity, frequency, basis].map(Math.trunc);
-    if (s >= m || !validFrequency(f) || !validBasis(b)) return error(ErrorType.NUM);
+    if (s >= m || !validFrequency(f) || !validBasis(b) || !this.validDates(s, m)) return error(ErrorType.NUM);
     const calendar = this.calendar;
     const settle = new CouponDate(calendar, s, b);
     const mat = new CouponDate(calendar, m, b);
@@ -382,7 +391,7 @@ export class BondFunctions extends ExcelPlugin {
       'ACCRINT',
       (issue: number, firstInterest: number, settlement: number, rate: number, par: number, frequency: number, basis: number, fromIssue: boolean) => {
         const [i, first, s, f, b] = [issue, firstInterest, settlement, frequency, basis].map(Math.trunc);
-        if (i >= s || rate <= 0 || par <= 0 || !validFrequency(f) || !validBasis(b)) return error(ErrorType.NUM);
+        if (i >= s || rate <= 0 || par <= 0 || !validFrequency(f) || !validBasis(b) || !this.validDates(i, first, s)) return error(ErrorType.NUM);
         const calendar = this.calendar;
         // Coupon dates run from the first interest date in steps of 12/f months, back and forward.
         const anchor = new CouponDate(calendar, first, b);
@@ -408,7 +417,7 @@ export class BondFunctions extends ExcelPlugin {
   accrintm(ast: Call, state: State) {
     return this.run(ast, state, 'ACCRINTM', (issue: number, settlement: number, rate: number, par: number, basis: number) => {
       const [i, s, b] = [issue, settlement, basis].map(Math.trunc);
-      if (i >= s || rate <= 0 || par <= 0 || !validBasis(b)) return error(ErrorType.NUM);
+      if (i >= s || rate <= 0 || par <= 0 || !validBasis(b) || !this.validDates(i, s)) return error(ErrorType.NUM);
       return par * rate * yearFrac(this.calendar, i, s, b);
     });
   }
@@ -417,7 +426,7 @@ export class BondFunctions extends ExcelPlugin {
   private discounted(ast: Call, state: State, name: string, formula: (years: number, a: number, b: number) => number | undefined) {
     return this.run(ast, state, name, (settlement: number, maturity: number, a: number, b: number, basis: number) => {
       const [s, m, base] = [settlement, maturity, basis].map(Math.trunc);
-      if (s >= m || a <= 0 || b <= 0 || !validBasis(base)) return error(ErrorType.NUM);
+      if (s >= m || a <= 0 || b <= 0 || !validBasis(base) || !this.validDates(s, m)) return error(ErrorType.NUM);
       return formula(yearFrac(this.calendar, s, m, base), a, b) ?? error(ErrorType.NUM);
     });
   }
@@ -448,7 +457,7 @@ export class BondFunctions extends ExcelPlugin {
   pricemat(ast: Call, state: State) {
     return this.run(ast, state, 'PRICEMAT', (settlement: number, maturity: number, issue: number, rate: number, yld: number, basis: number) => {
       const [s, m, i, b] = [settlement, maturity, issue, basis].map(Math.trunc);
-      if (s >= m || rate < 0 || yld < 0 || !validBasis(b)) return error(ErrorType.NUM);
+      if (s >= m || rate < 0 || yld < 0 || !validBasis(b) || !this.validDates(s, m, i)) return error(ErrorType.NUM);
       const calendar = this.calendar;
       const [dim, dsm, a] = [yearFrac(calendar, i, m, b), yearFrac(calendar, s, m, b), yearFrac(calendar, i, s, b)];
       return (100 + dim * rate * 100) / (1 + dsm * yld) - a * rate * 100;
@@ -458,7 +467,7 @@ export class BondFunctions extends ExcelPlugin {
   yieldmat(ast: Call, state: State) {
     return this.run(ast, state, 'YIELDMAT', (settlement: number, maturity: number, issue: number, rate: number, pr: number, basis: number) => {
       const [s, m, i, b] = [settlement, maturity, issue, basis].map(Math.trunc);
-      if (s >= m || rate < 0 || pr <= 0 || !validBasis(b)) return error(ErrorType.NUM);
+      if (s >= m || rate < 0 || pr <= 0 || !validBasis(b) || !this.validDates(s, m, i)) return error(ErrorType.NUM);
       const calendar = this.calendar;
       const [dim, dsm, a] = [yearFrac(calendar, i, m, b), yearFrac(calendar, s, m, b), yearFrac(calendar, i, s, b)];
       const paid = pr / 100 + a * rate;
@@ -468,7 +477,7 @@ export class BondFunctions extends ExcelPlugin {
 
   vdb(ast: Call, state: State) {
     return this.run(ast, state, 'VDB', (cost: number, salvage: number, life: number, start: number, end: number, factor: number, noSwitch: boolean) => {
-      if (start < 0 || end < start || end > life || life <= 0 || cost < 0 || salvage < 0 || salvage > cost || factor <= 0) return error(ErrorType.NUM);
+      if (start < 0 || end < start || end > life || life <= 0 || cost < 0 || salvage < 0 || salvage > cost || factor <= 0 || end > MAX_PERIODS) return error(ErrorType.NUM);
       return noSwitch ? decliningOnly(cost, salvage, life, start, end, factor) : switching(cost, salvage, life, start, end, factor);
     });
   }

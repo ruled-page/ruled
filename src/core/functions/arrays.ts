@@ -1,5 +1,5 @@
 import { ArraySize, CellError, EmptyValue, ErrorType, FunctionArgumentType, SimpleRangeValue, type ImplementedFunctions } from 'hyperformula';
-import { ExcelPlugin, MAX_RESULT_CELLS, array, arraySize, calcError, compareValues, error, grid, literalNumber, omitted, plain, type Call, type Grid, type Node, type State, type Value } from './common';
+import { ExcelPlugin, MAX_RESULT_CELLS, array, arraySize, calcError, compareValues, error, grid, literalNumber, omitted, type Call, type Grid, type Node, type State, type Value } from './common';
 
 /** What a count argument left empty stands for: all of them. */
 const ALL = Number.POSITIVE_INFINITY;
@@ -158,9 +158,9 @@ export class ArrayFunctions extends ExcelPlugin {
   private indices(picks: unknown[], length: number): number[] | CellError {
     const out: number[] = [];
     for (const v of picks.flatMap((p) => grid(p).flat())) {
-      const n = v instanceof CellError ? v : plain(this.coerceScalarToNumberOrError(v as never));
+      const n = this.toNumber(v);
       if (n instanceof CellError) return n;
-      const i = Math.trunc(n as number);
+      const i = Math.trunc(n);
       if (i === 0 || Math.abs(i) > length) return error();
       out.push(i > 0 ? i - 1 : length + i);
     }
@@ -244,7 +244,9 @@ export class ArrayFunctions extends ExcelPlugin {
   private vector(range: SimpleRangeValue, n: number): Value[] | CellError {
     const rows = grid(range);
     if (rows.length > 1 && rows[0].length > 1) return error();
-    return Math.trunc(n) < 1 ? error(ErrorType.NUM) : rows.flat();
+    const values = rows.flat();
+    const line = Math.trunc(n);
+    return line < 1 || Math.ceil(values.length / line) * line > MAX_RESULT_CELLS ? error(ErrorType.NUM) : values;
   }
 
   /** [values per row, rows] of a wrapped vector. */

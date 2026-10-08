@@ -25,6 +25,9 @@ interface Fit {
   ssresid: number;
 }
 
+/** The most steps a fit may take (observations × variables²), so that a huge one can't hang the editor. */
+const MAX_WORK = 100_000_000;
+
 const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i], 0);
 const mean = (v: number[]) => v.reduce((s, x) => s + x, 0) / v.length;
 
@@ -186,7 +189,7 @@ export class RegressionFunctions extends ExcelPlugin {
     const k = variables(shape, { width: xRows[0].length, height: xRows.length });
     if (k === undefined) return error(ErrorType.REF);
     const x = shape.width === 1 ? xRows : shape.height === 1 ? y.map((_, i) => xRows.map((row) => row[i])) : xRows.flat().map((v) => [v]);
-    return { y, x, byRow, shape };
+    return y.length * x[0].length ** 2 > MAX_WORK ? error(ErrorType.NUM) : { y, x, byRow, shape };
   }
 
   trend(ast: Call, state: State) {

@@ -37,7 +37,10 @@ export function plain(v: unknown): Value {
 
 /** A value as rows of cells: a range or array as it is, anything else as a single cell. */
 export function grid(v: unknown): Grid {
-  return v instanceof SimpleRangeValue ? v.data.map((row) => row.map(plain)) : [[plain(v)]];
+  if (!(v instanceof SimpleRangeValue)) return [[plain(v)]];
+  const rows = v.data.map((row) => row.map(plain));
+  // A whole-column reference past the sheet's data reaches no cells; one empty cell stands for them.
+  return rows.length && rows[0].length ? rows : [[EmptyValue]];
 }
 
 /** The numbers in a range or array, passing over text, logicals and blanks; or the first error in it. */
@@ -51,6 +54,10 @@ export function rangeNumbers(v: unknown): number[] | CellError {
   }
   return out;
 }
+
+/** The largest number of a list, which may be too long to spread into Math.max. */
+export const largest = (v: number[]) => v.reduce((m, x) => (x > m ? x : m), -Infinity);
+export const smallest = (v: number[]) => v.reduce((m, x) => (x < m ? x : m), Infinity);
 
 export function array(rows: Grid): SimpleRangeValue {
   return SimpleRangeValue.onlyValues(rows as never);
@@ -112,10 +119,17 @@ export function compareValues(a: Value, b: Value): number {
   return ta < 3 ? Number(a) - Number(b) : 0;
 }
 
+/** What an exact lookup compares: the type and value, text ignoring case. Errors and blanks match nothing. */
+export function matchKey(v: Value): string | undefined {
+  if (typeof v === 'number') return `n${v}`;
+  if (typeof v === 'string') return `s${v.toLowerCase()}`;
+  return typeof v === 'boolean' ? `b${v}` : undefined;
+}
+
 /** Whether a lookup finds b when looking for a: same type, text ignoring case. */
 export function sameValue(a: Value, b: Value): boolean {
-  if (typeof a === 'string' && typeof b === 'string') return compareText(a, b) === 0;
-  return a === b;
+  const key = matchKey(a);
+  return key !== undefined && key === matchKey(b);
 }
 
 /**
@@ -158,7 +172,7 @@ export const omitted = (node: Node | undefined) => !node || node.type === 'EMPTY
 
 const REFERENCES = new Set(['CELL_REFERENCE', 'CELL_RANGE', 'COLUMN_RANGE', 'ROW_RANGE']);
 
-/** Arrays a function may build before it gives up, so a formula can't exhaust memory. */
+/** The most cells an array result may have, so that a short formula can't exhaust memory. */
 export const MAX_RESULT_CELLS = 1_000_000;
 
 /** Shared plumbing for the plugins that add Excel's functions. */
@@ -198,7 +212,8 @@ export abstract class ExcelPlugin extends FunctionPlugin {
       const v = node.type === 'EMPTY' ? 0 : this.evaluate(node, state);
       const found = v instanceof SimpleRangeValue || REFERENCES.has(node.type) || node.type === 'NAMED_EXPRESSION' ? rangeNumbers(v) : this.toNumber(plain(v));
       if (found instanceof CellError) return found;
-      out.push(...(typeof found === 'number' ? [found] : found));
+      if (typeof found === 'number') out.push(found);
+      else for (const n of found) out.push(n);
     }
     return out;
   }

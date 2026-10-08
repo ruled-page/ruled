@@ -1,5 +1,5 @@
 import { ArraySize, CellError, ErrorType, FunctionArgumentType, SimpleRangeValue, type ImplementedFunctions } from 'hyperformula';
-import { ExcelPlugin, array, arraySize, error, plain, rangeNumbers, type Call, type State, type Value } from './common';
+import { ExcelPlugin, array, arraySize, error, largest, plain, rangeNumbers, type Call, type State, type Value } from './common';
 
 /** A criterion parsed by the engine, as SUMIFS and COUNTIFS use them. */
 type Criteria = { fromCellValue(raw: unknown, helper: unknown): { lambda: (v: unknown) => boolean } | undefined };
@@ -11,7 +11,7 @@ const floor15 = (x: number) => Math.floor(Number(x.toPrecision(15)));
 function modes(values: number[]): number[] {
   const counts = new Map<number, number>();
   for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
-  const most = Math.max(0, ...counts.values());
+  const most = largest([...counts.values()]);
   return most < 2 ? [] : [...counts].filter(([, n]) => n === most).map(([v]) => v);
 }
 
@@ -161,7 +161,17 @@ export class StatisticalFunctions extends ExcelPlugin {
       // Bins count up to their value from the next lower bin, whatever order they are given in.
       const order = bins.map((b, i) => [b, i]).sort((a, b) => a[0] - b[0]);
       const counts = Array<number>(bins.length + 1).fill(0);
-      for (const v of values) counts[order.find(([b]) => v <= b)?.[1] ?? bins.length]++;
+      for (const v of values) {
+        // The first bin, in ascending order, that the value doesn't exceed.
+        let lo = 0;
+        let hi = order.length;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (v <= order[mid][0]) hi = mid;
+          else lo = mid + 1;
+        }
+        counts[lo < order.length ? order[lo][1] : bins.length]++;
+      }
       return array(counts.map((n) => [n]));
     });
   }
@@ -297,7 +307,8 @@ export class StatisticalFunctions extends ExcelPlugin {
       const n = Math.trunc(trials);
       const lo = Math.trunc(s);
       const hi = s2 === undefined ? lo : Math.trunc(s2);
-      if (n < 0 || p < 0 || p > 1 || lo < 0 || lo > n || hi < lo || hi > n) return error(ErrorType.NUM);
+      // Beyond ten million trials the sum would take too long to work through.
+      if (n < 0 || n > 1e7 || p < 0 || p > 1 || lo < 0 || lo > n || hi < lo || hi > n) return error(ErrorType.NUM);
       return binomialRange(n, p, lo, hi);
     });
   }

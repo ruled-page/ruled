@@ -1,5 +1,5 @@
 import { CellError, EmptyValue, ErrorType, FunctionArgumentType, SimpleRangeValue, type ImplementedFunctions } from 'hyperformula';
-import { ExcelPlugin, error, grid, plain, type Call, type Node, type State, type Value } from './common';
+import { ExcelPlugin, error, grid, largest, plain, smallest, type Call, type Node, type State, type Value } from './common';
 
 const sum = (v: number[]) => v.reduce((s, x) => s + x, 0);
 
@@ -24,8 +24,8 @@ function percentile(sorted: number[], k: number, inclusive: boolean): number | C
 const LISTS: Record<number, (v: number[]) => number | CellError> = {
   1: (v) => (v.length ? sum(v) / v.length : error(ErrorType.DIV_BY_ZERO)),
   2: (v) => v.length,
-  4: (v) => (v.length ? Math.max(...v) : 0),
-  5: (v) => (v.length ? Math.min(...v) : 0),
+  4: (v) => (v.length ? largest(v) : 0),
+  5: (v) => (v.length ? smallest(v) : 0),
   6: (v) => (v.length ? v.reduce((p, x) => p * x, 1) : 0),
   7: (v) => (v.length > 1 ? Math.sqrt(squares(v) / (v.length - 1)) : error(ErrorType.DIV_BY_ZERO)),
   8: (v) => (v.length ? Math.sqrt(squares(v) / v.length) : error(ErrorType.DIV_BY_ZERO)),
@@ -98,7 +98,7 @@ export class AggregateFunctions extends ExcelPlugin {
     const values: Value[] = [];
     for (const node of ast.args.slice(2, ranked ? 3 : undefined)) {
       const v = this.evaluate(node, state);
-      if (v instanceof SimpleRangeValue) values.push(...this.cells(v, skipNested));
+      if (v instanceof SimpleRangeValue) for (const x of this.cells(v, skipNested)) values.push(x);
       else values.push(plain(v));
     }
     // COUNT and COUNTA never fail on errors; COUNTA counts them unless they are left out.

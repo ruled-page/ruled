@@ -1,10 +1,14 @@
 import { ArraySize, CellError, ErrorType, FunctionArgumentType, SimpleRangeValue, type ImplementedFunctions } from 'hyperformula';
 import { ExcelPlugin, MAX_RESULT_CELLS, array, arraySize, error, grid, literalNumber, omitted, type Call, type State } from './common';
 
+/** The largest matrix to invert, as the work grows with the cube of its size. */
+const MAX_SIZE = 400;
+
 /** A square matrix of numbers, or the error its cells give: a blank or text is #VALUE!. */
 function squareMatrix(range: SimpleRangeValue): number[][] | CellError {
   const rows = grid(range);
   if (rows.length !== rows[0].length) return error();
+  if (rows.length > MAX_SIZE) return error(ErrorType.NUM);
   for (const row of rows) {
     for (const v of row) {
       if (v instanceof CellError) return v;

@@ -298,6 +298,7 @@ describe('text functions', () => {
     expect(spill('=TEXTSPLIT(A2,",")', [['a,b']]).values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=TEXTSPLIT("a,b",B2)', [[null, ',']]).values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=TEXTSPLIT(UPPER("a,b"),",")').values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=TEXTSPLIT(-"a",",")').values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=TEXTSPLIT("a,b",",",,ABS(0))').values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=TEXTSPLIT(IF(TRUE(),"a,b",),",")').values[0][0]).toMatchObject({ error: '#VALUE!' });
     // A size that hangs on another formula's values (here SEQUENCE's) is never guessed.
@@ -391,6 +392,11 @@ describe('text functions', () => {
       ['FIXED(-0.5,0)', '-1'],
       ['FIXED(-0.001,2)', '0.00'],
       ['FIXED(0)', '0.00'],
+      ['FIXED(0.001234,5)', '0.00123'],
+      // Never more than Excel's 15 significant digits.
+      ['FIXED(0.1+0.2,20)', '0.30000000000000000000'],
+      ['FIXED(1234567890123456789,0)', '1,234,567,890,123,460,000'],
+      ['FIXED(10^21,0,TRUE())', '1000000000000000000000'],
       ['LEN(FIXED(1,127))', 129],
       ['FIXED(1,128)', VALUE],
       ['FIXED("a")', VALUE],
@@ -467,6 +473,7 @@ describe('dynamic array functions', () => {
       ['WRAPROWS({1,2;3,4},2)', VALUE],
       ['WRAPROWS({1,2},0)', NUM],
       ['WRAPCOLS({1,2},0)', NUM],
+      ['WRAPROWS({1,2},2000000)', NUM],
     ]);
   });
 
@@ -706,6 +713,7 @@ describe('statistical functions', () => {
       ['BINOM.DIST.RANGE(5,1.5,0)', NUM],
       ['BINOM.DIST.RANGE(5,0.5,6)', NUM],
       ['BINOM.DIST.RANGE(5,0.5,3,2)', NUM],
+      ['BINOM.DIST.RANGE(20000000,0.5,1)', NUM],
       ['ROUND(ERF.PRECISE(0.745),6)', 0.707929],
       ['ROUND(ERF.PRECISE(1),7)', 0.8427008],
       ['ROUND(ERFC.PRECISE(1),7)', 0.1572992],
@@ -722,6 +730,7 @@ describe('statistical functions', () => {
       ['MDETERM({1,3,8,5;1,3,6,1})', VALUE],
       ['MDETERM({1,"a";1,2})', VALUE],
       ['MDETERM({1,#N/A;1,2})', NA],
+      ['MDETERM(MUNIT(401))', NUM],
       ['MINVERSE({4,-1;2,0})', [[0, 0.5], [-1, 2]]],
       ['MINVERSE({1,2,1;3,4,-1;0,2,0})', [[0.25, 0.25, -0.75], [0, 0, 0.5], [0.75, -0.25, -0.25]]],
       ['MINVERSE({1,2;2,4})', NUM],
@@ -941,6 +950,8 @@ describe('bond and depreciation functions', () => {
       [`COUPDAYBS(${S},${M},2,5)`, NUM],
       [`COUPDAYBS(${S},${M},2,-1)`, NUM],
       [`COUPDAYBS("x",${M},2,1)`, VALUE],
+      [`COUPDAYS(-1,${M},2,1)`, NUM],
+      [`COUPDAYS(${S},2958466,2,1)`, NUM],
     ]);
     // Dates are serial numbers of the workbook's own date system.
     const e = new CalcEngine([{ name: 'S', rows: [] }], [], true);
@@ -1020,6 +1031,7 @@ describe('bond and depreciation functions', () => {
       ['ACCRINTM(DATE(2008,6,15),DATE(2008,4,1),0.1,1000,3)', NUM],
       ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0,1000,3)', NUM],
       ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0.1,1000,5)', NUM],
+      ['ACCRINTM(-5,DATE(2008,6,15),0.1)', NUM],
       ['DISC(DATE(2018,7,1),DATE(2048,1,1),97.975,100,1)', 0.000686384169121347],
       ['INTRATE(DATE(2008,2,15),DATE(2008,5,15),1000000,1014420,2)', 0.05768],
       ['RECEIVED(DATE(2008,2,15),DATE(2008,5,15),1000000,0.0575,2)', 1014584.6544071],
@@ -1061,6 +1073,58 @@ describe('bond and depreciation functions', () => {
       ['VDB(2400,3000,10,0,1)', NUM],
       ['VDB(2400,300,10,0,1,0)', NUM],
       ['VDB(-1,0,10,0,1)', NUM],
+      ['VDB(1,0,2000000,0,2000000)', NUM],
     ]);
+  });
+});
+
+describe('large inputs', () => {
+  it('are worked through without overflowing the stack', () => {
+    const rows = Array.from({ length: 200_000 }, (_, i) => [i % 1000, i]);
+    const e = new CalcEngine([{ name: 'S', rows }], [], false);
+    const at = (f: string) => e.calculate('=' + f, 0);
+    // An array of keys looked up in one formula searches the range once, not once per key.
+    expect(at('SUM(XMATCH(A1:A20000,B1:B200000))')).toBe(10_010_000);
+    expect(at('SUM(LOOKUP(A1:A20000,B1:B200000))')).toBe(9_990_000);
+    expect(at('MODE(A1:A200000)')).toBe(0);
+    expect(at('AGGREGATE(4,6,A1:A200000)')).toBe(999);
+    expect(at('AGGREGATE(5,6,A1:A200000)')).toBe(0);
+    expect(at('PERCENTOF(A1:A1000,A1:A200000)')).toBeCloseTo(1 / 200);
+    expect(at('ROWS(TEXTSPLIT(REPT("a;",100000),,";"))')).toBe(100_001);
+    e.destroy();
+  });
+
+  it('a whole column of an empty sheet counts as an empty cell rather than breaking the engine', () => {
+    const formulas = [
+      'TAKE(E!X:X,2)',
+      'DROP(E!X:X,1)',
+      'TOCOL(E!X:X)',
+      'TOROW(E!X:X,1)',
+      'CHOOSEROWS(E!X:X,1)',
+      'CHOOSECOLS(E!X:X,1)',
+      'WRAPROWS(E!X:X,2)',
+      'EXPAND(E!X:X,2)',
+      'SORTBY(E!X:X,E!Y:Y)',
+      'TEXTSPLIT(E!X:X,",")',
+      'ARRAYTOTEXT(E!X:X)',
+      'LOOKUP(1,E!X:X)',
+      'XMATCH(1,E!X:X)',
+      'FREQUENCY(E!X:X,E!Y:Y)',
+      'TREND(E!X:X)',
+      'LINEST(E!X:X)',
+      'MDETERM(E!X:X)',
+      'MINVERSE(E!X:X)',
+      'AGGREGATE(9,0,E!X:X)',
+      'TRIMMEAN(E!X:X,0)',
+      'PERCENTRANK(E!X:X,1)',
+      'MODE(E!X:X)',
+      'AVERAGEIFS(E!X:X,E!Y:Y,1)',
+      'PROB(E!X:X,E!Y:Y,1)',
+      'FORECAST(1,E!X:X,E!Y:Y)',
+    ];
+    const e = new CalcEngine([{ name: 'S', rows: [[1]] }, { name: 'E', rows: [] }], [], false);
+    e.write(formulas.map((f, i) => ({ sheet: 0, row: i + 1, col: 2, raw: '=' + f })));
+    for (let i = 0; i < formulas.length; i++) expect(e.value(0, i + 1, 2), formulas[i]).not.toBeUndefined();
+    e.destroy();
   });
 });

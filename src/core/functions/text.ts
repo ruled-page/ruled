@@ -7,6 +7,7 @@ import {
   error,
   excelRound,
   grid,
+  largest,
   literalBoolean,
   literalNumber,
   numberText,
@@ -113,7 +114,7 @@ function literalText(node: Node): string | undefined {
   if (node.type === 'STRING') return node.value as string;
   if (node.type === 'FUNCTION_CALL' && !node.args?.length && (node.procedureName === 'TRUE' || node.procedureName === 'FALSE')) return node.procedureName;
   const n = literalNumber(node);
-  return n === undefined ? undefined : numberText(n);
+  return n === undefined || Number.isNaN(n) ? undefined : numberText(n);
 }
 
 function literalDelimiters(node: Node | undefined): string[] | undefined {
@@ -237,7 +238,7 @@ export class TextFunctions extends ExcelPlugin {
       }
       const parts = split(valueText(plain(text) as Exclude<Value, CellError>));
       if (!parts.length) return calcError();
-      const width = Math.max(...parts.map((r) => r.length));
+      const width = largest(parts.map((r) => r.length));
       const filler = pad === undefined ? error(ErrorType.NA) : pad;
       return array(parts.map((r) => [...r, ...Array<Value>(width - r.length).fill(filler)]));
     });
@@ -256,7 +257,7 @@ export class TextFunctions extends ExcelPlugin {
     // Arguments that will give an error give a single cell.
     if (t === undefined || !cols || !rows || ig === undefined || m === undefined || (!cols.length && !rows.length) || (Math.trunc(m) !== 0 && Math.trunc(m) !== 1)) return ArraySize.error();
     const parts = splitText(t, cols, rows, ig, Math.trunc(m) === 1);
-    return parts.length ? arraySize(Math.max(...parts.map((r) => r.length)), parts.length) : ArraySize.error();
+    return parts.length ? arraySize(largest(parts.map((r) => r.length)), parts.length) : ArraySize.error();
   }
 
   textbefore(ast: Call, state: State) {
@@ -313,8 +314,12 @@ export class TextFunctions extends ExcelPlugin {
       if (d > 127) return error();
       const r = excelRound(n, d, 'half');
       const places = Math.max(0, d);
-      let [whole, fraction = ''] = Math.abs(r).toFixed(Math.min(places, 100)).split('.');
-      fraction = fraction.padEnd(places, '0');
+      // Excel's 15 significant digits, then zeros, however many places are asked for.
+      const [mantissa, e] = Math.abs(r).toExponential(14).split('e');
+      const digits = mantissa.replace('.', '').replace(/0+$/, '');
+      const exp = Number(e);
+      let whole = exp >= 0 ? digits.slice(0, exp + 1).padEnd(exp + 1, '0') : '0';
+      const fraction = (exp >= 0 ? digits.slice(exp + 1) : '0'.repeat(-exp - 1) + digits).padEnd(places, '0').slice(0, places);
       if (!noCommas) whole = groupThousands(whole);
       return (r < 0 ? '-' : '') + whole + (places ? `.${fraction}` : '');
     });
