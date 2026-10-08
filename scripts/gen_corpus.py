@@ -20,6 +20,9 @@ from pathlib import Path
 import xlsxwriter
 
 OUT = Path(__file__).resolve().parent.parent / "tests" / "corpus"
+# A fixed creation time, so that making the files again changes only what changed.
+CREATED = dt.datetime(2026, 9, 14, 9, 0, 0)
+
 ORDERS = [
     ("Bolts", "Hardware", 120, 0.25),
     ("Nuts", "Hardware", 300, 0.1),
@@ -31,6 +34,7 @@ ORDERS = [
 
 def templates():
     wb = xlsxwriter.Workbook(OUT / "templates.xlsx", {"use_future_functions": True})
+    wb.set_properties({"created": CREATED})
     bold = wb.add_format({"bold": True})
     money = wb.add_format({"num_format": "#,##0.00"})
     unlocked = wb.add_format({"locked": False, "bg_color": "#FFF2CC"})
@@ -114,6 +118,7 @@ def templates():
 
 def dates_1904():
     wb = xlsxwriter.Workbook(OUT / "dates-1904.xlsx", {"date_1904": True})
+    wb.set_properties({"created": CREATED})
     ws = wb.add_worksheet("Schedule")
     fmt = wb.add_format({"num_format": "yyyy-mm-dd"})
     ws.set_column("A:C", 14)
@@ -161,7 +166,7 @@ def comments():
 
     path = OUT / "comments.xlsx"
     wb = xlsxwriter.Workbook(path)
-    wb.set_properties({"created": dt.datetime(2026, 9, 14, 9, 0, 0)})
+    wb.set_properties({"created": CREATED})
     bold = wb.add_format({"bold": True})
 
     review = wb.add_worksheet("Review")
