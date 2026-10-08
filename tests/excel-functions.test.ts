@@ -18,9 +18,52 @@ const ROWS = [
 
 type Expected = number | string | boolean | { error: string } | Expected[][];
 
+/** Microsoft's example tables: quiz grades, houses for sale, office buildings, and data with errors. */
+const GRADES = [
+  ['Emilio', 75, 85, 87],
+  ['Julie', 94, 80, 88],
+  ['Hans', 86, 93, 'Incomplete'],
+  ['Frederique', 'Incomplete', 75, 75],
+];
+const HOUSES = [
+  ['Cozy Rambler', 230000, 'Issaquah', 3, 'No'],
+  ['Snug Bungalow', 197000, 'Bellevue', 2, 'Yes'],
+  ['Cool Cape Codder', 345678, 'Bellevue', 4, 'Yes'],
+  ['Splendid Split Level', 321900, 'Issaquah', 2, 'Yes'],
+  ['Exclusive Tudor', 450000, 'Bellevue', 5, 'Yes'],
+  ['Classy Colonial', 395000, 'Bellevue', 4, 'No'],
+];
+const OFFICES = [
+  [2310, 2, 2, 20, 142000],
+  [2333, 2, 2, 12, 144000],
+  [2356, 3, 1.5, 33, 151000],
+  [2379, 3, 2, 43, 150000],
+  [2402, 2, 3, 53, 139000],
+  [2425, 4, 2, 23, 169000],
+  [2448, 2, 1.5, 99, 126000],
+  [2471, 2, 2, 34, 142900],
+  [2494, 3, 3, 23, 163000],
+  [2517, 4, 4, 55, 169000],
+  [2540, 2, 3, 22, 149000],
+];
+const AGGREGATE_DATA = [['#DIV/0!', 82], [72, 65], [30, 95], ['#NUM!', 63], [31, 53], [96, 71], [32, 55], [81, 83], [33, 100], [53, 91], [34, 89]];
+/** Subtotals inside a range, which AGGREGATE can leave out. */
+const SUBTOTALS = [[1], [2], ['=SUBTOTAL(9,A1:A2)'], [4], ['=1+AGGREGATE(9,4,A1:A2)'], ['=SUM({1,2})']];
+
 let engine: CalcEngine;
 beforeAll(() => {
-  engine = new CalcEngine([{ name: 'S', rows: ROWS }], [], false);
+  engine = new CalcEngine(
+    [
+      { name: 'S', rows: ROWS },
+      { name: 'Grades', rows: GRADES },
+      { name: 'Houses', rows: HOUSES },
+      { name: 'Offices', rows: OFFICES },
+      { name: 'Agg', rows: AGGREGATE_DATA },
+      { name: 'Sub', rows: SUBTOTALS },
+    ],
+    [],
+    false,
+  );
 });
 afterAll(() => engine.destroy());
 
@@ -47,10 +90,11 @@ function check(cases: [string, Expected][]) {
 const NA = { error: '#N/A' };
 const VALUE = { error: '#VALUE!' };
 const DIV0 = { error: '#DIV/0!' };
+const NUM = { error: '#NUM!' };
 const CALC = { error: '#CALC!' };
 
 /** A sheet where a formula is entered in A1 and spills, so the cells it fills can be read. */
-function spill(formula: string, rows: (string | number | null)[][] = []) {
+function spill(formula: string, rows: (string | number | boolean | null)[][] = []) {
   const e = new CalcEngine([{ name: 'T', rows: [[formula], ...rows] }], [], false);
   try {
     const out: EngineValue[][] = [];
@@ -405,8 +449,8 @@ describe('dynamic array functions', () => {
       ['WRAPROWS(A1:A5,2.5)', [[4.14, 4.19], [5.17, 5.77], [6.39, NA]]],
       ['WRAPROWS({1,2},5)', [[1, 2, NA, NA, NA]]],
       ['WRAPROWS({1,2;3,4},2)', VALUE],
-      ['WRAPROWS({1,2},0)', { error: '#NUM!' }],
-      ['WRAPCOLS({1,2},0)', { error: '#NUM!' }],
+      ['WRAPROWS({1,2},0)', NUM],
+      ['WRAPCOLS({1,2},0)', NUM],
     ]);
   });
 
@@ -417,7 +461,7 @@ describe('dynamic array functions', () => {
       ['EXPAND({1,2;3,4},,3,0)', [[1, 2, 0], [3, 4, 0]]],
       ['EXPAND({1,2;3,4},1)', VALUE],
       ['EXPAND({1,2;3,4},2,1)', VALUE],
-      ['EXPAND(1,2000,1000)', { error: '#NUM!' }],
+      ['EXPAND(1,2000,1000)', NUM],
     ]);
   });
 
@@ -453,7 +497,7 @@ describe('dynamic array functions', () => {
       ['RANDARRAY(-1)', VALUE],
       ['RANDARRAY(1,1,2,1)', VALUE],
       ['RANDARRAY(1,1,1.5,3,TRUE())', VALUE],
-      ['RANDARRAY(2000,1000)', { error: '#NUM!' }],
+      ['RANDARRAY(2000,1000)', NUM],
     ]);
   });
 
@@ -472,6 +516,7 @@ describe('dynamic array functions', () => {
     expect(spill('=RANDARRAY(,2)').values.flat().filter((v) => typeof v === 'number')).toHaveLength(2);
     expect(spill('=WRAPROWS({1,2,3},2)').values.slice(0, 2)).toEqual([[1, 2, null, null], [3, expect.objectContaining({ error: '#N/A' }), null, null]]);
     expect(spill('=EXPAND({1;2},,2,0)').values.slice(0, 2)).toEqual([[1, 0, null, null], [2, 0, null, null]]);
+    expect(column(spill('=EXPAND({1;2},3,,0)'))).toEqual([1, 2, 0, null]);
     expect(column(spill('=TAKE({1;2;3},(2))'))).toEqual([1, 2, null, null]);
     expect(column(spill('=TAKE({1;2;3},-B2)', [[null, 1]]))).toEqual([3, null, null, null]);
     expect(spill('=TAKE({1,2;3,4},1,B2)', [[null, 1]]).values[0]).toEqual([1, null, null, null]);
@@ -494,5 +539,333 @@ describe('dynamic array functions', () => {
     for (const f of ['=TOCOL()', '=TOROW()', '=SORTBY()', '=WRAPROWS()', '=WRAPCOLS()', '=EXPAND()', '=TAKE()', '=DROP()']) {
       expect(spill(f).values[0][0]).toMatchObject({ error: expect.stringMatching(/^#/) });
     }
+  });
+});
+
+describe('statistical functions', () => {
+  it('AVERAGEIFS averages the values meeting every criterion', () => {
+    check([
+      ['AVERAGEIFS(Grades!B1:B4,Grades!B1:B4,">70",Grades!B1:B4,"<90")', 80.5],
+      ['AVERAGEIFS(Grades!C1:C4,Grades!C1:C4,">95")', DIV0],
+      ['AVERAGEIFS(Grades!D1:D4,Grades!D1:D4,"<>Incomplete",Grades!D1:D4,">80")', 87.5],
+      ['AVERAGEIFS(Houses!B1:B6,Houses!C1:C6,"Bellevue",Houses!D1:D6,">2",Houses!E1:E6,"Yes")', 397839],
+      ['AVERAGEIFS(Houses!B1:B6,Houses!C1:C6,"Issaquah",Houses!D1:D6,"<=3",Houses!E1:E6,"No")', 230000],
+      ['AVERAGEIFS(Houses!B1:B6,Houses!A1:A6,"C*")', 323559.3333333333],
+      ['AVERAGEIFS(D1:D5,A1:A5,">5")', DIV0],
+      ['AVERAGEIFS(D1:D5,A1:A5,">6")', DIV0],
+      ['AVERAGEIFS(D1:D5,A1:A5,">6.3")', DIV0],
+      ['AVERAGEIFS(D1:D5,A1:A5,"<5")', 1],
+      ['AVERAGEIFS(D1:D5,A1:A5,">6")', DIV0],
+      ['AVERAGEIFS(D1:D5,A1:A5,">=6.39")', DIV0],
+      ['AVERAGEIFS(A1:A3,D1:D3,"<>two")', 4.655],
+      ['AVERAGEIFS(D1:D5,A1:A5,">6",A1:A5,"<7")', DIV0],
+      ['AVERAGEIFS(D5,A5,">6")', DIV0],
+      ['AVERAGEIFS(A1:A5,B1:B4,"red")', VALUE],
+      ['AVERAGEIFS(A1:A5,A1:A5,D4)', VALUE],
+    ]);
+  });
+
+  it('MODE and MODE.MULT find the most frequent numbers', () => {
+    check([
+      ['MODE({5.6,4,4,3,2,4})', 4],
+      ['MODE.SNGL({5.6,4,4,3,2,4})', 4],
+      ['MODE(1,2,2,1)', 1],
+      ['MODE("1","1",2)', 1],
+      ['MODE(0,,)', 0],
+      ['MODE(1,2,3)', NA],
+      ['MODE(D1:D4,1)', 1],
+      ['MODE(D1:D5)', DIV0],
+      ['MODE(1,"a")', VALUE],
+      ['MODE.MULT({1,2,3,4,3,2,1,2,3,5,6,1})', [[1], [2], [3]]],
+      ['MODE.MULT(1,2)', NA],
+      ['MODE.MULT(D5)', DIV0],
+    ]);
+    // Only a single mode fits where the size can't be known beforehand.
+    expect(spill('=MODE.MULT({1,1,2})').values[0][0]).toBe(1);
+    expect(spill('=MODE.MULT({1,1,2,2})').values[0][0]).toMatchObject({ error: '#VALUE!' });
+  });
+
+  it('FREQUENCY counts values into bins, whatever order the bins are in', () => {
+    check([
+      ['FREQUENCY({79,85,78,85,50,81,95,88,97},{70,79,89})', [[1], [2], [4], [2]]],
+      ['FREQUENCY({1,2,3,4,5},{4,2})', [[2], [2], [1]]],
+      ['FREQUENCY({1,2,3},{2,2})', [[2], [0], [1]]],
+      ['FREQUENCY({1,2,"x"},{"a"})', 2],
+      ['FREQUENCY({1,#N/A},{1})', NA],
+      ['FREQUENCY({1},{1,#N/A})', NA],
+    ]);
+    expect(spill('=FREQUENCY({1,2,3},{1,2})').values.map((r) => r[0])).toEqual([1, 1, 1, null]);
+    expect(spill('=FREQUENCY({1,2,3},SEQUENCE(B2))', [[null, 1]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+  });
+
+  it('TRIMMEAN, KURT, PERMUT, PERMUTATIONA, GESTEP and RANK.AVG', () => {
+    check([
+      ['TRIMMEAN({4,5,6,7,2,3,4,5,1,2,3},0.2)', 3.7777777777777777],
+      ['TRIMMEAN({1,2,3,100},0.5)', 2.5],
+      ['TRIMMEAN({1,2,3,4},1)', NUM],
+      ['TRIMMEAN({1,2},-0.1)', NUM],
+      ['TRIMMEAN({1,2},1.1)', NUM],
+      ['TRIMMEAN("a",0)', NUM],
+      ['TRIMMEAN(D1:D5,0)', DIV0],
+      ['KURT(3,4,5,2,3,4,5,6,4,7)', -0.15179963720841627],
+      ['KURT(1,2,3)', DIV0],
+      ['KURT(1,1,1,1)', DIV0],
+      ['KURT(D5,1,2,3)', DIV0],
+      ['PERMUT(100,3)', 970200],
+      ['PERMUT(3,2)', 6],
+      ['PERMUT(5.9,2.1)', 20],
+      ['PERMUT(2,3)', NUM],
+      ['PERMUT(-1,0)', NUM],
+      ['PERMUTATIONA(3,2)', 9],
+      ['PERMUTATIONA(2,2)', 4],
+      ['PERMUTATIONA(0,0)', 1],
+      ['PERMUTATIONA(-1,2)', NUM],
+      ['GESTEP(5,4)', 1],
+      ['GESTEP(5,5)', 1],
+      ['GESTEP(-4,-5)', 1],
+      ['GESTEP(-1)', 0],
+      ['GESTEP("a")', VALUE],
+      ['RANK.AVG(94,{89;88;92;101;94;97;95})', 4],
+      ['RANK.AVG(94,{89;88;92;101;94;97;95},1)', 4],
+      ['RANK.AVG(2,{1,2,2,3})', 2.5],
+      ['RANK.AVG(2,{1,2,2,3},1)', 2.5],
+      ['RANK.AVG(5,{1,2})', NA],
+      ['RANK.AVG(1,D1:D5)', DIV0],
+    ]);
+  });
+
+  it('PERCENTRANK cuts its result down to the significant digits', () => {
+    const DATA = '{13,12,11,8,4,3,2,1,1,1}';
+    const EXC = '{1,2,3,6,6,6,7,8,9}';
+    check([
+      [`PERCENTRANK.INC(${DATA},2)`, 0.333],
+      [`PERCENTRANK.INC(${DATA},4)`, 0.555],
+      [`PERCENTRANK.INC(${DATA},8)`, 0.666],
+      [`PERCENTRANK.INC(${DATA},5)`, 0.583],
+      [`PERCENTRANK(${DATA},5,1)`, 0.5],
+      [`PERCENTRANK.EXC(${EXC},7)`, 0.7],
+      [`PERCENTRANK.EXC(${EXC},5.43)`, 0.381],
+      [`PERCENTRANK.EXC(${EXC},5.43,1)`, 0.3],
+      ['PERCENTRANK.INC({5},5)', 1],
+      ['PERCENTRANK.EXC({5},5)', 0.5],
+      [`PERCENTRANK.INC(${DATA},0)`, NA],
+      [`PERCENTRANK.INC(${DATA},14)`, NA],
+      [`PERCENTRANK.INC(${DATA},2,0)`, NUM],
+      ['PERCENTRANK.INC({"a"},1)', NUM],
+      ['PERCENTRANK.INC(D1:D5,1)', DIV0],
+    ]);
+  });
+
+  it('PROB, BINOM.DIST.RANGE, ERF.PRECISE and ERFC.PRECISE', () => {
+    check([
+      ['PROB({0,1,2,3},{0.2,0.3,0.1,0.4},2)', 0.1],
+      ['PROB({0,1,2,3},{0.2,0.3,0.1,0.4},1,3)', 0.8],
+      ['PROB({0,1,"x"},{0.5,0.5,"y"},0,1)', 1],
+      ['PROB({0,1},{0.5,0.4},0)', NUM],
+      ['PROB({0,1},{0,1},0)', NUM],
+      ['PROB({0,1},{0.5},0)', NA],
+      ['PROB({0,#N/A},{0.5,0.5},0)', NA],
+      ['PROB({0,1},{0.5,#N/A},0)', NA],
+      ['ROUND(BINOM.DIST.RANGE(60,0.75,48),3)', 0.084],
+      ['ROUND(BINOM.DIST.RANGE(60,0.75,45,50),3)', 0.524],
+      ['BINOM.DIST.RANGE(5,0,0)', 1],
+      ['BINOM.DIST.RANGE(5,1,0,4)', 0],
+      ['BINOM.DIST.RANGE(5,1,5)', 1],
+      ['BINOM.DIST.RANGE(2000,0.5,0,2000)', 1],
+      ['BINOM.DIST.RANGE(-1,0.5,0)', NUM],
+      ['BINOM.DIST.RANGE(5,1.5,0)', NUM],
+      ['BINOM.DIST.RANGE(5,0.5,6)', NUM],
+      ['BINOM.DIST.RANGE(5,0.5,3,2)', NUM],
+      ['ROUND(ERF.PRECISE(0.745),6)', 0.707929],
+      ['ROUND(ERF.PRECISE(1),7)', 0.8427008],
+      ['ROUND(ERFC.PRECISE(1),7)', 0.1572992],
+      ['ERF.PRECISE(1,2)', NA],
+    ]);
+  });
+
+  it('MDETERM, MINVERSE and MUNIT', () => {
+    check([
+      ['MDETERM({1,3,8,5;1,3,6,1;1,1,1,0;7,3,10,2})', 88],
+      ['MDETERM({3,6,1;1,1,0;3,10,2})', 1],
+      ['MDETERM({3,6;1,1})', -3],
+      ['MDETERM({1,2;2,4})', 0],
+      ['MDETERM({1,3,8,5;1,3,6,1})', VALUE],
+      ['MDETERM({1,"a";1,2})', VALUE],
+      ['MDETERM({1,#N/A;1,2})', NA],
+      ['MINVERSE({4,-1;2,0})', [[0, 0.5], [-1, 2]]],
+      ['MINVERSE({1,2,1;3,4,-1;0,2,0})', [[0.25, 0.25, -0.75], [0, 0, 0.5], [0.75, -0.25, -0.25]]],
+      ['MINVERSE({1,2;2,4})', NUM],
+      ['MINVERSE({1,2})', VALUE],
+      ['MUNIT(3)', [[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+      ['MUNIT(0)', VALUE],
+    ]);
+    expect(spill('=MINVERSE({4,-1;2,0})').values.slice(0, 2)).toEqual([[0, 0.5, null, null], [-1, 2, null, null]]);
+    expect(spill('=MUNIT(2)').values.slice(0, 2)).toEqual([[1, 0, null, null], [0, 1, null, null]]);
+    expect(spill('=MINVERSE({1,2,3})').values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=MUNIT(B2)', [[null, 2]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=MUNIT(2000)').values[0][0]).toMatchObject({ error: '#NUM!' });
+    expect(spill('=MUNIT()').values[0][0]).toMatchObject({ error: '#N/A' });
+  });
+
+  it('AGGREGATE applies any of 19 functions, leaving out errors or subtotals as asked', () => {
+    const DATA = '{1,2,3,4,5,#N/A}';
+    check([
+      ['AGGREGATE(4,6,Agg!A1:A11)', 96],
+      ['AGGREGATE(14,6,Agg!A1:A11,3)', 72],
+      ['AGGREGATE(15,6,Agg!A1:A11)', VALUE],
+      ['AGGREGATE(12,6,Agg!A1:A11,Agg!B1:B11)', 68],
+      ['AGGREGATE(9,4,Agg!A1:A11)', DIV0],
+      ['AGGREGATE(9,4,Agg!B1:B11)', 847],
+      [`AGGREGATE(1,6,${DATA})`, 3],
+      [`AGGREGATE(2,4,${DATA})`, 5],
+      [`AGGREGATE(3,4,${DATA})`, 6],
+      [`AGGREGATE(3,6,${DATA},"a")`, 6],
+      [`AGGREGATE(4,6,${DATA})`, 5],
+      [`AGGREGATE(5,6,${DATA})`, 1],
+      [`AGGREGATE(6,6,${DATA})`, 120],
+      [`AGGREGATE(7,6,${DATA})`, 1.5811388300841898],
+      [`AGGREGATE(8,6,${DATA})`, 1.4142135623730951],
+      [`AGGREGATE(9,6,${DATA})`, 15],
+      [`AGGREGATE(10,6,${DATA})`, 2.5],
+      [`AGGREGATE(11,6,${DATA})`, 2],
+      [`AGGREGATE(12,6,${DATA})`, 3],
+      ['AGGREGATE(12,6,{1,4,2,3})', 2.5],
+      [`AGGREGATE(13,6,${DATA})`, NA],
+      ['AGGREGATE(13,6,{1,2,2,1,3})', 1],
+      [`AGGREGATE(14,6,${DATA},2)`, 4],
+      [`AGGREGATE(15,6,${DATA},1.2)`, 2],
+      [`AGGREGATE(16,6,${DATA},0.3)`, 2.2],
+      [`AGGREGATE(17,6,${DATA},1)`, 2],
+      [`AGGREGATE(18,6,${DATA},0.3)`, 1.8],
+      [`AGGREGATE(19,6,${DATA},1)`, 1.5],
+      [`AGGREGATE(16,6,${DATA},1)`, 5],
+      ['AGGREGATE(1,6,{"a"})', DIV0],
+      ['AGGREGATE(4,6,{"a"})', 0],
+      ['AGGREGATE(5,6,{"a"})', 0],
+      ['AGGREGATE(6,6,{"a"})', 0],
+      ['AGGREGATE(7,6,{1})', DIV0],
+      ['AGGREGATE(8,6,{"a"})', DIV0],
+      ['AGGREGATE(10,6,{1})', DIV0],
+      ['AGGREGATE(11,6,{"a"})', DIV0],
+      ['AGGREGATE(12,6,{"a"})', NUM],
+      ['AGGREGATE(14,6,{1,2},3)', NUM],
+      ['AGGREGATE(15,6,{1},0)', NUM],
+      ['AGGREGATE(16,6,{1},2)', NUM],
+      ['AGGREGATE(16,6,{"a"},0.5)', NUM],
+      ['AGGREGATE(17,6,{1,2},5)', NUM],
+      ['AGGREGATE(18,6,{1,2},0.1)', NUM],
+      ['AGGREGATE(19,6,{1,2,3},4)', NUM],
+      ['AGGREGATE(14,6,{1},NA())', NA],
+      ['AGGREGATE(14,6,{1},"x")', VALUE],
+      ['AGGREGATE(9,,{1,2})', 3],
+      ['AGGREGATE(9,4,1,2)', 3],
+      ['AGGREGATE(9,6,1,NA())', 1],
+      ['AGGREGATE(9,4,1/0)', DIV0],
+      ['AGGREGATE(NA(),6,{1})', NA],
+      ['AGGREGATE(20,6,{1})', VALUE],
+      ['AGGREGATE(9,8,{1})', VALUE],
+      ['AGGREGATE(9,6)', VALUE],
+      // Cells holding SUBTOTAL or AGGREGATE are left out with options 0 to 3.
+      ['AGGREGATE(9,0,Sub!A1:A6)', 10],
+      ['AGGREGATE(9,4,Sub!A1:A6)', 17],
+      ['AGGREGATE(4,3,Sub!A1:A6)', 4],
+      ['AGGREGATE(14,0,Sub!A1:A6,1)', 4],
+      ['AGGREGATE(9,0,(Sub!A1:A6)*1)', 17],
+    ]);
+  });
+});
+
+describe('regression functions', () => {
+  const COSTS = '{133890;135000;135790;137300;138130;139100;139900;141120;141890;143230;144000;145290}';
+  const MONTHS = '{1;2;3;4;5;6;7;8;9;10;11;12}';
+  const UNITS = '{33100;47300;69000;102000;150000;220000}';
+
+  it('FORECAST, FORECAST.LINEAR and INTERCEPT fit a straight line to the number pairs', () => {
+    check([
+      ['FORECAST(30,{6;7;9;15;21},{20;28;31;38;40})', 10.607253086419753],
+      ['FORECAST.LINEAR(30,{6;7;9;15;21},{20;28;31;38;40})', 10.607253086419753],
+      ['INTERCEPT({2;3;9;1;8},{6;5;11;7;5})', 0.04838709677419217],
+      ['FORECAST(4,{1;"a";3},{1;2;3})', 4],
+      ['FORECAST({4,5},{1;2},{1;2})', [[4, 5]]],
+      ['FORECAST(1,{1;2},{1;2;3})', NA],
+      ['FORECAST(1,{1;2},{3;3})', DIV0],
+      ['FORECAST(1,{"a"},{"b"})', DIV0],
+      ['FORECAST(1,{1;#N/A},{1;2})', NA],
+      ['FORECAST(1,{1;2},{1;#N/A})', NA],
+      ['INTERCEPT({1;2},{1;2;3})', NA],
+    ]);
+  });
+
+  it('TREND and GROWTH project the fitted line or curve', () => {
+    check([
+      [
+        `TREND(${COSTS},${MONTHS})`,
+        [133953.33333333334, 134971.51515151517, 135989.69696969696, 137007.87878787878, 138026.0606060606, 139044.24242424243, 140062.42424242425, 141080.60606060608, 142098.78787878787, 143116.9696969697, 144135.15151515152, 145153.33333333334].map((v) => [v]),
+      ],
+      [`TREND(${COSTS},${MONTHS},{13;14;15;16;17})`, [[146171.51515151517], [147189.69696969696], [148207.87878787878], [149226.0606060606], [150244.24242424243]]],
+      ['TREND(Offices!E1:E11,Offices!A1:D11,{2500,3,2,25})', 158261.09563260485],
+      ['TREND(Offices!E1:E11,Offices!A1:D11,{2500,3,2,25;2310,2,2,20})', [[158261.09563260485], [141650.64968833]]],
+      ['TREND({2;4;6},{1;2;3},{4},FALSE())', 8],
+      ['TREND({1;2;3})', [[1], [2], [3]]],
+      ['TREND({1,2,3})', [[1, 2, 3]]],
+      ['TREND({1,2,3},,{4,5})', [[4, 5]]],
+      ['TREND({1,2;3,4},{1,2;3,4})', [[1, 2], [3, 4]]],
+      ['TREND({1,2,3,4},{1,2,3,4;1,0,1,0},{5;1})', 5],
+      ['TREND({1,2,3,4},{1,2,3,4;1,0,1,0},{5,1})', { error: '#REF!' }],
+      ['TREND(Offices!E1:E11,Offices!A1:D11,{2500,3})', { error: '#REF!' }],
+      ['TREND({1;2;3},{1;2})', { error: '#REF!' }],
+      ['TREND({1;"a";3})', VALUE],
+      ['TREND({1;2;3},{1;#N/A;3})', NA],
+      ['TREND({1;2;3},{1;2;3},{1;#N/A})', NA],
+      ['TREND({1,2,3},{1,2})', { error: '#REF!' }],
+      ['TREND({1,2;3,4},{1,2,3})', { error: '#REF!' }],
+      [`GROWTH(${UNITS},{11;12;13;14;15;16})`, [[32618.20377353971], [47729.42261474776], [69841.30085621739], [102197.07337883174], [149542.48674004574], [218821.87621459612]]],
+      [`GROWTH(${UNITS},{11;12;13;14;15;16},{17;18})`, [[320196.71836347267], [468536.0541840476]]],
+      ['GROWTH({1;2;0})', NUM],
+    ]);
+  });
+
+  it('LINEST and LOGEST give the coefficients, constant last, and the statistics of the fit', () => {
+    check([
+      [
+        'LINEST(Offices!E1:E11,Offices!A1:D11,TRUE(),TRUE())',
+        [
+          [-234.23716447120218, 2553.2106603915443, 12529.768167086753, 27.641387366020326, 52317.83050729132],
+          [13.268011475500292, 530.669151930375, 400.0668381939511, 5.429374041545291, 12237.361602862317],
+          [0.9967479933845114, 970.5784629285008, NA, NA, NA],
+          [459.7536742253976, 6, NA, NA, NA],
+          [1732393319.229254, 5652135.316203905, NA, NA, NA],
+        ],
+      ],
+      ['LINEST({1;9;5;7},{0;4;2;3},,FALSE())', [[2, 1]]],
+      ['LINEST({1;9;5;7},{0;4;2;3})', [[2, 1]]],
+      [`LOGEST(${UNITS},{11;12;13;14;15;16},TRUE(),FALSE())`, [[1.4632756281161785, 495.3047701587281]]],
+      ['LINEST({1;2;3},{1;2;3},FALSE(),TRUE())', [[1, 0], [0, NA], [1, 0], [NUM, 2], [14, 0]]],
+      ['LINEST({2;4;6},{1;2;3},TRUE(),TRUE())', [[2, 0], [0, 0], [1, 0], [NUM, 1], [8, 0]]],
+      ['LINEST({5;5;5},{1;2;3},TRUE(),TRUE())', [[0, 5], [0, 0], [NUM, 0], [NUM, 1], [0, 0]]],
+      ['LINEST(1,,TRUE(),TRUE())', [[0, 1], [0, NUM], [NUM, NUM], [NUM, 0], [0, 0]]],
+      // A variable that is a multiple of another is dropped, with 0 for its coefficient.
+      ['LINEST({2;4;6;8},{1,2;2,4;3,6;4,8})', [[0, 2, 0]]],
+      ['LINEST({1,2,3},{1,2,3})', [[1, 0]]],
+      ['LOGEST({1;0})', NUM],
+    ]);
+  });
+
+  it('spill to the size their arguments give', () => {
+    const shape = (s: { values: EngineValue[][] }) => s.values.map((r) => r.map((v) => (v === null ? '.' : 'x')).join('')).join(' ');
+    expect(shape(spill('=TREND({1;2;3})'))).toBe('x... x... x... ....');
+    expect(shape(spill('=TREND({1;2;3},{1;2;3},{4,5})'))).toBe('xx.. .... .... ....');
+    expect(shape(spill('=TREND({1;2;3},{1,1;2,0;3,1},{4,1;5,0})'))).toBe('x... x... .... ....');
+    expect(shape(spill('=TREND({1,2,3},{1,2,3;1,0,1},{4,5;1,0})'))).toBe('xx.. .... .... ....');
+    expect(shape(spill('=LINEST({1;2;3},{1;2;3},TRUE(),TRUE())'))).toBe('xx.. xx.. xx.. xx..');
+    expect(shape(spill('=LINEST({1;2;4},{1,2;2,1;3,3})'))).toBe('xxx. .... .... ....');
+    expect(shape(spill('=LOGEST(B2:B4)', [[null, 1], [null, 2], [null, 4]]))).toBe('xx.. .x.. .x.. .x..');
+    // Statistics asked for by a cell's value leave room for them.
+    expect(shape(spill('=LINEST({1;2;4},{1;2;3},TRUE(),C2)', [[null, null, false]]))).toBe('xx.. ..x. .... ....');
+    expect(spill('=TREND(SEQUENCE(B2))', [[null, 3]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=TREND({1;2},SEQUENCE(B2))', [[null, 2]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=TREND({1;2},{1;2},SEQUENCE(B2))', [[null, 2]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=LINEST({1;2},SEQUENCE(B2))', [[null, 2]]).values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=TREND({1;2},{1;2;3})').values[0][0]).toMatchObject({ error: '#REF!' });
   });
 });

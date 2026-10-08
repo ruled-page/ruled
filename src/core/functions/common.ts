@@ -40,6 +40,18 @@ export function grid(v: unknown): Grid {
   return v instanceof SimpleRangeValue ? v.data.map((row) => row.map(plain)) : [[plain(v)]];
 }
 
+/** The numbers in a range or array, passing over text, logicals and blanks; or the first error in it. */
+export function rangeNumbers(v: unknown): number[] | CellError {
+  const out: number[] = [];
+  for (const row of grid(v)) {
+    for (const x of row) {
+      if (x instanceof CellError) return x;
+      if (typeof x === 'number') out.push(x);
+    }
+  }
+  return out;
+}
+
 export function array(rows: Grid): SimpleRangeValue {
   return SimpleRangeValue.onlyValues(rows as never);
 }
@@ -162,6 +174,28 @@ export abstract class ExcelPlugin extends FunctionPlugin {
   /** An error as it is shown in a cell: #N/A. */
   protected errorText(e: CellError): string {
     return (this.config as unknown as { translationPackage: { getErrorTranslation(type: string): string } }).translationPackage.getErrorTranslation(e.type);
+  }
+
+  /** A value converted to a number the way arithmetic does: "12" is 12, "a" an error. */
+  protected toNumber(v: Value): number | CellError {
+    return plain(this.coerceScalarToNumberOrError(v as never)) as number | CellError;
+  }
+
+  /**
+   * The numbers a list of arguments holds, following Excel's rule for
+   * functions such as AVERAGE: numbers, logicals and numeric text typed as
+   * arguments count, while in references and arrays only numbers do. Returns
+   * the first error met instead, if there is one.
+   */
+  protected numbers(args: Node[], state: State): number[] | CellError {
+    const out: number[] = [];
+    for (const node of args) {
+      const v = node.type === 'EMPTY' ? 0 : this.evaluate(node, state);
+      const found = v instanceof SimpleRangeValue || REFERENCES.has(node.type) || node.type === 'NAMED_EXPRESSION' ? rangeNumbers(v) : this.toNumber(plain(v));
+      if (found instanceof CellError) return found;
+      out.push(...(typeof found === 'number' ? [found] : found));
+    }
+    return out;
   }
 
   /**
