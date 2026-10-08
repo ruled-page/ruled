@@ -14,8 +14,13 @@ const outline = () => new Uint8Array(readFileSync(new URL('../tests/corpus/outli
 
 const rowBar = (page: Page) => page.getByRole('group', { name: 'Row outline' });
 const colBar = (page: Page) => page.getByRole('group', { name: 'Column outline' });
-/** The row numbers of the grid's first rows, as shown. */
-const rowNumbers = (page: Page, n: number) => Promise.all(Array.from({ length: n }, (_, i) => page.locator(`[data-testid="glide-cell-0-${i}"]`).textContent()));
+/** The sheet's numbers for the grid's first rows, as its table for screen readers numbers them. */
+const rowNumbers = (page: Page, n: number) =>
+  page
+    .locator('table[role="grid"]')
+    .first()
+    .locator('tbody tr')
+    .evaluateAll((rows, count) => rows.slice(0, count).map((r) => r.getAttribute('aria-rowindex')), n);
 
 /** Opens the cell menu from the keyboard and chooses an item, in a submenu when one is named. */
 async function choose(page: Page, item: string | RegExp, submenu?: string) {
@@ -61,7 +66,7 @@ test('shows the outline bars, and collapses and expands groups and shows levels 
   await expect(shown(page, 'F1')).toHaveText('Apr');
 
   // The buttons leave the focus in the grid, so undo is a key away.
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus')).toHaveCount(1);
+  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
   await page.keyboard.press('ControlOrMeta+z');
   await expect(colBar(page).getByRole('button', { name: 'Expand columns F to H' })).toBeVisible();
 
