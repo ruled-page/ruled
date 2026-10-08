@@ -137,6 +137,17 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           <Icon name="keyboard" />
         </button>
         {extra}
+        {store.features.csv && store.features.download && (
+          <button
+            className="wbe-btn"
+            disabled={!ready || store.busy || store.view?.info.kind !== 'worksheet'}
+            onClick={() => void store.exportCsv()}
+            title={t('toolbar.csvTitle')}
+            aria-label={t('toolbar.csvLabel')}
+          >
+            <Icon name="download" /> {t('toolbar.csv')}
+          </button>
+        )}
         {store.features.save && store.hasSaveHandler && store.features.download && (
           <button className="wbe-btn wbe-icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title={t('toolbar.downloadTitle')} aria-label={t('toolbar.download')}>
             <Icon name="download" />

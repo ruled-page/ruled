@@ -18,6 +18,7 @@ export {
   type StoreOptions as EditorOptions,
 } from '../state/store';
 export type { CellChange } from '../core/types';
+export type { CsvOptions } from '../core/csv';
 export { themeProperty, type EditorTheme, type ThemeToken } from './theme';
 export type { IconName, IconOverrides } from '../ui/icons';
 /**

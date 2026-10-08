@@ -44,6 +44,7 @@ export const store = {
   'store.save.savedUnchanged': 'Saved {{fileName}} (unchanged).',
   'store.save.notSaved': 'Not saved: {{reason}}',
   'store.save.downloaded': 'Downloaded {{fileName}}.',
+  'store.csv.downloaded': 'Downloaded {{fileName}}: the values on {{sheet}}, as shown. A CSV file holds one sheet, without formulas or formatting.',
 
   'store.conflict.title': 'This workbook was changed elsewhere',
   'store.conflict.reason': 'Someone else saved a newer version of this workbook.',

@@ -1,3 +1,4 @@
+import type { CsvOptions } from '../core/csv';
 import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
 import type { EditorHandle } from './mount';
@@ -58,6 +59,10 @@ export interface WorkbookEditorElement extends HTMLElement {
   downloadCopy(): Promise<void>;
   /** The workbook as it is now, as a save would hand it over, without the save checks. */
   getWorkbook(): Promise<SavedWorkbook | undefined>;
+  /** Downloads the sheet shown as a CSV file, with values that would run as formulas escaped unless `escapeFormulas` is false. */
+  downloadCsv(options?: CsvOptions): Promise<void>;
+  /** The sheet shown as CSV text; undefined when it isn't a worksheet. */
+  getCsv(options?: CsvOptions): Promise<string | undefined>;
   /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it. */
   goTo(ref: string): void;
   registerSchema(schema: WorkbookSchema): void;
@@ -90,7 +95,7 @@ const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas'];
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -260,6 +265,14 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     getWorkbook(): Promise<SavedWorkbook | undefined> {
       return this.handle?.getWorkbook() ?? Promise.resolve(undefined);
+    }
+
+    downloadCsv(options?: CsvOptions): Promise<void> {
+      return this.connected().downloadCsv(options);
+    }
+
+    getCsv(options?: CsvOptions): Promise<string | undefined> {
+      return this.handle?.getCsv(options) ?? Promise.resolve(undefined);
     }
 
     goTo(ref: string): void {

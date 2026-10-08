@@ -28,11 +28,12 @@ import {
   type ValidationAlert,
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
-import { CSV_FILE } from '../core/csv';
+import { CSV_FILE, type CsvOptions } from '../core/csv';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText } from './clipboard';
+import { csvFileName, sheetCsv } from './csv';
 import { displayText, editText, exactText } from './format';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
@@ -169,7 +170,11 @@ export interface EditorFeatures {
    * Hosts whose users only fill in values can turn it off. Default true.
    */
   format: boolean;
-  /** CSV files: the Open button and dropping take .csv, .tsv and .txt files as well as workbooks. Default true. */
+  /**
+   * CSV files: the Open button and dropping take .csv, .tsv and .txt files as
+   * well as workbooks, and a button downloads the sheet shown as CSV (when
+   * downloads are on). Default true.
+   */
   csv: boolean;
 }
 
@@ -236,6 +241,8 @@ export interface StoreOptions {
   workerTimeout?: number;
   /** Hears what the editor does and how long it took, for the host's logging or analytics. */
   onEvent?: (event: EditorEvent) => void;
+  /** How the sheet is written when downloaded as CSV: the delimiter, and whether formulas are escaped (they are by default). */
+  csvExport?: CsvOptions;
 }
 
 /**
@@ -354,6 +361,16 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   layout: 'store.history.layout',
   format: 'store.history.format',
 };
+
+/** Has the browser download a file. */
+function download(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
 
@@ -1026,12 +1043,7 @@ export class WorkbookStore {
     const type = /\.xlsm$/i.test(saved.fileName)
       ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
       : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    const url = URL.createObjectURL(new Blob([saved.bytes as BlobPart], { type }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = saved.fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    download(new Blob([saved.bytes as BlobPart], { type }), saved.fileName);
   }
 
   /** Once saved, the draft for this file is no longer needed. */
@@ -1065,6 +1077,30 @@ export class WorkbookStore {
     this.downloadFile(saved);
     if (!this.hasSaveHandler) this.afterSave();
     this.toast('info', msg('store.save.downloaded', { fileName: saved.fileName }));
+  }
+
+  /**
+   * The sheet shown, as CSV text (see sheetCsv) and the name to give the
+   * file, once pending edits are in; undefined when it isn't a worksheet.
+   * Options override the `csvExport` option.
+   */
+  async csv(options: CsvOptions = {}): Promise<{ text: string; fileName: string; sheet: string } | undefined> {
+    await this.queue;
+    const view = this.view;
+    if (this.status !== 'ready' || !view || view.info.kind !== 'worksheet') return undefined;
+    const text = sheetCsv(view, this.styles, this.date1904, this.locale, { ...this.options.csvExport, ...options });
+    return { text, fileName: csvFileName(this.fileName, view.info.name, this.sheets.length), sheet: view.info.name };
+  }
+
+  /**
+   * Downloads the sheet shown as a CSV file, UTF-8 with a byte order mark so
+   * that Excel reads it as UTF-8. It is an export: it doesn't count as saving.
+   */
+  async exportCsv(options: CsvOptions = {}): Promise<void> {
+    const csv = await this.csv(options);
+    if (!csv) return;
+    download(new Blob(['\uFEFF' + csv.text], { type: 'text/csv;charset=utf-8' }), csv.fileName);
+    this.toast('info', msg('store.csv.downloaded', { fileName: csv.fileName, sheet: csv.sheet }));
   }
 
   // ---------------------------------------------------------------------------

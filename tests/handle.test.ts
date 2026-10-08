@@ -51,6 +51,17 @@ describe('the editor handle', () => {
     await expect(editor.open(bytes, 'notes.pdf')).rejects.toThrow(/\.xlsx/);
   });
 
+  it('gives the sheet shown as CSV, and downloads it', async () => {
+    await create();
+    expect(await editor.getCsv()).toBeUndefined();
+    await editor.open(bytes, 'lines.xlsx');
+    expect(await editor.getCsv()).toBe('2,3,6\r\n');
+    expect(await editor.getCsv({ delimiter: ';' })).toBe('2;3;6\r\n');
+    const exportCsv = vi.spyOn(storeOf(editor), 'exportCsv').mockResolvedValue();
+    await editor.downloadCsv({ escapeFormulas: false });
+    expect(exportCsv).toHaveBeenCalledWith({ escapeFormulas: false });
+  });
+
   it('says what saving came to', async () => {
     const saves: string[] = [];
     await create({ onSave: (f) => void saves.push(f.fileName) });

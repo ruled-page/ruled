@@ -48,6 +48,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.save.savedUnchanged': '{{fileName}} gespeichert (unverändert).',
   'store.save.notSaved': 'Nicht gespeichert: {{reason}}',
   'store.save.downloaded': '{{fileName}} heruntergeladen.',
+  'store.csv.downloaded': '{{fileName}} heruntergeladen: die Werte von {{sheet}}, wie angezeigt. Eine CSV-Datei enthält nur ein Tabellenblatt, ohne Formeln und Formatierung.',
 
   'store.conflict.title': 'Diese Arbeitsmappe wurde an anderer Stelle geändert',
   'store.conflict.reason': 'Jemand anderes hat eine neuere Version dieser Arbeitsmappe gespeichert.',

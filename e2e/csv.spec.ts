@@ -35,4 +35,20 @@ test.describe('CSV files', () => {
     expect(sheet.getCell('C3').value).toBe('two\nlines');
     expect(sheet.getCell('B3').value).toBe(0.5);
   });
+
+  test('download the sheet shown as CSV, values as shown and formulas escaped', async ({ page }) => {
+    await setCell(page, 'D2', '=LEN(A2)');
+    await setCell(page, 'A3', '@cmd');
+    await expect(shown(page, 'D2')).toHaveText('5');
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download this sheet as CSV' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('prices.csv');
+    await expect(page.getByText('Downloaded prices.csv: the values on prices, as shown.', { exact: false })).toBeVisible();
+
+    const bytes = await readFile(await file.path());
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(bytes.subarray(3).toString('utf8')).toBe(['Item,Price,Note,', `Bolts,"1,234.50",'=1+2,5`, `'@cmd,0.25,"two\nlines",`, ''].join('\r\n'));
+  });
 });

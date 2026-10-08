@@ -39,6 +39,7 @@ export { SaveConflictError } from '../state/store';
 export { de, en, msg, type Localized, type Message, type Text, type Translations } from '../i18n';
 export type { EditorFeatures, HistoryEntry, SavedWorkbook, SaveResult, StoreOptions as EditorOptions } from '../state/store';
 export type { CellChange } from '../core/types';
+export type { CsvOptions } from '../core/csv';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

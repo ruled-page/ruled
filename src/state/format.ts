@@ -47,8 +47,11 @@ export function exactText(rec: CellRecord, style: DisplayStyle, grouping: boolea
   return grouping ? tidy(n).toLocaleString(undefined, { maximumFractionDigits: 15 }) : String(tidy(n));
 }
 
-/** The text Excel would show for a cell, and the colour its number format asks for. */
-export function displayText(rec: CellRecord, style: DisplayStyle, date1904: boolean, exact = false): { text: string; color?: string } {
+/**
+ * The text Excel would show for a cell, and the colour its number format asks
+ * for. Numbers use English separators unless a locale is given.
+ */
+export function displayText(rec: CellRecord, style: DisplayStyle, date1904: boolean, exact = false, locale?: string): { text: string; color?: string } {
   if (exact) {
     const text = exactText(rec, style, true);
     if (text !== undefined) return { text };
@@ -60,7 +63,7 @@ export function displayText(rec: CellRecord, style: DisplayStyle, date1904: bool
       const n = date1904 && isDate(pattern) ? (rec.n ?? 0) + 1462 : (rec.n ?? 0);
       let text: string;
       try {
-        text = format(pattern, n, OPTS);
+        text = format(pattern, n, locale ? { ...OPTS, locale } : OPTS);
       } catch {
         text = String(n);
       }

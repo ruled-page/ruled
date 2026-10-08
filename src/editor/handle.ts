@@ -1,3 +1,4 @@
+import type { CsvOptions } from '../core/csv';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
 import type { EditorTheme } from './theme';
@@ -22,6 +23,14 @@ export interface EditorHandle {
   downloadCopy(): Promise<void>;
   /** The workbook as it is now, as onSave would receive it, without save checks or onSave. */
   getWorkbook(): Promise<SavedWorkbook | undefined>;
+  /**
+   * Downloads the sheet shown, and only that sheet, as a CSV file (UTF-8 with
+   * a byte order mark), as the toolbar's CSV button does. Values that would run
+   * as formulas in a spreadsheet app are escaped unless `escapeFormulas` is false.
+   */
+  downloadCsv(options?: CsvOptions): Promise<void>;
+  /** The sheet shown as CSV text, as downloadCsv writes it but without the byte order mark; undefined when it isn't a worksheet. */
+  getCsv(options?: CsvOptions): Promise<string | undefined>;
   /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it. */
   goTo(ref: string): void;
   /** Adds or replaces a schema and re-checks the open workbook. */
@@ -68,6 +77,8 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     save: () => store.save(),
     downloadCopy: () => store.exportCopy(),
     getWorkbook: () => store.snapshot(),
+    downloadCsv: (options) => store.exportCsv(options),
+    getCsv: async (options) => (await store.csv(options))?.text,
     goTo: (ref) => void store.goTo(ref),
     registerSchema: (schema) => store.registerSchema(schema),
     removeSchema: (id) => store.removeSchema(id),

