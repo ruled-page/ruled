@@ -241,6 +241,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.structure.nothingToRedo': 'Es gibt nichts zu wiederholen.',
 
   'core.change.movedTo': 'Verschoben nach {{where}}',
+  'core.change.tableGrew_one': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeile',
+  'core.change.tableGrew_other': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeilen',
   'core.change.insertedRows_one': '{{count, number}} Zeile eingefügt',
   'core.change.insertedRows_other': '{{count, number}} Zeilen eingefügt',
   'core.change.insertedColumns_one': '{{count, number}} Spalte eingefügt',

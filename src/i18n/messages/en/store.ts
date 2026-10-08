@@ -73,6 +73,8 @@ export const store = {
   'store.history.replace': 'Replace',
   'store.history.fillDown': 'Fill down',
   'store.history.fillRight': 'Fill right',
+  'store.history.tableGrew_one': 'Added {{count, number}} row to {{table}}',
+  'store.history.tableGrew_other': 'Added {{count, number}} rows to {{table}}',
   'store.history.insertedRows_one': 'Inserted {{count, number}} row',
   'store.history.insertedRows_other': 'Inserted {{count, number}} rows',
   'store.history.deletedRows_one': 'Deleted {{count, number}} row',

@@ -79,6 +79,8 @@ export const store: Record<keyof typeof en, string> = {
   'store.history.replace': 'Ersetzen',
   'store.history.fillDown': 'Nach unten ausfüllen',
   'store.history.fillRight': 'Nach rechts ausfüllen',
+  'store.history.tableGrew_one': '{{count, number}} Zeile zu {{table}} hinzugefügt',
+  'store.history.tableGrew_other': '{{count, number}} Zeilen zu {{table}} hinzugefügt',
   'store.history.insertedRows_one': '{{count, number}} Zeile eingefügt',
   'store.history.insertedRows_other': '{{count, number}} Zeilen eingefügt',
   'store.history.deletedRows_one': '{{count, number}} Zeile gelöscht',

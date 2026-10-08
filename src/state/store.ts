@@ -313,6 +313,8 @@ function describeStructure(op: StructuralOp, sheets: SheetView[]): Text {
       return msg('store.history.insertedColumns', { count: op.count });
     case 'deleteCols':
       return msg('store.history.deletedColumns', { count: op.count });
+    case 'growTable':
+      return msg('store.history.tableGrew', { table: op.table, count: op.rows });
     case 'move': {
       const range = rangeLabel(op.src);
       if (op.toSheet === op.sheet) return msg('store.history.moved', { range });
@@ -1262,6 +1264,8 @@ export class WorkbookStore {
 
   /** Selects what a structural change made or left, as Excel does. */
   private selectAfter(op: StructuralOp): void {
+    // A table growing under the cell being typed into leaves the selection where it is.
+    if (op.type === 'growTable') return;
     const view = this.sheets[op.type === 'move' ? op.toSheet : op.sheet];
     if (!view) return;
     const lastCol = Math.max(view.info.maxCol, 0);
@@ -1675,7 +1679,21 @@ export class WorkbookStore {
     if (!(await this.passesValidation(row, col, text))) return;
     const rec = view.get(row, col);
     if (rec?.flags && rec.flags & CellFlag.Formula && !text.startsWith('=') && !(await this.okToReplace(1))) return;
+    if (text !== '' && !(await this.growTableTo({ r1: row, c1: col, r2: row, c2: col }))) return;
     await this.edit({ type: 'input', sheet: this.active, row, col, text: prepared.text });
+  }
+
+  /**
+   * As in Excel, typing or pasting in the row just below an Excel table
+   * (one without a totals row) makes the table take that row in, with its
+   * calculated columns and formats. A step of its own, undone separately.
+   * False when it couldn't grow.
+   */
+  private async growTableTo(rect: Rect): Promise<boolean> {
+    const view = this.view;
+    const table = view?.info.tables.find((t) => !t.totalsRows && rect.r1 === t.rect.r2 + 1 && rect.c1 <= t.rect.c2 && rect.c2 >= t.rect.c1);
+    if (!table) return true;
+    return this.restructure({ type: 'growTable', sheet: this.active, table: table.name, rows: rect.r2 - rect.r1 + 1 });
   }
 
   async clear(rects: Rect[]): Promise<void> {
@@ -1741,6 +1759,7 @@ export class WorkbookStore {
         return !!((src.get(sr, sc)?.flags ?? 0) & CellFlag.Formula);
       };
       if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
+      if (!(await this.growTableTo(dst))) return;
       await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst });
       return;
     }
@@ -1792,6 +1811,7 @@ export class WorkbookStore {
     const keeps = (row: number, col: number) => (grid[row - dst.r1]?.[col - dst.c1] ?? '').startsWith('=');
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', msg('store.paste.large', { count: rectCells(dst) }));
+    if (!(await this.growTableTo(dst))) return;
     await this.edit({ type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}) });
   }
 

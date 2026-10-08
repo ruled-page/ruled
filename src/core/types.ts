@@ -120,6 +120,8 @@ export interface TableInfo {
   columns: string[];
   /** Each column's calculated formula, which Excel fills into every row of the column, in file form. */
   calculated?: (string | undefined)[];
+  /** The table's part in the package. */
+  path?: string;
   style?: string;
   showFirstColumn: boolean;
   showLastColumn: boolean;

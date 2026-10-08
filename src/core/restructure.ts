@@ -18,6 +18,10 @@ import type { OoxmlPackage } from './zip';
  * how many cell formulas now show #REF! because cells they used were deleted.
  */
 export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: StructuralOp): { broken: number } {
+  if (op.type === 'growTable') {
+    growTable(pkg, model, op);
+    return { broken: 0 };
+  }
   check(model, op);
   const map = refMapFor(op);
   const names = model.sheets.map((m) => m.info.name);
@@ -92,6 +96,29 @@ function rewriteText(pkg: OoxmlPackage, path: string, fn: (xml: string) => strin
 
 // ---------------------------------------------------------------------------
 // Refusals
+
+/**
+ * An Excel table takes in the rows just below it: its range, and its
+ * filter's, reach that much further. Formulas that use the table see the
+ * new rows when the workbook is read again.
+ */
+function growTable(pkg: OoxmlPackage, model: WorkbookModel, op: Extract<StructuralOp, { type: 'growTable' }>): void {
+  const info = model.sheets[op.sheet]?.info;
+  const table = info?.tables.find((t) => t.name === op.table);
+  if (!info || info.kind !== 'worksheet' || !table?.path) throw new TextError(msg('core.structure.notWorksheet'));
+  if (info.protected) throw new TextError(msg('core.reason.protected'));
+  if (table.totalsRows || table.rect.r2 + op.rows >= MAX_ROWS) throw new TextError(msg('core.structure.noRoomBelow'));
+  const xml = pkg.text(table.path);
+  if (!xml) return;
+  const grow = (_all: string, a: string, ref: string, b: string) => {
+    const r = parseRange(ref);
+    return r ? `${a}${rangeToA1({ ...r, r2: r.r2 + op.rows })}${b}` : _all;
+  };
+  pkg.setText(
+    table.path,
+    xml.replace(/(<(?:\w+:)?table\b[^>]*?\sref=")([^"]*)(")/, grow).replace(/(<(?:\w+:)?autoFilter\b[^>]*?\sref=")([^"]*)(")/, grow),
+  );
+}
 
 function check(model: WorkbookModel, op: StructuralOp): void {
   const m = model.sheets[op.sheet];

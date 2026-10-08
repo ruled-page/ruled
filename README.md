@@ -36,7 +36,9 @@ back as .xlsx without losing what the editor can't display.
   formulas aren't checked, as in Excel.
 - Right-click a cell or heading to cut, copy and paste, insert or delete rows
   and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F).
-  Cutting and pasting moves cells, and references to them follow.
+  Cutting and pasting moves cells, and references to them follow. Rows
+  inserted into an Excel table, or typed or pasted just below one without a
+  totals row, become part of it with its calculated columns and formats.
 - Optional **schemas** describe the workbooks a consumer expects. A workbook
   that matches one is validated and constrained by it; one that matches none
   opens as a plain spreadsheet with a warning. Schemas can be written in

@@ -234,6 +234,8 @@ export const core = {
 
   // The change list's description of a structural change.
   'core.change.movedTo': 'Moved to {{where}}',
+  'core.change.tableGrew_one': 'Table {{table}} took in {{count, number}} more row',
+  'core.change.tableGrew_other': 'Table {{table}} took in {{count, number}} more rows',
   'core.change.insertedRows_one': 'Inserted {{count, number}} row',
   'core.change.insertedRows_other': 'Inserted {{count, number}} rows',
   'core.change.insertedColumns_one': 'Inserted {{count, number}} column',

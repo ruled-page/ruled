@@ -6,10 +6,12 @@ import type { Rect } from './types';
 export type StructuralOp =
   | { type: 'insertRows' | 'deleteRows' | 'insertCols' | 'deleteCols'; sheet: number; at: number; count: number }
   /** Cut and paste: the cells move, and everything that pointed at them follows. */
-  | { type: 'move'; sheet: number; src: Rect; toSheet: number; row: number; col: number };
+  | { type: 'move'; sheet: number; src: Rect; toSheet: number; row: number; col: number }
+  /** An Excel table taking in the rows just below it, as typing there makes it do. Nothing moves. */
+  | { type: 'growTable'; sheet: number; table: string; rows: number };
 
 /** Inserting or deleting whole rows or columns. */
-export type LineOp = Exclude<StructuralOp, { type: 'move' }>;
+export type LineOp = Extract<StructuralOp, { type: 'insertRows' | 'deleteRows' | 'insertCols' | 'deleteCols' }>;
 
 export interface Located {
   sheet: number;
@@ -41,6 +43,7 @@ function lineShift(insert: boolean, at: number, count: number, max: number) {
 }
 
 export function refMapFor(op: StructuralOp): RefMap {
+  if (op.type === 'growTable') return { sheets: new Set(), range: (sheet, rect) => ({ sheet, rect }) };
   if (op.type === 'move') {
     const { src } = op;
     const dr = op.row - src.r1;
@@ -157,6 +160,7 @@ export function transformSqref(sqref: string, sheet: number, map: RefMap): strin
 
 /** Whether `rect` is split by the change: some of it moves or goes and some doesn't, or it is pushed apart. */
 export function splits(op: StructuralOp, rect: Rect): boolean {
+  if (op.type === 'growTable') return false;
   if (op.type === 'move') {
     const s = op.src;
     const overlaps = rect.r1 <= s.r2 && rect.r2 >= s.r1 && rect.c1 <= s.c2 && rect.c2 >= s.c1;

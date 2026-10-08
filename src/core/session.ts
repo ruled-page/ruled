@@ -1391,6 +1391,10 @@ export class WorkbookSession {
     }
     next.baked.structure.push(describeStructure(op, names));
     if (op.type === 'insertRows') next.fillInsertedTableRows(op.sheet, op.at, op.count);
+    if (op.type === 'growTable') {
+      const t = next.model.sheets[op.sheet].info.tables.find((x) => x.name === op.table);
+      if (t) next.fillInsertedTableRows(op.sheet, t.rect.r2 - op.rows + 1, op.rows);
+    }
     return next;
   }
 
@@ -1411,7 +1415,8 @@ export class WorkbookSession {
           const col = t.rect.c1 + j;
           const style = like >= 0 ? this.current(sheet, like, col).style : 0;
           const formula = t.calculated?.[j];
-          if (!formula && !style) continue;
+          // A table that grows over cells already filled keeps what they hold.
+          if ((!formula && !style) || this.current(sheet, row, col).content.kind !== 'empty') continue;
           this.setCurrent({ sheet, row, col, content: formula ? { kind: 'formula', formula } : EMPTY, style });
         }
       }
@@ -1454,6 +1459,9 @@ export function compareForSort(a: EngineValue, b: EngineValue, descending: boole
 
 /** A structural change in words, for the change list. */
 function describeStructure(op: StructuralOp, names: string[]): CellChange {
+  if (op.type === 'growTable') {
+    return { sheet: names[op.sheet], ref: op.table, before: '', after: '', note: msg('core.change.tableGrew', { table: op.table, count: op.rows }) };
+  }
   if (op.type === 'move') {
     const h = op.src.r2 - op.src.r1;
     const w = op.src.c2 - op.src.c1;
@@ -1464,7 +1472,7 @@ function describeStructure(op: StructuralOp, names: string[]): CellChange {
   const rows = op.type === 'insertRows' || op.type === 'deleteRows';
   const end = op.at + op.count - 1;
   const ref = rows ? `${op.at + 1}:${end + 1}` : `${colToLetters(op.at)}:${colToLetters(end)}`;
-  const notes: Record<Exclude<StructuralOp['type'], 'move'>, MessageKey> = {
+  const notes: Record<Exclude<StructuralOp['type'], 'move' | 'growTable'>, MessageKey> = {
     insertRows: 'core.change.insertedRows',
     insertCols: 'core.change.insertedColumns',
     deleteRows: 'core.change.deletedRows',
