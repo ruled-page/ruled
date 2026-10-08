@@ -1,5 +1,5 @@
 import { useId, useRef } from 'react';
-import type { WorkbookStore } from '../state/store';
+import type { Toast, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { useDialog } from './useDialog';
 import { useT } from '../i18n/react';
@@ -8,11 +8,13 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
   const t = useT();
   const req = store.confirmRequest;
   const confirmBtn = useRef<HTMLButtonElement>(null);
+  const cancelBtn = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const id = useId();
-  useDialog(dialog, !!req, () => req?.resolve('cancel'), { modal: true, initial: confirmBtn });
+  const danger = req?.danger !== false;
+  // Something that can't be undone starts on the safe choice, so a stray Enter doesn't do it.
+  useDialog(dialog, !!req, () => req?.resolve('cancel'), { modal: true, initial: danger ? cancelBtn : confirmBtn });
   if (!req) return null;
-  const danger = req.danger !== false;
   return (
     <div className="wbe-modal-backdrop" onMouseDown={() => req.resolve('cancel')}>
       <div
@@ -57,7 +59,7 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
             </div>
           )}
           <div className="wbe-modal-actions">
-            <button className="wbe-btn" onClick={() => req.resolve('cancel')}>
+            <button ref={cancelBtn} className="wbe-btn" onClick={() => req.resolve('cancel')}>
               {req.cancelLabel ? t.text(req.cancelLabel) : t('dialog.cancel')}
             </button>
             {req.alternateLabel && (
@@ -75,20 +77,53 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
   );
 }
 
+/**
+ * Messages that come and go. They are live regions that are always there,
+ * news in a polite one and errors in an assertive one, each saying only a
+ * message as it arrives. What an action did, which isn't shown, is said in a
+ * third. Messages wait while the pointer or focus is on them.
+ */
 export function Toasts({ store }: { store: WorkbookStore }) {
   const t = useT();
-  return (
-    <div className="wbe-toasts" role="status">
-      {store.toasts.map((toast) => (
-        // Errors interrupt; the rest wait for a pause.
-        <div key={toast.id} className={`wbe-toast wbe-toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
-          <Icon name={toast.kind === 'info' ? 'check' : toast.kind === 'warn' ? 'info' : 'warn'} />
-          <span>{t.text(toast.text)}</span>
-          <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.dismissToast(toast.id)} aria-label={t('toast.dismiss')}>
-            <Icon name="close" size={14} />
-          </button>
-        </div>
-      ))}
+  const toast = (item: Toast) => (
+    <div key={item.id} className={`wbe-toast wbe-toast-${item.kind}`}>
+      <Icon name={item.kind === 'info' ? 'check' : item.kind === 'warn' ? 'info' : 'warn'} />
+      <span>{t.text(item.text)}</span>
+      <button
+        className="wbe-btn wbe-icon wbe-ghost"
+        onClick={() => {
+          store.dismissToast(item.id);
+          store.holdToasts(false);
+          // The button goes with its message; the focus goes back to the sheet.
+          store.focusGrid();
+        }}
+        aria-label={t('toast.dismiss')}
+      >
+        <Icon name="close" size={14} />
+      </button>
     </div>
+  );
+  return (
+    <>
+      <div
+        className="wbe-toasts"
+        onMouseEnter={() => store.holdToasts(true)}
+        onMouseLeave={() => store.holdToasts(false)}
+        onFocus={() => store.holdToasts(true)}
+        onBlur={() => store.holdToasts(false)}
+      >
+        <div className="wbe-toast-group" role="status" aria-atomic="false">
+          {store.toasts.filter((x) => x.kind !== 'error').map(toast)}
+        </div>
+        <div className="wbe-toast-group" role="alert" aria-atomic="false">
+          {store.toasts.filter((x) => x.kind === 'error').map(toast)}
+        </div>
+      </div>
+      <div className="wbe-sr-only" role="status" aria-atomic="false">
+        {store.spoken.map((s) => (
+          <p key={s.id}>{t.text(s.text)}</p>
+        ))}
+      </div>
+    </>
   );
 }

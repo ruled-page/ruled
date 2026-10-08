@@ -42,7 +42,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('follows a link to another sheet with the keyboard, and screen readers hear the link', async ({ page }) => {
-  await expect(shown(page, 'A1')).toHaveText('Example, link to https://example.com/a');
+  await expect(shown(page, 'A1')).toHaveText('Example');
+  await expect(shown(page, 'A1')).toHaveAttribute('aria-label', 'A1, Example, link to https://example.com/a');
   await goTo(page, 'A2');
   await expect(page.locator('.wbe-cell-link')).toHaveText('Other!B3');
   await page.keyboard.press('ControlOrMeta+Enter');
@@ -96,7 +97,7 @@ test('adds a link from the dialog, with the keyboard, and saves it', async ({ pa
   await dialog.getByRole('textbox', { name: 'Screen tip' }).fill('Our new page');
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(shown(page, 'B1')).toHaveText('New page, link to https://www.example.com/new');
+  await expect(shown(page, 'B1')).toHaveAttribute('aria-label', /^B1, New page, link to https:\/\/www\.example\.com\/new\b/);
   await expect(page.getByRole('button', { name: '2 changes' })).toBeVisible();
 
   const download = page.waitForEvent('download');
@@ -120,9 +121,9 @@ test('links to a place in the workbook from the dialog, and removes a link from 
   await page.keyboard.press('Shift+F10');
   await page.getByRole('menuitem', { name: 'Link', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Remove link' }).click();
-  await expect(shown(page, 'A1')).toHaveText('Example');
+  await expect(shown(page, 'A1')).toHaveAttribute('aria-label', /^A1, Example(?!, link)/);
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(shown(page, 'A1')).toHaveText('Example, link to https://example.com/a');
+  await expect(shown(page, 'A1')).toHaveAttribute('aria-label', /^A1, Example, link to https:\/\/example\.com\/a\b/);
 });
 
 for (const theme of ['Default', 'Dark']) {

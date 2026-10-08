@@ -37,7 +37,9 @@ function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Sel
   const ctl = store.schema;
   const issues = ctl?.cellIssues(store.active, sel.row, sel.col) ?? [];
   if (issues.length) {
-    return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text: issues.map((i) => t.text(i.message)).join(' ') };
+    // Said as well as coloured, since the same icon marks both.
+    const text = issues.map((i) => t(i.severity === 'error' ? 'issue.error' : 'issue.warning', { message: t.text(i.message) })).join(' ');
+    return { tone: issues.some((i) => i.severity === 'error') ? 'error' : 'warn', text };
   }
   if (ctl?.isPending(store.active, sel.row, sel.col)) return { tone: 'info', text: t('formulaBar.checking') };
   const described = ctl?.describe(store.active, sel.row, sel.col);
@@ -159,7 +161,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
               close();
             } else {
               setDraft(null);
-              e.currentTarget.blur();
+              store.focusGrid();
             }
           }
         }}
@@ -267,9 +269,10 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const link = store.linkAt(selection.row, selection.col);
   const address = link && linkAddress(link);
 
+  // Back to the grid, at the cell, as the keyboard was before the formula bar took it.
   const commit = () => {
     if (draft !== value) void store.input(selection.row, selection.col, draft);
-    input.current?.blur();
+    store.focusGrid();
   };
 
   return (
@@ -291,7 +294,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
           aria-expanded={!!assist.completion}
           aria-controls={assist.completion ? `${id}-list` : undefined}
           aria-activedescendant={assist.completion ? `${id}-list-${assist.active}` : undefined}
-          aria-describedby={assist.hint && !assist.completion ? `${id}-hint` : undefined}
+          aria-describedby={[assist.hint && !assist.completion && `${id}-hint`, note && `${id}-note`].filter(Boolean).join(' ') || undefined}
           onFocus={() => setFocused(true)}
           onBlur={() => {
             setFocused(false);
@@ -314,7 +317,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
             if (e.key === 'Enter') commit();
             if (e.key === 'Escape') {
               setDraft(value);
-              input.current?.blur();
+              store.focusGrid();
             }
           }}
         />
@@ -329,7 +332,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
         <HintAnnouncer hint={assist.hint} />
       </div>
       {note && (
-        <div className={`wbe-cell-note wbe-tone-${note.tone}`} title={note.text}>
+        <div id={`${id}-note`} className={`wbe-cell-note wbe-tone-${note.tone}`} title={note.text}>
           <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : note.tone === 'note' ? 'note' : 'info'} size={14} />
           <span>{note.text}</span>
         </div>
@@ -358,6 +361,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
         aria-label={t('formulaBar.cellMenu')}
         title={t('formulaBar.cellMenu')}
         aria-haspopup="menu"
+        aria-expanded={store.menu?.kind === 'cell'}
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           store.set('menu', { x: r.right, y: r.bottom, kind: 'cell' });

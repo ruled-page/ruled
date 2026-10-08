@@ -484,11 +484,12 @@
   white-space: nowrap;
 }
 
-.wbe .wbe-btn:hover:not(:disabled) {
+.wbe .wbe-btn:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--wbe-surface-alt);
 }
 
-.wbe .wbe-btn:disabled {
+.wbe .wbe-btn:disabled,
+.wbe .wbe-btn[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -516,7 +517,7 @@
   font-weight: 500;
 }
 
-.wbe .wbe-btn.wbe-primary:hover:not(:disabled) {
+.wbe .wbe-btn.wbe-primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--wbe-accent-strong);
 }
 
@@ -562,6 +563,10 @@
 
 .wbe .wbe-toggle.wbe-disabled {
   opacity: 0.45;
+}
+
+.wbe .wbe-toggle .wbe-toggle-short {
+  display: none;
 }
 
 .wbe .wbe-toggle input {
@@ -626,7 +631,9 @@
 }
 
 .wbe .wbe-name-box:focus {
-  outline: none;
+  /* Invisible, except in forced colours, where the shadow goes. */
+  outline: 2px solid transparent;
+  outline-offset: -2px;
   box-shadow: inset 0 0 0 2px var(--wbe-focus-ring);
   color: var(--wbe-text);
 }
@@ -708,7 +715,9 @@
   border: 0;
   padding: 0 10px;
   font: 14px var(--wbe-font-mono);
-  outline: none;
+  /* Its focus is the line under it, or this outline in forced colours. */
+  outline: 2px solid transparent;
+  outline-offset: -2px;
   color: var(--wbe-text);
   background: transparent;
 }
@@ -1358,6 +1367,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .wbe .wbe-spinner {
+    animation-duration: 3s;
+  }
+}
+
 /* Report panel -------------------------------------------------------------- */
 
 .wbe .wbe-report {
@@ -1944,6 +1959,12 @@
   gap: 8px;
   z-index: 10001;
   max-width: min(440px, calc(100vw - 32px));
+}
+
+.wbe .wbe-toast-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .wbe .wbe-toast {
@@ -2688,7 +2709,8 @@
   margin-top: 10px;
 }
 
-.wbe .wbe-checks h5 {
+.wbe .wbe-checks h4,
+.wbe .wbe-table-block h4 {
   margin: 0 0 4px;
   font-size: var(--wbe-font-size-sm);
 }
@@ -2760,7 +2782,7 @@
 }
 
 @container wbe (max-width: 980px) {
-.wbe .wbe-toggle span,
+.wbe .wbe-toggle .wbe-toggle-long,
 .wbe .wbe-chip .wbe-label {
     position: absolute;
     width: 1px;
@@ -2772,6 +2794,13 @@
 
 .wbe .wbe-file-name {
     max-width: 140px;
+  }
+}
+
+/* A toggle keeps a short visible label, its full one read to screen readers. */
+@container wbe (max-width: 980px) {
+.wbe .wbe-toggle .wbe-toggle-short {
+    display: inline;
   }
 }
 
@@ -2906,7 +2935,8 @@
   border-bottom: 2px solid var(--wbe-accent);
   padding: 0 8px;
   font: inherit;
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
   min-height: 24px;
 }
 
@@ -2937,9 +2967,10 @@
   color: var(--wbe-accent);
 }
 
-.wbe .wbe-enum-options li.wbe-empty {
+.wbe .wbe-enum-empty {
+  margin: 0;
+  padding: 5px 10px;
   color: var(--wbe-text-subtle);
-  cursor: default;
 }
 
 .wbe .wbe-enum-clear {
@@ -3227,4 +3258,15 @@
   align-items: center;
   justify-content: center;
   flex: none;
+}
+
+/*
+ * In forced colours, backgrounds and shadows are dropped, so the item a list
+ * or menu has active, the selected tab and the picked row keep an outline.
+ */
+@media (forced-colors: active) {
+  .wbe :is(li.wbe-active, tr.wbe-picked, .wbe-btn.wbe-active, .wbe-panel-tabs button.wbe-active, .wbe-tab.wbe-active) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }

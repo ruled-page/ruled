@@ -1,5 +1,7 @@
 /** English messages for the schema designer. Keys are dotted, grouped by where they are shown. */
 export const designer = {
+  'designer.inRow': '{{label}} of {{row}}',
+  'designer.unnamed': 'unnamed field',
   'designer.title': 'Schemas',
   'designer.close': 'Close',
   'designer.exportJson': 'Export JSON',

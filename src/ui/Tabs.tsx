@@ -21,7 +21,8 @@ export function Tabs<T extends string>({
   tabs: Tab<T>[];
   value: T;
   onChange: (id: T) => void;
-  label: string;
+  /** The tabs' name, when what they are in doesn't already give one. */
+  label?: string;
   /** Shown beside the tabs, such as a close button. */
   head?: (tabs: ReactNode) => ReactNode;
   children: ReactNode;

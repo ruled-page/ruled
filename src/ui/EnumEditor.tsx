@@ -61,6 +61,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
         aria-autocomplete="list"
         aria-controls={`${id}-list`}
         aria-activedescendant={filtered[active] !== undefined ? `${id}-${active}` : undefined}
+        aria-describedby={current ? `${id}-clear-hint` : undefined}
         style={{ height: target.height }}
         onChange={(e) => setFilter(e.target.value)}
         onKeyDown={(e) => {
@@ -77,6 +78,11 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
             const movement: readonly [-1 | 0 | 1, -1 | 0 | 1] = e.key === 'Enter' ? [0, 1] : [e.shiftKey ? -1 : 1, 0];
             if (pick !== undefined) choose(pick, movement);
             else if (!filter.trim()) onFinishedEditing(undefined, movement);
+          } else if (e.key === 'Delete' && !filter && current) {
+            // The keyboard's way to the Clear button.
+            e.preventDefault();
+            e.stopPropagation();
+            choose('', [0, 0]);
           }
         }}
       />
@@ -95,11 +101,17 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
             }}
           >
             <span>{o}</span>
-            {o === current && <Icon name="check" size={14} />}
+            {o === current && (
+              <>
+                <Icon name="check" size={14} />
+                <span className="wbe-sr-only">{t('dropdown.current')}</span>
+              </>
+            )}
           </li>
         ))}
-        {filtered.length === 0 && <li className="wbe-empty">{t('dropdown.noMatch', { filter })}</li>}
       </ul>
+      {/* Outside the list, which holds only values, and said when it appears. */}
+      <div role="status">{filtered.length === 0 && <p className="wbe-enum-empty">{t('dropdown.noMatch', { filter })}</p>}</div>
       {current && (
         <button
           className="wbe-enum-clear"
@@ -109,6 +121,11 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
         >
           {t('dropdown.clear')}
         </button>
+      )}
+      {current && (
+        <p id={`${id}-clear-hint`} className="wbe-sr-only">
+          {t('dropdown.clearHint')}
+        </p>
       )}
     </div>
   );

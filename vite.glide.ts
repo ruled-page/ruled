@@ -34,7 +34,39 @@ const PATCHES: Patch[] = [
     find: /document\.getElementById\("portal"\)/,
     replace: () => 'document.getElementById("wbe-portal")',
   },
+  /*
+   * Glide's table for screen readers numbers rows and columns by their place
+   * in the grid, with the column letters as row 1, so B5 is read as row 6,
+   * column 3, and rows and columns after hidden ones, or below frozen ones,
+   * are numbered wrongly. Given `experimental.sheetAccess`, the table is
+   * named, numbered as the sheet is, and leaves out the row numbers and
+   * column letters; each cell is named with its reference instead.
+   */
+  ...accessTreePatches(),
 ];
+
+/** The patches for `experimental.sheetAccess`; see SheetAccess in src/ui/SheetGrid.tsx. */
+function accessTreePatches(): Patch[] {
+  const file = /glide-data-grid[\\/]dist[\\/]esm[\\/]internal[\\/]data-grid[\\/]data-grid\.js$/;
+  const swap = (find: RegExp, to: string): Patch => ({ file, find, replace: () => to });
+  return [
+    swap(
+      /const colOffset = firstColAccessible \? 0 : -1;\s*if \(!firstColAccessible && /,
+      'const sheetAccess = experimental?.sheetAccess; const colOffset = firstColAccessible && !sheetAccess ? 0 : -1; if (colOffset === -1 && ',
+    ),
+    swap(
+      /React\.createElement\("table", \{ key: "access-tree", role: "grid", "aria-rowcount": rows \+ 1, "aria-multiselectable": "true", "aria-colcount": mappedColumns\.length \+ colOffset \},\s*React\.createElement\("thead"/,
+      'React.createElement("table", { key: "access-tree", role: "grid", "aria-label": sheetAccess?.label, "aria-rowcount": sheetAccess?.rowCount ?? rows + 1, "aria-multiselectable": "true", "aria-colcount": sheetAccess?.colCount ?? mappedColumns.length + colOffset }, sheetAccess ? null : React.createElement("thead"',
+    ),
+    swap(/"aria-rowindex": row \+ 2 \}/, '"aria-rowindex": sheetAccess?.rowIndex(row) ?? row + 2 }'),
+    swap(
+      /role: "gridcell", "aria-colindex": col \+ 1 \+ colOffset,/,
+      'role: "gridcell", "aria-colindex": sheetAccess?.colIndex(col) ?? col + 1 + colOffset, "aria-label": sheetAccess?.cellLabel(cellContent),',
+    ),
+    // The table is built again when what it numbers by changes.
+    swap(/getBoundsForItem,\s*onCellFocused,\s*\], 200\);/, 'getBoundsForItem, onCellFocused, experimental?.sheetAccess, ], 200);'),
+  ];
+}
 
 /** Changes to Glide that the editor needs, applied as it is bundled. */
 export function glidePatches(): Plugin {
@@ -42,11 +74,15 @@ export function glidePatches(): Plugin {
     name: 'glide-patches',
     enforce: 'pre',
     transform(code, id) {
-      const patch = PATCHES.find((p) => p.file.test(id));
-      if (!patch) return;
-      const m = patch.find.exec(code);
-      if (!m) this.error(`Glide's ${id.split(/[\\/]/).pop()} has changed, so a patch in vite.glide.ts no longer applies.`);
-      return { code: (patch.prepend?.(m) ?? '') + code.replace(m[0], patch.replace(m)), map: null };
+      const patches = PATCHES.filter((p) => p.file.test(id));
+      if (!patches.length) return;
+      let out = code;
+      for (const patch of patches) {
+        const m = patch.find.exec(out);
+        if (!m) this.error(`Glide's ${id.split(/[\\/]/).pop()} has changed, so a patch in vite.glide.ts no longer applies.`);
+        out = (patch.prepend?.(m) ?? '') + out.replace(m[0], patch.replace(m));
+      }
+      return { code: out, map: null };
     },
   };
 }

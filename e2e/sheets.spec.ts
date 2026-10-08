@@ -19,6 +19,9 @@ async function choose(page: Page, item: string): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
+/** Tab to the next control: Safari on a Mac passes over buttons unless Option is held, as Option+Tab. */
+const nextControl = (page: Page, browserName: string) => page.keyboard.press(browserName === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab');
+
 async function saveWithKeys(page: Page) {
   const download = page.waitForEvent('download');
   await page.keyboard.press('Control+s');
@@ -33,8 +36,8 @@ test.describe('sheets, with only a keyboard', () => {
     await expect(tab(page, 'Lines')).toBeFocused();
   });
 
-  test('adds a sheet after the one shown, renames it, moves it and deletes it, and saves the result', async ({ page }) => {
-    await page.keyboard.press('Tab');
+  test('adds a sheet after the one shown, renames it, moves it and deletes it, and saves the result', async ({ page, browserName }) => {
+    await nextControl(page, browserName);
     await expect(page.getByRole('button', { name: 'New sheet' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(tab(page, 'Sheet1')).toBeFocused();
@@ -81,6 +84,9 @@ test.describe('sheets, with only a keyboard', () => {
     await choose(page, 'Delete');
     const confirm = page.getByRole('alertdialog');
     await expect(confirm).toContainText('Delete the sheet “Lines”?');
+    // It starts on Cancel, so a stray Enter deletes nothing.
+    await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await nextControl(page, browserName);
     await expect(confirm.getByRole('button', { name: 'Delete sheet' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect.poll(() => tabNames(page)).toEqual(['Summary']);
@@ -96,7 +102,7 @@ test.describe('sheets, with only a keyboard', () => {
     await expect.poll(() => tabNames(page)).toEqual(['Lines', 'Summary']);
   });
 
-  test('hides a sheet and unhides it from the note in the tab bar', async ({ page }) => {
+  test('hides a sheet and unhides it from the note in the tab bar', async ({ page, browserName }) => {
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('Shift+F10');
     await choose(page, 'Hide');
@@ -109,9 +115,7 @@ test.describe('sheets, with only a keyboard', () => {
 
     // Past the tabs come New sheet, Sheet menu and the note.
     await tab(page, 'Lines').focus();
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    for (let i = 0; i < 3; i++) await nextControl(page, browserName);
     const note = page.getByRole('button', { name: '1 hidden' });
     await expect(note).toBeFocused();
     await page.keyboard.press('Enter');

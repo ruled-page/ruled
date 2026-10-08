@@ -61,7 +61,8 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
         {issues.map((i, n) => (
           <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
             <button className="wbe-finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
-              <span className="wbe-finding-title">{t.text(i.message)}</span>
+              {/* Said as well as coloured. */}
+              <span className="wbe-finding-title">{t(i.severity === 'error' ? 'issue.error' : 'issue.warning', { message: t.text(i.message) })}</span>
               {i.sheetName && (
                 <span className="wbe-finding-where">
                   {i.sheetName}
@@ -210,7 +211,6 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
   return (
     <aside className="wbe-report" aria-label={t('panel.label')}>
       <Tabs
-        label={t('panel.label')}
         tabs={[
           { id: 'issues', label: t('panel.checks') },
           { id: 'changes', label: t('panel.changes') },
@@ -221,7 +221,14 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
         head={(tabs) => (
           <div className="wbe-report-head">
             {tabs}
-            <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('panel', null)} aria-label={t('panel.close')}>
+            <button
+              className="wbe-btn wbe-icon wbe-ghost"
+              onClick={() => {
+                store.set('panel', null);
+                store.focusGrid();
+              }}
+              aria-label={t('panel.close')}
+            >
               <Icon name="close" />
             </button>
           </div>

@@ -130,6 +130,8 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Enter');
     await expect(dialog).toBeHidden();
     await expect(grid(page)).toHaveCount(1);
+    // Said once the width is set.
+    await expect(page.getByRole('status').filter({ hasText: 'Column width' })).toHaveCount(1);
 
     await page.keyboard.press('Shift+F10');
     await page.getByRole('menuitem', { name: 'Columns' }).focus();
@@ -210,5 +212,28 @@ test('picks a cell for a schema from the keyboard', async ({ page }) => {
   await expect(add).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(designer).toBeVisible();
-  await expect(designer.getByRole('textbox', { name: 'Cell', exact: true }).last()).toHaveValue('B2');
+  await expect(designer.getByRole('textbox', { name: /^Cell of / }).last()).toHaveValue('B2');
+});
+
+test('screen readers hear cells by their reference, rows as the sheet numbers them, and what was done', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  // Inside the canvas, which Playwright takes as hidden.
+  await expect(page.locator('table[role="grid"]')).toHaveAttribute('aria-label', 'Cells of Lines');
+  const d2 = shown(page, 'D2');
+  // The cell's text is its value; it is named by where it is and what it holds.
+  await expect(d2).toHaveText('6');
+  await expect(d2).toHaveAttribute('aria-label', 'D2, 6, formula');
+  await expect(d2.locator('xpath=..')).toHaveAttribute('aria-rowindex', '2');
+  await expect(d2).toHaveAttribute('aria-colindex', '4');
+
+  // Enter in the formula bar gives the keyboard back to the grid.
+  await goTo(page, 'B2');
+  const input = page.getByRole('combobox', { name: 'Cell contents' });
+  await input.fill('5');
+  await input.press('Enter');
+  await expect(grid(page)).toHaveCount(1);
+  await expect(shown(page, 'D2')).toHaveText('15');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.getByRole('status').filter({ hasText: 'Undone: Edit' })).toHaveCount(1);
+  await expect(shown(page, 'D2')).toHaveText('6');
 });

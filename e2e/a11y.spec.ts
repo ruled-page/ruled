@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { goTo, openFile, openSample, ordersWorkbook, setCell } from './helpers';
 
-/** WCAG 2.1 A and AA problems on the page as it is now, one line each. */
+/** WCAG 2.2 A and AA problems on the page as it is now, one line each. */
 async function violations(page: Page): Promise<string[]> {
   // Let transitions finish so colours are measured as they end up.
   await page.waitForTimeout(300);
-  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
   return violations.flatMap((v) => v.nodes.map((n) => `${v.id} (${v.impact}): ${n.target.join(' ')}: ${n.failureSummary?.split('\n')[1]?.trim() ?? v.help}`));
 }
 
@@ -50,7 +50,7 @@ for (const theme of ['Default', 'Dark']) {
       await expect(page.getByRole('menu')).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.getByRole('menuitem', { name: 'Filter by values…' }).click();
-      await expect(page.getByRole('dialog', { name: 'Filter by values' })).toBeVisible();
+      await expect(page.getByRole('dialog', { name: /^Show rows where/ })).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.keyboard.press('Escape');
 

@@ -36,8 +36,10 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.deleteColumnTitle': 'Ausgewählte Spalten aus dieser Tabelle löschen',
   'toolbar.exact': 'Genaue Zahlen',
   'toolbar.exactTitle': 'Alle gespeicherten Stellen anzeigen und genaue Werte kopieren',
+  'toolbar.exactShort': 'Genau',
   'toolbar.highlight': 'Änderungen hervorheben',
   'toolbar.highlightTitle': 'In dieser Sitzung geänderte Zellen einfärben',
+  'toolbar.highlightShort': 'Änderungen',
   'toolbar.schemas': 'Schemas',
   'toolbar.schemasTitle': 'Schemas erstellen, importieren und exportieren',
   'toolbar.report': 'Was diese Datei enthält',
@@ -75,6 +77,8 @@ export const ui: Record<keyof typeof en, string> = {
 
   'tabs.label': 'Tabellenblätter',
   'tabs.checkedBy': 'Vom Schema „{{name}}“ geprüft',
+  'tabs.chartSheet': 'Diagrammblatt',
+  'tabs.protected': 'geschützt',
   'tabs.hidden_one': '{{count, number}} ausgeblendet',
   'tabs.hidden_other': '{{count, number}} ausgeblendet',
   'tabs.hiddenTitle': 'Ausgeblendete Blätter bleiben in der Datei erhalten, werden aber wie in Excel nicht angezeigt.',
@@ -99,6 +103,8 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.cellMenu': 'Zellmenü',
   'formulaBar.contents': 'Zellinhalt',
   'formulaBar.checking': 'Wird geprüft…',
+  'issue.error': 'Fehler: {{message}}',
+  'issue.warning': 'Warnung: {{message}}',
   'formulaBar.titledPrompt': '{{title}}: {{prompt}}',
   'formulaBar.chooseFromList': 'Aus der Liste auswählen: {{options}}',
   'formulaBar.restrictedList': 'Excel beschränkt diese Zelle auf eine Liste.',
@@ -372,7 +378,6 @@ export const ui: Record<keyof typeof en, string> = {
   'find.replaced_other': 'In {{count, number}} Zellen ersetzt.',
   'find.nothingReplaced': 'Es wurde nichts ersetzt.',
 
-  'filter.label': 'Nach Werten filtern',
   'filter.titleHeading': 'Zeilen anzeigen, in denen „{{heading}}“ einer dieser Werte ist',
   'filter.titleColumn': 'Zeilen anzeigen, in denen Spalte {{column}} einer dieser Werte ist',
   'filter.search': 'Werte suchen',
@@ -389,6 +394,8 @@ export const ui: Record<keyof typeof en, string> = {
   'dropdown.values': 'Werte',
   'dropdown.noMatch': 'Kein Wert passt zu „{{filter}}“',
   'dropdown.clear': 'Leeren',
+  'dropdown.current': ', aktueller Wert',
+  'dropdown.clearHint': 'Entf leert die Zelle.',
 
   'note.resolved': 'Gelöst',
 
@@ -425,7 +432,14 @@ export const ui: Record<keyof typeof en, string> = {
   'objects.kept': 'In der Datei erhalten, hier nicht angezeigt',
 
   'grid.empty': 'Leer',
-  'grid.spokenCell': '{{value}}, {{note}}',
+  'grid.label': 'Zellen von {{name}}',
+  'grid.labelFrozen': 'Fixierte Zeilen von {{name}}',
+  'grid.flag.merged': 'verbunden {{range}}',
+  'grid.flag.formula': 'Formel',
+  'grid.flag.stale': 'veraltet',
+  'grid.flag.savedValue': 'in Excel gespeicherter Wert',
+  'grid.flag.edited': 'geändert',
+  'grid.flag.list': 'mit Auswahlliste',
   'grid.spokenError': 'Fehler: {{message}}',
   'grid.spokenWarning': 'Warnung: {{message}}',
 

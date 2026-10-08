@@ -248,6 +248,10 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Links = linkDialog.useModule(store.linkDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
+  // A file chosen from the empty state takes its button away; the focus goes on to the sheet.
+  useEffect(() => {
+    if (opened && (!document.activeElement || document.activeElement === document.body)) store.focusGrid();
+  }, [store, opened]);
   useEffect(() => {
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));

@@ -74,6 +74,12 @@ export interface Toast {
   text: Text;
 }
 
+/** Something said to screen readers and not shown, such as what an action did. */
+export interface Spoken {
+  id: number;
+  text: Text;
+}
+
 export type Answer = 'confirm' | 'alternate' | 'cancel';
 
 export interface ConfirmRequest {
@@ -456,6 +462,8 @@ export class WorkbookStore {
   undoStack: UndoEntry[] = [];
   redoStack: UndoEntry[] = [];
   toasts: Toast[] = [];
+  /** The latest things said to screen readers and not shown, newest last. */
+  spoken: Spoken[] = [];
   confirmRequest?: ConfirmRequest;
   panel: Panel | null = null;
   /** The grid's right-click menu, while open: where, and whether it was opened on a column or row heading. */
@@ -539,6 +547,12 @@ export class WorkbookStore {
   private clip?: Clip;
   private queue: Promise<unknown> = Promise.resolve();
   private toastSeq = 0;
+  /** Set while the pointer or focus is on a message, so it stays until they leave. */
+  private toastsHeld = false;
+  /** What each undoable step did, said when it is undone or redone. */
+  private readonly stepLabels = new WeakMap<object, Text>();
+  /** The cell just typed in, until its checks have run: a problem with it is said at once. */
+  private checking?: { sheet: number; row: number; col: number };
   private readonly listCache = new WeakMap<ListValidation, { version: number; options: string[] | undefined }>();
   private readonly formulaLists = new Map<string, FormulaList>();
   /** Bumped whenever cell values change, so formula-based lists are re-evaluated. */
@@ -920,6 +934,7 @@ export class WorkbookStore {
       this.cfRuns.clear();
       this.bindSchemas();
       this.refreshConditionalFormats(this.active);
+      this.announce(msg('store.announce.opened', { fileName: this.fileName, count: this.sheets.length }));
     } catch (err) {
       if ((err as Error).message === 'Superseded') return { opened: false, cancelled: true };
       // A failed worker has already said so.
@@ -1220,7 +1235,7 @@ export class WorkbookStore {
   private edit(
     op: EditOp,
     record: 'undo' | 'none' | 'merge' = 'undo',
-    opts: { label?: Text; replay?: boolean } = {},
+    opts: { label?: Text; replay?: boolean; announce?: Text } = {},
   ): Promise<EditResult | undefined> {
     const run = async () => {
       this.busy = true;
@@ -1237,10 +1252,19 @@ export class WorkbookStore {
         if (record === 'undo' && changed) {
           this.undoStack.push(r);
           this.redoStack = [];
+          this.stepLabels.set(r, opts.label ?? msg(EDIT_ACTIONS[op.type]));
+          // What was done is said, except typing, which is heard as it is typed.
+          const said = opts.announce ?? opts.label;
+          if (said && !opts.replay) this.announce(said);
         } else if (record === 'merge' && changed) {
           const last = this.undoStack.pop();
           if (last && isStructure(last)) this.undoStack.push(last, r);
-          else this.undoStack.push(last ? mergeEditResults([last, r]) : r);
+          else {
+            const merged = last ? mergeEditResults([last, r]) : r;
+            const label = last && this.stepLabels.get(last);
+            if (label) this.stepLabels.set(merged, label);
+            this.undoStack.push(merged);
+          }
         }
         if (changed) {
           this.recordHistory(op, record, r, opts.label);
@@ -1301,8 +1325,12 @@ export class WorkbookStore {
     if (!entry) return;
     if (isStructure(entry)) {
       const sheets = entry.sheets && { map: invertIndexMap(entry.sheets.map, this.sheets.length), active: entry.sheets.before };
-      if (await this.swapStructure('undoStructure', msg('store.history.undoStep', { action: entry.structure }), sheets)) this.redoStack.push(entry);
-      else this.undoStack = [];
+      if (await this.swapStructure('undoStructure', msg('store.history.undoStep', { action: entry.structure }), sheets)) {
+        this.redoStack.push(entry);
+        this.announce(msg('store.announce.undone', { action: entry.structure }));
+      } else {
+        this.undoStack = [];
+      }
       this.notify();
       return;
     }
@@ -1310,6 +1338,7 @@ export class WorkbookStore {
     const notes = entry.noteUndo?.length ? { notes: entry.noteUndo } : {};
     await this.edit({ type: 'restore', cells: entry.undo, ...notes, layout: entry.layout?.undo, names: entry.names?.undo }, 'none', { label: msg('store.history.undo') });
     this.redoStack.push(entry);
+    this.announce(msg('store.announce.undone', { action: this.stepLabels.get(entry) ?? msg('store.history.edit') }));
     this.notify();
   }
 
@@ -1319,7 +1348,10 @@ export class WorkbookStore {
     if (!entry) return;
     if (isStructure(entry)) {
       const sheets = entry.sheets && { map: entry.sheets.map, active: entry.sheets.after };
-      if (await this.swapStructure('redoStructure', msg('store.history.redoStep', { action: entry.structure }), sheets)) this.undoStack.push(entry);
+      if (await this.swapStructure('redoStructure', msg('store.history.redoStep', { action: entry.structure }), sheets)) {
+        this.undoStack.push(entry);
+        this.announce(msg('store.announce.redone', { action: entry.structure }));
+      }
       this.notify();
       return;
     }
@@ -1327,6 +1359,7 @@ export class WorkbookStore {
     const notes = entry.noteRedo?.length ? { notes: entry.noteRedo } : {};
     await this.edit({ type: 'restore', cells: entry.redo, ...notes, layout: entry.layout?.applied, names: entry.names?.applied }, 'none', { label: msg('store.history.redo') });
     this.undoStack.push(entry);
+    this.announce(msg('store.announce.redone', { action: this.stepLabels.get(entry) ?? msg('store.history.edit') }));
     this.notify();
   }
 
@@ -1363,7 +1396,10 @@ export class WorkbookStore {
         this.history.push({ at: Date.now(), user: this.options.user, action: label, cells: 0, refs: [] });
         this.draftOps.push({ type: 'structure', op });
         this.scheduleDraft();
-        if (!opts.replay) this.selectAfter(op);
+        if (!opts.replay) {
+          this.selectAfter(op);
+          this.announce(label);
+        }
         for (const w of res.warnings) this.toast('warn', w);
         if (this.panel === 'changes') void this.refreshChanges();
         return true;
@@ -1617,9 +1653,9 @@ export class WorkbookStore {
   // Layout: sizes, hidden rows and columns, frozen panes and merged cells
 
   /** Changes the active sheet's layout as one undoable step, after `before` (edits to cells that go with it). */
-  private changeLayout(op: LayoutOp, label: Text, before: EditOp[] = []): Promise<EditResult | undefined> {
+  private changeLayout(op: LayoutOp, label: Text, before: EditOp[] = [], announce?: Text): Promise<EditResult | undefined> {
     const ops: EditOp[] = [...before, { type: 'layout', sheet: this.active, op }];
-    return this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label });
+    return this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label, announce });
   }
 
   /**
@@ -2031,12 +2067,14 @@ export class WorkbookStore {
     const filter: FilterState | null = columns.size
       ? { rect: target, columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])), ...(table ? { table } : {}) }
       : null;
-    await this.changeLayout({ kind: 'filter', filter, rows }, msg(filter ? 'store.history.filter' : 'store.history.clearFilter'));
+    // How many rows the filter hides is said, as Excel's status bar shows how many it leaves.
+    const hidden = msg(filter ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
+    await this.changeLayout({ kind: 'filter', filter, rows }, msg(filter ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
   }
 
   async clearFilter(): Promise<void> {
     if (!this.view?.filter) return;
-    await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.clearFilter'));
+    await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.clearFilter'), [], msg('store.announce.filterCleared'));
   }
 
   // ---------------------------------------------------------------------------
@@ -2402,6 +2440,7 @@ export class WorkbookStore {
     const rec = view.get(row, col);
     if (rec?.flags && rec.flags & CellFlag.Formula && !text.startsWith('=') && !(await this.okToReplace(1))) return;
     if (text !== '' && !(await this.growTableTo({ r1: row, c1: col, r2: row, c2: col }))) return;
+    if (this.schema) this.checking = { sheet: this.active, row, col };
     await this.edit({ type: 'input', sheet: this.active, row, col, text: prepared.text });
   }
 
@@ -2818,6 +2857,7 @@ export class WorkbookStore {
       },
       changed: () => {
         this.schemaVersion++;
+        this.sayProblemsWithTyped();
         this.notify();
       },
     });
@@ -2922,9 +2962,38 @@ export class WorkbookStore {
     const id = ++this.toastSeq;
     this.toasts = [...this.toasts.slice(-3), { id, kind, text }];
     this.notify();
-    // Errors stay until dismissed, so they can be read at any pace.
+    // Errors stay until dismissed, so they can be read at any pace; warnings stay longer than news.
     if (kind === 'error') this.emit({ type: 'error', message: english.text(text) });
-    else setTimeout(() => this.dismissToast(id), 5000);
+    else {
+      const expire = () => (this.toastsHeld ? setTimeout(expire, 1000) : this.dismissToast(id));
+      setTimeout(expire, kind === 'warn' ? 10_000 : 5000);
+    }
+  }
+
+  /** Keeps messages on screen while the pointer or focus is on one, as WCAG asks of content that times out. */
+  holdToasts(held: boolean): void {
+    this.toastsHeld = held;
+  }
+
+  /** Says something to screen readers without showing it, such as what an action just did. */
+  announce(text: Text): void {
+    this.spoken = [...this.spoken.slice(-2), { id: ++this.toastSeq, text }];
+    this.notify();
+  }
+
+  /** Says at once what is wrong with the value just typed, once its checks have run. */
+  private sayProblemsWithTyped(): void {
+    const at = this.checking;
+    const ctl = this.schema;
+    if (!at || !ctl || ctl.isPending(at.sheet, at.row, at.col)) return;
+    this.checking = undefined;
+    const issues = ctl.cellIssues(at.sheet, at.row, at.col);
+    if (!issues.length) return;
+    const problems = issues
+      .map((i): Text => msg(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: i.message }))
+      .reduce((said, next) => msg('store.announce.andThen', { said, next }));
+    // Shown by the cell's mark and in the formula bar; said here.
+    this.announce(msg('store.announce.problems', { ref: toA1(at.row, at.col), problems }));
   }
 
   private emit(event: EditorEvent): void {

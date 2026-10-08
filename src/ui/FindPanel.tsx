@@ -72,6 +72,9 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const current = hits[at];
+  const where = current && (scope === 'workbook' ? `${store.sheets[current.sheet]?.info.name}!${toA1(current.row, current.col)}` : toA1(current.row, current.col));
+  // Buttons that would do nothing stay focusable, so pressing one that runs out of matches keeps the focus.
+  const none = !hits.length;
 
   return (
     <div
@@ -92,12 +95,13 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
         <input ref={input} placeholder={t('find.find')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('find.find')} />
         <span className="wbe-find-count" aria-live="polite">
           {text ? (hits.length ? t('find.position', { at: at >= 0 ? t.number(at + 1) : '–', total: hits.length }) : t('find.noMatches')) : ''}
+          {where && <span className="wbe-sr-only">{`, ${where}`}</span>}
         </span>
-        <button className="wbe-btn wbe-small" onClick={() => go(-1)} disabled={!hits.length} title={t('find.previous')}>
-          ↑
+        <button className="wbe-btn wbe-small" onClick={() => go(-1)} aria-disabled={none} aria-label={t('find.previous')} title={t('find.previous')}>
+          <span aria-hidden="true">↑</span>
         </button>
-        <button className="wbe-btn wbe-small" onClick={() => go(1)} disabled={!hits.length} title={t('find.next')}>
-          ↓
+        <button className="wbe-btn wbe-small" onClick={() => go(1)} aria-disabled={none} aria-label={t('find.next')} title={t('find.next')}>
+          <span aria-hidden="true">↓</span>
         </button>
         <button className="wbe-btn wbe-icon wbe-small" onClick={close} aria-label={t('find.close')}>
           <Icon name="close" size={14} />
@@ -107,10 +111,10 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
         <div className="wbe-find-row">
           <span className="wbe-find-indent" />
           <input placeholder={t('find.replaceWith')} value={replacement} onChange={(e) => setReplacement(e.target.value)} aria-label={t('find.replaceWith')} />
-          <button className="wbe-btn wbe-small" onClick={() => void replaceOne()} disabled={!hits.length}>
+          <button className="wbe-btn wbe-small" onClick={() => !none && void replaceOne()} aria-disabled={none}>
             {t('find.replace')}
           </button>
-          <button className="wbe-btn wbe-small" onClick={() => void replaceAll()} disabled={!hits.length}>
+          <button className="wbe-btn wbe-small" onClick={() => !none && void replaceAll()} aria-disabled={none}>
             {t('find.replaceAll')}
           </button>
         </div>
@@ -133,7 +137,7 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
           <option value="workbook">{t('find.workbook')}</option>
         </select>
       </div>
-      {current && scope === 'workbook' && <div className="wbe-find-where">{`${store.sheets[current.sheet]?.info.name}!${toA1(current.row, current.col)}`}</div>}
+      {current && scope === 'workbook' && <div className="wbe-find-where">{where}</div>}
     </div>
   );
 }

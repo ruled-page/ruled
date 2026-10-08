@@ -27,6 +27,10 @@ describe('the installed Glide', () => {
     expect(editor).toMatch(/^import DataGridOverlayEditor from "[^"]+data-grid-overlay-editor\.js";/);
     expect(editor).not.toContain('React.lazy(async () => await import("../internal/data-grid-overlay-editor');
     expect(patch('internal/data-grid-overlay-editor/data-grid-overlay-editor.js')).toContain(`document.getElementById("${PORTAL_ID}")`);
+    const grid = patch('internal/data-grid/data-grid.js');
+    for (const part of ['"aria-label": sheetAccess?.label', 'sheetAccess ? null : React.createElement("thead"', 'sheetAccess?.rowIndex(row) ?? row + 2', 'sheetAccess?.colIndex(col) ?? col + 1 + colOffset, "aria-label": sheetAccess?.cellLabel(cellContent)', 'experimental?.sheetAccess, ], 200)']) {
+      expect(grid, part).toContain(part);
+    }
     expect(transform.call(context, 'export {}', join(esm, 'index.js'))).toBeUndefined();
     expect(() => transform.call(context, 'export {}', join(esm, 'data-editor', 'data-editor.js'))).toThrow(/no longer applies/);
   });

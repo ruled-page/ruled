@@ -27,7 +27,7 @@ import {
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import { linkAddress } from '../core/links';
-import { colToLetters, inRect } from '../core/refs';
+import { colToLetters, inRect, rangeToA1, toA1 } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { clipboardFormats } from '../state/clipboardFormats';
@@ -39,6 +39,7 @@ import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { textCellEditor } from './CellEditor';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
+import { noteSummary } from './FormulaBar';
 import { APPLE } from './keys';
 import { LinkTip } from './LinkTip';
 import { NoteTip } from './NoteTip';
@@ -49,19 +50,37 @@ import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
 import { useT } from '../i18n/react';
 
 /**
- * Glide's cell renderers, with text cells read to screen readers as they are
- * shown (6) rather than as they are edited (=B2*C2), which the formula bar
- * gives instead, followed by any problem with them.
+ * Glide's cell renderers, with text cells in the table for screen readers
+ * as they are shown (6) rather than as they are edited (=B2*C2), which the
+ * formula bar gives instead, and in full where the grid draws #### or fewer
+ * digits.
  */
 const RENDERERS = AllCellRenderers.map((r) =>
-  r.kind === GridCellKind.Text ? { ...r, getAccessibilityString: (c: SpokenCell) => c.spokenText ?? c.displayData } : r,
+  r.kind === GridCellKind.Text ? { ...r, getAccessibilityString: (c: SpokenCell) => c.shownText ?? c.displayData } : r,
 ) as typeof AllCellRenderers;
 
 /**
- * A cell with what a screen reader should say for it, when that is more than
- * its value: its problems too, which the grid only marks in colour.
+ * A cell with its text in full, and what a screen reader says for it: where
+ * it is, what it shows, and what the grid only marks in colour, such as a
+ * formula out of date, a note or a problem. That is worked out only when read.
  */
-type SpokenCell = TextCell & { spokenText?: string };
+type SpokenCell = TextCell & { shownText?: string; spoken?: () => string };
+
+/**
+ * What Glide's table for screen readers is told (see vite.glide.ts): its
+ * name, and the sheet's own row and column numbers for its grid rows and
+ * columns, so that rows after hidden ones or below frozen ones are numbered
+ * as the sheet numbers them.
+ */
+interface SheetAccess {
+  label: string;
+  rowCount: number;
+  colCount: number;
+  rowIndex: (gridRow: number) => number;
+  colIndex: (gridCol: number) => number;
+  /** What a cell is called: its reference, what it shows and what else is true of it. */
+  cellLabel: (cell: GridCell) => string | undefined;
+}
 
 /** Everything the grid draws with, from the theme's palette. */
 function gridStyles(p: GridPalette) {
@@ -207,6 +226,56 @@ export function SheetGrid({
     [view, view.colCount, colVersion, rowHeaderWidth],
   );
 
+  /**
+   * What a screen reader says for a cell: its reference, what it shows, and
+   * then what the grid only shows by colour or marks: a merge, a formula and
+   * whether its value is out of date or Excel's, a change, a list, a note
+   * or comments, a link and where it goes, and any problem with it.
+   */
+  const spokenText = useCallback(
+    (row: number, col: number, merge: Rect | undefined, shown: string, list: boolean): string => {
+      const at = merge ? { row: merge.r1, col: merge.c1 } : { row, col };
+      const rec = view.get(at.row, at.col);
+      // The cells a merge covers are read as the merge, whose top-left cell holds its value.
+      if (merge && !shown && rec) shown = displayText(rec, effectiveStyle(view, styles, at.row, at.col, rec.style), date1904, numbers.display === 'full').text;
+      const parts = [toA1(at.row, at.col), shown || t('grid.empty')];
+      const link = cellLink(view, at.row, at.col);
+      if (link) {
+        const address = linkAddress(link);
+        parts[1] = address ? t('links.spoken', { value: parts[1], address }) : t('links.spokenUnknown', { value: parts[1] });
+      }
+      if (merge) parts.push(t('grid.flag.merged', { range: rangeToA1(merge) }));
+      if (rec && rec.flags & CellFlag.Formula) parts.push(t('grid.flag.formula'));
+      if (rec && rec.flags & CellFlag.Stale) parts.push(t('grid.flag.stale'));
+      else if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) parts.push(t('grid.flag.savedValue'));
+      if (rec && highlight && rec.flags & CellFlag.Edited) parts.push(t('grid.flag.edited'));
+      if (list) parts.push(t('grid.flag.list'));
+      const note = view.noteAt(at.row, at.col);
+      if (note) parts.push(noteSummary(t, note));
+      for (const i of schema?.cellIssues(sheetIndex, row, col) ?? []) {
+        parts.push(t(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: t.text(i.message) }));
+      }
+      return parts.join(', ');
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, dataVersion, styles, date1904, numbers, highlight, schema, schemaVersion, sheetIndex, t],
+  );
+
+  const sheetName = view.info.name;
+  const sheetAccess = useMemo<SheetAccess>(
+    () => ({
+      label: t(rowCount !== undefined && rowStart === 0 ? 'grid.labelFrozen' : 'grid.label', { name: sheetName }),
+      rowCount: (view.visibleRows[view.rowCount - 1] ?? -1) + 1,
+      colCount: (view.visibleCols[view.colCount - 1] ?? -1) + 1,
+      rowIndex: (gr) => view.visibleRows[gr + rowStart] + 1,
+      colIndex: (gc) => view.visibleCols[gc - 1] + 1,
+      cellLabel: (cell) => (cell as SpokenCell).spoken?.(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, layoutVersion, view.rowCount, view.colCount, rowStart, rowCount, sheetName, t],
+  );
+  const experimental = useMemo(() => ({ sheetAccess }) as unknown as DataEditorProps['experimental'], [sheetAccess]);
+
   const getCellContent = useCallback(
     ([gc, gr]: Item): GridCell => {
       const row = view.visibleRows[gr + rowStart];
@@ -261,17 +330,8 @@ export function SheetGrid({
         if (dv?.inCellDropdown) options = store.listOptions(dv, row, view.visibleCols[gc - 1]);
         if (!options?.length) options = undefined;
       }
-      const issues = schema?.cellIssues(sheetIndex, row, view.visibleCols[gc - 1]) ?? [];
-      const spokenNote = issues.length
-        ? issues.map((i) => t(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: t.text(i.message) })).join(' ')
-        : undefined;
-      // A link is said along with the value, as its colour and underline show it.
-      const link = cellLink(view, row, view.visibleCols[gc - 1]);
-      const address = link && linkAddress(link);
-      const asEnum = (cell: EnumCell): EnumCell & SpokenCell => {
-        let value = cell.displayData || t('grid.empty');
-        if (link) value = address ? t('links.spoken', { value, address }) : t('links.spokenUnknown', { value });
-        const spoken = spokenNote ? { ...cell, spokenText: t('grid.spokenCell', { value, note: spokenNote }) } : link ? { ...cell, spokenText: value } : cell;
+      const asEnum = (cell: EnumCell, shown = cell.displayData): EnumCell & SpokenCell => {
+        const spoken = { ...cell, shownText: shown, spoken: () => spokenText(row, view.visibleCols[gc - 1], merge, shown, !!options) };
         return options ? { ...spoken, enumOptions: options, activationBehaviorOverride: 'second-click' } : spoken;
       };
       if (!rec) {
@@ -287,6 +347,7 @@ export function SheetGrid({
         });
       }
       let { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
+      const full = text;
       let drawStyle = style;
       if (rec.t === VT.Number && !style.wrap) {
         // Numbers never spill into neighbours; Excel shortens them or shows ####.
@@ -301,22 +362,26 @@ export function SheetGrid({
           if (drawn > room) drawStyle = { ...style, fontSizePx: Math.max(6, Math.floor(((style.fontSizePx * room) / drawn) * 10) / 10) };
         }
       }
-      return asEnum({
-        kind: GridCellKind.Text,
-        data: editText(rec, style, date1904, locale),
-        displayData: text,
-        allowOverlay: !readOnly,
-        contentAlign: alignment(rec, style),
-        allowWrapping: style.wrap,
-        span,
-        themeOverride:
-          label && !style.fill
-            ? { ...g.cellTheme(drawStyle, color, false, false), bgCell: palette.labelFill }
-            : g.cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
-      });
+      return asEnum(
+        {
+          kind: GridCellKind.Text,
+          data: editText(rec, style, date1904, locale),
+          displayData: text,
+          allowOverlay: !readOnly,
+          contentAlign: alignment(rec, style),
+          allowWrapping: style.wrap,
+          span,
+          themeOverride:
+            label && !style.fill
+              ? { ...g.cellTheme(drawStyle, color, false, false), bgCell: palette.labelFill }
+              : g.cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
+        },
+        // A number too wide for its cell is said as it is drawn, with fewer digits, but in full where it is drawn as ####.
+        /^#+$/.test(text) ? full : text,
+      );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, locale, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette, t],
+    [view, dataVersion, styles, date1904, locale, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette, t, spokenText],
   );
 
   // Text spilling into empty neighbours, worked out per row as rows are drawn.
@@ -944,6 +1009,7 @@ export function SheetGrid({
           setRegion((n) => n + 1);
         }}
         onItemHovered={onItemHovered}
+        experimental={experimental}
       />
       {hoverNote && <NoteTip {...hoverNote} />}
       {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}

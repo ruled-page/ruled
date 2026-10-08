@@ -38,8 +38,10 @@ export const ui = {
   'toolbar.selectColumnFirst': 'Select a column of the table to insert or delete columns',
   'toolbar.exact': 'Exact numbers',
   'toolbar.exactTitle': 'Show every stored digit and copy exact values',
+  'toolbar.exactShort': 'Exact',
   'toolbar.highlight': 'Highlight changes',
   'toolbar.highlightTitle': 'Tint cells changed in this session',
+  'toolbar.highlightShort': 'Changes',
   'toolbar.schemas': 'Schemas',
   'toolbar.schemasTitle': 'Create, import and export schemas',
   'toolbar.report': "What's in this file",
@@ -77,6 +79,8 @@ export const ui = {
 
   'tabs.label': 'Sheets',
   'tabs.checkedBy': 'Checked by the “{{name}}” schema',
+  'tabs.chartSheet': 'chart sheet',
+  'tabs.protected': 'protected',
   'tabs.hidden_one': '{{count, number}} hidden',
   'tabs.hidden_other': '{{count, number}} hidden',
   'tabs.hiddenTitle': 'Hidden sheets are kept in the file but not shown, as in Excel.',
@@ -101,6 +105,8 @@ export const ui = {
   'formulaBar.contents': 'Cell contents',
   'formulaBar.cellMenu': 'Cell menu',
   'formulaBar.checking': 'Checking…',
+  'issue.error': 'Error: {{message}}',
+  'issue.warning': 'Warning: {{message}}',
   'formulaBar.titledPrompt': '{{title}}: {{prompt}}',
   'formulaBar.chooseFromList': 'Choose from the list: {{options}}',
   'formulaBar.restrictedList': 'Excel restricts this cell to a list.',
@@ -374,7 +380,6 @@ export const ui = {
   'find.replaced_other': 'Replaced in {{count, number}} cells.',
   'find.nothingReplaced': 'Nothing was replaced.',
 
-  'filter.label': 'Filter by values',
   'filter.titleHeading': 'Show rows where “{{heading}}” is',
   'filter.titleColumn': 'Show rows where column {{column}} is',
   'filter.search': 'Search values',
@@ -391,6 +396,8 @@ export const ui = {
   'dropdown.values': 'Values',
   'dropdown.noMatch': 'No value matches “{{filter}}”',
   'dropdown.clear': 'Clear',
+  'dropdown.current': ', current value',
+  'dropdown.clearHint': 'Delete clears the cell.',
 
   'note.resolved': 'Resolved',
 
@@ -430,7 +437,14 @@ export const ui = {
   'objects.kept': 'Kept in file, not shown here',
 
   'grid.empty': 'Empty',
-  'grid.spokenCell': '{{value}}, {{note}}',
+  'grid.label': 'Cells of {{name}}',
+  'grid.labelFrozen': 'Frozen rows of {{name}}',
+  'grid.flag.merged': 'merged {{range}}',
+  'grid.flag.formula': 'formula',
+  'grid.flag.stale': 'out of date',
+  'grid.flag.savedValue': "Excel's saved value",
+  'grid.flag.edited': 'changed',
+  'grid.flag.list': 'has a list',
   'grid.spokenError': 'error: {{message}}',
   'grid.spokenWarning': 'warning: {{message}}',
 

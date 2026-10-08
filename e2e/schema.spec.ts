@@ -20,8 +20,9 @@ test.describe('a workbook checked by a schema', () => {
     const chip = page.getByRole('button', { name: /^Price list/ });
     await expect(chip).toContainText('4 errors');
     await setCell(page, 'D3', 'twelve');
-    // Screen readers hear the problem with the value; the grid marks it in red.
-    await expect(shown(page, 'D3')).toHaveText('twelve, error: Expected a number.');
+    // Screen readers hear where it is and the problem with the value; the grid marks it in red.
+    await expect(shown(page, 'D3')).toHaveText('twelve');
+    await expect(shown(page, 'D3')).toHaveAttribute('aria-label', /^D3, twelve, .*error: Expected a number\.$/);
     // The price inc. tax formula that uses it fails too.
     await expect(chip).toContainText('6 errors');
     const panel = page.getByRole('tabpanel');

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { useDialog } from './useDialog';
@@ -11,6 +11,7 @@ import { useT } from '../i18n/react';
  */
 export function FilterPicker({ store }: { store: WorkbookStore }) {
   const t = useT();
+  const id = useId();
   const at = store.filterPicker;
   const choices = useMemo(() => (at ? store.filterChoices(at.col) : undefined), [store, at]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -66,9 +67,11 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   };
 
   return (
-    <div className="wbe-filter-picker" ref={ref} style={pos} role="dialog" aria-label={t('filter.label')}>
-      <div className="wbe-filter-title">{heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}</div>
-      <input className="wbe-filter-search" placeholder={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+    <div className="wbe-filter-picker" ref={ref} style={pos} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
+      <div id={`${id}-title`} className="wbe-filter-title">
+        {heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}
+      </div>
+      <input className="wbe-filter-search" placeholder={t('filter.search')} aria-label={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
       <label className="wbe-filter-all">
         <input
           type="checkbox"

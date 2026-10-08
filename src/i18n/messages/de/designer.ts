@@ -2,6 +2,8 @@ import type { designer as en } from '../en/designer';
 
 /** German messages for the schema designer; every English key needs one (the type checks it). */
 export const designer: Record<keyof typeof en, string> = {
+  'designer.inRow': '{{label}} von {{row}}',
+  'designer.unnamed': 'unbenanntes Feld',
   'designer.title': 'Schemas',
   'designer.close': 'Schließen',
   'designer.exportJson': 'JSON exportieren',

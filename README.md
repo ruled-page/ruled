@@ -474,11 +474,23 @@ appears under the formula bar since nothing hovers on touch, and the ⋯ button
 there opens the cell menu, as there is no right-click. A tap selects a cell
 and a second tap edits it; the formula bar edits it too.
 
-Screen readers hear each cell as it is shown (the value, not the formula,
-which the formula bar has), with where its link goes if it has one, followed
-by any schema problem the grid marks in colour, e.g. "twelve, error:
-Expected a number." or "Prices, link to https://example.com"; loading, messages and
-errors are announced. The default and demo themes meet WCAG AA contrast.
+Screen readers hear each cell by its reference and as it is shown (the
+value, not the formula, which the formula bar has), then what the grid only
+marks in colour: a merge, a formula and whether its value is out of date or
+Excel's, a change, a list, a note or comments, where a link goes, and any
+schema problem, e.g. "D3, twelve, changed, error: Expected a number." or
+"A1, Prices, link to https://example.com". Rows and columns are numbered as
+the sheet numbers them, past hidden ones and below frozen ones. What an
+action did is said too: undoing and redoing ("Undone: Sort A to Z"),
+inserting and deleting, how many rows a filter hides, opening a file, and
+what is wrong with a value just typed. Messages are said once as they
+arrive, errors at once; they stay while the pointer or focus is on them,
+and warnings stay twice as long as news. A question about something that
+can't be undone starts on its Cancel button. Buttons that become
+unavailable keep the focus, and closing a panel, banner or message hands it
+back to the sheet. The default and demo themes meet WCAG 2.2 AA contrast,
+focus stays visible in Windows' forced colours, and the busy spinner slows
+for people who ask for less motion.
 
 ## CSV files
 

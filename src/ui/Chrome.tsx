@@ -58,7 +58,8 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const outside = across ? t('toolbar.selectColumnFirst') : t('toolbar.selectRowFirst');
   const exact = store.numbers.display === 'full';
   return (
-    <header className="wbe-toolbar">
+    // Not a <header>: a page that embeds the editor has its own banner landmark.
+    <div className="wbe-toolbar">
       <div className="wbe-brand">
         <span className="wbe-brand-mark" aria-hidden="true">
           <Icon name="sheet" size={16} />
@@ -66,7 +67,12 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         <span className="wbe-brand-name">{t('toolbar.brand')}</span>
         {store.fileName && <span className="wbe-file-name">{store.fileName}</span>}
         {store.editedCount > 0 && (
-          <button className="wbe-badge wbe-badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title={t('toolbar.changesTitle')}>
+          <button
+            className="wbe-badge wbe-badge-edit"
+            onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')}
+            title={t('toolbar.changesTitle')}
+            aria-expanded={store.panel === 'changes'}
+          >
             {t('toolbar.changes', { count: store.editedCount })}
           </button>
         )}
@@ -80,10 +86,11 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           </button>
         )}
         <div className="wbe-btn-group">
-          <button className="wbe-btn wbe-icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
+          {/* Marked unavailable rather than disabled, so undoing the last step doesn't drop the focus. */}
+          <button className="wbe-btn wbe-icon" aria-disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
             <Icon name="undo" />
           </button>
-          <button className="wbe-btn wbe-icon" disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
+          <button className="wbe-btn wbe-icon" aria-disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
             <Icon name="redo" />
           </button>
         </div>
@@ -111,11 +118,17 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         )}
         <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.exactTitle')}>
           <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
-          <span>{t('toolbar.exact')}</span>
+          <span className="wbe-toggle-long">{t('toolbar.exact')}</span>
+          <span className="wbe-toggle-short" aria-hidden="true">
+            {t('toolbar.exactShort')}
+          </span>
         </label>
         <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.highlightTitle')}>
           <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
-          <span>{t('toolbar.highlight')}</span>
+          <span className="wbe-toggle-long">{t('toolbar.highlight')}</span>
+          <span className="wbe-toggle-short" aria-hidden="true">
+            {t('toolbar.highlightShort')}
+          </span>
         </label>
         {store.features.schemas && (
           <button className={`wbe-btn ${store.designerOpen ? 'wbe-active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
@@ -126,6 +139,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           <button
             className={`wbe-btn ${store.panel === 'report' ? 'wbe-active' : ''}`}
             disabled={!ready}
+            aria-expanded={store.panel === 'report'}
             onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
             title={t('toolbar.report')}
             aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
@@ -141,8 +155,9 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         {store.features.csv && store.features.download && (
           <button
             className="wbe-btn"
-            disabled={!ready || store.busy || store.view?.info.kind !== 'worksheet'}
-            onClick={() => void store.exportCsv()}
+            disabled={!ready || store.view?.info.kind !== 'worksheet'}
+            aria-disabled={store.busy}
+            onClick={() => !store.busy && void store.exportCsv()}
             title={t('toolbar.csvTitle')}
             aria-label={t('toolbar.csvLabel')}
           >
@@ -150,17 +165,25 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           </button>
         )}
         {store.features.save && store.hasSaveHandler && store.features.download && (
-          <button className="wbe-btn wbe-icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title={t('toolbar.downloadTitle')} aria-label={t('toolbar.download')}>
+          <button
+            className="wbe-btn wbe-icon"
+            disabled={!ready}
+            aria-disabled={store.busy}
+            onClick={() => !store.busy && void store.exportCopy()}
+            title={t('toolbar.downloadTitle')}
+            aria-label={t('toolbar.download')}
+          >
             <Icon name="download" />
           </button>
         )}
         {store.features.save && (
-          <button className="wbe-btn wbe-primary" disabled={!ready || store.busy} onClick={() => void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
+          // Busy for a moment while saving, without taking the focus away from the button.
+          <button className="wbe-btn wbe-primary" disabled={!ready} aria-disabled={store.busy} onClick={() => !store.busy && void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
             <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
           </button>
         )}
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -169,7 +192,14 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
   const m = store.schemaMismatch;
   if (store.schemaBannerDismissed) return null;
   const dismiss = (
-    <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('schemaBannerDismissed', true)} aria-label={t('banner.dismiss')}>
+    <button
+      className="wbe-btn wbe-icon wbe-ghost"
+      onClick={() => {
+        store.set('schemaBannerDismissed', true);
+        store.focusGrid();
+      }}
+      aria-label={t('banner.dismiss')}
+    >
       <Icon name="close" />
     </button>
   );
@@ -242,7 +272,14 @@ export function Banner({ store }: { store: WorkbookStore }) {
       <button className="wbe-link" onClick={() => store.set('panel', 'report')}>
         {t('banner.reviewDetails')}
       </button>
-      <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('bannerDismissed', true)} aria-label={t('banner.dismiss')}>
+      <button
+        className="wbe-btn wbe-icon wbe-ghost"
+        onClick={() => {
+          store.set('bannerDismissed', true);
+          store.focusGrid();
+        }}
+        aria-label={t('banner.dismiss')}
+      >
         <Icon name="close" />
       </button>
     </div>
@@ -329,7 +366,8 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
   return (
     <>
       <nav className="wbe-sheet-tabs" aria-label={t('tabs.label')}>
-        <div className="wbe-sheet-tablist" role="tablist" aria-label={t('tabs.label')} onKeyDown={onKeyDown}>
+        {/* Named by the navigation it is in. */}
+        <div className="wbe-sheet-tablist" role="tablist" onKeyDown={onKeyDown}>
           {visible.map((i) => {
             const s = store.sheets[i];
             return (
@@ -365,6 +403,10 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
                 {s.info.protected && <Icon name="lock" size={12} />}
                 {bound.has(i) && <Icon name="schema" size={12} />}
                 {s.info.name}
+                {/* What the icons show, for screen readers. */}
+                {s.info.kind === 'chartsheet' && <span className="wbe-sr-only">{`, ${t('tabs.chartSheet')}`}</span>}
+                {s.info.protected && <span className="wbe-sr-only">{`, ${t('tabs.protected')}`}</span>}
+                {bound.has(i) && <span className="wbe-sr-only">{`, ${t('tabs.checkedBy', { name: schemaName })}`}</span>}
               </button>
             );
           })}
@@ -429,7 +471,8 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
   const calc = store.calc;
   const fmt = (n: number) => t.number(n, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
   return (
-    <footer className="wbe-status-bar">
+    // Not a <footer>, which would be a landmark of the page the editor is in.
+    <div className="wbe-status-bar">
       <span className="wbe-status-calc" role="status">
         {store.status === 'ready' && !calc && (
           <>
@@ -479,6 +522,6 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
           {stats.nums > 0 && <span>{t('status.sum', { value: fmt(stats.sum) })}</span>}
         </span>
       )}
-    </footer>
+    </div>
   );
 }
