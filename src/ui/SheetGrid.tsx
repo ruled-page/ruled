@@ -158,6 +158,8 @@ interface Props {
   header?: boolean;
   gridRef?: RefObject<DataEditorRef | null>;
   onKeyDown?: (e: GridKeyEventArgs) => void;
+  /** Told the cells in view whenever they change, as the grid scrolls or resizes. */
+  onRegion?: (r: Rectangle) => void;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -177,6 +179,7 @@ export function SheetGrid({
   header = true,
   gridRef,
   onKeyDown,
+  onRegion,
   className,
   style: hostStyle,
 }: Props) {
@@ -916,12 +919,19 @@ export function SheetGrid({
   );
 
   // Ctrl+Enter (⌘Enter on a Mac) follows the active cell's link, as Ctrl+click does, in place of the grid's own use of it.
+  // Alt+Shift+Right and Left group and ungroup the selection, as in Excel.
   const onGridKeyDown = useCallback(
     (e: GridKeyEventArgs) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         e.cancel();
         e.preventDefault();
         void store.followLink();
+        return;
+      }
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.cancel();
+        e.preventDefault();
+        void store.groupSelection(e.key === 'ArrowRight' ? 1 : -1);
         return;
       }
       onKeyDown?.(e);
@@ -1007,6 +1017,7 @@ export function SheetGrid({
         onVisibleRegionChanged={(r) => {
           visible.current = { y: r.y, height: r.height };
           setRegion((n) => n + 1);
+          onRegion?.(r);
         }}
         onItemHovered={onItemHovered}
         experimental={experimental}

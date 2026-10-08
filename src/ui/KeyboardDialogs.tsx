@@ -39,6 +39,8 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [t('keys.menu'), t('shortcuts.menu')],
         [t('keys.shiftF2'), t('shortcuts.note')],
         [mod(t, t('keys.enter')), t('links.shortcut')],
+        [APPLE ? '⌥⇧→' : t('outline.keys.group'), t('outline.shortcuts.group')],
+        [APPLE ? '⌥⇧←' : t('outline.keys.ungroup'), t('outline.shortcuts.ungroup')],
         [m('F'), t('shortcuts.find')],
         [m('G'), t('shortcuts.findNext')],
         [m('S'), t('shortcuts.save')],

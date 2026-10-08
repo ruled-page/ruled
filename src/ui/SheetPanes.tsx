@@ -1,9 +1,15 @@
-import type { DataEditorRef, GridKeyEventArgs } from '@glideapps/glide-data-grid';
+import type { DataEditorRef, GridKeyEventArgs, Rectangle } from '@glideapps/glide-data-grid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { outlineBarSize } from '../state/outline';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { GLIDE_SCROLLER } from './glideDom';
+import { lazyModule } from './lazyModule';
+import type { OutlinePane } from './OutlineBar';
 import { SheetGrid } from './SheetGrid';
+
+/** The outline bars, loaded for the first sheet with groups. */
+const outlineBars = lazyModule(() => import('./OutlineBar'));
 
 interface Props {
   store: WorkbookStore;
@@ -16,7 +22,9 @@ interface Props {
 /**
  * The sheet's grid. Glide can freeze columns but not rows, so a sheet with
  * frozen rows gets two grids: the frozen rows (with the column letters) in a
- * fixed pane, and the rest scrolling beneath, kept in step horizontally.
+ * fixed pane, and the rest scrolling beneath, kept in step horizontally. A
+ * sheet with groups has outline bars beside the row numbers and above the
+ * column letters.
  */
 export function SheetPanes(props: Props) {
   const { store, view } = props;
@@ -42,6 +50,34 @@ export function SheetPanes(props: Props) {
     return h;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, frozen, layoutVersion]);
+
+  // The outline bars take room only on a sheet with groups. The grids are
+  // always inside the same elements, so they aren't made again when the first
+  // group is made or the last one cleared.
+  const barWidth = outlineBarSize(view.info.outline?.rows);
+  const barHeight = outlineBarSize(view.info.outline?.cols);
+  const Bars = outlineBars.useModule(barWidth > 0 || barHeight > 0);
+  const regions = useRef<(Rectangle | undefined)[]>([]);
+  const regionListener = useRef<(() => void) | undefined>(undefined);
+  const onRegionChange = useCallback((fn: () => void) => {
+    regionListener.current = fn;
+    return () => {
+      if (regionListener.current === fn) regionListener.current = undefined;
+    };
+  }, []);
+  const onTopRegion = useCallback((r: Rectangle) => {
+    regions.current[0] = r;
+    regionListener.current?.();
+  }, []);
+  const onBottomRegion = useCallback((r: Rectangle) => {
+    regions.current[1] = r;
+    regionListener.current?.();
+  }, []);
+  const rowCount = view.rowCount;
+  const outlinePanes = useMemo<OutlinePane[]>(
+    () => (frozen ? [{ ref: top, rowStart: 0, rowCount: frozen }, { ref: bottom, rowStart: frozen, rowCount: rowCount - frozen }] : [{ ref: top, rowStart: 0, rowCount }]),
+    [frozen, rowCount],
+  );
 
   // Scrolling either pane sideways scrolls the other. Scroll events don't
   // bubble, but a capturing listener here still sees each grid's scroller.
@@ -82,10 +118,9 @@ export function SheetPanes(props: Props) {
   const onTopKey = useCallback((e: GridKeyEventArgs) => cross(e, 'ArrowDown', frozen - 1, frozen, bottom), [cross, frozen]);
   const onBottomKey = useCallback((e: GridKeyEventArgs) => cross(e, 'ArrowUp', frozen, frozen - 1, top), [cross, frozen]);
 
-  if (!frozen) {
-    return <SheetGrid {...props} colVersion={colVersion} onColumnResized={onColumnResized} />;
-  }
-  return (
+  const grids = !frozen ? (
+    <SheetGrid {...props} gridRef={top} onRegion={onTopRegion} colVersion={colVersion} onColumnResized={onColumnResized} />
+  ) : (
     <div className="wbe-grid-panes" ref={panes}>
       <SheetGrid
         {...props}
@@ -95,6 +130,7 @@ export function SheetPanes(props: Props) {
         rowCount={frozen}
         gridRef={top}
         onKeyDown={onTopKey}
+        onRegion={onTopRegion}
         colVersion={colVersion}
         onColumnResized={onColumnResized}
       />
@@ -105,9 +141,29 @@ export function SheetPanes(props: Props) {
         header={false}
         gridRef={bottom}
         onKeyDown={onBottomKey}
+        onRegion={onBottomRegion}
         colVersion={colVersion}
         onColumnResized={onColumnResized}
       />
+    </div>
+  );
+  return (
+    <div className="wbe-outline-frame">
+      <div className="wbe-outline-body" style={{ left: barWidth, top: barHeight }}>
+        {grids}
+      </div>
+      {Bars && (barWidth > 0 || barHeight > 0) && (
+        <Bars.OutlineBars
+          store={store}
+          view={view}
+          panes={outlinePanes}
+          regions={regions}
+          onRegionChange={onRegionChange}
+          width={barWidth}
+          height={barHeight}
+          colVersion={colVersion}
+        />
+      )}
     </div>
   );
 }

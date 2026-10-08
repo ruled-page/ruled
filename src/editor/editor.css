@@ -1063,6 +1063,117 @@
   inset: 0;
 }
 
+/* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */
+.wbe .wbe-outline-frame,
+.wbe .wbe-outline-bars {
+  position: absolute;
+  inset: 0;
+}
+
+.wbe .wbe-outline-body {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.wbe .wbe-outline-bars {
+  pointer-events: none;
+}
+
+.wbe .wbe-outline {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  background: var(--wbe-grid-header-bg);
+  pointer-events: auto;
+}
+
+.wbe .wbe-outline-rows {
+  bottom: 0;
+  border-right: 1px solid var(--wbe-grid-header-line);
+}
+
+.wbe .wbe-outline-cols {
+  right: 0;
+  border-bottom: 1px solid var(--wbe-grid-header-line);
+}
+
+.wbe .wbe-outline-strip {
+  position: absolute;
+  overflow: hidden;
+}
+
+.wbe .wbe-outline-rows .wbe-outline-strip {
+  left: 0;
+  right: 0;
+}
+
+.wbe .wbe-outline-cols .wbe-outline-strip {
+  top: 0;
+  bottom: 0;
+}
+
+.wbe .wbe-outline-line {
+  position: absolute;
+  border: 0 solid var(--wbe-grid-row-header-text);
+}
+
+.wbe .wbe-outline-rows .wbe-outline-line {
+  width: 6px;
+  border-left-width: 2px;
+}
+
+.wbe .wbe-outline-cols .wbe-outline-line {
+  height: 6px;
+  border-top-width: 2px;
+}
+
+.wbe .wbe-outline-rows .wbe-outline-cap-start {
+  border-top-width: 2px;
+}
+
+.wbe .wbe-outline-rows .wbe-outline-cap-end {
+  border-bottom-width: 2px;
+}
+
+.wbe .wbe-outline-cols .wbe-outline-cap-start {
+  border-left-width: 2px;
+}
+
+.wbe .wbe-outline-cols .wbe-outline-cap-end {
+  border-right-width: 2px;
+}
+
+.wbe .wbe-outline-button {
+  position: absolute;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--wbe-grid-row-header-text);
+  border-radius: 2px;
+  background: var(--wbe-grid-bg);
+  color: var(--wbe-grid-header-text);
+  font: 600 11px/12px var(--wbe-font, inherit);
+  text-align: center;
+  cursor: pointer;
+}
+
+.wbe .wbe-outline-level {
+  border-color: var(--wbe-grid-header-line);
+  background: var(--wbe-grid-header-bg);
+}
+
+.wbe .wbe-outline-button:hover:not(:disabled) {
+  background: var(--wbe-grid-header-hover-bg);
+}
+
+.wbe .wbe-outline-button:disabled {
+  cursor: default;
+  color: var(--wbe-grid-text-light);
+}
+
 /* Frozen rows: a fixed pane above the scrolling one. */
 .wbe .wbe-grid-panes {
   position: absolute;

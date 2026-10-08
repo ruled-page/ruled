@@ -1,7 +1,8 @@
 import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
+import { outlineDepth } from '../state/outline';
 import { ContextMenu, type MenuItem } from './ContextMenu';
-import { mod } from './keys';
+import { APPLE, mod } from './keys';
 import { openDefineName } from '../state/names';
 import { useT } from '../i18n/react';
 
@@ -25,6 +26,30 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     return true;
   };
   const cellsLocked = view.info.kind !== 'worksheet' || (view.info.protected && !unlocked());
+  // Grouping, ungrouping and the detail and levels of the sheet's groups.
+  const outlineItems = (axis: 'rows' | 'cols'): MenuItem[] => {
+    const rows = axis === 'rows';
+    const disabled = store.outlineLocked(axis);
+    const depth = outlineDepth(view.info.outline?.[axis]);
+    const levels = Array.from({ length: depth ? depth + 1 : 0 }, (_, i) => ({
+      label: t('outline.menu.showLevel', { level: i + 1 }),
+      onSelect: () => void store.showOutlineLevel(axis, i + 1),
+      disabled,
+    }));
+    return [
+      { separator: true },
+      { label: t(rows ? 'outline.menu.groupRows' : 'outline.menu.groupColumns'), hint: APPLE ? '⌥⇧→' : t('outline.keys.group'), onSelect: () => void store.groupLines(axis), disabled },
+      ...(depth
+        ? [
+            { label: t(rows ? 'outline.menu.ungroupRows' : 'outline.menu.ungroupColumns'), hint: APPLE ? '⌥⇧←' : t('outline.keys.ungroup'), onSelect: () => void store.groupLines(axis, -1), disabled },
+            ...(store.detailGroup(axis, false) ? [{ label: t('outline.menu.hideDetail'), onSelect: () => void store.showDetail(axis, false), disabled }] : []),
+            ...(store.detailGroup(axis, true) ? [{ label: t('outline.menu.showDetail'), onSelect: () => void store.showDetail(axis, true), disabled }] : []),
+            ...levels,
+            { label: t(rows ? 'outline.menu.clearRows' : 'outline.menu.clearColumns'), onSelect: () => void store.clearOutline(axis), disabled },
+          ]
+        : []),
+    ];
+  };
   const rowItems: MenuItem[] = [
     { label: t('menu.insertRowsAbove', { count: rows }), onSelect: () => void store.insertRows('above'), disabled: locked || rows >= MAX_ROWS },
     { label: t('menu.insertRowsBelow', { count: rows }), onSelect: () => void store.insertRows('below'), disabled: locked || rows >= MAX_ROWS },
@@ -32,8 +57,9 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   ];
   const rowLayout: MenuItem[] = [
     { label: t('menu.rowHeight'), onSelect: () => store.set('rowHeightFor', sel.row), disabled: locked },
-    { label: t('menu.hideRows', { count: rows }), onSelect: () => void store.hideLines('rows'), disabled: locked },
-    ...(store.hasHiddenNear('rows') ? [{ label: t('menu.unhideRows'), onSelect: () => void store.unhideLines('rows'), disabled: locked }] : []),
+    { label: t('menu.hideRows', { count: rows }), onSelect: () => void store.hideLines('rows'), disabled: store.outlineLocked('rows') },
+    ...(store.hasHiddenNear('rows') ? [{ label: t('menu.unhideRows'), onSelect: () => void store.unhideLines('rows'), disabled: store.outlineLocked('rows') }] : []),
+    ...outlineItems('rows'),
   ];
   const colItems: MenuItem[] = [
     { label: t('menu.insertColumnsLeft', { count: cols }), onSelect: () => void store.insertCols('left'), disabled: locked || cols >= MAX_COLS },
@@ -42,8 +68,9 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   ];
   const colLayout: MenuItem[] = [
     { label: t('menu.columnWidth'), onSelect: () => store.set('columnWidthFor', sel.col), disabled: locked },
-    { label: t('menu.hideColumns', { count: cols }), onSelect: () => void store.hideLines('cols'), disabled: locked },
-    ...(store.hasHiddenNear('cols') ? [{ label: t('menu.unhideColumns'), onSelect: () => void store.unhideLines('cols'), disabled: locked }] : []),
+    { label: t('menu.hideColumns', { count: cols }), onSelect: () => void store.hideLines('cols'), disabled: store.outlineLocked('cols') },
+    ...(store.hasHiddenNear('cols') ? [{ label: t('menu.unhideColumns'), onSelect: () => void store.unhideLines('cols'), disabled: store.outlineLocked('cols') }] : []),
+    ...outlineItems('cols'),
   ];
   const frozen = view.info.frozenRows > 0 || view.info.frozenCols > 0;
   const merged = store.mergesInSelection().length > 0;

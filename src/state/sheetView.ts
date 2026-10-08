@@ -124,6 +124,23 @@ export class SheetView {
         info.links = applyLinkChange(info.links, op).links;
         this.indexLinks();
         break;
+      case 'outline': {
+        const was = info.outline?.[op.axis];
+        const levels = { ...was?.levels };
+        for (const [line, v] of Object.entries(op.levels)) {
+          if (v) levels[Number(line)] = v;
+          else delete levels[Number(line)];
+        }
+        const collapsed = new Set(was?.collapsed);
+        for (const [line, c] of Object.entries(op.collapsed)) {
+          if (c) collapsed.add(Number(line));
+          else collapsed.delete(Number(line));
+        }
+        const blank = { levels: {}, collapsed: [], summaryAfter: true };
+        const next = { levels, collapsed: [...collapsed].sort((a, b) => a - b), summaryAfter: was?.summaryAfter ?? true };
+        info.outline = { rows: info.outline?.rows ?? blank, cols: info.outline?.cols ?? blank, [op.axis]: next };
+        break;
+      }
     }
     this.layoutVersion++;
     this.version++;
@@ -211,6 +228,12 @@ export class SheetView {
     const [y1, y2] = span(this.visibleRows, rect.r1, rect.r2);
     const [x1, x2] = span(this.visibleCols, rect.c1, rect.c2);
     return y1 <= y2 && x1 <= x2 ? { y1, y2, x1, x2 } : undefined;
+  }
+
+  /** The first and last grid rows (or columns) showing any of the sheet's rows (or columns) a to b, or undefined when all are hidden. */
+  lineSpan(axis: 'rows' | 'cols', a: number, b: number): [number, number] | undefined {
+    const s = span(axis === 'rows' ? this.visibleRows : this.visibleCols, a, b);
+    return s[0] <= s[1] ? s : undefined;
   }
 
   get(row: number, col: number): CellRecord | null {

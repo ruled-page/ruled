@@ -56,6 +56,7 @@ import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
 import { cellLink, type CellLink, type LinkClick } from './links';
+import { clearOutline, collapseGroup, expandGroup, groupToHide, groupToShow, regroup, showLevel, summaryLine, type Axis, type OutlineChange, type OutlineGroup } from './outline';
 import type { i18n as I18n } from 'i18next';
 import {
   createI18n,
@@ -1786,6 +1787,121 @@ export class WorkbookStore {
   async unmergeCells(): Promise<void> {
     const remove = this.mergesInSelection();
     if (remove.length) await this.changeLayout({ kind: 'merges', add: [], remove }, msg('store.history.unmerge'));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Outline: grouping rows and columns, and hiding and showing their detail
+
+  /** Whether the active sheet's rows (or columns) can't be grouped, hidden or shown: Excel's protection doesn't let them be formatted. */
+  outlineLocked(axis: Axis): boolean {
+    const info = this.view?.info;
+    return !info || info.kind !== 'worksheet' || (info.protected && !info.formatAllowed?.[axis]);
+  }
+
+  /** Makes a change to the active sheet's outline as one undoable step, then keeps the active cell where it shows. */
+  private async changeOutline(axis: Axis, change: OutlineChange | { refused: Text }, label: Text, near?: number): Promise<void> {
+    if ('refused' in change) return this.toast('warn', change.refused);
+    const ops: EditOp[] = [];
+    if (Object.keys(change.hidden).length) ops.push({ type: 'layout', sheet: this.active, op: { kind: 'hidden', axis, lines: change.hidden } });
+    if (Object.keys(change.levels).length || Object.keys(change.collapsed).length) {
+      ops.push({ type: 'layout', sheet: this.active, op: { kind: 'outline', axis, levels: change.levels, collapsed: change.collapsed } });
+    }
+    if (!ops.length) return;
+    await this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label });
+    this.keepActiveShown(axis, near);
+  }
+
+  /** Moves the active cell, when its row (or column) has just been hidden, to `near` or else the nearest line showing. */
+  private keepActiveShown(axis: Axis, near?: number): void {
+    const view = this.view;
+    if (!view) return;
+    const rows = axis === 'rows';
+    const sel = this.selection;
+    const at = rows ? sel.row : sel.col;
+    const shown = (line: number) => (rows ? view.gridRow(line) : view.gridCol(line)) >= 0;
+    if (shown(at)) return;
+    const after = view.lineSpan(axis, at, rows ? MAX_ROWS : MAX_COLS);
+    const before = view.lineSpan(axis, 0, at);
+    const lines = rows ? view.visibleRows : view.visibleCols;
+    const to = near !== undefined && near >= 0 && shown(near) ? near : after ? lines[after[0]] : before ? lines[before[1]] : undefined;
+    if (to === undefined) return;
+    const [row, col] = rows ? [to, sel.col] : [sel.row, to];
+    this.setSelection({ row, col, rects: [{ r1: row, r2: row, c1: col, c2: col }] });
+  }
+
+  /** The lines of the active sheet's outline hidden now. */
+  private hiddenLines(axis: Axis): Set<number> {
+    return new Set(axis === 'rows' ? this.view?.info.hiddenRows : this.view?.info.hiddenCols);
+  }
+
+  /** Whether any of a group's lines show. */
+  private groupShown(axis: Axis, g: OutlineGroup): boolean {
+    return !!this.view?.lineSpan(axis, g.start, g.end);
+  }
+
+  /** Puts the selected rows (or columns) one level deeper in groups, or with step -1 takes them a level out, as Group and Ungroup do. */
+  async groupLines(axis: Axis, step: 1 | -1 = 1): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const lines = this.selectedLines(axis);
+    const key = step > 0 ? (axis === 'rows' ? 'outline.history.groupRows' : 'outline.history.groupColumns') : axis === 'rows' ? 'outline.history.ungroupRows' : 'outline.history.ungroupColumns';
+    await this.changeOutline(axis, regroup(view.info.outline?.[axis], axis, lines, step), msg(key, { count: lines.length }));
+  }
+
+  /**
+   * Groups (or ungroups) the selection, as Alt+Shift+Right (Left) does in
+   * Excel: whole rows or columns as they are; for cells, asking which.
+   */
+  async groupSelection(step: 1 | -1): Promise<void> {
+    const view = this.view;
+    const r = this.selection.rects[0];
+    if (!view || !r) return;
+    const wholeRows = r.c1 === 0 && r.c2 >= Math.max(view.info.maxCol, 0);
+    const wholeCols = r.r1 === 0 && r.r2 >= Math.max(view.info.maxRow, 0);
+    let axis: Axis | undefined = wholeRows !== wholeCols ? (wholeRows ? 'rows' : 'cols') : undefined;
+    if (!axis) {
+      const answer = await this.ask({
+        title: msg(step > 0 ? 'outline.ask.groupTitle' : 'outline.ask.ungroupTitle'),
+        body: msg(step > 0 ? 'outline.ask.groupBody' : 'outline.ask.ungroupBody'),
+        confirmLabel: msg('outline.ask.rows'),
+        alternateLabel: msg('outline.ask.columns'),
+        danger: false,
+      });
+      axis = answer === 'confirm' ? 'rows' : answer === 'alternate' ? 'cols' : undefined;
+    }
+    if (axis) await this.groupLines(axis, step);
+  }
+
+  /** Collapses a group if any of it shows, else expands it, as its button does. */
+  async toggleGroup(axis: Axis, g: OutlineGroup): Promise<void> {
+    const o = this.view?.info.outline?.[axis];
+    const open = this.groupShown(axis, g);
+    const change = open ? collapseGroup(o, this.hiddenLines(axis), g) : expandGroup(o, this.hiddenLines(axis), g);
+    await this.changeOutline(axis, change, msg(open ? 'outline.history.hideDetail' : 'outline.history.showDetail'), summaryLine(o, g));
+  }
+
+  /** The group that Hide detail (or Show detail) would act on at the active cell, if any. */
+  detailGroup(axis: Axis, show: boolean): OutlineGroup | undefined {
+    const o = this.view?.info.outline?.[axis];
+    const line = axis === 'rows' ? this.selection.row : this.selection.col;
+    const shown = (g: OutlineGroup) => this.groupShown(axis, g);
+    return show ? groupToShow(o, line, shown) : groupToHide(o, line, shown);
+  }
+
+  /** Collapses (or expands) the group at the active cell, as Excel's Hide detail and Show detail do. */
+  async showDetail(axis: Axis, show: boolean): Promise<void> {
+    const g = this.detailGroup(axis, show);
+    if (g) await this.toggleGroup(axis, g);
+  }
+
+  /** Shows the active sheet's outline to level n, as Excel's level buttons do. */
+  async showOutlineLevel(axis: Axis, level: number): Promise<void> {
+    await this.changeOutline(axis, showLevel(this.view?.info.outline?.[axis], this.hiddenLines(axis), level), msg('outline.history.level', { level }));
+  }
+
+  /** Takes every row (or column) of the active sheet out of its groups. */
+  async clearOutline(axis: Axis): Promise<void> {
+    await this.changeOutline(axis, clearOutline(this.view?.info.outline?.[axis]), msg('outline.history.clear'));
   }
 
   // ---------------------------------------------------------------------------
