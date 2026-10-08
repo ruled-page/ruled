@@ -2,6 +2,7 @@ import type { DataEditorRef, GridKeyEventArgs } from '@glideapps/glide-data-grid
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
+import { GLIDE_SCROLLER } from './glideDom';
 import { SheetGrid } from './SheetGrid';
 
 interface Props {
@@ -47,8 +48,8 @@ export function SheetPanes(props: Props) {
     let lead: EventTarget | null = null;
     const onScroll = (e: Event) => {
       const from = e.target as HTMLElement;
-      if (!from.classList?.contains('dvn-scroller') || (lead && lead !== from)) return;
-      const other = [...el.querySelectorAll<HTMLElement>('.dvn-scroller')].find((s) => s !== from);
+      if (!from.classList?.contains(GLIDE_SCROLLER) || (lead && lead !== from)) return;
+      const other = [...el.querySelectorAll<HTMLElement>(`.${GLIDE_SCROLLER}`)].find((s) => s !== from);
       if (!other || other.scrollLeft === from.scrollLeft) return;
       lead = from;
       other.scrollLeft = from.scrollLeft;
@@ -82,10 +83,10 @@ export function SheetPanes(props: Props) {
     return <SheetGrid {...props} colVersion={colVersion} onColumnResized={onColumnResized} />;
   }
   return (
-    <div className="grid-panes" ref={panes}>
+    <div className="wbe-grid-panes" ref={panes}>
       <SheetGrid
         {...props}
-        className="pane-top"
+        className="wbe-pane-top"
         style={{ height: topHeight }}
         rowStart={0}
         rowCount={frozen}
@@ -96,7 +97,7 @@ export function SheetPanes(props: Props) {
       />
       <SheetGrid
         {...props}
-        className="pane-bottom"
+        className="wbe-pane-bottom"
         rowStart={frozen}
         header={false}
         gridRef={bottom}

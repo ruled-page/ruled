@@ -33,10 +33,10 @@ export class EditorBoundary extends Component<Props, { failed: boolean }> {
 function DrawingFailed({ retry }: { retry: () => void }) {
   const t = useT();
   return (
-    <div className="center-state error" role="alert">
+    <div className="wbe-center-state wbe-error" role="alert">
       <Icon name="warn" size={28} />
       <p>{t('editor.drawingFailed')}</p>
-      <button className="btn primary" onClick={retry}>
+      <button className="wbe-btn wbe-primary" onClick={retry}>
         {t('editor.tryAgain')}
       </button>
     </div>

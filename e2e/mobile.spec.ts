@@ -16,7 +16,7 @@ test('the start screen and an open workbook fit the screen', async ({ page }) =>
   await openSample(page, 'Price list');
   await fitsWidth(page);
   // The toolbar is one row of actions that scrolls sideways, not several rows.
-  const toolbar = await page.locator('.toolbar-actions').boundingBox();
+  const toolbar = await page.locator('.wbe-toolbar-actions').boundingBox();
   expect(toolbar!.height).toBeLessThan(60);
 });
 
@@ -32,7 +32,7 @@ test('the checks panel waits to be opened, and going to a problem shows its cell
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('B11');
   // The problem shows under the formula bar, as there's no hovering on a phone.
-  await expect(page.locator('.cell-note')).toContainText('Required.');
+  await expect(page.locator('.wbe-cell-note')).toContainText('Required.');
 });
 
 test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {

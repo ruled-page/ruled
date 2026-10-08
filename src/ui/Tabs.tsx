@@ -31,7 +31,7 @@ export function Tabs<T extends string>({
   const at = tabs.findIndex((t) => t.id === value);
   const list = (
     <div
-      className="panel-tabs"
+      className="wbe-panel-tabs"
       role="tablist"
       aria-label={label}
       onKeyDown={(e) => {
@@ -54,7 +54,7 @@ export function Tabs<T extends string>({
           aria-controls={`${id}-panel`}
           aria-selected={i === at}
           tabIndex={i === at ? 0 : -1}
-          className={i === at ? 'active' : ''}
+          className={i === at ? 'wbe-active' : ''}
           onClick={() => onChange(t.id)}
         >
           {t.label}
@@ -65,7 +65,7 @@ export function Tabs<T extends string>({
   return (
     <>
       {head ? head(list) : list}
-      <div className="tab-panel" role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${value}`}>
+      <div className="wbe-tab-panel" role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${value}`}>
         {children}
       </div>
     </>

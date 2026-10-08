@@ -14,10 +14,10 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
   if (!req) return null;
   const danger = req.danger !== false;
   return (
-    <div className="modal-backdrop" onMouseDown={() => req.resolve('cancel')}>
+    <div className="wbe-modal-backdrop" onMouseDown={() => req.resolve('cancel')}>
       <div
         ref={dialog}
-        className={`modal ${req.details ? 'modal-wide' : ''}`}
+        className={`wbe-modal ${req.details ? 'wbe-modal-wide' : ''}`}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
@@ -25,14 +25,14 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className={`modal-icon ${danger ? '' : 'calm'}`}>
+        <div className={`wbe-modal-icon ${danger ? '' : 'wbe-calm'}`}>
           <Icon name={danger ? 'warn' : 'info'} size={20} />
         </div>
-        <div className="modal-content">
+        <div className="wbe-modal-content">
           <h2 id={`${id}-title`}>{t.text(req.title)}</h2>
           <p id={`${id}-body`}>{t.text(req.body)}</p>
           {req.details && (
-            <div className="modal-table">
+            <div className="wbe-modal-table">
               <table>
                 <thead>
                   <tr>
@@ -45,27 +45,27 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
                   {req.details.rows.map((row, i) => (
                     <tr key={i}>
                       {row.map((cell, j) => (
-                        <td key={j} className={j === 0 ? 'mono' : ''}>
-                          {cell === '' ? <span className="muted">{t('dialog.empty')}</span> : cell}
+                        <td key={j} className={j === 0 ? 'wbe-mono' : ''}>
+                          {cell === '' ? <span className="wbe-muted">{t('dialog.empty')}</span> : cell}
                         </td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {!!req.details.more && <p className="muted small">{t('dialog.more', { count: req.details.more })}</p>}
+              {!!req.details.more && <p className="wbe-muted wbe-small">{t('dialog.more', { count: req.details.more })}</p>}
             </div>
           )}
-          <div className="modal-actions">
-            <button className="btn" onClick={() => req.resolve('cancel')}>
+          <div className="wbe-modal-actions">
+            <button className="wbe-btn" onClick={() => req.resolve('cancel')}>
               {req.cancelLabel ? t.text(req.cancelLabel) : t('dialog.cancel')}
             </button>
             {req.alternateLabel && (
-              <button className="btn" onClick={() => req.resolve('alternate')}>
+              <button className="wbe-btn" onClick={() => req.resolve('alternate')}>
                 {t.text(req.alternateLabel)}
               </button>
             )}
-            <button ref={confirmBtn} className={`btn ${danger ? 'danger' : 'primary'}`} onClick={() => req.resolve('confirm')}>
+            <button ref={confirmBtn} className={`wbe-btn ${danger ? 'wbe-danger' : 'wbe-primary'}`} onClick={() => req.resolve('confirm')}>
               {t.text(req.confirmLabel)}
             </button>
           </div>
@@ -78,13 +78,13 @@ export function ConfirmDialog({ store }: { store: WorkbookStore }) {
 export function Toasts({ store }: { store: WorkbookStore }) {
   const t = useT();
   return (
-    <div className="toasts" role="status">
+    <div className="wbe-toasts" role="status">
       {store.toasts.map((toast) => (
         // Errors interrupt; the rest wait for a pause.
-        <div key={toast.id} className={`toast toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
+        <div key={toast.id} className={`wbe-toast wbe-toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
           <Icon name={toast.kind === 'info' ? 'check' : toast.kind === 'warn' ? 'info' : 'warn'} />
           <span>{t.text(toast.text)}</span>
-          <button className="btn icon ghost" onClick={() => store.dismissToast(toast.id)} aria-label={t('toast.dismiss')}>
+          <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.dismissToast(toast.id)} aria-label={t('toast.dismiss')}>
             <Icon name="close" size={14} />
           </button>
         </div>

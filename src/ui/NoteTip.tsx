@@ -15,14 +15,14 @@ export function NoteTip({ note, x, y }: { note: CellNote; x: number; y: number }
   const left = Math.min(x, window.innerWidth - 296);
   const top = Math.min(y, window.innerHeight - 120);
   return (
-    <div className={`note-tip ${note.kind}`} style={{ left, top }} role="tooltip">
-      {note.resolved && <div className="resolved">{t('note.resolved')}</div>}
+    <div className={`wbe-note-tip wbe-${note.kind}`} style={{ left, top }} role="tooltip">
+      {note.resolved && <div className="wbe-resolved">{t('note.resolved')}</div>}
       {note.entries.map((e, i) => (
-        <div className="entry" key={i}>
+        <div className="wbe-entry" key={i}>
           {e.author && (
-            <span className="who">
+            <span className="wbe-who">
               {e.author}
-              {e.date && <span className="when">{noteDate(t, e.date)}</span>}
+              {e.date && <span className="wbe-when">{noteDate(t, e.date)}</span>}
             </span>
           )}
           {e.text}

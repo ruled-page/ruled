@@ -53,12 +53,12 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
   useDialog(dialog, store.shortcutsOpen, close, { modal: true });
   if (!store.shortcutsOpen) return null;
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
-      <div ref={dialog} className="modal modal-wide shortcuts" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-content">
-          <div className="shortcuts-head">
+    <div className="wbe-modal-backdrop" onMouseDown={close}>
+      <div ref={dialog} className="wbe-modal wbe-modal-wide wbe-shortcuts" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="wbe-modal-content">
+          <div className="wbe-shortcuts-head">
             <h2 id={`${id}-title`}>{t('shortcuts.title')}</h2>
-            <button className="btn icon ghost" onClick={close} aria-label={t('shortcuts.close')}>
+            <button className="wbe-btn wbe-icon wbe-ghost" onClick={close} aria-label={t('shortcuts.close')}>
               <Icon name="close" />
             </button>
           </div>
@@ -108,10 +108,10 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
     close();
   };
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
+    <div className="wbe-modal-backdrop" onMouseDown={close}>
       <form
         ref={dialog}
-        className="modal"
+        className="wbe-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
@@ -122,9 +122,9 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
           apply();
         }}
       >
-        <div className="modal-content">
+        <div className="wbe-modal-content">
           <h2 id={`${id}-title`}>{t('columnWidth.title', { column: colToLetters(col) })}</h2>
-          <label className="field">
+          <label className="wbe-field">
             <span>{t('columnWidth.label')}</span>
             <input
               ref={input}
@@ -136,14 +136,14 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
               aria-describedby={`${id}-note`}
             />
           </label>
-          <p id={`${id}-note`} className="muted small">
+          <p id={`${id}-note`} className="wbe-muted wbe-small">
             {t('columnWidth.note')}
           </p>
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={close}>
+          <div className="wbe-modal-actions">
+            <button type="button" className="wbe-btn" onClick={close}>
               {t('dialog.cancel')}
             </button>
-            <button type="submit" className="btn primary" disabled={!valid}>
+            <button type="submit" className="wbe-btn wbe-primary" disabled={!valid}>
               {t('columnWidth.set')}
             </button>
           </div>

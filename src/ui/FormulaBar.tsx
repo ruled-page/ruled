@@ -80,7 +80,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
   const clicked = useRef(false);
   return (
     <input
-      className="name-box"
+      className="wbe-name-box"
       value={draft ?? name}
       spellCheck={false}
       aria-label={t('formulaBar.goTo')}
@@ -138,14 +138,14 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   };
 
   return (
-    <div className="formula-bar">
+    <div className="wbe-formula-bar">
       <NameBox store={store} name={name} />
-      <div className={`fx ${rec?.f !== undefined ? 'is-formula' : ''}`}>
+      <div className={`wbe-fx ${rec?.f !== undefined ? 'wbe-is-formula' : ''}`}>
         <Icon name="formula" size={15} />
       </div>
       <input
         ref={input}
-        className="formula-input"
+        className="wbe-formula-input"
         value={draft}
         readOnly={readOnly}
         spellCheck={false}
@@ -162,14 +162,14 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
         }}
       />
       {note && (
-        <div className={`cell-note tone-${note.tone}`} title={note.text}>
+        <div className={`wbe-cell-note wbe-tone-${note.tone}`} title={note.text}>
           <Icon name={note.tone === 'lock' ? 'lock' : note.tone === 'edit' ? 'edit' : note.tone === 'warn' || note.tone === 'error' ? 'warn' : note.tone === 'field' ? 'schema' : note.tone === 'note' ? 'note' : 'info'} size={14} />
           <span>{note.text}</span>
         </div>
       )}
       {/* The right-click menu, for touch screens (and anyone who looks for it here). */}
       <button
-        className="cell-menu-btn"
+        className="wbe-cell-menu-btn"
         aria-label={t('formulaBar.cellMenu')}
         title={t('formulaBar.cellMenu')}
         aria-haspopup="menu"

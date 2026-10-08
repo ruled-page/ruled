@@ -74,18 +74,18 @@ export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
             </>
           )}
         </p>
-        <button className="dropzone" onClick={onOpen}>
+        <button className="wbe-dropzone" onClick={onOpen}>
           <Icon name="open" size={22} />
           <span>
             <Trans t={t} i18nKey="welcome.choose" components={{ strong: <strong /> }} />
           </span>
-          <span className="muted">{t('welcome.fileTypes')}</span>
+          <span className="wbe-muted">{t('welcome.fileTypes')}</span>
         </button>
         <h2>{t('welcome.schemaSamples')}</h2>
         <SampleList store={store} samples={SCHEMA_SAMPLES} icon="schema" />
-        <p className="muted small schema-note">
+        <p className="wbe-muted wbe-small schema-note">
           {t('welcome.schemaCount', { count: store.schemas.length })}{' '}
-          <button className="link" onClick={() => store.set('designerOpen', true)}>
+          <button className="wbe-link" onClick={() => store.set('designerOpen', true)}>
             {t('welcome.manageSchemas')}
           </button>
         </p>

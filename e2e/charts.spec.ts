@@ -60,10 +60,10 @@ test('shows placeholders, and never loads the chart library, when the host turns
   });
   await expect(page.getByRole('button', { name: 'Monthly Chart' })).toBeVisible();
 
-  const placeholder = page.locator('.object-chart').filter({ hasText: 'Share of revenue' });
+  const placeholder = page.locator('.wbe-object-chart').filter({ hasText: 'Share of revenue' });
   await expect(placeholder).toBeVisible();
   await expect(placeholder).toContainText('Kept in file, not shown here');
-  await expect(page.locator('.objects-overlay canvas')).toHaveCount(0);
+  await expect(page.locator('.wbe-objects-overlay canvas')).toHaveCount(0);
   await expect(page.getByRole('img', { name: /chart/ })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Monthly Chart' }).click();

@@ -136,7 +136,7 @@ export default function ChartView({
         <canvas ref={canvas} />
       </div>
       {!copy && (
-        <p id={descriptionId} className="sr-only">
+        <p id={descriptionId} className="wbe-sr-only">
           {description}
         </p>
       )}

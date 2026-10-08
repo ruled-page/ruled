@@ -28,7 +28,7 @@ test.describe('a workbook checked by a schema', () => {
     await expect(panel.getByText('Expected a number.')).toBeVisible();
     await expect(panel.getByText('The formula returns #VALUE!.')).toBeVisible();
     await goTo(page, 'D3');
-    await expect(page.locator('.cell-note')).toContainText('Expected a number.');
+    await expect(page.locator('.wbe-cell-note')).toContainText('Expected a number.');
   });
 
   test('refuses a formula where the schema wants a typed value', async ({ page }) => {

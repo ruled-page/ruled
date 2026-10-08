@@ -36,7 +36,7 @@ test('translates what is already on screen when the language changes', async ({ 
   await expect(panel.getByText(de['schema.check.required'])).toBeVisible();
   await expect(panel.getByText(de['schema.check.expectedNumber'])).toBeVisible();
   await expect(page.getByRole('tab', { name: de['panel.checks'] })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.chip-status')).toContainText(german('schemaChip.errors_other', 6));
+  await expect(page.locator('.wbe-chip-status')).toContainText(german('schemaChip.errors_other', 6));
   await expect(page.getByRole('button', { name: german('toolbar.changes_one', 1) })).toBeVisible();
   // What screen readers read is German too.
   await expect(page.getByRole('textbox', { name: de['formulaBar.goTo'] })).toBeVisible();

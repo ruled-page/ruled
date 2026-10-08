@@ -15,9 +15,9 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
   const ctl = store.schema;
   if (!ctl) {
     return (
-      <div className="report-body">
-        <p className="muted">{t('checks.noSchema')}</p>
-        <button className="btn" onClick={() => store.set('designerOpen', true)}>
+      <div className="wbe-report-body">
+        <p className="wbe-muted">{t('checks.noSchema')}</p>
+        <button className="wbe-btn" onClick={() => store.set('designerOpen', true)}>
           <Icon name="schema" /> {t('checks.openDesigner')}
         </button>
       </div>
@@ -32,14 +32,14 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
     if (store.narrow) store.set('panel', null);
   };
   return (
-    <div className="report-body">
-      <p className="report-lede schema-lede">
+    <div className="wbe-report-body">
+      <p className="wbe-report-lede wbe-schema-lede">
         <RichText i18nKey="checks.checkedAgainst" values={{ name: t.localized(ctl.schema.name) }} components={{ b: <strong /> }} />
-        {ctl.schema.description ? <span className="muted"> {t.localized(ctl.schema.description)}</span> : null}
+        {ctl.schema.description ? <span className="wbe-muted"> {t.localized(ctl.schema.description)}</span> : null}
       </p>
-      <div className="calc-summary">
+      <div className="wbe-calc-summary">
         <div>
-          <strong className={errors ? 'tone-error-text' : ''}>{t.number(errors)}</strong>
+          <strong className={errors ? 'wbe-tone-error-text' : ''}>{t.number(errors)}</strong>
           <span>{t('checks.errors', { count: errors })}</span>
         </div>
         <div>
@@ -47,22 +47,22 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
           <span>{t('checks.warnings', { count: warnings })}</span>
         </div>
         <div>
-          <strong>{pending ? <span className="spinner small" /> : t.number(0)}</strong>
+          <strong>{pending ? <span className="wbe-spinner wbe-small" /> : t.number(0)}</strong>
           <span>{t('checks.running')}</span>
         </div>
       </div>
       {issues.length === 0 && !pending && (
-        <p className="all-clear">
+        <p className="wbe-all-clear">
           <Icon name="check" /> {t('checks.allClear')}
         </p>
       )}
-      <ul className="findings">
+      <ul className="wbe-findings">
         {issues.map((i, n) => (
-          <li key={n} className={`finding sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
-            <button className="finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
-              <span className="finding-title">{t.text(i.message)}</span>
+          <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'wbe-error' : 'wbe-warn'}`}>
+            <button className="wbe-finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
+              <span className="wbe-finding-title">{t.text(i.message)}</span>
               {i.sheetName && (
-                <span className="finding-where">
+                <span className="wbe-finding-where">
                   {i.sheetName}
                   {i.row !== undefined && i.col !== undefined ? ` · ${toA1(i.row, i.col)}` : ''}
                 </span>
@@ -73,18 +73,18 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
       </ul>
       <section>
         <h3>{t('checks.markers')}</h3>
-        <ul className="legend">
+        <ul className="wbe-legend">
           <li>
-            <span className="swatch tri-right red" /> {t('checks.markerError')}
+            <span className="wbe-swatch wbe-tri-right wbe-red" /> {t('checks.markerError')}
           </li>
           <li>
-            <span className="swatch tri-right orange" /> {t('checks.markerWarning')}
+            <span className="wbe-swatch wbe-tri-right wbe-orange" /> {t('checks.markerWarning')}
           </li>
           <li>
-            <span className="swatch dot-blue" /> {t('checks.markerPending')}
+            <span className="wbe-swatch wbe-dot-blue" /> {t('checks.markerPending')}
           </li>
           <li>
-            <span className="swatch label-cell" /> {t('checks.markerLabel')}
+            <span className="wbe-swatch wbe-label-cell" /> {t('checks.markerLabel')}
           </li>
         </ul>
       </section>
@@ -106,12 +106,12 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     if (store.narrow) store.set('panel', null);
   };
   const time = (at: number) => t.date(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const empty = <span className="muted">{t('changes.empty')}</span>;
+  const empty = <span className="wbe-muted">{t('changes.empty')}</span>;
   return (
-    <div className="report-body">
-      <p className="report-lede schema-lede">{changes.length ? summarize(t, changes) : t('changes.none')}</p>
+    <div className="wbe-report-body">
+      <p className="wbe-report-lede wbe-schema-lede">{changes.length ? summarize(t, changes) : t('changes.none')}</p>
       {changes.length > 0 && (
-        <div className="changes-table">
+        <div className="wbe-changes-table">
           <table>
             <thead>
               <tr>
@@ -123,9 +123,9 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
             <tbody>
               {changes.slice(0, SHOWN).map((c) => (
                 <tr key={`${c.sheet}!${c.ref}`} onClick={() => go(c.sheet, c.ref)}>
-                  <td className="mono">
+                  <td className="wbe-mono">
                     {/* The row is clickable too; the button is the same for keyboards and screen readers. */}
-                    <button className="cell-link" title={t('changes.goTo')} onClick={(e) => {
+                    <button className="wbe-cell-link" title={t('changes.goTo')} onClick={(e) => {
                       e.stopPropagation();
                       go(c.sheet, c.ref);
                     }}>
@@ -134,33 +134,33 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
                     </button>
                   </td>
                   {c.note ? (
-                    <td colSpan={2} className="change-note">
+                    <td colSpan={2} className="wbe-change-note">
                       {t.text(c.note)}
                     </td>
                   ) : (
                     <>
                       <td>{c.before === '' ? empty : c.before}</td>
-                      <td>{c.formatOnly ? <span className="muted">{t('changes.formatOnly')}</span> : c.after === '' ? empty : c.after}</td>
+                      <td>{c.formatOnly ? <span className="wbe-muted">{t('changes.formatOnly')}</span> : c.after === '' ? empty : c.after}</td>
                     </>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
-          {changes.length > SHOWN && <p className="muted small">{t('changes.first', { n: SHOWN })}</p>}
+          {changes.length > SHOWN && <p className="wbe-muted wbe-small">{t('changes.first', { n: SHOWN })}</p>}
         </div>
       )}
       <section>
         <h3>{t('changes.history')}</h3>
-        {store.history.length === 0 && <p className="muted">{t('changes.noEdits')}</p>}
-        <ol className="history">
+        {store.history.length === 0 && <p className="wbe-muted">{t('changes.noEdits')}</p>}
+        <ol className="wbe-history">
           {[...store.history].reverse().slice(0, 200).map((h, i) => (
             <li key={i}>
-              <span className="history-time">{time(h.at)}</span>
+              <span className="wbe-history-time">{time(h.at)}</span>
               <span>
                 <strong>{t.text(h.action)}</strong> · {t('changes.historyCells', { count: h.cells })}
                 {h.user ? ` · ${h.user}` : ''}
-                {h.refs.length > 0 && <span className="muted"> ({h.refs.join(', ')}{h.cells > h.refs.length ? ', …' : ''})</span>}
+                {h.refs.length > 0 && <span className="wbe-muted"> ({h.refs.join(', ')}{h.cells > h.refs.length ? ', …' : ''})</span>}
               </span>
             </li>
           ))}
@@ -188,7 +188,7 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
   const panel = store.panel;
   if (!panel || (panel === 'report' && !store.features.report)) return null;
   return (
-    <aside className="report" aria-label={t('panel.label')}>
+    <aside className="wbe-report" aria-label={t('panel.label')}>
       <Tabs
         label={t('panel.label')}
         tabs={[
@@ -199,9 +199,9 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
         value={panel}
         onChange={(id) => store.set('panel', id)}
         head={(tabs) => (
-          <div className="report-head">
+          <div className="wbe-report-head">
             {tabs}
-            <button className="btn icon ghost" onClick={() => store.set('panel', null)} aria-label={t('panel.close')}>
+            <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('panel', null)} aria-label={t('panel.close')}>
               <Icon name="close" />
             </button>
           </div>

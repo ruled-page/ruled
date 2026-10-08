@@ -37,12 +37,12 @@ function Placeholder({ box, style }: { box: Box; style: CSSProperties }) {
   const label = obj.title ?? t(LABEL[obj.kind]);
   return (
     <div
-      className={`object-box object-${obj.kind} ${box.width < 150 || box.height < 56 ? 'compact' : ''}`}
+      className={`wbe-object-box wbe-object-${obj.kind} ${box.width < 150 || box.height < 56 ? 'wbe-compact' : ''}`}
       style={style}
       title={t('objects.title', { name: label })}
       aria-hidden="true"
     >
-      <div className="object-label">
+      <div className="wbe-object-label">
         <Icon name={obj.kind === 'chart' ? 'chart' : obj.kind === 'image' ? 'image' : 'shape'} />
         <span>
           {obj.title ?? (obj.chartType ? t('objects.typedChart', { type: t.text(obj.chartType) }) : label)}
@@ -121,7 +121,7 @@ export function ObjectsOverlay({
   }, [view, gridRef, tick, rowStart, rowCount]);
 
   return (
-    <div className="objects-overlay" ref={host} style={{ top }}>
+    <div className="wbe-objects-overlay" ref={host} style={{ top }}>
       {boxes.map((b) => {
         const style: CSSProperties = {
           left: b.left,
@@ -132,7 +132,7 @@ export function ObjectsOverlay({
         };
         const placeholder = <Placeholder box={b} style={style} />;
         return b.obj.kind === 'chart' ? (
-          <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="object-box object-chart drawn" style={style} copy={b.continued} />
+          <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
         ) : (
           <Placeholder key={b.key} box={b} style={style} />
         );

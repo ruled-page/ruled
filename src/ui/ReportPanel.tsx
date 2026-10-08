@@ -54,8 +54,8 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
   const openMs = (store.timings.unzipMs ?? 0) + (store.timings.parseMs ?? 0);
 
   return (
-      <div className="report-body">
-        <p className="report-lede">{t('report.lede')}</p>
+      <div className="wbe-report-body">
+        <p className="wbe-report-lede">{t('report.lede')}</p>
         {GROUPS.map((g) => {
           const items = store.findings
             .filter((f) => g.kinds.includes(f.kind))
@@ -65,9 +65,9 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
           return (
             <section key={g.id}>
               <h3>{t(g.title)}</h3>
-              <p className="blurb">{t(g.blurb)}</p>
+              <p className="wbe-blurb">{t(g.blurb)}</p>
               {recalc && calc && (
-                <div className="calc-summary">
+                <div className="wbe-calc-summary">
                   <div>
                     <strong>{t.number(calc.liveCells)}</strong>
                     <span>{t('report.live', { count: calc.liveCells })}</span>
@@ -82,14 +82,14 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
                   </div>
                 </div>
               )}
-              {recalc && !calc && <p className="muted">{t('report.building')}</p>}
-              <ul className="findings">
+              {recalc && !calc && <p className="wbe-muted">{t('report.building')}</p>}
+              <ul className="wbe-findings">
                 {items.map((f, i) => (
-                  <li key={i} className={`finding sev-${f.severity}`}>
-                    <button className="finding-main" onClick={() => go(f)} disabled={!f.sheet}>
-                      <span className="finding-title">{t.text(f.title)}</span>
+                  <li key={i} className={`wbe-finding wbe-sev-${f.severity}`}>
+                    <button className="wbe-finding-main" onClick={() => go(f)} disabled={!f.sheet}>
+                      <span className="wbe-finding-title">{t.text(f.title)}</span>
                       {f.sheet && (
-                        <span className="finding-where">
+                        <span className="wbe-finding-where">
                           {f.sheet}
                           {f.where && parseA1(f.where.split(':')[0]) ? ` · ${f.where}` : ''}
                         </span>
@@ -100,7 +100,7 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
                 ))}
               </ul>
               {recalc && calc && calc.samples.length > 0 && (
-                <details className="samples">
+                <details className="wbe-samples">
                   <summary>
                     {calc.samples.length === MAX_SAMPLES
                       ? t('report.samplesFirst', { n: calc.samples.length })
@@ -110,14 +110,14 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
                     <tbody>
                       {calc.samples.map((s, i) => (
                         <tr key={i}>
-                          <td className="mono">
+                          <td className="wbe-mono">
                             {s.sheet}!{s.ref}
                           </td>
-                          <td className="mono formula">{s.formula}</td>
+                          <td className="wbe-mono wbe-formula">{s.formula}</td>
                           <td>
                             {t.text(s.reason)}
                             {s.excel !== undefined && (
-                              <span className="muted">
+                              <span className="wbe-muted">
                                 {' '}
                                 {t('report.sampleValues', { excel: t.text(s.excel), engine: t.text(s.engine) })}
                               </span>
@@ -134,19 +134,19 @@ export function ReportBody({ store }: { store: WorkbookStore }) {
         })}
         <section>
           <h3>{t('report.markers')}</h3>
-          <ul className="legend">
+          <ul className="wbe-legend">
             <li>
-              <span className="swatch tri grey" /> {t('report.markerUnsupported')}
+              <span className="wbe-swatch wbe-tri wbe-grey" /> {t('report.markerUnsupported')}
             </li>
             <li>
-              <span className="swatch tri amber" /> {t('report.markerStale')}
+              <span className="wbe-swatch wbe-tri wbe-amber" /> {t('report.markerStale')}
             </li>
             <li>
-              <span className="swatch edited" /> {t('report.markerEdited', { toggle: t('toolbar.highlight') })}
+              <span className="wbe-swatch wbe-edited" /> {t('report.markerEdited', { toggle: t('toolbar.highlight') })}
             </li>
           </ul>
         </section>
-        <p className="timings muted">
+        <p className="wbe-timings wbe-muted">
           {calc ? t('report.openedAndChecked', { open: openMs, check: calc.buildMs }) : t('report.opened', { open: openMs })}
         </p>
       </div>

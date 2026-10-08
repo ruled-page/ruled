@@ -141,7 +141,7 @@ test('every page of the portal meets the accessibility checks', async ({ page })
 test('selecting cells never moves the toolbar, and closing the panel gives the grid the room', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openSample(page);
-  const toolbar = page.locator('.toolbar');
+  const toolbar = page.locator('.wbe-toolbar');
   const height = async () => (await toolbar.boundingBox())!.height;
   const before = await height();
   // The row buttons are there, but can't be used until a row of the table is selected.
@@ -152,9 +152,9 @@ test('selecting cells never moves the toolbar, and closing the panel gives the g
   await goTo(page, 'K20');
   expect(await height()).toBe(before);
 
-  const workspace = (await page.locator('.wbe .workspace').boundingBox())!;
-  await page.locator('.report-head').getByRole('button', { name: 'Close' }).click();
-  const area = (await page.locator('.wbe .sheet-area').boundingBox())!;
+  const workspace = (await page.locator('.wbe .wbe-workspace').boundingBox())!;
+  await page.locator('.wbe-report-head').getByRole('button', { name: 'Close' }).click();
+  const area = (await page.locator('.wbe .wbe-sheet-area').boundingBox())!;
   expect(area.x).toBe(workspace.x);
   expect(area.width).toBe(workspace.width);
 });

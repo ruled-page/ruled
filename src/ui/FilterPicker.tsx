@@ -66,10 +66,10 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   };
 
   return (
-    <div className="filter-picker" ref={ref} style={pos} role="dialog" aria-label={t('filter.label')}>
-      <div className="filter-title">{heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}</div>
-      <input className="filter-search" placeholder={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
-      <label className="filter-all">
+    <div className="wbe-filter-picker" ref={ref} style={pos} role="dialog" aria-label={t('filter.label')}>
+      <div className="wbe-filter-title">{heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}</div>
+      <input className="wbe-filter-search" placeholder={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+      <label className="wbe-filter-all">
         <input
           type="checkbox"
           checked={all}
@@ -84,22 +84,22 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
         />
         {t(search ? 'filter.selectAllShown' : 'filter.selectAll')}
       </label>
-      <ul className="filter-values">
+      <ul className="wbe-filter-values">
         {shown.map((v) => (
           <li key={v.text}>
             <label>
               <input type="checkbox" checked={checked.has(v.text)} onChange={() => toggle(v.text)} />
-              <span className={v.text ? undefined : 'muted'}>{v.text || t('filter.blanks')}</span>
-              <span className="filter-count">{t.number(v.count)}</span>
+              <span className={v.text ? undefined : 'wbe-muted'}>{v.text || t('filter.blanks')}</span>
+              <span className="wbe-filter-count">{t.number(v.count)}</span>
             </label>
           </li>
         ))}
       </ul>
-      <p className="filter-note">{t('filter.note')}</p>
-      <div className="filter-actions">
+      <p className="wbe-filter-note">{t('filter.note')}</p>
+      <div className="wbe-filter-actions">
         {choices.allowed && (
           <button
-            className="btn link"
+            className="wbe-btn wbe-link"
             onClick={() => {
               store.setFilter(choices.rect, at.col, undefined);
               store.set('filterPicker', undefined);
@@ -108,11 +108,11 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
             {t('filter.clear')}
           </button>
         )}
-        <span className="spacer" />
-        <button className="btn" onClick={() => store.set('filterPicker', undefined)}>
+        <span className="wbe-spacer" />
+        <button className="wbe-btn" onClick={() => store.set('filterPicker', undefined)}>
           {t('dialog.cancel')}
         </button>
-        <button className="btn primary" onClick={apply} disabled={!checked.size}>
+        <button className="wbe-btn wbe-primary" onClick={apply} disabled={!checked.size}>
           {t('filter.show')}
         </button>
       </div>

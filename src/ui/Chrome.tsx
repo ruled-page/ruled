@@ -14,13 +14,13 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
   if (!ctl) {
     if (!store.schemaMismatch) return null;
     return (
-      <button className="chip chip-warn" onClick={() => store.set('designerOpen', true)} title={t('schemaChip.noneTitle')}>
-        <Icon name="warn" size={14} /> <span className="label">{t('schemaChip.none')}</span>
+      <button className="wbe-chip wbe-chip-warn" onClick={() => store.set('designerOpen', true)} title={t('schemaChip.noneTitle')}>
+        <Icon name="warn" size={14} /> <span className="wbe-label">{t('schemaChip.none')}</span>
       </button>
     );
   }
   const { errors, warnings, pending } = ctl.summary();
-  const tone = errors ? 'chip-error' : warnings ? 'chip-warn' : 'chip-ok';
+  const tone = errors ? 'wbe-chip-error' : warnings ? 'wbe-chip-warn' : 'wbe-chip-ok';
   const status = errors
     ? t('schemaChip.errors', { count: errors })
     : warnings
@@ -31,16 +31,16 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
   const name = t.localized(ctl.schema.name);
   return (
     <button
-      className={`chip ${tone}`}
+      className={`wbe-chip ${tone}`}
       onClick={() => store.set('panel', store.panel === 'issues' ? null : 'issues')}
       title={t('schemaChip.title', { name })}
       aria-label={t('schemaChip.label', { name, status })}
       aria-expanded={store.panel === 'issues'}
     >
       <Icon name={errors || warnings ? 'warn' : 'check'} size={14} />
-      <span className="label">{name}</span>
-      <span className="chip-status">
-        {pending > 0 && <span className="spinner small" />} {status}
+      <span className="wbe-label">{name}</span>
+      <span className="wbe-chip-status">
+        {pending > 0 && <span className="wbe-spinner wbe-small" />} {status}
       </span>
     </button>
   );
@@ -57,93 +57,93 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const outside = across ? t('toolbar.selectColumnFirst') : t('toolbar.selectRowFirst');
   const exact = store.numbers.display === 'full';
   return (
-    <header className="toolbar">
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true">
+    <header className="wbe-toolbar">
+      <div className="wbe-brand">
+        <span className="wbe-brand-mark" aria-hidden="true">
           <Icon name="sheet" size={16} />
         </span>
-        <span className="brand-name">{t('toolbar.brand')}</span>
-        {store.fileName && <span className="file-name">{store.fileName}</span>}
+        <span className="wbe-brand-name">{t('toolbar.brand')}</span>
+        {store.fileName && <span className="wbe-file-name">{store.fileName}</span>}
         {store.editedCount > 0 && (
-          <button className="badge badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title={t('toolbar.changesTitle')}>
+          <button className="wbe-badge wbe-badge-edit" onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')} title={t('toolbar.changesTitle')}>
             {t('toolbar.changes', { count: store.editedCount })}
           </button>
         )}
         {ready && <SchemaChip store={store} />}
-        {store.busy && <span className="spinner" role="status" aria-label={t('toolbar.working')} />}
+        {store.busy && <span className="wbe-spinner" role="status" aria-label={t('toolbar.working')} />}
       </div>
-      <div className="toolbar-actions">
+      <div className="wbe-toolbar-actions">
         {store.features.open && (
-          <button className="btn" onClick={onOpen} title={t('toolbar.openTitle')} aria-label={t('toolbar.open')}>
-            <Icon name="open" /> <span className="label">{t('toolbar.open')}</span>
+          <button className="wbe-btn" onClick={onOpen} title={t('toolbar.openTitle')} aria-label={t('toolbar.open')}>
+            <Icon name="open" /> <span className="wbe-label">{t('toolbar.open')}</span>
           </button>
         )}
-        <div className="btn-group">
-          <button className="btn icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
+        <div className="wbe-btn-group">
+          <button className="wbe-btn wbe-icon" disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
             <Icon name="undo" />
           </button>
-          <button className="btn icon" disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
+          <button className="wbe-btn wbe-icon" disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
             <Icon name="redo" />
           </button>
         </div>
         {growable.length > 0 && (
-          <div className="btn-group">
+          <div className="wbe-btn-group">
             <button
-              className="btn"
+              className="wbe-btn"
               disabled={!target}
               onClick={() => void store.insertRecord()}
               title={target ? t(across ? 'toolbar.insertColumnTitle' : 'toolbar.insertRowTitle') : outside}
               aria-label={t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}
             >
-              <Icon name="plus" /> <span className="label">{t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}</span>
+              <Icon name="plus" /> <span className="wbe-label">{t(across ? 'toolbar.insertColumn' : 'toolbar.insertRow')}</span>
             </button>
             <button
-              className="btn"
+              className="wbe-btn"
               disabled={!target || target.append}
               onClick={() => void store.deleteRecords()}
               title={target ? t(across ? 'toolbar.deleteColumnTitle' : 'toolbar.deleteRowTitle') : outside}
               aria-label={t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}
             >
-              <Icon name="minus" /> <span className="label">{t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}</span>
+              <Icon name="minus" /> <span className="wbe-label">{t(across ? 'toolbar.deleteColumn' : 'toolbar.deleteRow')}</span>
             </button>
           </div>
         )}
-        <label className={`toggle ${!ready ? 'disabled' : ''}`} title={t('toolbar.exactTitle')}>
+        <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.exactTitle')}>
           <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
           <span>{t('toolbar.exact')}</span>
         </label>
-        <label className={`toggle ${!ready ? 'disabled' : ''}`} title={t('toolbar.highlightTitle')}>
+        <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.highlightTitle')}>
           <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
           <span>{t('toolbar.highlight')}</span>
         </label>
         {store.features.schemas && (
-          <button className={`btn ${store.designerOpen ? 'active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
-            <Icon name="schema" /> <span className="label">{t('toolbar.schemas')}</span>
+          <button className={`wbe-btn ${store.designerOpen ? 'wbe-active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
+            <Icon name="schema" /> <span className="wbe-label">{t('toolbar.schemas')}</span>
           </button>
         )}
         {store.features.report && (
           <button
-            className={`btn ${store.panel === 'report' ? 'active' : ''}`}
+            className={`wbe-btn ${store.panel === 'report' ? 'wbe-active' : ''}`}
             disabled={!ready}
             onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
             title={t('toolbar.report')}
             aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
           >
-            <Icon name="info" /> <span className="label">{t('toolbar.report')}</span>
-            {notable > 0 && <span className="count">{t.number(notable)}</span>}
+            <Icon name="info" /> <span className="wbe-label">{t('toolbar.report')}</span>
+            {notable > 0 && <span className="wbe-count">{t.number(notable)}</span>}
           </button>
         )}
-        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
+        <button className="wbe-btn wbe-icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
           <Icon name="keyboard" />
         </button>
         {extra}
         {store.features.save && store.hasSaveHandler && store.features.download && (
-          <button className="btn icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title={t('toolbar.downloadTitle')} aria-label={t('toolbar.download')}>
+          <button className="wbe-btn wbe-icon" disabled={!ready || store.busy} onClick={() => void store.exportCopy()} title={t('toolbar.downloadTitle')} aria-label={t('toolbar.download')}>
             <Icon name="download" />
           </button>
         )}
         {store.features.save && (
-          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
+          <button className="wbe-btn wbe-primary" disabled={!ready || store.busy} onClick={() => void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
             <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
           </button>
         )}
@@ -157,15 +157,15 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
   const m = store.schemaMismatch;
   if (store.schemaBannerDismissed) return null;
   const dismiss = (
-    <button className="btn icon ghost" onClick={() => store.set('schemaBannerDismissed', true)} aria-label={t('banner.dismiss')}>
+    <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('schemaBannerDismissed', true)} aria-label={t('banner.dismiss')}>
       <Icon name="close" />
     </button>
   );
   if (!m && store.schemaNote) {
     return (
-      <div className="banner" role="status">
+      <div className="wbe-banner" role="status">
         <Icon name="schema" />
-        <div className="banner-text">
+        <div className="wbe-banner-text">
           <p>{t.text(store.schemaNote)}</p>
         </div>
         {dismiss}
@@ -174,9 +174,9 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
   }
   if (!m) return null;
   return (
-    <div className="banner banner-warn" role="status">
+    <div className="wbe-banner wbe-banner-warn" role="status">
       <Icon name="warn" />
-      <div className="banner-text">
+      <div className="wbe-banner-text">
         <p>
           {m.name ? (
             <RichText i18nKey="banner.mismatchNamed" values={{ name: t.localized(m.name) }} components={{ b: <strong /> }} />
@@ -194,7 +194,7 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
         )}
       </div>
       {store.features.schemas && (
-        <button className="link" onClick={() => store.set('designerOpen', true)}>
+        <button className="wbe-link" onClick={() => store.set('designerOpen', true)}>
           {t('banner.openDesigner')}
         </button>
       )}
@@ -222,15 +222,15 @@ export function Banner({ store }: { store: WorkbookStore }) {
 
   if (store.bannerDismissed || !summary.length || !store.features.report) return null;
   return (
-    <div className="banner" role="status">
+    <div className="wbe-banner" role="status">
       <Icon name="info" />
       <p>
         <RichText i18nKey="banner.workbookHas" values={{ list: t.list(summary) }} components={{ b: <strong /> }} />
       </p>
-      <button className="link" onClick={() => store.set('panel', 'report')}>
+      <button className="wbe-link" onClick={() => store.set('panel', 'report')}>
         {t('banner.reviewDetails')}
       </button>
-      <button className="btn icon ghost" onClick={() => store.set('bannerDismissed', true)} aria-label={t('banner.dismiss')}>
+      <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('bannerDismissed', true)} aria-label={t('banner.dismiss')}>
         <Icon name="close" />
       </button>
     </div>
@@ -243,12 +243,12 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
   const bound = new Set(store.schema?.binding.sheets.map((s) => s.sheet) ?? []);
   const schemaName = t.localized(store.schema?.schema.name);
   return (
-    <nav className="sheet-tabs" aria-label={t('tabs.label')}>
+    <nav className="wbe-sheet-tabs" aria-label={t('tabs.label')}>
       {store.sheets.map((s, i) =>
         s.info.state !== 'visible' ? null : (
           <button
             key={i}
-            className={`tab ${i === store.active ? 'active' : ''}`}
+            className={`wbe-tab ${i === store.active ? 'wbe-active' : ''}`}
             aria-current={i === store.active ? 'true' : undefined}
             style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
             onClick={() => store.setActive(i)}
@@ -262,7 +262,7 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
         ),
       )}
       {hidden > 0 && (
-        <span className="tabs-note" title={t('tabs.hiddenTitle')}>
+        <span className="wbe-tabs-note" title={t('tabs.hiddenTitle')}>
           {t('tabs.hidden', { count: hidden })}
         </span>
       )}
@@ -296,22 +296,22 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
   const calc = store.calc;
   const fmt = (n: number) => t.number(n, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
   return (
-    <footer className="status-bar">
-      <span className="status-calc" role="status">
+    <footer className="wbe-status-bar">
+      <span className="wbe-status-calc" role="status">
         {store.status === 'ready' && !calc && (
           <>
-            <span className="spinner small" /> {t('status.building')}
+            <span className="wbe-spinner wbe-small" /> {t('status.building')}
           </>
         )}
         {calc?.off && (
           <>
-            <span className="dot" /> {t('status.recalcOff', { count: calc.formulaCells })}
+            <span className="wbe-dot" /> {t('status.recalcOff', { count: calc.formulaCells })}
             {store.recalcStarting ? (
-              <span className="muted">
-                <span className="spinner small" /> {t('status.building')}
+              <span className="wbe-muted">
+                <span className="wbe-spinner wbe-small" /> {t('status.building')}
               </span>
             ) : (
-              <button className="link" onClick={() => void store.enableRecalc()} title={t('status.turnOnTitle')}>
+              <button className="wbe-link" onClick={() => void store.enableRecalc()} title={t('status.turnOnTitle')}>
                 {t('status.turnOn')}
               </button>
             )}
@@ -319,28 +319,28 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
         )}
         {calc && !calc.off && (
           <>
-            <span className="dot ok" /> {t('status.live', { count: calc.liveCells })}
+            <span className="wbe-dot wbe-ok" /> {t('status.live', { count: calc.liveCells })}
             {calc.unsupported + calc.mismatched > 0 &&
               (store.features.report ? (
-                <button className="link" onClick={() => store.set('panel', 'report')}>
+                <button className="wbe-link" onClick={() => store.set('panel', 'report')}>
                   {t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}
                 </button>
               ) : (
-                <span className="muted">{t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}</span>
+                <span className="wbe-muted">{t('status.notCalculated', { count: calc.unsupported + calc.mismatched })}</span>
               ))}
           </>
         )}
       </span>
       {view?.filter && (
-        <span className="status-filter">
+        <span className="wbe-status-filter">
           {t('status.filtered', { count: view.filteredCount })}
-          <button className="link" onClick={() => store.clearFilter()}>
+          <button className="wbe-link" onClick={() => store.clearFilter()}>
             {t('status.showAll')}
           </button>
         </span>
       )}
       {stats && (
-        <span className="status-stats">
+        <span className="wbe-status-stats">
           {stats.nums > 0 && <span>{t('status.average', { value: fmt(stats.sum / stats.nums) })}</span>}
           <span>{t('status.count', { value: t.number(stats.count) })}</span>
           {stats.nums > 0 && <span>{t('status.sum', { value: fmt(stats.sum) })}</span>}

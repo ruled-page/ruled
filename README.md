@@ -203,7 +203,10 @@ e2e/angular.spec.ts` tests it.
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
-`onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`.
+`onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`,
+and every class the editor uses starts `wbe-`, so a host's own `.btn`,
+`.modal` or `.active` rules don't reach into it. Cell editors open in an
+element with id `wbe-portal` that the editor adds to the page.
 
 `features` turns parts of the editor on and off; each is on unless set to
 `false`:

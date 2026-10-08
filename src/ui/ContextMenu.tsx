@@ -51,15 +51,15 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
   }, [onClose]);
 
   return (
-    <div className="context-menu" role="menu" ref={ref} style={pos} onContextMenu={(e) => e.preventDefault()}>
+    <div className="wbe-context-menu" role="menu" ref={ref} style={pos} onContextMenu={(e) => e.preventDefault()}>
       {items.map((item, i) =>
         'separator' in item ? (
-          <div key={i} className="menu-separator" role="separator" />
+          <div key={i} className="wbe-menu-separator" role="separator" />
         ) : (
           <button
             key={i}
             role="menuitem"
-            className={item.danger ? 'danger' : undefined}
+            className={item.danger ? 'wbe-danger' : undefined}
             disabled={item.disabled}
             onClick={() => {
               onClose();

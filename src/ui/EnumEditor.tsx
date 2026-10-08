@@ -48,9 +48,9 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
   };
 
   return (
-    <div className="enum-editor" style={{ minWidth: Math.max(target.width, 160) }}>
+    <div className="wbe-enum-editor" style={{ minWidth: Math.max(target.width, 160) }}>
       <input
-        className="enum-filter"
+        className="wbe-enum-filter"
         autoFocus
         value={filter}
         placeholder={current || t('dropdown.placeholder')}
@@ -79,14 +79,14 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
           }
         }}
       />
-      <ul className="enum-options" id={`${id}-list`} role="listbox" aria-label={t('dropdown.values')} ref={list}>
+      <ul className="wbe-enum-options" id={`${id}-list`} role="listbox" aria-label={t('dropdown.values')} ref={list}>
         {filtered.map((o, i) => (
           <li
             key={o}
             id={`${id}-${i}`}
             role="option"
             aria-selected={i === active}
-            className={i === active ? 'active' : ''}
+            className={i === active ? 'wbe-active' : ''}
             onMouseEnter={() => setActive(i)}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -97,11 +97,11 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
             {o === current && <Icon name="check" size={14} />}
           </li>
         ))}
-        {filtered.length === 0 && <li className="empty">{t('dropdown.noMatch', { filter })}</li>}
+        {filtered.length === 0 && <li className="wbe-empty">{t('dropdown.noMatch', { filter })}</li>}
       </ul>
       {current && (
         <button
-          className="enum-clear"
+          className="wbe-enum-clear"
           // Keeps the focus in the filter, which would otherwise close the editor.
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => choose('', [0, 0])}

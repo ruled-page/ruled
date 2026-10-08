@@ -6,6 +6,7 @@ import { ChartSlot } from '../ui/ChartSlot';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
 import { FormulaBar } from '../ui/FormulaBar';
+import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
@@ -27,38 +28,33 @@ function isTextField(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
-/**
- * Glide renders cell editors into an element with id "portal". Create it
- * when the host page doesn't have one, inside the editor's style scope.
- */
 /** The editor's parts, in the order F6 visits them. */
-const REGIONS = ['.toolbar', '.formula-bar', '.sheet-area', '.report', '.sheet-tabs'];
+const REGIONS = ['.wbe-toolbar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
 /** While the schema designer waits for cells to be picked, F6 goes between the sheet and its bar. */
-const PICKING = ['.pick-bar', '.sheet-area'];
+const PICKING = ['.wbe-pick-bar', '.wbe-sheet-area'];
 
 /** Moves the focus to the next (or previous) part of the editor, as F6 does in Excel. */
 function nextRegion(root: HTMLElement, store: WorkbookStore, back: boolean): void {
-  const present = (root.querySelector('.pick-bar') ? PICKING : REGIONS)
+  const present = (root.querySelector('.wbe-pick-bar') ? PICKING : REGIONS)
     .map((s) => root.querySelector<HTMLElement>(s))
     .filter((el): el is HTMLElement => !!el);
   if (!present.length) return;
   const at = present.findIndex((el) => el.contains(document.activeElement));
   const n = present.length;
   const next = present[at < 0 ? (back ? n - 1 : 0) : (at + (back ? n - 1 : 1)) % n];
-  if (next.matches('.sheet-area') && store.view?.info.kind === 'worksheet') return store.focusGrid();
+  if (next.matches('.wbe-sheet-area') && store.view?.info.kind === 'worksheet') return store.focusGrid();
   const target =
     next.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], [aria-current="true"]') ?? firstFocusable(next) ?? next;
   target.focus();
 }
 
+/** The element Glide opens cell editors in, one for the page, inside the editor's style scope. */
 function ensurePortal(): void {
-  let portal = document.getElementById('portal');
-  if (!portal) {
-    portal = document.createElement('div');
-    portal.id = 'portal';
-    document.body.appendChild(portal);
-  }
-  portal.classList.add('wbe', 'wbe-portal');
+  if (document.getElementById(PORTAL_ID)) return;
+  const portal = document.createElement('div');
+  portal.id = PORTAL_ID;
+  portal.className = 'wbe wbe-portal';
+  document.body.appendChild(portal);
 }
 
 export interface WorkbookEditorProps {
@@ -74,17 +70,17 @@ export interface WorkbookEditorProps {
 function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; canOpen: boolean }) {
   const t = useT();
   return (
-    <div className="center-state">
+    <div className="wbe-center-state">
       {canOpen ? (
-        <button className="dropzone" onClick={openPicker}>
+        <button className="wbe-dropzone" onClick={openPicker}>
           <Icon name="open" size={22} />
           <span>
             <Trans i18nKey="editor.chooseWorkbook" components={{ b: <strong /> }} />
           </span>
-          <span className="muted">{t('editor.chooseWorkbookNote')}</span>
+          <span className="wbe-muted">{t('editor.chooseWorkbookNote')}</span>
         </button>
       ) : (
-        <p className="muted">{t('editor.noWorkbook')}</p>
+        <p className="wbe-muted">{t('editor.noWorkbook')}</p>
       )}
     </div>
   );
@@ -104,13 +100,13 @@ function ChartSheet({ store, view }: { store: WorkbookStore; view: SheetView }) 
       ? t('editor.thisChartTitled', { title })
       : t('editor.thisChart');
   const placeholder = (
-    <div className="center-state">
+    <div className="wbe-center-state">
       <Icon name="chart" size={32} />
       <h2>{view.info.name}</h2>
       <p>{t('editor.chartSheet', { chart: what })}</p>
     </div>
   );
-  return chart ? <ChartSlot store={store} obj={chart} placeholder={placeholder} className="chart-sheet" /> : placeholder;
+  return chart ? <ChartSlot store={store} obj={chart} placeholder={placeholder} className="wbe-chart-sheet" /> : placeholder;
 }
 
 /** The workbook editor: toolbar, formula bar, grid, sheet tabs and panels. */
@@ -136,7 +132,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
   const language = store.t.language;
   useEffect(() => {
     const el = root.current;
-    const portal = document.getElementById('portal');
+    const portal = document.getElementById(PORTAL_ID);
     if (!el || !portal) return;
     const sync = () => {
       copyTheme(el, portal);
@@ -155,7 +151,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
   useEffect(() => {
     // Shortcuts only apply while focus is in this editor (or its popups).
     const inEditor = (target: EventTarget | null) =>
-      target instanceof Node && (root.current?.contains(target) || document.getElementById('portal')?.contains(target));
+      target instanceof Node && (root.current?.contains(target) || document.getElementById(PORTAL_ID)?.contains(target));
     const onKey = (e: KeyboardEvent) => {
       const command = e.metaKey || e.ctrlKey;
       if (!inEditor(e.target) || !root.current) return;
@@ -242,7 +238,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
 
   return (
     <div
-      className={`app ${store.panel ? 'with-report' : ''}`}
+      className={`wbe-app ${store.panel ? 'wbe-with-report' : ''}`}
       onDragOver={(e) => {
         if (canOpen && e.dataTransfer.types.includes('Files')) {
           e.preventDefault();
@@ -275,36 +271,36 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && <SchemaBanner store={store} />}
       {ready && <Banner store={store} />}
       {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
-      <div className="workspace">
+      <div className="wbe-workspace">
         {/* A labelled region, not <main>: the host page has its own. */}
         <section
-          className="sheet-area"
+          className="wbe-sheet-area"
           aria-label={ready ? t('editor.sheetLabel', { name: view.info.name }) : undefined}
           aria-describedby={ready ? `${hintId}-hint` : undefined}
         >
           {ready && (
-            <p id={`${hintId}-hint`} className="sr-only">
+            <p id={`${hintId}-hint`} className="wbe-sr-only">
               {t('editor.sheetHint', { key: shortcutsKey(t) })}
             </p>
           )}
           {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}
           {store.status === 'loading' && (
-            <div className="center-state" role="status">
-              <span className="spinner" aria-hidden="true" />
+            <div className="wbe-center-state" role="status">
+              <span className="wbe-spinner" aria-hidden="true" />
               <p>{t.text(store.stage)}</p>
             </div>
           )}
           {store.status === 'error' && (
-            <div className="center-state error" role="alert">
+            <div className="wbe-center-state wbe-error" role="alert">
               <Icon name="warn" size={28} />
               <p>{t.text(store.error)}</p>
               {store.canReopen && (
-                <button className="btn primary" onClick={() => void store.reopen()}>
+                <button className="wbe-btn wbe-primary" onClick={() => void store.reopen()}>
                   {t('editor.reopen', { fileName: store.fileName })}
                 </button>
               )}
               {canOpen && (
-                <button className="btn" onClick={openPicker}>
+                <button className="wbe-btn" onClick={openPicker}>
                   {t('editor.openAnother')}
                 </button>
               )}
@@ -327,7 +323,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && <SheetTabs store={store} />}
       <StatusBar store={store} view={ready ? view : undefined} selection={ready ? selection : undefined} />
       {dragging && (
-        <div className="drop-overlay">
+        <div className="wbe-drop-overlay">
           <Icon name="open" size={28} />
           <p>{t('editor.dropToOpen')}</p>
         </div>

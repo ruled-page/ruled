@@ -120,20 +120,20 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
         <input value={matchLabel(f.label)} onChange={(e) => set('label', parseLabel(e.target.value))} aria-label={t('designer.field.label')} />
       </td>
       <td>
-        <input className="mono" value={f.key} onChange={(e) => set('key', e.target.value.replace(/\s+/g, ''))} aria-label={t('designer.field.key')} />
+        <input className="wbe-mono" value={f.key} onChange={(e) => set('key', e.target.value.replace(/\s+/g, ''))} aria-label={t('designer.field.key')} />
       </td>
       <td>
         <select value={f.type} onChange={(e) => set('type', e.target.value as FieldType)} aria-label={t('designer.field.type')}>
           {typeOptions(t)}
         </select>
       </td>
-      <td className="center">
+      <td className="wbe-center">
         <input type="checkbox" checked={!!f.required} onChange={(e) => set('required', e.target.checked)} aria-label={t('designer.field.required')} />
       </td>
-      <td className="center">
+      <td className="wbe-center">
         <input type="checkbox" checked={!!f.unique} onChange={(e) => set('unique', e.target.checked)} aria-label={t('designer.field.unique')} />
       </td>
-      <td className="center">
+      <td className="wbe-center">
         <input type="checkbox" checked={!!f.readOnly} onChange={(e) => set('readOnly', e.target.checked)} aria-label={t('designer.field.readOnly')} />
       </td>
       <td>
@@ -146,34 +146,34 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
       {f.type === 'text' ? (
         <>
           <td>
-            <input className="narrow" value={f.minLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('minLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.minLength')} title={t('designer.field.minLengthTitle')} />
+            <input className="wbe-narrow" value={f.minLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('minLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.minLength')} title={t('designer.field.minLengthTitle')} />
           </td>
           <td>
-            <input className="narrow" value={f.maxLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('maxLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.maxLength')} title={t('designer.field.maxLengthTitle')} />
+            <input className="wbe-narrow" value={f.maxLength ?? ''} placeholder={t('designer.field.lengthPlaceholder')} onChange={(e) => set('maxLength', numberOrUndefined(e.target.value))} aria-label={t('designer.field.maxLength')} title={t('designer.field.maxLengthTitle')} />
           </td>
         </>
       ) : (
         <>
           <td>
-            <input className="narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.minimum')} />
+            <input className="wbe-narrow" value={boundText(f.min, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('min', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.minimum')} />
           </td>
           <td>
-            <input className="narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.maximum')} />
+            <input className="wbe-narrow" value={boundText(f.max, f.type)} disabled={!numeric && f.type !== 'date'} placeholder={f.type === 'date' ? t('designer.field.datePlaceholder') : ''} onChange={(e) => set('max', boundOrUndefined(e.target.value, f.type))} aria-label={t('designer.field.maximum')} />
           </td>
         </>
       )}
       <td>
-        <input className="narrow" value={f.decimals ?? ''} disabled={!numeric} onChange={(e) => set('decimals', numberOrUndefined(e.target.value))} aria-label={t('designer.field.decimals')} />
+        <input className="wbe-narrow" value={f.decimals ?? ''} disabled={!numeric} onChange={(e) => set('decimals', numberOrUndefined(e.target.value))} aria-label={t('designer.field.decimals')} />
       </td>
       <td>
         {f.type === 'enum' ? (
           <input value={(f.values ?? []).join(', ')} placeholder={t('designer.field.valuesPlaceholder')} onChange={(e) => set('values', e.target.value.split(',').map((v) => v.trim()).filter(Boolean))} aria-label={t('designer.field.values')} />
         ) : (
-          <input className="mono" value={f.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={f.type === 'boolean'} onChange={(e) => set('pattern', e.target.value || undefined)} aria-label={t('designer.field.pattern')} />
+          <input className="wbe-mono" value={f.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={f.type === 'boolean'} onChange={(e) => set('pattern', e.target.value || undefined)} aria-label={t('designer.field.pattern')} />
         )}
       </td>
       <td>
-        <button className="btn icon ghost" onClick={onRemove} aria-label={t('designer.field.remove')} title={t('designer.field.remove')}>
+        <button className="wbe-btn wbe-icon wbe-ghost" onClick={onRemove} aria-label={t('designer.field.remove')} title={t('designer.field.remove')}>
           <Icon name="trash" size={14} />
         </button>
       </td>
@@ -246,20 +246,20 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
     </option>
   ));
   return (
-    <div className="checks">
+    <div className="wbe-checks">
       <h5>{t('designer.checks.heading')}</h5>
-      {checks.length === 0 && <p className="muted small">{t('designer.checks.none')}</p>}
+      {checks.length === 0 && <p className="wbe-muted wbe-small">{t('designer.checks.none')}</p>}
       <ul>
         {checks.map((c, i) => (
           <li key={i}>
             <span>{describeCheck(c, t)}</span>
-            <button className="btn icon ghost" aria-label={t('designer.checks.remove')} onClick={() => onChange({ ...table, checks: checks.filter((_, j) => j !== i) })}>
+            <button className="wbe-btn wbe-icon wbe-ghost" aria-label={t('designer.checks.remove')} onClick={() => onChange({ ...table, checks: checks.filter((_, j) => j !== i) })}>
               <Icon name="trash" size={14} />
             </button>
           </li>
         ))}
       </ul>
-      <div className="add-check">
+      <div className="wbe-add-check">
         <select
           value={kind}
           onChange={(e) => {
@@ -288,7 +288,7 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
             <option value="decreasing">{t('designer.checks.decreasing')}</option>
           </select>
         )}
-        {(kind === 'firstEquals' || kind === 'sum') && <input className="narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.value')} />}
+        {(kind === 'firstEquals' || kind === 'sum') && <input className="wbe-narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.value')} />}
         {kind === 'compare' && (
           <select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label={t('designer.checks.comparison')}>
             {OPS.map((o) => (
@@ -296,15 +296,15 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
             ))}
           </select>
         )}
-        {kind === 'requiredIf' && <span className="muted small">{t('designer.checks.when')}</span>}
-        {kind === 'uniqueTogether' && <span className="muted small">{t('designer.checks.with')}</span>}
+        {kind === 'requiredIf' && <span className="wbe-muted wbe-small">{t('designer.checks.when')}</span>}
+        {kind === 'uniqueTogether' && <span className="wbe-muted wbe-small">{t('designer.checks.with')}</span>}
         {perRecord && (
           <select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? t('designer.checks.whenField') : t('designer.checks.otherField')}>
             {fieldOptions}
           </select>
         )}
-        {kind === 'requiredIf' && <input className="narrow" value={param} placeholder={t('designer.checks.anyValue')} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.equals')} />}
-        <button className="btn" onClick={add} disabled={perRecord && target === other}>
+        {kind === 'requiredIf' && <input className="wbe-narrow" value={param} placeholder={t('designer.checks.anyValue')} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.equals')} />}
+        <button className="wbe-btn" onClick={add} disabled={perRecord && target === other}>
           <Icon name="plus" size={14} /> {t('designer.checks.add')}
         </button>
       </div>
@@ -322,10 +322,10 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
     onChange(cells.map((c, j) => (j === i ? next : c)));
   };
   return (
-    <div className="table-block">
+    <div className="wbe-table-block">
       <h5>{t('designer.cells.heading')}</h5>
-      <div className="fields-wrap">
-        <table className="fields">
+      <div className="wbe-fields-wrap">
+        <table className="wbe-fields">
           <thead>
             <tr>
               <th>{t('designer.cells.cell')}</th>
@@ -346,40 +346,40 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
               return (
                 <tr key={i}>
                   <td>
-                    <input className="mono narrow" value={c.ref} onChange={(e) => set(i, { ref: e.target.value.toUpperCase() })} aria-label={t('designer.cells.cell')} />
+                    <input className="wbe-mono wbe-narrow" value={c.ref} onChange={(e) => set(i, { ref: e.target.value.toUpperCase() })} aria-label={t('designer.cells.cell')} />
                   </td>
                   <td>
-                    <input className="mono narrow" value={c.label?.ref ?? ''} onChange={(e) => set(i, { label: e.target.value ? { ref: e.target.value.toUpperCase(), text: c.label?.text ?? '' } : undefined })} aria-label={t('designer.cells.labelCell')} />
+                    <input className="wbe-mono wbe-narrow" value={c.label?.ref ?? ''} onChange={(e) => set(i, { label: e.target.value ? { ref: e.target.value.toUpperCase(), text: c.label?.text ?? '' } : undefined })} aria-label={t('designer.cells.labelCell')} />
                   </td>
                   <td>
                     <input value={c.label ? matchLabel(c.label.text) : ''} disabled={!c.label} onChange={(e) => set(i, { label: { ref: c.label!.ref, text: parseLabel(e.target.value) } })} aria-label={t('designer.cells.labelText')} />
                   </td>
                   <td>
-                    <input className="mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label={t('designer.field.key')} />
+                    <input className="wbe-mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label={t('designer.field.key')} />
                   </td>
                   <td>
                     <select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label={t('designer.field.type')}>
                       {typeOptions(t)}
                     </select>
                   </td>
-                  <td className="center">
+                  <td className="wbe-center">
                     <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked })} aria-label={t('designer.field.required')} />
                   </td>
                   <td>
-                    <input className="narrow" value={boundText(c.min, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { min: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.minimum')} />
+                    <input className="wbe-narrow" value={boundText(c.min, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { min: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.minimum')} />
                   </td>
                   <td>
-                    <input className="narrow" value={boundText(c.max, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { max: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.maximum')} />
+                    <input className="wbe-narrow" value={boundText(c.max, c.type)} disabled={!numeric && c.type !== 'date'} onChange={(e) => set(i, { max: boundOrUndefined(e.target.value, c.type) })} aria-label={t('designer.field.maximum')} />
                   </td>
                   <td>
                     {c.type === 'enum' ? (
                       <input value={(c.values ?? []).join(', ')} placeholder={t('designer.field.valuesPlaceholder')} onChange={(e) => set(i, { values: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} aria-label={t('designer.field.values')} />
                     ) : (
-                      <input className="mono" value={c.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={c.type === 'boolean'} onChange={(e) => set(i, { pattern: e.target.value || undefined })} aria-label={t('designer.field.pattern')} />
+                      <input className="wbe-mono" value={c.pattern ?? ''} placeholder={t('designer.field.patternPlaceholder')} disabled={c.type === 'boolean'} onChange={(e) => set(i, { pattern: e.target.value || undefined })} aria-label={t('designer.field.pattern')} />
                     )}
                   </td>
                   <td>
-                    <button className="btn icon ghost" onClick={() => onChange(cells.filter((_, j) => j !== i))} aria-label={t('designer.cells.remove')} title={t('designer.cells.remove')}>
+                    <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => onChange(cells.filter((_, j) => j !== i))} aria-label={t('designer.cells.remove')} title={t('designer.cells.remove')}>
                       <Icon name="trash" size={14} />
                     </button>
                   </td>
@@ -437,7 +437,7 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
   };
   return (
     <div
-      className="pick-bar"
+      className="wbe-pick-bar"
       role="dialog"
       aria-label={t('designer.pick.label')}
       onKeyDown={(e) => {
@@ -447,12 +447,12 @@ function PickBar({ store, draft, kind }: { store: WorkbookStore; draft: Workbook
       <Icon name="schema" />
       <span>
         {kind === 'table' ? t('designer.pick.tableHint') : t('designer.pick.cellHint')}{' '}
-        <span className="sr-only">{t('designer.pick.f6')}</span>
+        <span className="wbe-sr-only">{t('designer.pick.f6')}</span>
       </span>
-      <button className="btn primary" onClick={add}>
+      <button className="wbe-btn wbe-primary" onClick={add}>
         {kind === 'table' ? t('designer.pick.addTable', { ref: toA1(rect.r1, rect.c1) }) : t('designer.pick.addCell', { ref: toA1(sel.row, sel.col) })}
       </button>
-      <button className="btn" onClick={() => store.set('designerPick', undefined)}>
+      <button className="wbe-btn" onClick={() => store.set('designerPick', undefined)}>
         {t('designer.pick.back')}
       </button>
     </div>
@@ -584,55 +584,55 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
   if (picking) return <PickBar store={store} draft={draft!} kind={store.designerPick!} />;
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => store.set('designerOpen', false)}>
+    <div className="wbe-modal-backdrop" onMouseDown={() => store.set('designerOpen', false)}>
       <div
         ref={dialog}
-        className="designer"
+        className="wbe-designer"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${titleId}-title`}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <header className="designer-head">
+        <header className="wbe-designer-head">
           <h2 id={`${titleId}-title`}>
             <Icon name="schema" /> {t('designer.title')}
           </h2>
-          <button className="btn icon ghost" onClick={() => store.set('designerOpen', false)} aria-label={t('designer.close')}>
+          <button className="wbe-btn wbe-icon wbe-ghost" onClick={() => store.set('designerOpen', false)} aria-label={t('designer.close')}>
             <Icon name="close" />
           </button>
         </header>
-        <div className="designer-body">
-          <nav className="designer-list">
+        <div className="wbe-designer-body">
+          <nav className="wbe-designer-list">
             <h3>{t('designer.list.heading')}</h3>
-            <p className="muted small">{t('designer.list.intro')}</p>
+            <p className="wbe-muted wbe-small">{t('designer.list.intro')}</p>
             <ul>
               {store.schemas.map((s) => (
-                <li key={s.id} className={draft?.id === s.id ? 'selected' : ''}>
-                  <button className="schema-item" onClick={() => startFrom(s)}>
+                <li key={s.id} className={draft?.id === s.id ? 'wbe-selected' : ''}>
+                  <button className="wbe-schema-item" onClick={() => startFrom(s)}>
                     <strong>{t.localized(s.name)}</strong>
-                    <span className="mono small">{s.id}</span>
-                    <span className="tags">
-                      {s.id === activeId && <span className="tag tag-ok">{t('designer.list.applied')}</span>}
-                      {hasHooks(s) && <span className="tag">{t('designer.list.codeHooks')}</span>}
+                    <span className="wbe-mono wbe-small">{s.id}</span>
+                    <span className="wbe-tags">
+                      {s.id === activeId && <span className="wbe-tag wbe-tag-ok">{t('designer.list.applied')}</span>}
+                      {hasHooks(s) && <span className="wbe-tag">{t('designer.list.codeHooks')}</span>}
                     </span>
                   </button>
-                  <div className="item-actions">
-                    <button className="btn icon ghost" title={t('designer.exportJson')} aria-label={t('designer.list.export', { name: t.localized(s.name) })} onClick={() => download(`${s.id}.schema.json`, schemaToJSON(s))}>
+                  <div className="wbe-item-actions">
+                    <button className="wbe-btn wbe-icon wbe-ghost" title={t('designer.exportJson')} aria-label={t('designer.list.export', { name: t.localized(s.name) })} onClick={() => download(`${s.id}.schema.json`, schemaToJSON(s))}>
                       <Icon name="download" size={14} />
                     </button>
-                    <button className="btn icon ghost" title={t('designer.list.removeTitle')} aria-label={t('designer.list.remove', { name: t.localized(s.name) })} onClick={() => store.removeSchema(s.id)}>
+                    <button className="wbe-btn wbe-icon wbe-ghost" title={t('designer.list.removeTitle')} aria-label={t('designer.list.remove', { name: t.localized(s.name) })} onClick={() => store.removeSchema(s.id)}>
                       <Icon name="trash" size={14} />
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
-            <div className="list-actions">
-              <button className="btn primary" disabled={!ready} onClick={generate} title={ready ? '' : t('designer.list.generateNeedsWorkbook')}>
+            <div className="wbe-list-actions">
+              <button className="wbe-btn wbe-primary" disabled={!ready} onClick={generate} title={ready ? '' : t('designer.list.generateNeedsWorkbook')}>
                 <Icon name="sparkle" /> {t('designer.list.generate')}
               </button>
-              <button className="btn" onClick={() => importInput.current?.click()}>
+              <button className="wbe-btn" onClick={() => importInput.current?.click()}>
                 <Icon name="upload" /> {t('designer.list.import')}
               </button>
               <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={(e) => {
@@ -642,9 +642,9 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
             </div>
           </nav>
 
-          <section className="designer-editor">
+          <section className="wbe-designer-editor">
             {!draft && (
-              <div className="center-state static">
+              <div className="wbe-center-state wbe-static">
                 <Icon name="schema" size={28} />
                 <p>{t('designer.empty')}</p>
               </div>
@@ -666,42 +666,42 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                     setMode(next);
                   }}
                   head={(tabs) => (
-                    <div className="editor-tabs">
+                    <div className="wbe-editor-tabs">
                       {tabs}
                       {originalHadHooks && (
-                        <p className="hint warn">{t(store.isHostSchema(draft?.id ?? '') ? 'designer.hooksKept' : 'designer.hooksWarning')}</p>
+                        <p className="wbe-hint wbe-warn">{t(store.isHostSchema(draft?.id ?? '') ? 'designer.hooksKept' : 'designer.hooksWarning')}</p>
                       )}
                     </div>
                   )}
                 >
                   {mode === 'json' ? (
-                    <div className="json-editor">
-                      <textarea className="mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label={t('designer.json.label')} />
-                      {jsonError && <p className="hint error">{t.text(jsonError)}</p>}
+                    <div className="wbe-json-editor">
+                      <textarea className="wbe-mono" value={jsonText} spellCheck={false} onChange={(e) => setJsonText(e.target.value)} aria-label={t('designer.json.label')} />
+                      {jsonError && <p className="wbe-hint wbe-error">{t.text(jsonError)}</p>}
                     </div>
                   ) : (
-                    <div className="form">
-                      <div className="grid-form">
+                    <div className="wbe-form">
+                      <div className="wbe-grid-form">
                         <label>
                           {t('designer.schema.name')}
                           <input value={t.localized(draft.name)} onChange={(e) => edit((d) => void (d.name = editLocalized(d.name, t.language, e.target.value)))} />
                         </label>
                         <label>
                           {t('designer.schema.id')}
-                          <input className="mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
+                          <input className="wbe-mono" value={draft.id} onChange={(e) => edit((d) => void (d.id = e.target.value.replace(/\s+/g, '-')))} />
                         </label>
                         <label>
                           {t('designer.schema.version')}
-                          <input className="mono" value={draft.version ?? ''} placeholder={t('designer.schema.versionPlaceholder')} onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title={t('designer.schema.versionTitle')} />
+                          <input className="wbe-mono" value={draft.version ?? ''} placeholder={t('designer.schema.versionPlaceholder')} onChange={(e) => edit((d) => void (d.version = e.target.value.trim() || undefined))} title={t('designer.schema.versionTitle')} />
                         </label>
                         <label>
                           {t('designer.schema.hookTimeout')}
-                          <input className="narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
+                          <input className="wbe-narrow" value={draft.hookTimeoutMs === undefined ? '' : draft.hookTimeoutMs / 1000} placeholder="10" onChange={(e) => edit((d) => {
                             const n = numberOrUndefined(e.target.value);
                             d.hookTimeoutMs = n === undefined ? undefined : Math.round(n * 1000);
                           })} />
                         </label>
-                        <label className="wide">
+                        <label className="wbe-wide">
                           {t('designer.schema.description')}
                           <input
                             value={t.localized(draft.description)}
@@ -738,8 +738,8 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                       </div>
 
                       {draft.sheets.map((sheet, si) => (
-                        <div key={si} className="sheet-block">
-                          <div className="sheet-head">
+                        <div key={si} className="wbe-sheet-block">
+                          <div className="wbe-sheet-head">
                             <label>
                               {t('designer.sheet.name')}
                               <input value={matchLabel(sheet.name)} onChange={(e) => edit((d) => void (d.sheets[si].name = parseLabel(e.target.value)))} />
@@ -751,11 +751,11 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                 <option value="editable">{t('designer.schema.editable')}</option>
                               </select>
                             </label>
-                            <label className="inline">
+                            <label className="wbe-inline">
                               <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> {t('designer.sheet.optional')}
                             </label>
-                            {!viewFor(sheet) && ready && <span className="tag tag-warn">{t('designer.sheet.missing')}</span>}
-                            <button className="btn icon ghost" aria-label={t('designer.sheet.remove')} title={t('designer.sheet.remove')} onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
+                            {!viewFor(sheet) && ready && <span className="wbe-tag wbe-tag-warn">{t('designer.sheet.missing')}</span>}
+                            <button className="wbe-btn wbe-icon wbe-ghost" aria-label={t('designer.sheet.remove')} title={t('designer.sheet.remove')} onClick={() => edit((d) => void d.sheets.splice(si, 1))}>
                               <Icon name="trash" size={14} />
                             </button>
                           </div>
@@ -764,15 +764,15 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                             onChange={(cells) => edit((d) => void (d.sheets[si].cells = cells.length ? cells : undefined))}
                           />
                           {(sheet.tables ?? []).map((table, ti) => (
-                            <div key={ti} className="table-block">
-                              <div className="table-head">
+                            <div key={ti} className="wbe-table-block">
+                              <div className="wbe-table-head">
                                 <label>
                                   {t('designer.table.key')}
-                                  <input className="mono" value={table.key} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].key = e.target.value))} />
+                                  <input className="wbe-mono" value={table.key} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].key = e.target.value))} />
                                 </label>
                                 <label>
                                   {t('designer.table.at')}
-                                  <input className="mono narrow" value={table.at} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].at = e.target.value.toUpperCase()))} />
+                                  <input className="wbe-mono wbe-narrow" value={table.at} onChange={(e) => edit((d) => void (d.sheets[si].tables![ti].at = e.target.value.toUpperCase()))} />
                                 </label>
                                 <label>
                                   {t('designer.table.orientation')}
@@ -781,7 +781,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                     <option value="columns">{t('designer.table.columns')}</option>
                                   </select>
                                 </label>
-                                <label className="inline" title={t('designer.table.fixedTitle')}>
+                                <label className="wbe-inline" title={t('designer.table.fixedTitle')}>
                                   <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} />{' '}
                                   {table.orientation === 'columns' ? t('designer.table.fixedColumns') : t('designer.table.fixedRows')}
                                 </label>
@@ -789,33 +789,33 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                   <>
                                     <label>
                                       {t('designer.table.minRecords')}
-                                      <input className="narrow" value={table.records?.min ?? ''} onChange={(e) => edit((d) => {
+                                      <input className="wbe-narrow" value={table.records?.min ?? ''} onChange={(e) => edit((d) => {
                                         const tb = d.sheets[si].tables![ti];
                                         tb.records = { ...tb.records, min: numberOrUndefined(e.target.value) };
                                       })} />
                                     </label>
                                     <label>
                                       {t('designer.table.maxRecords')}
-                                      <input className="narrow" value={table.records?.max ?? ''} onChange={(e) => edit((d) => {
+                                      <input className="wbe-narrow" value={table.records?.max ?? ''} onChange={(e) => edit((d) => {
                                         const tb = d.sheets[si].tables![ti];
                                         tb.records = { ...tb.records, max: numberOrUndefined(e.target.value) };
                                       })} />
                                     </label>
                                   </>
                                 )}
-                                <button className="btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title={t('designer.table.rereadTitle')}>
+                                <button className="wbe-btn" disabled={!viewFor(sheet)} onClick={() => reread(si, ti, {})} title={t('designer.table.rereadTitle')}>
                                   {t('designer.table.reread')}
                                 </button>
                               </div>
                               {table.records?.labels && (
-                                <p className="muted small">
+                                <p className="wbe-muted wbe-small">
                                   {t(table.orientation === 'columns' ? 'designer.table.fixedColumnLabels' : 'designer.table.fixedRowLabels', {
                                     labels: table.records.labels.map((l) => matchLabel(l)).join(', '),
                                   })}
                                 </p>
                               )}
-                              <div className="fields-wrap">
-                                <table className="fields">
+                              <div className="wbe-fields-wrap">
+                                <table className="wbe-fields">
                                   <thead>
                                     <tr>
                                       <th>{t('designer.field.label')}</th>
@@ -845,7 +845,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                 </table>
                               </div>
                               <ChecksEditor table={table} onChange={(next) => edit((d) => void (d.sheets[si].tables![ti] = next))} />
-                              <button className="btn ghost small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
+                              <button className="wbe-btn wbe-ghost wbe-small" onClick={() => edit((d) => void d.sheets[si].tables!.splice(ti, 1))}>
                                 <Icon name="trash" size={14} /> {t('designer.table.remove')}
                               </button>
                             </div>
@@ -853,14 +853,14 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                         </div>
                       ))}
                       {ready && (
-                        <div className="pick-actions">
-                          <span className="muted small">
+                        <div className="wbe-pick-actions">
+                          <span className="wbe-muted wbe-small">
                             {store.view ? t('designer.pick.prompt', { sheet: store.view.info.name }) : t('designer.pick.promptNoSheet')}
                           </span>
-                          <button className="btn" onClick={() => store.set('designerPick', 'table')}>
+                          <button className="wbe-btn" onClick={() => store.set('designerPick', 'table')}>
                             <Icon name="plus" size={14} /> {t('designer.pick.table')}
                           </button>
-                          <button className="btn" onClick={() => store.set('designerPick', 'cell')}>
+                          <button className="wbe-btn" onClick={() => store.set('designerPick', 'cell')}>
                             <Icon name="plus" size={14} /> {t('designer.pick.cell')}
                           </button>
                         </div>
@@ -870,7 +870,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                 </Tabs>
 
                 {testResult && (
-                  <div className={`test-result ${testResult.ok ? 'ok' : 'bad'}`}>
+                  <div className={`wbe-test-result ${testResult.ok ? 'wbe-ok' : 'wbe-bad'}`}>
                     <Icon name={testResult.ok ? 'check' : 'warn'} />
                     <div>
                       <strong>{testResult.ok ? t('designer.test.matches') : t('designer.test.noMatch')}</strong>
@@ -889,18 +889,18 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
           </section>
         </div>
         {draft && (
-          <footer className="designer-foot">
-            <button className="btn" onClick={() => {
+          <footer className="wbe-designer-foot">
+            <button className="wbe-btn" onClick={() => {
               const d = currentDraft();
               if (d) download(`${d.id}.schema.json`, schemaToJSON(d));
             }}>
               <Icon name="download" /> {t('designer.exportJson')}
             </button>
-            <span className="spacer" />
-            <button className="btn" disabled={!ready} onClick={test}>
+            <span className="wbe-spacer" />
+            <button className="wbe-btn" disabled={!ready} onClick={test}>
               {t('designer.test.run')}
             </button>
-            <button className="btn primary" onClick={apply}>
+            <button className="wbe-btn wbe-primary" onClick={apply}>
               <Icon name="check" /> {t('designer.apply')}
             </button>
           </footer>

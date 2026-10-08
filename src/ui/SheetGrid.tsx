@@ -36,6 +36,7 @@ import type { Selection, WorkbookStore } from '../state/store';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
+import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, glideTheme, readGridPalette, type GridPalette } from './gridPalette';
 import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
 import { useT } from '../i18n/react';
@@ -543,7 +544,7 @@ export function SheetGrid({
   useEffect(() => {
     const inEditorField = () => {
       const active = document.activeElement;
-      return !!active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest('.gdg-clip-region, .dvn-scroller');
+      return !!active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest(`.${GLIDE_CLIP_REGION}, .${GLIDE_SCROLLER}`);
     };
     const write = (e: ClipboardEvent, cut: boolean) => {
       if (inEditorField() || !host.current?.contains(document.activeElement)) return;
@@ -719,7 +720,7 @@ export function SheetGrid({
   );
 
   return (
-    <div className={`grid-host ${className ?? ''}`} ref={host} style={hostStyle}>
+    <div className={`wbe-grid-host ${className ?? ''}`} ref={host} style={hostStyle}>
       <DataEditorCore
         ref={ref}
         key={view.info.index}
