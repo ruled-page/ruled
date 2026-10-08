@@ -10,6 +10,8 @@ let sessions: WorkbookSession[] = [];
 let at = 0;
 /** How many structural changes can be undone; older states are let go to free memory. */
 const STRUCTURE_UNDO_LIMIT = 20;
+/** Each state kept for undo holds the whole workbook: for large ones, fewer are kept. */
+const UNDO_CELL_BUDGET = 5_000_000;
 
 const scope = self as unknown as {
   postMessage(message: WorkerResponse): void;
@@ -22,6 +24,8 @@ function post(message: WorkerResponse): void {
 
 /** Makes `next` the current session and sends the whole workbook to the UI. */
 function adopt(next: WorkbookSession, id: number, warnings: Text[] = []): void {
+  // Only the current state needs a calculation engine; one kept for undo builds it again if it is gone back to.
+  if (session && session !== next) session.releaseEngine();
   session = next;
   const report = next.calcReport;
   calcSent = !!report;
@@ -102,7 +106,8 @@ scope.onmessage = (e) => {
         const next = session.restructure(req.op);
         sessions = sessions.slice(0, at + 1);
         sessions.push(next);
-        if (sessions.length > STRUCTURE_UNDO_LIMIT + 1) sessions.shift();
+        const limit = Math.max(1, Math.min(STRUCTURE_UNDO_LIMIT, Math.floor(UNDO_CELL_BUDGET / Math.max(1, next.cellCount))));
+        while (sessions.length > limit + 1) sessions.shift();
         at = sessions.length - 1;
         adopt(next, req.id, next.structureWarnings);
         break;

@@ -87,18 +87,18 @@ describe('the workbook worker', () => {
     await tick();
     const inserted = send({ type: 'structure', op: { type: 'insertRows', sheet: 0, at: 0, count: 1 } } as Omit<WorkerRequest, 'id'>);
     expect(inserted).toMatchObject({ type: 'restructured', editedCount: 1, report: undefined, warnings: [] });
-    // Undone before the new workbook's engine was built, so that build is skipped; the old one has its engine.
+    // Undone before the new workbook's engine was built, so that build is skipped. The old one let go of
+    // its engine when it went into the undo history, and builds it again.
     const undone = send({ type: 'undoStructure' } as Omit<WorkerRequest, 'id'>);
-    expect(undone).toMatchObject({ type: 'restructured', editedCount: 0 });
-    expect(undone.type === 'restructured' && undone.report).toBeTruthy();
+    expect(undone).toMatchObject({ type: 'restructured', editedCount: 0, report: undefined });
     await tick();
-    expect(posted.filter((p) => p.type === 'calc')).toHaveLength(1);
+    expect(posted.filter((p) => p.type === 'calc')).toHaveLength(2);
 
     const redone = send({ type: 'redoStructure' } as Omit<WorkerRequest, 'id'>);
     expect(redone).toMatchObject({ type: 'restructured', editedCount: 1 });
     expect(errorOf(send({ type: 'redoStructure' } as Omit<WorkerRequest, 'id'>))).toBe('There is nothing to redo.');
     await tick();
-    expect(posted.filter((p) => p.type === 'calc')).toHaveLength(2);
+    expect(posted.filter((p) => p.type === 'calc')).toHaveLength(3);
   });
 
   it('drops what could be redone after a new structural change', async () => {

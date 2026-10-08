@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
+import { CellFlag } from '../src/core/types';
 import { english } from '../src/i18n';
 
 /**
@@ -69,5 +70,32 @@ describe('precision', () => {
     const sheetXml = new TextDecoder().decode(unzipSync(next.save())['xl/worksheets/sheet1.xml']);
     expect(sheetXml).toContain('<v>2234567890.12</v>');
     expect(sheetXml).toContain('<v>88765432.1235</v>');
+  });
+});
+
+describe('a state kept for undo', () => {
+  it('lets go of its engine and builds it again, with its edits, when gone back to', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Data');
+    [1, 2, 3].forEach((n, i) => (ws.getCell(`A${i + 1}`).value = n));
+    ws.getCell('B1').value = { formula: 'SUM(A1:A3)', result: 6 };
+    ws.getCell('C1').value = { formula: '_xludf.ODD(B1)', result: 7 };
+    ws.getCell('D1').value = { formula: 'C1*2', result: 14 };
+    const s = WorkbookSession.open(new Uint8Array(await wb.xlsx.writeBuffer()), 'undo.xlsx');
+    const before = s.ensureEngine();
+    s.apply({ type: 'input', sheet: 0, row: 0, col: 0, text: '10' });
+    s.restructure({ type: 'insertRows', sheet: 0, at: 5, count: 1 });
+    s.releaseEngine();
+    expect(s.calcReport).toBeUndefined();
+
+    // Back to it: the engine is built again, the edit's results are there, and new edits recalculate.
+    const again = s.ensureEngine();
+    expect([again.formulaCells, again.unsupported]).toEqual([before.formulaCells, before.unsupported]);
+    expect(s.current(0, 0, 0).content).toEqual({ kind: 'number', value: 10 });
+    const r = s.apply({ type: 'input', sheet: 0, row: 1, col: 0, text: '20' });
+    expect(r.updates.find((u) => u.row === 0 && u.col === 1)?.n).toBe(33);
+    // The formula the engine can't calculate, and the one reading it, are still marked out of date.
+    expect(s.stateUpdates().filter((u) => u.flags & CellFlag.Stale).map((u) => u.col).sort()).toEqual([2, 3]);
+    expect(s.cellCount).toBe(6);
   });
 });

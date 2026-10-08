@@ -802,6 +802,27 @@ export class WorkbookSession {
     };
   }
 
+  /**
+   * Lets go of the calculation engine, which for a large workbook holds
+   * hundreds of megabytes, while this session waits in the undo history.
+   * Its values stay; going back to it builds the engine again, with the
+   * edits it holds.
+   */
+  releaseEngine(): void {
+    if (!this.engine) return;
+    this.engine.destroy();
+    this.engine = undefined;
+    this.report = undefined;
+    // Worked out again when the engine is rebuilt.
+    this.untrusted = [];
+    for (const m of this.calcFlags) m.clear();
+  }
+
+  /** How many cells the workbook holds, to size how much undo history it can keep. */
+  get cellCount(): number {
+    return this.model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
+  }
+
   /** Turns live recalculation on: builds the engine, brings in this session's edits, and reports it. */
   enableRecalc(): CalcReport {
     if (!this.recalcOff) return this.ensureEngine();
