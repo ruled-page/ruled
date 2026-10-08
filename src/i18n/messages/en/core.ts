@@ -10,7 +10,7 @@ export const core = {
   'core.open.notPackage': 'This file is not a valid Office Open XML package.',
   'core.open.damaged': "This file is damaged, so it wasn't opened. Excel may be able to repair it.",
   'core.open.noWorkbookPart': 'The workbook part is missing from this file.',
-  'core.open.tooManyCells': 'This workbook has {{cells, number}} cells; the most this editor can hold is {{max, number}}.',
+  'core.open.tooManyCells': 'This workbook has more than {{max, number}} cells, the most this editor can hold.',
   'core.open.macrosBlocked': "This workbook contains macros (VBA or Excel 4.0 macro sheets), which aren't allowed here. Save it as .xlsx in Excel and open that instead.",
   'core.open.activeContentBlocked': "This workbook contains ActiveX controls or embedded objects, which aren't allowed here.",
 

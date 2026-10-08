@@ -209,9 +209,10 @@ bringing back unsaved edits from the draft. If building the calculation
 engine is what failed, the file reopens with live recalculation off.
 
 Opened files are treated as untrusted. Before anything is decompressed the
-editor checks the file size (default limit 200 MB), the total unzipped size
-(1.5 GB), the compression ratio of large parts (zip bombs) and the part
-count; after reading, the cell count (5 million). Parts cut off mid-tag, and
+editor checks the file size (default limit 50 MB), the total unzipped size
+(500 MB), the compression ratio of large parts (zip bombs) and the part
+count; while reading, the cell count (2 million). The defaults suit a
+browser tab on a phone; `limits` raises them. Parts cut off mid-tag, and
 row or column numbers beyond Excel's, are refused as a damaged file; formulas
 over very large ranges or arrays keep Excel's saved values rather than being
 calculated. Macros are VBA projects and Excel 4.0 macro sheets:

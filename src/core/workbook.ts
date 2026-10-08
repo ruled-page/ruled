@@ -1,6 +1,6 @@
 import { msg, TextError, type Message, type MessageKey, type Text } from '../i18n/message';
 import { parseRange, rangeToA1, toA1 } from './refs';
-import { parseSharedStrings, scanSheet, type ScanResult } from './sheetScanner';
+import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
 import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
@@ -160,7 +160,8 @@ function countMatches(xml: string | undefined, re: RegExp): number {
   return xml ? (xml.match(re) ?? []).length : 0;
 }
 
-export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
+/** `cells` counts down the cells read across all sheets; reading stops when it runs out. */
+export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudget): WorkbookModel {
   const rootRels = pkg.rels('');
   const workbookPath =
     rootRels.find((r) => r.type === 'officeDocument')?.target ?? (pkg.has('xl/workbook.xml') ? 'xl/workbook.xml' : '');
@@ -277,7 +278,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     }
 
     const xml = pkg.text(path) ?? '';
-    const scan = scanSheet(xml, sst.strings, sst.rich);
+    const scan = scanSheet(xml, sst.strings, sst.rich, cells);
     info.maxRow = scan.maxRow;
     info.maxCol = scan.maxCol;
 

@@ -11,7 +11,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.open.notPackage': 'Diese Datei ist kein gültiges Office Open XML-Paket.',
   'core.open.damaged': 'Diese Datei ist beschädigt und wurde nicht geöffnet. Excel kann sie möglicherweise reparieren.',
   'core.open.noWorkbookPart': 'In dieser Datei fehlt der Teil mit der Arbeitsmappe.',
-  'core.open.tooManyCells': 'Diese Arbeitsmappe hat {{cells, number}} Zellen; dieser Editor kann höchstens {{max, number}} aufnehmen.',
+  'core.open.tooManyCells': 'Diese Arbeitsmappe hat mehr als {{max, number}} Zellen; mehr kann dieser Editor nicht aufnehmen.',
   'core.open.macrosBlocked':
     'Diese Arbeitsmappe enthält Makros (VBA oder Excel 4.0-Makroblätter), die hier nicht zulässig sind. Speichern Sie sie in Excel als .xlsx, und öffnen Sie dann diese Datei.',
   'core.open.activeContentBlocked': 'Diese Arbeitsmappe enthält ActiveX-Steuerelemente oder eingebettete Objekte, die hier nicht zulässig sind.',

@@ -51,7 +51,7 @@ import { OoxmlPackage, type PackageLimits } from './zip';
 
 export interface OpenOptions {
   limits?: PackageLimits & {
-    /** Most cells across all sheets. Default 5,000,000. */
+    /** Most cells across all sheets, counted as they are read. Default 2,000,000. */
     maxCells?: number;
   };
   /**
@@ -68,7 +68,7 @@ export interface OpenOptions {
   recalc?: 'auto' | 'on' | 'off';
 }
 
-const DEFAULT_MAX_CELLS = 5_000_000;
+const DEFAULT_MAX_CELLS = 2_000_000;
 
 /**
  * Above these, building the calculation engine takes many seconds and a
@@ -318,13 +318,10 @@ export class WorkbookSession {
     const t0 = performance.now();
     const pkg = OoxmlPackage.open(bytes, options.limits);
     const t1 = performance.now();
-    const model = readWorkbook(pkg, locale);
+    const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
+    const model = readWorkbook(pkg, locale, { left: maxCells, max: maxCells });
     const t2 = performance.now();
     const cells = model.sheets.reduce((n, m) => n + (m.scan?.grid.cols.length ?? 0), 0);
-    const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
-    if (cells > maxCells) {
-      throw new TextError(msg('core.open.tooManyCells', { cells, max: maxCells }));
-    }
     const macros = options.macros ?? 'keep';
     if (model.hasMacros && macros === 'block') {
       throw new TextError(msg('core.open.macrosBlocked'));

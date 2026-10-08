@@ -34,7 +34,7 @@ describe('opening a workbook on a server', () => {
       [new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0]), {}, 'This file is password-protected or in the old .xls format. Only .xlsx and .xlsm files are supported.'],
       [zipSync({ 'hello.txt': strToU8('hi') }), {}, 'This file is not a valid Office Open XML package.'],
       [zipSync({ '[Content_Types].xml': strToU8('<Types/>') }), {}, 'The workbook part is missing from this file.'],
-      [sample('price-list.xlsx'), { limits: { maxCells: 10 } }, 'This workbook has 105 cells; the most this editor can hold is 10.'],
+      [sample('price-list.xlsx'), { limits: { maxCells: 10 } }, 'This workbook has more than 10 cells, the most this editor can hold.'],
     ];
     for (const [bytes, options, message] of cases) {
       let thrown: unknown;

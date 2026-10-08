@@ -1,4 +1,5 @@
 import { makeShifter } from './formula';
+import { msg, TextError } from '../i18n/message';
 import { MAX_COLS, MAX_ROWS, parseRange } from './refs';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import { damaged, decodeEntities, decodeOoxmlText, elements, findTagEnd, parseAttrs } from './xml';
@@ -131,7 +132,13 @@ function isoToSerial(iso: string): number {
   return ms / 86_400_000 + 25_569;
 }
 
-export function scanSheet(xml: string, sst: string[], richStrings: Set<number> = new Set()): ScanResult {
+/** Cells still allowed across the workbook, and the limit, for the message when it is passed. */
+export interface CellBudget {
+  left: number;
+  max: number;
+}
+
+export function scanSheet(xml: string, sst: string[], richStrings: Set<number> = new Set(), budget?: CellBudget): ScanResult {
   const p = /<(\w+:)?worksheet\b/.exec(xml)?.[1] ?? '';
   const rowsA: number[] = [];
   const colsA: number[] = [];
@@ -221,6 +228,8 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
           const col = cellAttrs.r ? colOfRef(cellAttrs.r) : lastCol + 1;
           if (!(col >= 0 && col < MAX_COLS)) throw damaged();
           lastCol = col;
+          // Stop as soon as the workbook has more cells than allowed, before holding them all.
+          if (budget && --budget.left < 0) throw new TextError(msg('core.open.tooManyCells', { max: budget.max }));
           const idx = rowsA.length;
           const key = row * 16384 + col;
           if (key <= lastKey) needsSort = true;

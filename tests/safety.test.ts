@@ -40,7 +40,7 @@ describe('limits on untrusted files', () => {
     const bytes = sample('kitchen-sink.xlsx');
     expect(thrown(() => WorkbookSession.open(bytes, 'k.xlsx', 'en-US', { limits: { maxFileBytes: 1000 } }))).toMatch(/most this editor accepts/);
     expect(thrown(() => WorkbookSession.open(bytes, 'k.xlsx', 'en-US', { limits: { maxUnzippedBytes: 50_000 } }))).toMatch(/unpacks to more than/);
-    expect(thrown(() => WorkbookSession.open(bytes, 'k.xlsx', 'en-US', { limits: { maxCells: 100 } }))).toMatch(/has 1,\d{3} cells/);
+    expect(thrown(() => WorkbookSession.open(bytes, 'k.xlsx', 'en-US', { limits: { maxCells: 100 } }))).toBe('This workbook has more than 100 cells, the most this editor can hold.');
   });
 
   it('refuses a zip bomb before inflating it', () => {
