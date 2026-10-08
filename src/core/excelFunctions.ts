@@ -2,6 +2,7 @@ import { CellError, ErrorType, FunctionArgumentType, FunctionPlugin, HyperFormul
 import { format } from 'numfmt';
 import { AggregateFunctions } from './functions/aggregate';
 import { ArrayFunctions } from './functions/arrays';
+import { BondFunctions } from './functions/bonds';
 import { excelRound } from './functions/common';
 import { InfoFunctions } from './functions/info';
 import { LookupFunctions } from './functions/lookup';
@@ -134,6 +135,7 @@ const rank = {
 const ADDED: FunctionPluginDefinition[] = [
   AggregateFunctions,
   ArrayFunctions,
+  BondFunctions,
   InfoFunctions,
   LookupFunctions,
   MatrixFunctions,

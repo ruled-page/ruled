@@ -869,3 +869,168 @@ describe('regression functions', () => {
     expect(spill('=TREND({1;2},{1;2;3})').values[0][0]).toMatchObject({ error: '#REF!' });
   });
 });
+
+describe('bond and depreciation functions', () => {
+  const S = 'DATE(2011,1,25)';
+  const M = 'DATE(2011,11,15)';
+
+  it('the COUP functions find the coupon period around settlement, in each day-count basis', () => {
+    check([
+      [`COUPDAYBS(${S},${M},2,1)`, 71],
+      [`COUPDAYS(${S},${M},2,1)`, 181],
+      [`COUPDAYSNC(${S},${M},2,1)`, 110],
+      [`COUPNCD(${S},${M},2,1)`, 40678],
+      [`COUPPCD(${S},${M},2,1)`, 40497],
+      [`COUPNUM(${S},${M},2,1)`, 2],
+      ['COUPNUM(DATE(2007,1,25),DATE(2008,11,15),2,1)', 4],
+      [`COUPNUM(${S},${M},4)`, 4],
+      [`COUPNUM(${S},${M},1)`, 1],
+      [`COUPDAYBS(${S},${M},2)`, 70],
+      [`COUPDAYS(${S},${M},2,0)`, 180],
+      [`COUPDAYSNC(${S},${M},2,0)`, 110],
+      [`COUPDAYBS(${S},${M},2,2)`, 71],
+      [`COUPDAYS(${S},${M},2,2)`, 180],
+      [`COUPDAYS(${S},${M},2,3)`, 182.5],
+      [`COUPDAYBS(${S},${M},2,4)`, 70],
+      // Month-end maturities keep their coupons at month end; others keep their day.
+      ['COUPPCD(DATE(2011,3,15),DATE(2011,8,31),2,1)', 40602],
+      ['COUPNCD(DATE(2011,3,15),DATE(2011,8,31),2,1)', 40786],
+      ['COUPDAYS(DATE(2011,3,15),DATE(2011,8,31),2,1)', 184],
+      ['COUPDAYSNC(DATE(2011,3,15),DATE(2011,8,31),2,1)', 169],
+      ['COUPPCD(DATE(2011,12,1),DATE(2012,8,30),2,1)', 40785],
+      ['COUPPCD(DATE(2011,5,15),DATE(2011,11,15),2,1)', 40678],
+      // 30/360 day counts, US and European, at the ends of months.
+      ['COUPDAYBS(DATE(2011,3,15),DATE(2011,8,31),2,0)', 15],
+      ['COUPDAYBS(DATE(2011,3,15),DATE(2011,8,31),2,4)', 17],
+      ['COUPDAYBS(DATE(2011,2,28),DATE(2011,11,30),2,4)', 88],
+      ['COUPDAYBS(DATE(2011,1,31),DATE(2011,11,15),2,0)', 76],
+      ['COUPDAYBS(DATE(2011,2,28),DATE(2011,11,15),2,0)', 103],
+      ['COUPDAYBS(DATE(2011,5,20),DATE(2011,11,15),2,0)', 5],
+      [`COUPDAYBS(${M},${S},2,1)`, NUM],
+      [`COUPDAYBS(${S},${M},3,1)`, NUM],
+      [`COUPDAYBS(${S},${M},2,5)`, NUM],
+      [`COUPDAYBS(${S},${M},2,-1)`, NUM],
+      [`COUPDAYBS("x",${M},2,1)`, VALUE],
+    ]);
+    // Dates are serial numbers of the workbook's own date system.
+    const e = new CalcEngine([{ name: 'S', rows: [] }], [], true);
+    expect(e.calculate(`=COUPNCD(${S},${M},2,1)-DATE(2011,5,15)`, 0)).toBe(0);
+    e.destroy();
+  });
+
+  it('PRICE and YIELD value a bond and invert each other, with simple interest in the last period', () => {
+    check([
+      ['PRICE(DATE(2008,2,15),DATE(2017,11,15),0.0575,0.065,100,2,0)', 94.6343616213221],
+      ['ROUND(YIELD(DATE(2008,2,15),DATE(2016,11,15),0.0575,95.04287,100,2,0),6)', 0.065],
+      ['YIELD(DATE(2008,2,15),DATE(2017,11,15),0.0575,PRICE(DATE(2008,2,15),DATE(2017,11,15),0.0575,0.065,100,2,0),100,2,0)', 0.065],
+      ['PRICE(DATE(2008,2,15),DATE(2008,5,15),0.0575,0.065,100,2,0)', 99.792512300123],
+      ['YIELD(DATE(2008,2,15),DATE(2008,5,15),0.0575,PRICE(DATE(2008,2,15),DATE(2008,5,15),0.0575,0.065,100,2,0),100,2,0)', 0.065],
+      ['YIELD(DATE(2008,2,15),DATE(2016,11,15),0,95,100,2,0)', 0.00587069021396558],
+      ['YIELD(DATE(2008,2,15),DATE(2016,11,15),0.0575,10^10,100,2,0)', NUM],
+      ['PRICE(DATE(2008,2,15),DATE(2017,11,15),-0.1,0.065,100,2,0)', NUM],
+      ['PRICE(DATE(2008,2,15),DATE(2017,11,15),0.0575,-0.1,100,2,0)', NUM],
+      ['PRICE(DATE(2008,2,15),DATE(2017,11,15),0.0575,0.065,0,2,0)', NUM],
+      ['PRICE(DATE(2008,2,15),DATE(2017,11,15),0.0575,0.065,100,3,0)', NUM],
+      ['YIELD(DATE(2008,2,15),DATE(2016,11,15),0.0575,0,100,2,0)', NUM],
+      ['YIELD(DATE(2008,2,15),DATE(2016,11,15),-0.1,95,100,2,0)', NUM],
+      ['YIELD(DATE(2016,2,15),DATE(2008,11,15),0.0575,95,100,2,0)', NUM],
+    ]);
+  });
+
+  it('DURATION and MDURATION', () => {
+    check([
+      ['DURATION(DATE(2018,7,1),DATE(2048,1,1),0.08,0.09,2,1)', 10.9191452815919],
+      ['MDURATION(DATE(2008,1,1),DATE(2016,1,1),0.08,0.09,2,1)', 5.73566981391884],
+      ['DURATION(DATE(2018,7,1),DATE(2048,1,1),-0.08,0.09,2,1)', NUM],
+      ['MDURATION(DATE(2008,1,1),DATE(2016,1,1),0.08,-0.09,2,1)', NUM],
+      ['DURATION(DATE(2048,7,1),DATE(2018,1,1),0.08,0.09,2,1)', NUM],
+    ]);
+  });
+
+  it('ACCRINT accrues over each coupon period, from issue or from the first interest date', () => {
+    const DOC = 'DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2';
+    check([
+      [`ACCRINT(${DOC},0)`, 16.666666666666668],
+      ['ACCRINT(DATE(2008,3,5),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2,0,FALSE())', 15.555555555555555],
+      ['ACCRINT(DATE(2008,4,5),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2,0,TRUE())', 7.222222222222222],
+      [`ACCRINT(${DOC},1)`, 16.576086956521738],
+      [`ACCRINT(${DOC},2)`, 16.944444444444443],
+      [`ACCRINT(${DOC},3)`, 16.71232876712329],
+      [`ACCRINT(${DOC},4)`, 16.666666666666668],
+      ['ACCRINT(DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,,2)', 16.666666666666668],
+      ['ACCRINT(DATE(2020,1,1),DATE(2020,7,1),DATE(2021,3,1),0.1,1000,2,0,TRUE())', 116.66666666666667],
+      ['ACCRINT(DATE(2020,1,1),DATE(2020,7,1),DATE(2021,3,1),0.1,1000,2,0,FALSE())', 66.66666666666667],
+      ['ACCRINT(DATE(2019,10,1),DATE(2020,7,1),DATE(2020,3,1),0.1,1000,2,0)', 41.666666666666664],
+      ['ACCRINT(DATE(2009,3,15),DATE(2008,8,31),DATE(2009,5,15),0.1,1000,2,0)', 16.666666666666668],
+      ['ACCRINT(DATE(2008,5,1),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2)', NUM],
+      [`ACCRINT(DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0,1000,2)`, NUM],
+      [`ACCRINT(DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,0,2)`, NUM],
+      [`ACCRINT(${DOC},7)`, NUM],
+      ['ACCRINT(DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,3)', NUM],
+    ]);
+  });
+
+  it('ACCRINTM and the discounted securities count the fraction of a year as YEARFRAC does', () => {
+    check([
+      ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0.1,1000,3)', 20.54794520547945],
+      ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0.1,1000,1)', 20.491803278688526],
+      ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0.1)', 20.555555555555557],
+      // US 30/360 at the ends of months, and actual/actual across years.
+      ['ACCRINTM(DATE(2010,1,31),DATE(2010,3,31),0.36,1000,0)', 60],
+      ['ACCRINTM(DATE(2010,1,31),DATE(2010,3,15),0.36,1000,0)', 45],
+      ['ACCRINTM(DATE(2010,1,30),DATE(2010,3,31),0.36,1000,0)', 60],
+      ['ACCRINTM(DATE(2010,2,28),DATE(2011,2,28),0.36,1000,0)', 360],
+      ['ACCRINTM(DATE(2010,2,28),DATE(2010,3,31),0.36,1000,0)', 31],
+      ['ACCRINTM(DATE(2010,1,31),DATE(2010,3,31),0.36,1000,4)', 60],
+      ['ACCRINTM(DATE(2010,1,1),DATE(2012,1,1),0.1,1000,1)', 199.81751824817516],
+      ['ACCRINTM(DATE(2011,6,1),DATE(2012,5,1),0.1,1000,1)', 91.53005464480874],
+      ['ACCRINTM(DATE(2011,3,1),DATE(2012,2,29),0.1,1000,1)', 99.72677595628416],
+      ['ACCRINTM(DATE(2012,2,1),DATE(2013,1,15),0.1,1000,1)', 95.35519125683061],
+      ['ACCRINTM(DATE(2011,1,1),DATE(2011,7,1),0.1,1000,1)', 49.58904109589041],
+      ['ACCRINTM(DATE(2008,6,15),DATE(2008,4,1),0.1,1000,3)', NUM],
+      ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0,1000,3)', NUM],
+      ['ACCRINTM(DATE(2008,4,1),DATE(2008,6,15),0.1,1000,5)', NUM],
+      ['DISC(DATE(2018,7,1),DATE(2048,1,1),97.975,100,1)', 0.000686384169121347],
+      ['INTRATE(DATE(2008,2,15),DATE(2008,5,15),1000000,1014420,2)', 0.05768],
+      ['RECEIVED(DATE(2008,2,15),DATE(2008,5,15),1000000,0.0575,2)', 1014584.6544071],
+      ['PRICEDISC(DATE(2008,2,16),DATE(2008,3,1),0.0525,100,2)', 99.79583333333333],
+      ['YIELDDISC(DATE(2008,2,16),DATE(2008,3,1),99.795,100,2)', 0.0528225719868583],
+      ['PRICEMAT(DATE(2008,2,15),DATE(2008,4,13),DATE(2007,11,11),0.061,0.061,0)', 99.9844988755569],
+      ['PRICEMAT(DATE(2008,2,15),DATE(2008,4,13),DATE(2008,2,15),0.061,0.061,0)', 100],
+      ['PRICEMAT(DATE(2008,2,15),DATE(2008,4,13),DATE(2008,3,1),0.061,0.061,0)', 99.4604162670447],
+      ['YIELDMAT(DATE(2008,3,15),DATE(2008,11,3),DATE(2007,11,8),0.0625,100.0123,0)', 0.0609543336915387],
+      ['RECEIVED(DATE(2008,2,15),DATE(2018,5,15),1000,0.5,2)', NUM],
+      ['DISC(DATE(2048,1,1),DATE(2018,7,1),97.975,100,1)', NUM],
+      ['DISC(DATE(2018,7,1),DATE(2048,1,1),0,100,1)', NUM],
+      ['INTRATE(DATE(2008,2,15),DATE(2008,5,15),1000000,1014420,9)', NUM],
+      ['PRICEMAT(DATE(2008,4,13),DATE(2008,2,15),DATE(2007,11,11),0.061,0.061,0)', NUM],
+      ['PRICEMAT(DATE(2008,2,15),DATE(2008,4,13),DATE(2007,11,11),-0.061,0.061,0)', NUM],
+      ['YIELDMAT(DATE(2008,3,15),DATE(2008,11,3),DATE(2007,11,8),0.0625,0,0)', NUM],
+      ['YIELDMAT(DATE(2008,11,3),DATE(2008,3,15),DATE(2007,11,8),0.0625,100,0)', NUM],
+    ]);
+  });
+
+  it('VDB depreciates by declining balance, switching to straight-line unless told not to', () => {
+    check([
+      ['VDB(2400,300,10*365,0,1)', 1.3150684931506849],
+      ['VDB(2400,300,10*12,0,1)', 40],
+      ['VDB(2400,300,10,0,1)', 480],
+      ['VDB(2400,300,10*12,6,18)', 396.306053264752],
+      ['VDB(2400,300,10*12,6,18,1.5)', 311.808936658233],
+      ['VDB(2400,300,10,0,0.875,1.5)', 315],
+      ['VDB(2400,300,10,0,3,2,TRUE())', 1171.2],
+      ['VDB(2400,300,10,0,3)', 1171.2],
+      ['VDB(2400,300,10,0.5,2.5,2,TRUE())', 777.6],
+      ['VDB(2400,300,10,0,10)', 2100],
+      ['VDB(2400,300,10,8,10)', 102.653184],
+      ['VDB(2400,300,10,1.5,3.25)', 560.64],
+      ['VDB(1000,100,2,0,1,2)', 900],
+      ['VDB(1000,100,2,1,2,2)', 0],
+      ['VDB(2400,300,10,2,1)', NUM],
+      ['VDB(2400,300,10,0,11)', NUM],
+      ['VDB(2400,3000,10,0,1)', NUM],
+      ['VDB(2400,300,10,0,1,0)', NUM],
+      ['VDB(-1,0,10,0,1)', NUM],
+    ]);
+  });
+});
