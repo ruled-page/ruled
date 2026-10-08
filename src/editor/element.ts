@@ -63,7 +63,8 @@ declare global {
  * Methods: open(), save(), download(), getWorkbook(), registerSchema(), setTheme(), setLanguage().
  * Events: `ready`, `change` (detail: { editedCount, unsaved }), `save` (detail:
  * the saved workbook with its bytes, changes, values and readers; call
- * `detail.waitUntil(promise)` to keep the save pending while you store it).
+ * `detail.waitUntil(promise)` to keep the save pending while you store it),
+ * `editorerror` (detail: { message }) when the editor stops working.
  */
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
@@ -115,6 +116,10 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       this.handle = mount(this.container, {
         ...this.opts,
         onSave: viaEvent ? (file) => this.emitSave(file) : this.opts.onSave,
+        onError: (error) => {
+          this.dispatchEvent(new CustomEvent('editorerror', { detail: { message: error.message } }));
+          this.opts.onError?.(error);
+        },
       });
       this.unsubscribe = this.handle.subscribe(() => {
         const edited = this.handle?.editedCount ?? 0;

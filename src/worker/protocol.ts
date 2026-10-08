@@ -35,4 +35,6 @@ export type WorkerResponse =
    * report if it is already built (otherwise a 'calc' message follows).
    */
   | { id: number; type: 'restructured'; result: LoadResult; updates: CellUpdate[]; editedCount: number; report?: CalcReport; warnings: Text[] }
-  | { id: number; type: 'error'; message: string; text?: Text };
+  | { id: number; type: 'error'; message: string; text?: Text }
+  /** Building the calculation engine failed; the workbook can't carry on in this worker. */
+  | { type: 'failed'; text: Text };

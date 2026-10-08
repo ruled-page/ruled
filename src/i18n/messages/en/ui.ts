@@ -308,6 +308,7 @@ export const ui = {
   'editor.chooseWorkbook': '<b>Choose a workbook</b> or drop it here',
   'editor.chooseWorkbookNote': '.xlsx or .xlsm, processed entirely in your browser',
   'editor.noWorkbook': 'No workbook is open.',
+  'editor.reopen': 'Reopen {{fileName}}',
   'editor.openAnother': 'Open another file',
   'editor.dropToOpen': 'Drop to open',
   'editor.thisChart': 'This chart',

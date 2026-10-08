@@ -26,18 +26,32 @@ function adopt(next: WorkbookSession, id: number, warnings: Text[] = []): void {
   const report = next.calcReport;
   calcSent = !!report;
   post({ id, type: 'restructured', result: next.loadResult(), updates: next.stateUpdates(), editedCount: next.editedCount, report, warnings });
-  if (!report) {
-    setTimeout(() => {
-      if (session === next) ensureCalc();
-    }, 0);
-  }
+  if (!report) calcSoon(next);
 }
 
 /** Builds the engine if needed and reports it, so its results always precede edit results. */
 function ensureCalc(): void {
   if (!session || calcSent) return;
   calcSent = true;
-  post({ type: 'calc', report: session.ensureEngine() });
+  try {
+    post({ type: 'calc', report: session.ensureEngine() });
+  } catch (err) {
+    // The session is left half calculated, so nothing more can be done with it here.
+    post({ type: 'failed', text: errorText(err) });
+    throw err;
+  }
+}
+
+/** Builds the engine in the next task, so the grid can show first. */
+function calcSoon(s: WorkbookSession): void {
+  setTimeout(() => {
+    if (session !== s) return;
+    try {
+      ensureCalc();
+    } catch {
+      // Reported as 'failed'.
+    }
+  }, 0);
 }
 
 scope.onmessage = (e) => {
@@ -51,10 +65,7 @@ scope.onmessage = (e) => {
         calcSent = false;
         post({ id: req.id, type: 'opened', result: session.loadResult() });
         // Let the grid render first; the engine builds in the next task.
-        const opened = session;
-        setTimeout(() => {
-          if (session === opened) ensureCalc();
-        }, 0);
+        calcSoon(session);
         break;
       }
       case 'edit': {

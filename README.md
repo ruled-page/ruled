@@ -156,8 +156,14 @@ e2e/angular.spec.ts` tests it.
 
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
-history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`
-and `createWorker`. All styles are scoped under `.wbe`.
+history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
+`onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`.
+
+If the worker can't load, crashes, runs out of memory or spends longer than
+`workerTimeout` (default two minutes) on one task, the editor stops it, calls
+`onError` (the element fires `editorerror`) and offers to reopen the file,
+bringing back unsaved edits from the draft. If building the calculation
+engine is what failed, the file reopens with live recalculation off.
 
 Opened files are treated as untrusted. Before anything is decompressed the
 editor checks the file size (default limit 200 MB), the total unzipped size

@@ -15,6 +15,10 @@ export const store = {
   'store.draft.discard': 'Discard them',
 
   'store.save.failed': 'Could not save: {{reason}}',
+  'store.worker.stopped': "The editor stopped working: its background worker crashed, ran out of memory or couldn't load.",
+  'store.worker.timedOut_one': 'The editor stopped working: it spent more than {{count, number}} second on one task.',
+  'store.worker.timedOut_other': 'The editor stopped working: it spent more than {{count, number}} seconds on one task.',
+  'store.worker.calcFailed': "This workbook couldn't be calculated ({{reason}}). Reopen it to work without live recalculation.",
   'store.save.blocked': 'Not saved. {{reason}}',
   'store.save.withErrorsTitle': 'Save with errors?',
   'store.save.withErrorsBody': '{{reason}} Save the file anyway?',

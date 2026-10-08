@@ -189,7 +189,22 @@ export interface StoreOptions {
    * to recalculate quickly, where the user can turn it on; 'on' and 'off' force it.
    */
   recalc?: OpenOptions['recalc'];
+  /**
+   * Called when the editor stops working: its worker couldn't load, crashed,
+   * ran out of memory or stopped answering. The editor shows what happened
+   * and offers to reopen the file, which brings back unsaved edits when
+   * drafts are on.
+   */
+  onError?: (error: Error) => void;
+  /**
+   * How long the worker may spend on one task, in milliseconds, before it is
+   * taken to have stopped. Default 120,000; 0 waits for ever.
+   */
+  workerTimeout?: number;
 }
+
+/** Default for StoreOptions.workerTimeout. */
+const WORKER_TIMEOUT = 120_000;
 
 function defaultWorker(): Worker {
   return new Worker(new URL('../worker/workbook.worker.ts', import.meta.url), { type: 'module' });
@@ -227,7 +242,7 @@ const isStructure = (e: UndoEntry): e is { structure: Text } => 'structure' in e
 /** What the schema returns for a record change: the edit to make, or why it can't be made. */
 const isEditOp = (x: EditOp | Text): x is EditOp => typeof x === 'object' && typeof (x as { type?: unknown }).type === 'string';
 
-type Pending = { resolve: (r: WorkerResponse) => void; reject: (e: Error) => void };
+type Pending = { resolve: (r: WorkerResponse) => void; reject: (e: Error) => void; timer?: ReturnType<typeof setTimeout> };
 
 const rectCells = (r: Rect) => (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1);
 
@@ -345,6 +360,14 @@ export class WorkbookStore {
   private draftKey?: string;
   private draftOps: DraftOp[] = [];
   private draftTimer?: ReturnType<typeof setTimeout>;
+  /** The draft being written, which reopening waits for. */
+  private draftWrite?: Promise<unknown>;
+  /** The file as opened, to open again if the worker fails. */
+  private source?: { fileName: string; bytes: ArrayBuffer };
+  /** Reopen with live recalculation off: building the engine is what failed. */
+  private reopenWithoutRecalc = false;
+  /** Waits for the engine's report after opening, in case building it hangs. */
+  private calcTimer?: ReturnType<typeof setTimeout>;
   version = 0;
   private readonly options: StoreOptions;
 
@@ -439,11 +462,13 @@ export class WorkbookStore {
 
   /** Stops the worker and releases the workbook. */
   dispose(): void {
-    this.worker?.terminate();
-    this.worker = undefined;
-    for (const p of this.pending.values()) p.reject(new Error('Superseded'));
-    this.pending.clear();
+    this.stopWorker(new Error('Superseded'));
     this.listeners.clear();
+  }
+
+  /** Whether the file can be opened again after the editor stopped working. */
+  get canReopen(): boolean {
+    return this.status === 'error' && !!this.source && !this.worker;
   }
 
   get reportOpen(): boolean {
@@ -533,12 +558,22 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Worker plumbing
 
+  private get timeout(): number {
+    return this.options.workerTimeout ?? WORKER_TIMEOUT;
+  }
+
+  /** A timer that declares the worker stopped if it is still running when the time is up. */
+  private watchdog(worker: Worker): ReturnType<typeof setTimeout> | undefined {
+    if (!this.timeout) return undefined;
+    return setTimeout(() => this.workerFailed(worker, msg('store.worker.timedOut', { count: Math.max(1, Math.round(this.timeout / 1000)) })), this.timeout);
+  }
+
   private request(req: Omit<WorkerRequest, 'id'> & { type: WorkerRequest['type'] }, transfer: Transferable[] = []): Promise<WorkerResponse> {
     const worker = this.worker;
-    if (!worker) return Promise.reject(new TextError(msg('store.noWorkbook')));
+    if (!worker) return Promise.reject(new TextError(this.status === 'error' && this.error ? this.error : msg('store.noWorkbook')));
     const id = ++this.seq;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, timer: this.watchdog(worker) });
       worker.postMessage({ ...req, id } as WorkerRequest, transfer);
     });
   }
@@ -546,16 +581,79 @@ export class WorkbookStore {
   private onMessage = (e: MessageEvent<WorkerResponse>) => {
     const res = e.data;
     if (res.type === 'calc') {
+      clearTimeout(this.calcTimer);
       this.applyCalc(res.report);
       this.notify();
+      return;
+    }
+    if (res.type === 'failed') {
+      if (this.worker) this.workerFailed(this.worker, msg('store.worker.calcFailed', { reason: res.text }), true);
       return;
     }
     const p = this.pending.get(res.id);
     if (!p) return;
     this.pending.delete(res.id);
+    clearTimeout(p.timer);
     if (res.type === 'error') p.reject(new TextError(res.text ?? res.message));
     else p.resolve(res);
+    // The engine is built after the workbook is shown; its report should follow.
+    if ((res.type === 'opened' || (res.type === 'restructured' && !res.report)) && this.worker) {
+      clearTimeout(this.calcTimer);
+      this.calcTimer = this.watchdog(this.worker);
+    }
   };
+
+  /** Creates a worker for one file, listening for it failing as well as for its answers. */
+  private startWorker(): Worker {
+    const worker = (this.options.createWorker ?? defaultWorker)();
+    worker.onmessage = this.onMessage;
+    // A worker that can't load, throws outside a request, or runs out of memory reports here.
+    worker.onerror = (e: ErrorEvent) => {
+      e.preventDefault?.();
+      this.workerFailed(worker, msg('store.worker.stopped'));
+    };
+    worker.onmessageerror = () => this.workerFailed(worker, msg('store.worker.stopped'));
+    return worker;
+  }
+
+  /** Ends the worker and fails every request still waiting on it. */
+  private stopWorker(reason: Error): void {
+    this.worker?.terminate();
+    this.worker = undefined;
+    clearTimeout(this.calcTimer);
+    for (const p of this.pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(reason);
+    }
+    this.pending.clear();
+  }
+
+  /**
+   * The worker stopped working: it is ended, waiting requests fail, and the
+   * editor shows what happened with an offer to reopen the file. Unsaved
+   * edits are written to the draft now rather than after the usual pause.
+   */
+  private workerFailed(worker: Worker, reason: Text, calculating = false): void {
+    if (worker !== this.worker) return;
+    const error = new TextError(reason);
+    this.stopWorker(error);
+    if (this.draftKey && this.draftOps.length) {
+      clearTimeout(this.draftTimer);
+      this.draftWrite = saveDraft({ key: this.draftKey, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps }).catch(() => undefined);
+    }
+    this.reopenWithoutRecalc = calculating;
+    Object.assign(this, { status: 'error', error: reason, busy: false, stage: '' });
+    this.queue = Promise.resolve();
+    this.notify();
+    this.options.onError?.(new Error(this.t.text(reason)));
+  }
+
+  /** Opens the file again after the editor stopped working, offering back unsaved edits. */
+  async reopen(): Promise<void> {
+    if (!this.canReopen || !this.source) return;
+    await this.draftWrite;
+    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined);
+  }
 
   // ---------------------------------------------------------------------------
   // Opening and saving
@@ -573,14 +671,19 @@ export class WorkbookStore {
       return;
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
+    await this.load(fileName, bytes);
+  }
+
+  /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed. */
+  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc']): Promise<void> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
-    this.worker?.terminate();
-    for (const p of this.pending.values()) p.reject(new Error('Superseded'));
-    this.pending.clear();
+    this.stopWorker(new Error('Superseded'));
     // A fresh worker per file releases the previous workbook's memory.
-    this.worker = (this.options.createWorker ?? defaultWorker)();
-    this.worker.onmessage = this.onMessage;
+    this.worker = this.startWorker();
+    // The worker gets a copy, leaving the caller's buffer intact and one to reopen from.
+    this.source = { fileName, bytes };
+    this.reopenWithoutRecalc = false;
     Object.assign(this, {
       status: 'loading',
       stage: msg('store.open.reading', { fileName }),
@@ -604,9 +707,10 @@ export class WorkbookStore {
     this.selections.clear();
     this.notify();
     try {
+      const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, recalc: this.options.recalc } } as Omit<WorkerRequest, 'id'>,
-        [bytes],
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
+        [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
       const r = res.result;
@@ -624,6 +728,8 @@ export class WorkbookStore {
       this.refreshConditionalFormats(this.active);
     } catch (err) {
       if ((err as Error).message === 'Superseded') return;
+      // A failed worker has already said so.
+      if (this.status === 'error') return;
       this.status = 'error';
       this.error = errorText(err);
     }

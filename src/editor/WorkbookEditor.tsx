@@ -290,6 +290,11 @@ function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
             <div className="center-state error" role="alert">
               <Icon name="warn" size={28} />
               <p>{t.text(store.error)}</p>
+              {store.canReopen && (
+                <button className="btn primary" onClick={() => void store.reopen()}>
+                  {t('editor.reopen', { fileName: store.fileName })}
+                </button>
+              )}
               {canOpen && (
                 <button className="btn" onClick={openPicker}>
                   {t('editor.openAnother')}

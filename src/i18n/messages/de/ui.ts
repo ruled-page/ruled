@@ -306,6 +306,7 @@ export const ui: Record<keyof typeof en, string> = {
   'editor.chooseWorkbook': '<b>Arbeitsmappe auswählen</b> oder hier ablegen',
   'editor.chooseWorkbookNote': '.xlsx oder .xlsm, vollständig in Ihrem Browser verarbeitet',
   'editor.noWorkbook': 'Es ist keine Arbeitsmappe geöffnet.',
+  'editor.reopen': '{{fileName}} erneut öffnen',
   'editor.openAnother': 'Andere Datei öffnen',
   'editor.dropToOpen': 'Zum Öffnen ablegen',
   'editor.thisChart': 'Dieses Diagramm',

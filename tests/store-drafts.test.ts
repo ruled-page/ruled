@@ -80,6 +80,20 @@ describe('drafts of unsaved changes', () => {
     expect(store.undoStack).toHaveLength(3);
   });
 
+  it('keeps the latest edit at once when the worker fails, and offers it back on reopening', async () => {
+    await open();
+    await store.input(1, 1, '5');
+    // The worker dies before the usual pause for writing the draft is over.
+    (store as unknown as { worker: { onerror: (e: object) => void } }).worker.onerror({});
+    expect(store.canReopen).toBe(true);
+    const reopening = store.reopen();
+    for (let i = 0; i < 200 && !store.confirmRequest; i++) await new Promise((r) => setTimeout(r, 5));
+    expect(english.text(store.confirmRequest?.title)).toBe('Restore unsaved changes?');
+    store.confirmRequest?.resolve('confirm');
+    await reopening;
+    expect([cell(1, 1)?.n, cell(1, 3)?.n]).toEqual([5, 15]);
+  });
+
   it('forgets the draft once every change is undone', async () => {
     kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
     await open({}, 'confirm');

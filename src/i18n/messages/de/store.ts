@@ -19,6 +19,10 @@ export const store: Record<keyof typeof en, string> = {
   'store.draft.discard': 'Verwerfen',
 
   'store.save.failed': 'Speichern nicht möglich: {{reason}}',
+  'store.worker.stopped': 'Der Editor funktioniert nicht mehr: Sein Hintergrundprozess ist abgestürzt, hatte nicht genug Speicher oder konnte nicht geladen werden.',
+  'store.worker.timedOut_one': 'Der Editor funktioniert nicht mehr: Er hat für eine Aufgabe mehr als {{count, number}} Sekunde gebraucht.',
+  'store.worker.timedOut_other': 'Der Editor funktioniert nicht mehr: Er hat für eine Aufgabe mehr als {{count, number}} Sekunden gebraucht.',
+  'store.worker.calcFailed': 'Diese Arbeitsmappe konnte nicht berechnet werden ({{reason}}). Öffnen Sie sie erneut, um ohne automatische Neuberechnung zu arbeiten.',
   'store.save.blocked': 'Nicht gespeichert. {{reason}}',
   'store.save.withErrorsTitle': 'Trotz Fehlern speichern?',
   'store.save.withErrorsBody': '{{reason}} Die Datei trotzdem speichern?',
