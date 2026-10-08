@@ -107,7 +107,9 @@ test.describe('sheets, with only a keyboard', () => {
     await choose(page, 'Hide');
     await expect(page.getByRole('alert').filter({ hasText: "A workbook must keep at least one visible sheet, so this one can't be hidden." })).toBeVisible();
 
+    // Past the tabs come New sheet, Sheet menu and the note.
     await tab(page, 'Lines').focus();
+    await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     const note = page.getByRole('button', { name: '1 hidden' });
@@ -132,6 +134,14 @@ test.describe('sheets, with only a keyboard', () => {
     await expect(page.getByRole('menu')).toBeHidden();
     await expect(tab(page, 'Sheet1')).toBeFocused();
   });
+});
+
+test('the sheet menu opens from a button too, for touch screens', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  await page.getByRole('button', { name: 'Sheet menu' }).click();
+  await expect(page.getByRole('menu', { name: 'Sheet “Lines”' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Move right' }).click();
+  await expect.poll(() => tabNames(page)).toEqual(['Summary', 'Lines']);
 });
 
 test('dragging a tab moves its sheet', async ({ page }) => {

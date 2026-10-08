@@ -42,6 +42,7 @@ export const sheets = {
 
   'sheets.add': 'New sheet',
   'sheets.addTitle': 'Add a sheet after the one shown',
+  'sheets.menuButton': 'Sheet menu',
   'sheets.unhideButtonTitle': 'Show a hidden sheet again',
   'sheets.menu.label': 'Sheet “{{sheet}}”',
   'sheets.menu.insert': 'Insert sheet',

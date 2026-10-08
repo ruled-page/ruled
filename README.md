@@ -64,10 +64,10 @@ back as .xlsx without losing what the editor can't display.
   the formula bar shows the rule or its input message. Pasted values and
   formulas aren't checked, as in Excel.
 - Add, rename, delete, move, hide and unhide sheets from each sheet tab's
-  menu (right-click, or Shift+F10 on the tab), the + after the tabs, or by
-  dragging a tab, with Excel's rules for names and the same refusals (the
-  last visible sheet stays; a protected workbook structure changes nothing).
-  Formulas on every sheet, names, charts, validation, conditional formatting,
+  menu (right-click, Shift+F10 on the tab, or the ⋯ after the tabs on a touch
+  screen), the + after the tabs, or by dragging a tab, with Excel's rules for
+  names and the same refusals (the last visible sheet stays; a protected
+  workbook structure changes nothing). Formulas on every sheet, names, charts, validation, conditional formatting,
   table formulas, pivot sources and links within the workbook follow a
   renamed sheet; references to a deleted one become #REF!, and its drawings,
   charts, notes, tables and pivot tables go with it. Each change can be undone.

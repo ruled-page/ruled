@@ -1146,7 +1146,7 @@
   color: var(--wbe-accent);
 }
 
-.wbe .wbe-tab-add {
+.wbe .wbe-tabs-btn {
   align-self: center;
   flex: none;
   height: 26px;

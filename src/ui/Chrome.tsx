@@ -369,8 +369,21 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
             );
           })}
         </div>
-        <button className="wbe-btn wbe-icon wbe-ghost wbe-tab-add" onClick={() => after(store.addSheet(), () => store.active)} title={t('sheets.addTitle')} aria-label={t('sheets.add')}>
+        <button className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn" onClick={() => after(store.addSheet(), () => store.active)} title={t('sheets.addTitle')} aria-label={t('sheets.add')}>
           <Icon name="plus" size={14} />
+        </button>
+        {/* The shown sheet's tab menu, for touch screens (and anyone who looks for it here). */}
+        <button
+          className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn"
+          aria-label={t('sheets.menuButton')}
+          title={t('sheets.menuButton')}
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            openMenu(store.active, r.left, r.top);
+          }}
+        >
+          <Icon name="more" size={14} />
         </button>
         {hidden > 0 &&
           (store.hiddenSheets.length ? (

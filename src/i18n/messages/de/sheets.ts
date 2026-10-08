@@ -40,6 +40,7 @@ export const sheets: Record<keyof typeof en, string> = {
 
   'sheets.add': 'Neues Blatt',
   'sheets.addTitle': 'Nach dem angezeigten Blatt ein neues einfügen',
+  'sheets.menuButton': 'Blattmenü',
   'sheets.unhideButtonTitle': 'Ein ausgeblendetes Blatt wieder einblenden',
   'sheets.menu.label': 'Blatt „{{sheet}}“',
   'sheets.menu.insert': 'Blatt einfügen',
