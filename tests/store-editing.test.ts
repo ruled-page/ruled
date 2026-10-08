@@ -369,10 +369,10 @@ describe('copying and pasting within the workbook', () => {
 
     await open({ numbers: { copy: 'raw' } });
     await store.input(5, 0, '=1/3');
-    expect(store.selectionText(rect(5, 0))).toBe('0.33333333333');
+    expect(store.selectionText(rect(5, 0))).toBe('0.333333333333333');
     store.noteCopy(rect(5, 0));
     // The clipboard holds what was copied here, so the formula comes along.
-    await store.paste({ row: 6, col: 0 }, [['0.33333333333']], rect(6, 0));
+    await store.paste({ row: 6, col: 0 }, [['0.333333333333333']], rect(6, 0));
     expect(cell(6, 0)?.f).toBe('1/3');
   });
 });

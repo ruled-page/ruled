@@ -135,3 +135,16 @@ describe('functions that follow Excel rather than the engine', () => {
     expect(calc('ROUNDUP(-0.0001,2)')).toBe(-0.01);
   });
 });
+
+describe('precision', () => {
+  it('works to 15 significant digits, as Excel does, while hiding float noise', () => {
+    const e = new CalcEngine([sheet('S', [[2234567890.12, 0.1, 0.2]])], [], false);
+    expect(e.calculate('=A1*1', 0)).toBe(2234567890.12);
+    expect(e.calculate('=ROUND(88765432.1234567,4)', 0)).toBe(88765432.1235);
+    expect(e.calculate('=123456789012345*1', 0)).toBe(123456789012345);
+    expect(e.calculate('=B1+C1', 0)).toBe(0.3);
+    expect(e.calculate('=B1+C1=0.3', 0)).toBe(true);
+    expect(e.calculate('=1/3', 0)).toBeCloseTo(1 / 3, 14);
+    e.destroy();
+  });
+});

@@ -153,7 +153,12 @@ export class CalcEngine {
       leapYear1900: false,
       nullDate: date1904 ? { year: 1904, month: 1, day: 1 } : { year: 1899, month: 12, day: 30 },
       evaluateNullToZero: true,
+      // Smart rounding gives Excel's comparisons (0.1+0.2=0.3) and its snapping of
+      // near-zero sums to 0. It also rounds every result, by default to 11
+      // significant digits, which loses cents on large amounts; 15 is Excel's own
+      // precision, and still hides float noise such as 0.30000000000000004.
       smartRounding: true,
+      precisionRounding: 14,
       useArrayArithmetic: true,
       useWildcards: true,
       useRegularExpressions: false,
