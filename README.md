@@ -131,7 +131,9 @@ keyboard-only use, and an axe accessibility scan of every screen, menu and
 dialog in the light and dark themes (run `npx playwright install chromium`
 once first). With `E2E_BROWSERS=all` they run in Firefox and WebKit (Safari's
 engine) as well, after `npx playwright install firefox webkit`; the phone
-tests run in WebKit but not Firefox, which can't emulate a phone.
+tests run in WebKit but not Firefox, which can't emulate a phone. The
+tests start their own servers, on ports 4173 to 4176, and stop when one is
+taken; `E2E_PORT=5273` moves them all.
 `npm run lint` runs Oxlint, with React's hooks rules and accessibility
 checks on the screens (`.oxlintrc.json`). `npm run check:bundle`, after the
 builds, holds each bundle to a size budget and fails if the calculation
@@ -781,8 +783,10 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   leave merges and tables behind, so such moves are refused.
 - Sorting reorders rows as Excel does (formulas move as if copied; references
   from elsewhere don't follow). A selected range keeps its first row in place
-  only when it looks like headings (text over numbers, or bold over plain). Filtering hides rows on screen only; the file
-  keeps its own filter, as it was.
+  only when it looks like headings (text over numbers, or bold over plain). Filtering by values is saved as
+  Excel saves it, with the rows it hides; in a table it is the table's
+  filter. A file's own filter by values can be changed and cleared; one by
+  condition, top ten or colour is kept as the file has it.
 - Sheets can't be added, renamed or deleted.
 - Notes and comments are edited as plain text: a changed note loses any
   bold, colour or other formatting in its text, and a changed comment its

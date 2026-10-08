@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { setCell } from './helpers';
+import { serverUrl, setCell } from './helpers';
 
 /** The <workbook-editor> element in a plain HTML page, saving to the host through its save event. */
 test('hands the host the workbook and its values on save', async ({ page }) => {
-  await page.goto('http://localhost:4174/examples/html/');
+  await page.goto(`${serverUrl('lib')}/examples/html/`);
   await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
 
   await setCell(page, 'B2', '125000');
@@ -29,7 +29,7 @@ test('hands the host the workbook and its values on save', async ({ page }) => {
 });
 
 test('the element says when a workbook opens or can’t be loaded, and keeps it when moved', async ({ page }) => {
-  await page.goto('http://localhost:4174/examples/html/');
+  await page.goto(`${serverUrl('lib')}/examples/html/`);
   await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
   await setCell(page, 'B2', '125000');
 

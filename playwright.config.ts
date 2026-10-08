@@ -7,6 +7,12 @@ const ANGULAR = !!process.env.E2E_ANGULAR;
 const HOST_APP = !!process.env.E2E_HOST_APP;
 /** With E2E_BROWSERS=all, the suite runs in Firefox and WebKit (Safari's engine) as well as Chromium. */
 const ALL_BROWSERS = process.env.E2E_BROWSERS === 'all';
+/**
+ * The app's port, with the library's, the Angular example's and the host
+ * app's after it. E2E_PORT moves them all, so checkouts can run side by side.
+ */
+const PORT = Number(process.env.E2E_PORT ?? 4173);
+process.env.E2E_PORT = String(PORT);
 const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
 
 /**
@@ -30,28 +36,28 @@ export default defineConfig({
   retries: CI ? 1 : 0,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
   },
   // Never another server already on a port: it may be an older build, or another checkout's. A busy port fails the run.
   webServer: [
     {
-      command: 'npx vite build && npx vite preview --port 4173 --strictPort',
-      url: 'http://localhost:4173',
+      command: `npx vite build && npx vite preview --port ${PORT} --strictPort`,
+      url: `http://localhost:${PORT}`,
       reuseExistingServer: false,
       timeout: 180_000,
     },
     {
-      command: `${ANGULAR || HOST_APP ? '' : 'npm run build:lib && '}npx vite --port 4174 --strictPort`,
-      url: 'http://localhost:4174/examples/html/',
+      command: `${ANGULAR || HOST_APP ? '' : 'npm run build:lib && '}npx vite --port ${PORT + 1} --strictPort`,
+      url: `http://localhost:${PORT + 1}/examples/html/`,
       reuseExistingServer: false,
       timeout: 180_000,
     },
     ...(ANGULAR
       ? [
           {
-            command: 'npm --prefix examples/angular run build && npm --prefix examples/angular run preview',
-            url: 'http://localhost:4175',
+            command: `npm --prefix examples/angular run build && cd examples/angular && npx vite preview --outDir dist/browser --port ${PORT + 2} --strictPort`,
+            url: `http://localhost:${PORT + 2}`,
             reuseExistingServer: false,
             timeout: 300_000,
           },
@@ -60,8 +66,8 @@ export default defineConfig({
     ...(HOST_APP
       ? [
           {
-            command: 'node scripts/host-app.mjs && npx vite preview -c e2e/host-app/vite.config.ts --port 4176 --strictPort',
-            url: 'http://localhost:4176/app/',
+            command: `node scripts/host-app.mjs && npx vite preview -c e2e/host-app/vite.config.ts --port ${PORT + 3} --strictPort`,
+            url: `http://localhost:${PORT + 3}/app/`,
             reuseExistingServer: false,
             timeout: 180_000,
           },

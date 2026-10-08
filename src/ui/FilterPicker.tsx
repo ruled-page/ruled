@@ -61,7 +61,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   };
   const apply = () => {
     const everything = choices.values.every((v) => checked.has(v.text));
-    store.setFilter(choices.rect, at.col, everything ? undefined : checked);
+    void store.setFilter(choices.rect, at.col, everything ? undefined : checked);
     store.set('filterPicker', undefined);
   };
 
@@ -101,7 +101,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
           <button
             className="wbe-btn wbe-link"
             onClick={() => {
-              store.setFilter(choices.rect, at.col, undefined);
+              void store.setFilter(choices.rect, at.col, undefined);
               store.set('filterPicker', undefined);
             }}
           >

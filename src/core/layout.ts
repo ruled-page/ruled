@@ -1,6 +1,6 @@
 import { msg, type Text } from '../i18n/message';
 import { colToLetters, MAX_COLS, rangeToA1, toA1 } from './refs';
-import type { CellChange, LayoutOp, Rect, SheetInfo } from './types';
+import type { CellChange, FilterState, LayoutOp, Rect, SheetInfo } from './types';
 import { elements, escapeXml, firstElement, parseAttrs } from './xml';
 
 const sameRect = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
@@ -28,17 +28,63 @@ export class SheetLayout {
   readonly hiddenRows = new Map<number, boolean>();
   frozen?: { rows: number; cols: number };
   merges?: Rect[];
+  /** The filter once changed (null: none), and the rows it hides. */
+  filter?: FilterState | null;
+  filtered?: Set<number>;
   /** The file's layout, copied, as what changes are measured against. */
-  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges'>;
+  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter'>;
   private readonly fileHidden: Record<'rows' | 'cols', Set<number>>;
+  /** The rows the file's filter hides, which are hidden by it rather than by hand. */
+  private readonly fileFiltered: Set<number>;
 
   constructor(info: SheetInfo) {
-    this.file = { colWidths: { ...info.colWidths }, rowHeights: { ...info.rowHeights }, frozenRows: info.frozenRows, frozenCols: info.frozenCols, merges: [...info.merges] };
+    this.file = {
+      colWidths: { ...info.colWidths },
+      rowHeights: { ...info.rowHeights },
+      frozenRows: info.frozenRows,
+      frozenCols: info.frozenCols,
+      merges: [...info.merges],
+      filter: info.filter,
+      autoFilter: info.autoFilter,
+    };
     this.fileHidden = { rows: new Set(info.hiddenRows), cols: new Set(info.hiddenCols) };
+    this.fileFiltered = new Set();
+    const f = info.filter?.rect;
+    if (f) {
+      for (const row of info.hiddenRows) {
+        if (row > f.r1 && row <= f.r2) {
+          this.fileFiltered.add(row);
+          this.fileHidden.rows.delete(row);
+        }
+      }
+    }
   }
 
   get changed(): boolean {
-    return this.colWidths.size + this.rowHeights.size + this.hiddenCols.size + this.hiddenRows.size > 0 || !!this.frozen || !!this.merges;
+    return this.colWidths.size + this.rowHeights.size + this.hiddenCols.size + this.hiddenRows.size > 0 || !!this.frozen || !!this.merges || this.filter !== undefined;
+  }
+
+  get currentFilter(): FilterState | null {
+    return this.filter !== undefined ? this.filter : (this.file.filter ?? null);
+  }
+
+  /** The rows the filter hides now. */
+  get currentFiltered(): Set<number> {
+    return this.filtered ?? this.fileFiltered;
+  }
+
+  get fileFilteredRows(): ReadonlySet<number> {
+    return this.fileFiltered;
+  }
+
+  /** Whether a row is hidden, by hand or by the filter. */
+  rowHidden(row: number): boolean {
+    return this.hidden('rows', row) || this.currentFiltered.has(row);
+  }
+
+  /** The filter as the file is to have it: its range, and the table whose it is, if any. */
+  get fileFilter(): { rect?: Rect; table?: string } {
+    return { rect: this.file.filter?.rect ?? this.file.autoFilter, table: this.file.filter?.table };
   }
 
   colWidth(col: number): number | null {
@@ -78,6 +124,12 @@ export class SheetLayout {
         this.frozen = { rows: op.rows, cols: op.cols };
         return { kind: 'freeze', ...was };
       }
+      case 'filter': {
+        const undo: LayoutOp = { kind: 'filter', filter: this.currentFilter, rows: [...this.currentFiltered] };
+        this.filter = op.filter;
+        this.filtered = new Set(op.rows);
+        return undo;
+      }
       case 'merges': {
         const before = this.mergeList;
         const removed = before.filter((m) => op.remove.some((r) => sameRect(r, m)));
@@ -110,6 +162,14 @@ export class SheetLayout {
     if (f && (f.rows !== this.file.frozenRows || f.cols !== this.file.frozenCols)) {
       if (f.rows || f.cols) note(toA1(f.rows, f.cols), msg('core.change.froze', { cell: toA1(f.rows, f.cols) }));
       else note('', msg('core.change.unfroze'));
+    }
+    if (this.filter !== undefined) {
+      const was = [...this.fileFiltered].sort((a, b) => a - b).join();
+      const now = [...this.currentFiltered].sort((a, b) => a - b).join();
+      const rect = this.filter?.rect ?? this.file.filter?.rect;
+      if (rect && (was !== now || JSON.stringify(this.filter?.columns ?? {}) !== JSON.stringify(this.file.filter?.columns ?? {}))) {
+        note(rangeToA1(rect), this.filter ? msg('core.change.filtered', { count: this.currentFiltered.size }) : msg('core.change.unfiltered'));
+      }
     }
     if (this.merges) {
       for (const m of this.merges) if (!this.file.merges.some((x) => sameRect(x, m))) note(rangeToA1(m), msg('core.change.merged'));
@@ -146,7 +206,10 @@ export function rowAttributes(layout: SheetLayout): Map<number, Record<string, s
   const out = new Map<number, Record<string, string | null>>();
   const set = (row: number, attrs: Record<string, string | null>) => out.set(row, { ...out.get(row), ...attrs });
   for (const [row, px] of layout.rowHeights) set(row, px === null ? { ht: null, customHeight: null } : { ht: String(points(px)), customHeight: '1' });
-  for (const [row, hidden] of layout.hiddenRows) set(row, { hidden: hidden ? '1' : null });
+  // Rows whose visibility changed, by hand or by the filter, are hidden in the file either way.
+  const rows = new Set(layout.hiddenRows.keys());
+  if (layout.filtered) for (const row of new Set([...layout.filtered, ...layout.fileFilteredRows])) rows.add(row);
+  for (const row of rows) set(row, { hidden: layout.rowHidden(row) ? '1' : null });
   return out;
 }
 
@@ -154,8 +217,58 @@ export function rowAttributes(layout: SheetLayout): Map<number, Record<string, s
 export function writeLayout(xml: string, p: string, layout: SheetLayout): string {
   if (layout.colWidths.size || layout.hiddenCols.size) xml = writeCols(xml, p, layout);
   if (layout.frozen) xml = writePane(xml, p, layout.frozen);
+  // A table's filter is in the table's part (see writeTableFilter); the sheet's own is here.
+  if (layout.filter !== undefined) {
+    const sheetRect = layout.fileFilter.table ? undefined : layout.fileFilter.rect;
+    if (layout.filter && !layout.filter.table) xml = writeAutoFilter(xml, p, layout.filter, sheetRect);
+    else if (sheetRect) xml = writeAutoFilter(xml, p, null, sheetRect);
+  }
   if (layout.merges) xml = writeMerges(xml, p, layout.merges);
   return xml;
+}
+
+/** A filter's <filterColumn> elements, with column ids counted from the range's first column. */
+function filterColumnsXml(p: string, filter: FilterState): string {
+  return Object.entries(filter.columns)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([col, values]) => {
+      const blank = values.includes('') ? ' blank="1"' : '';
+      const items = values.filter((v) => v !== '').map((v) => `<${p}filter val="${escapeXml(v)}"/>`).join('');
+      return `<${p}filterColumn colId="${Number(col) - filter.rect.c1}"><${p}filters${blank}>${items}</${p}filters></${p}filterColumn>`;
+    })
+    .join('');
+}
+
+/**
+ * The sheet's <autoFilter>: with the filter's values, or, once cleared,
+ * with none but where the file had it, as Excel keeps the filter buttons.
+ */
+function writeAutoFilter(xml: string, p: string, filter: FilterState | null, fileRect: Rect | undefined): string {
+  const data = firstElement(xml, 'sheetData');
+  if (!data) return xml;
+  const rect = filter?.rect ?? fileRect;
+  const el = rect ? `<${p}autoFilter ref="${rangeToA1(rect)}"${filter ? `>${filterColumnsXml(p, filter)}</${p}autoFilter>` : '/>'}` : '';
+  const existing = firstElement(xml, 'autoFilter', data.end);
+  if (existing) return xml.slice(0, existing.start) + el + xml.slice(existing.end);
+  if (!el) return xml;
+  let at = data.end;
+  for (const name of ['sheetCalcPr', 'sheetProtection', 'protectedRanges', 'scenarios']) {
+    const e = firstElement(xml, name, data.end);
+    if (e && e.end > at) at = e.end;
+  }
+  return xml.slice(0, at) + el + xml.slice(at);
+}
+
+/** A table's part with its filter set, or cleared, in the <autoFilter> that is its first child. */
+export function writeTableFilter(xml: string, filter: FilterState | null, rect: Rect): string {
+  const root = firstElement(xml, 'table');
+  if (!root || root.inner === null) return xml;
+  const p = /^(\w+:)?/.exec(root.qname)?.[1] ?? '';
+  const el = `<${p}autoFilter ref="${rangeToA1(rect)}"${filter ? `>${filterColumnsXml(p, filter)}</${p}autoFilter>` : '/>'}`;
+  const innerStart = root.start + 1 + root.qname.length + root.attrs.length + 1;
+  const existing = firstElement(xml, 'autoFilter', innerStart);
+  if (existing) return xml.slice(0, existing.start) + el + xml.slice(existing.end);
+  return xml.slice(0, innerStart) + el + xml.slice(innerStart);
 }
 
 function writeCols(xml: string, p: string, layout: SheetLayout): string {

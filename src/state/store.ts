@@ -23,6 +23,7 @@ import {
   type BorderEdge,
   type BorderPlacement,
   type Finding,
+  type FilterState,
   type FormatChange,
   type PastePart,
   type LayoutOp,
@@ -1671,22 +1672,36 @@ export class WorkbookStore {
     return { rect, values, allowed: view.filter?.columns.get(col) };
   }
 
-  /** Shows only rows whose value in `col` is one of `allowed`; undefined shows them all again. */
-  setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): void {
+  /**
+   * Shows only rows whose value in `col` is one of `allowed`; undefined
+   * shows them all again. A filter in a table is the table's, as Excel
+   * keeps it; the file keeps the filter, and the rows it hides, when saved.
+   */
+  async setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): Promise<void> {
     const view = this.view;
     if (!view) return;
     const columns = new Map(view.filter?.columns ?? []);
     if (allowed) columns.set(col, allowed);
     else columns.delete(col);
-    view.setFilter(view.filter?.rect ?? rect, columns, (row, c) => this.shownText(view, row, c));
-    this.notify();
+    let target = view.filter?.rect ?? rect;
+    let table = view.filter?.table;
+    if (!view.filter) {
+      const t = view.info.tables.find((x) => x.rect.r1 <= target.r2 && x.rect.r2 >= target.r1 && x.rect.c1 <= target.c2 && x.rect.c2 >= target.c1);
+      if (t) {
+        target = { ...t.rect, r2: t.rect.r2 - t.totalsRows };
+        table = t.name;
+      }
+    }
+    const rows = columns.size ? SheetView.rowsFilteredBy(target, columns, (row, c) => this.shownText(view, row, c)) : [];
+    const filter: FilterState | null = columns.size
+      ? { rect: target, columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])), ...(table ? { table } : {}) }
+      : null;
+    await this.changeLayout({ kind: 'filter', filter, rows }, msg(filter ? 'store.history.filter' : 'store.history.clearFilter'));
   }
 
-  clearFilter(): void {
-    const view = this.view;
-    if (!view?.filter) return;
-    view.setFilter(view.filter.rect, new Map(), () => '');
-    this.notify();
+  async clearFilter(): Promise<void> {
+    if (!this.view?.filter) return;
+    await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.clearFilter'));
   }
 
   // ---------------------------------------------------------------------------

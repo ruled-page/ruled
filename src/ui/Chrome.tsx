@@ -367,7 +367,7 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
       {view?.filter && (
         <span className="wbe-status-filter">
           {t('status.filtered', { count: view.filteredCount })}
-          <button className="wbe-link" onClick={() => store.clearFilter()}>
+          <button className="wbe-link" onClick={() => void store.clearFilter()}>
             {t('status.showAll')}
           </button>
         </span>

@@ -1,7 +1,7 @@
 import { msg, type Text } from '../i18n/message';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterState, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -39,6 +39,13 @@ export class SheetView {
     this.grid = grid;
     this.indexMerges();
     for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
+    // The file's own filter: the rows it hides are hidden by it, and showing them again clears it.
+    if (info.filter) {
+      const f = info.filter;
+      this.filter = { rect: f.rect, columns: new Map(Object.entries(f.columns).map(([c, v]) => [Number(c), new Set(v)])), table: f.table };
+      for (const row of info.hiddenRows) if (row > f.rect.r1 && row <= f.rect.r2) this.filteredOut.add(row);
+      info.hiddenRows = info.hiddenRows.filter((row) => !this.filteredOut.has(row));
+    }
     for (const n of info.notes) this.notes.set(cellKey(n.row, n.col), n);
     this.extendTo(Math.max(info.maxRow, 0), Math.max(info.maxCol, 0));
   }
@@ -88,6 +95,9 @@ export class SheetView {
         info.frozenRows = op.rows;
         info.frozenCols = op.cols;
         break;
+      case 'filter':
+        this.applyFilter(op.filter, op.rows);
+        break;
       case 'merges': {
         const same = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
         info.merges = [...info.merges.filter((m) => !op.remove.some((r) => same(r, m))), ...op.add.filter((a) => !info.merges.some((m) => same(m, a)))];
@@ -122,29 +132,33 @@ export class SheetView {
   }
 
   /**
-   * A filter applied in this editor: the range it covers (its first row
-   * holds the headings) and, per column, the values whose rows stay visible.
-   * It hides rows on screen only; the file's own filter is left as it was.
+   * The filter: the range it covers (its first row holds the headings) and,
+   * per column, the values whose rows stay visible; the table whose filter
+   * it is, when it is one's.
    */
-  filter?: { rect: Rect; columns: Map<number, Set<string>> };
+  filter?: { rect: Rect; columns: Map<number, Set<string>>; table?: string };
   private readonly filteredOut = new Set<number>();
 
-  /** Shows only the rows of `rect` whose text in every filtered column is allowed; no columns clears it. */
-  setFilter(rect: Rect, columns: Map<number, Set<string>>, textAt: (row: number, col: number) => string): void {
-    this.filter = columns.size ? { rect, columns } : undefined;
-    this.filteredOut.clear();
-    if (this.filter) {
-      for (let row = rect.r1 + 1; row <= rect.r2; row++) {
-        for (const [col, allowed] of columns) {
-          if (!allowed.has(textAt(row, col))) {
-            this.filteredOut.add(row);
-            break;
-          }
+  /** The rows of `rect` that `columns` would hide: those whose text in some filtered column isn't allowed. */
+  static rowsFilteredBy(rect: Rect, columns: Map<number, Set<string>>, textAt: (row: number, col: number) => string): number[] {
+    const out: number[] = [];
+    for (let row = rect.r1 + 1; row <= rect.r2; row++) {
+      for (const [col, allowed] of columns) {
+        if (!allowed.has(textAt(row, col))) {
+          out.push(row);
+          break;
         }
       }
     }
+    return out;
+  }
+
+  /** Shows a filter, or none, and the rows it hides. */
+  private applyFilter(filter: FilterState | null, rows: number[]): void {
+    this.filter = filter ? { rect: filter.rect, columns: new Map(Object.entries(filter.columns).map(([c, v]) => [Number(c), new Set(v)])), table: filter.table } : undefined;
+    this.filteredOut.clear();
+    for (const row of rows) this.filteredOut.add(row);
     this.layout();
-    this.version++;
   }
 
   /** Rows the editor's filter hides. */

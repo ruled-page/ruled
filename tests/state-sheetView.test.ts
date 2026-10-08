@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_COLS, MAX_ROWS } from '../src/core/refs';
-import { CellFlag, VT, type DiffStyle, type TableInfo } from '../src/core/types';
+import { CellFlag, VT, type DiffStyle, type Rect, type TableInfo } from '../src/core/types';
 import { english, msg } from '../src/i18n';
 import { effectiveStyle, overlay, underlay } from '../src/state/cellStyle';
 import { workbookReaders } from '../src/state/readers';
@@ -169,10 +169,16 @@ describe("the editor's filter", () => {
       [6, 0, 'Not in the table'],
     ]);
   const textAt = (v: SheetView) => (row: number, col: number) => v.get(row, col)?.s ?? '';
+  /** Filters as the store does: works out the rows to hide, then shows the change. */
+  const filterBy = (v: SheetView, rect: Rect, columns: Map<number, Set<string>>) => {
+    const rows = columns.size ? SheetView.rowsFilteredBy(rect, columns, textAt(v)) : [];
+    const filter = columns.size ? { rect, columns: Object.fromEntries([...columns].map(([c, set]) => [c, [...set]])) } : null;
+    v.applyLayout({ kind: 'filter', filter, rows });
+  };
 
   it('hides table rows whose value is not allowed, never the heading row or rows outside', () => {
     const v = view();
-    v.setFilter({ r1: 0, c1: 0, r2: 4, c2: 0 }, new Map([[0, new Set(['North'])]]), textAt(v));
+    filterBy(v, { r1: 0, c1: 0, r2: 4, c2: 0 }, new Map([[0, new Set(['North'])]]));
     expect(v.filteredCount).toBe(2);
     expect(Array.from(v.visibleRows.slice(0, 4))).toEqual([0, 1, 3, 5]);
     expect(v.filter?.columns.get(0)).toEqual(new Set(['North']));
@@ -187,13 +193,13 @@ describe("the editor's filter", () => {
       [2, 0, 'North'],
       [2, 1, 'S'],
     ]);
-    v.setFilter(
+    filterBy(
+      v,
       { r1: 0, c1: 0, r2: 2, c2: 1 },
       new Map([
         [0, new Set(['North'])],
         [1, new Set(['L'])],
       ]),
-      textAt(v),
     );
     expect(v.gridRow(1)).toBe(1);
     expect(v.gridRow(2)).toBe(-1);
@@ -201,9 +207,9 @@ describe("the editor's filter", () => {
 
   it('clears when no columns are filtered', () => {
     const v = view();
-    v.setFilter({ r1: 0, c1: 0, r2: 4, c2: 0 }, new Map([[0, new Set(['East'])]]), textAt(v));
+    filterBy(v, { r1: 0, c1: 0, r2: 4, c2: 0 }, new Map([[0, new Set(['East'])]]));
     const version = v.version;
-    v.setFilter({ r1: 0, c1: 0, r2: 4, c2: 0 }, new Map(), textAt(v));
+    filterBy(v, { r1: 0, c1: 0, r2: 4, c2: 0 }, new Map());
     expect(v.filter).toBeUndefined();
     expect(v.filteredCount).toBe(0);
     expect(v.gridRow(2)).toBe(2);

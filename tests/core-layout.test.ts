@@ -148,3 +148,53 @@ describe('layout changes', () => {
     expect(next.changes().map((c) => english.text(c.note!))).toEqual(expect.arrayContaining(['Changed the width of 1 column', 'Merged the cells']));
   });
 });
+
+describe('filters', () => {
+  /** Region!A1:B6 with values; Table!A1:B4 table "Sales" without a filter of its own picked. */
+  async function filterBook(): Promise<Uint8Array> {
+    const wb = new ExcelJS.Workbook();
+    const region = wb.addWorksheet('Region');
+    region.addRow(['Region', 'Sales']);
+    for (const [r, n] of [['North', 1], ['South', 2], ['North', 3], ['East', 4], ['', 5]] as const) region.addRow([r, n]);
+    wb.addWorksheet('Table').addTable({ name: 'Sales', ref: 'A1', columns: [{ name: 'Who', filterButton: true }, { name: 'Amount' }], rows: [['Ann', 1], ['Bob', 2], ['Ann', 3]] });
+    return new Uint8Array(await wb.xlsx.writeBuffer());
+  }
+
+  it('are saved as Excel saves them: the values picked, and the rows they hide', async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 5, c2: 1 };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: { 0: ['North', ''] } }, rows: [2, 4] });
+    const xml = sheetXml(s, 1);
+    expect(xml).toMatch(/<autoFilter ref="A1:B6"><filterColumn colId="0"><filters blank="1"><filter val="North"\/><\/filters><\/filterColumn><\/autoFilter>/);
+    const t = info(open(s.save()), 'Region');
+    expect(t.filter).toEqual({ rect, columns: { 0: ['North', ''] } });
+    expect(t.hiddenRows).toEqual([2, 4]);
+    expect(s.changes().map((c) => english.text(c.note!))).toEqual(['Filtered, hiding 2 rows']);
+  });
+
+  it('cleared, keep the filter buttons and show every row; reopened, the file filter can be changed', async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 5, c2: 1 };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: { 0: ['South'] } }, rows: [1, 3, 4, 5] });
+    const t = open(s.save());
+    // Hidden by the filter, not by hand: clearing it shows them.
+    const r = layout(t, 0, { kind: 'filter', filter: null, rows: [] });
+    expect(r.layout!.undo).toEqual([{ sheet: 0, op: { kind: 'filter', filter: { rect, columns: { 0: ['South'] } }, rows: [1, 3, 4, 5] } }]);
+    expect(sheetXml(t, 1)).toMatch(/<autoFilter ref="A1:B6"\/>/);
+    const u = info(open(t.save()), 'Region');
+    expect([u.hiddenRows, u.filter, u.autoFilter]).toEqual([[], undefined, rect]);
+    expect(t.changes().map((c) => english.text(c.note!))).toEqual(['Cleared the filter']);
+  });
+
+  it("in a table, go in the table's part", async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 3, c2: 1 };
+    layout(s, 1, { kind: 'filter', filter: { rect, columns: { 0: ['Ann'] }, table: 'Sales' }, rows: [2] });
+    const files = parts(s.save());
+    const table = Object.entries(files).find(([k]) => k.startsWith('xl/tables/'))![1];
+    expect(table).toMatch(/<autoFilter ref="A1:B4"><filterColumn colId="0"><filters><filter val="Ann"\/><\/filters><\/filterColumn><\/autoFilter>/);
+    expect(files['xl/worksheets/sheet2.xml']).not.toMatch(/<autoFilter/);
+    const t = info(open(s.save()), 'Table');
+    expect([t.filter, t.hiddenRows]).toEqual([{ rect, columns: { 0: ['Ann'] }, table: 'Sales' }, [2]]);
+  });
+});

@@ -316,26 +316,26 @@ describe('filtering', () => {
       { text: 'North', count: 2 },
       { text: 'South', count: 1 },
     ]);
-    store.setFilter(choices.rect, 0, new Set(['North']));
+    await store.setFilter(choices.rect, 0, new Set(['North']));
     const view = store.view!;
     expect(view.filteredCount).toBe(1);
     expect(view.gridRow(2)).toBe(-1);
     expect(store.filterChoices(0)?.allowed).toEqual(new Set(['North']));
 
-    store.setFilter(choices.rect, 1, new Set(['3']));
+    await store.setFilter(choices.rect, 1, new Set(['3']));
     expect(view.filteredCount).toBe(2);
-    store.setFilter(choices.rect, 0, undefined);
+    await store.setFilter(choices.rect, 0, undefined);
     expect(view.filteredCount).toBe(2);
     expect(view.filter?.columns.has(0)).toBe(false);
 
     // Copying leaves out the rows the filter hides.
     expect(store.selectionText(choices.rect)).toBe('Region\tSales\nNorth\t3');
 
-    store.clearFilter();
+    await store.clearFilter();
     expect(view.filter).toBeUndefined();
     expect(view.filteredCount).toBe(0);
     const version = store.version;
-    store.clearFilter();
+    await store.clearFilter();
     expect(store.version).toBe(version);
   });
 });

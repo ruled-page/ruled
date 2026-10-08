@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { setCell } from './helpers';
+import { serverUrl, setCell } from './helpers';
 
 /**
  * The editor in an Angular app (examples/angular): Angular binds the
  * element's options, listens to its events and shows what a save hands it.
  * Runs with E2E_ANGULAR=1, after `npm ci` in examples/angular.
  */
-test.use({ baseURL: 'http://localhost:4175' });
+test.use({ baseURL: serverUrl('angular') });
 
 test('mounts in Angular, takes its options, and hands Angular the values on save', async ({ page }) => {
   await page.goto('/');

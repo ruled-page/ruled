@@ -48,6 +48,17 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
     write(name.replace('.xlsx', '.layout.xlsx'), l);
   }
 
+  // Filters: one on a sheet, and one in a table, which goes in the table's part.
+  const f = open('orders.xlsx');
+  f.apply({ type: 'layout', sheet: 0, op: { kind: 'filter', filter: { rect: { r1: 0, c1: 0, r2: 3, c2: 3 }, columns: { 0: ['Bolts', ''] } }, rows: [2, 3] } });
+  write('orders.filtered.xlsx', f);
+  const tf = corpus('templates.xlsx');
+  const orders = tf.model.sheets.find((m) => m.info.tables.some((t) => t.name === 'Orders'))!;
+  const table = orders.info.tables.find((t) => t.name === 'Orders')!;
+  const rect = { ...table.rect, r2: table.rect.r2 - table.totalsRows };
+  tf.apply({ type: 'layout', sheet: orders.info.index, op: { kind: 'filter', filter: { rect, columns: { [rect.c1]: ['Nuts'] }, table: 'Orders' }, rows: [rect.r1 + 1] } });
+  write('templates.filtered.xlsx', tf);
+
   const p = open('pivot.xlsx');
   p.apply({ type: 'input', sheet: 0, ...at('E2'), text: '=C2*D2*2' });
   p.apply({ type: 'input', sheet: 0, ...at('C10'), text: '77' });

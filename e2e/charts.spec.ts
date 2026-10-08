@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { openSample, setCell } from './helpers';
+import { openSample, serverUrl, setCell } from './helpers';
 
 /** How many pixels a chart's canvas has drawn on. */
 const inked = (chart: Locator) =>
@@ -50,7 +50,7 @@ test('shows placeholders, and never loads the chart library, when the host turns
   page.on('request', (r) => {
     if (/ChartView/.test(r.url())) chartCode.push(r.url());
   });
-  await page.goto('http://localhost:4174/examples/html/');
+  await page.goto(`${serverUrl('lib')}/examples/html/`);
   await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
   await page.evaluate(() => {
     const editor = document.createElement('workbook-editor');

@@ -80,6 +80,8 @@ export const store: Record<keyof typeof en, string> = {
   'store.history.restore': 'Rückgängig oder Wiederholen',
   'store.history.sort': 'Sortieren',
   'store.history.layout': 'Layout',
+  'store.history.filter': 'Filtern',
+  'store.history.clearFilter': 'Filter löschen',
   'store.history.format': 'Zellen formatieren',
   'store.history.clearFormats': 'Formate löschen',
   'store.history.columnWidth_one': 'Spaltenbreite',

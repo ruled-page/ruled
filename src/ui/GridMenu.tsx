@@ -89,7 +89,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
-    ...(filtered ? [{ label: t('menu.clearFilter'), onSelect: () => store.clearFilter() }] : []),
+    ...(filtered ? [{ label: t('menu.clearFilter'), onSelect: () => void store.clearFilter() }] : []),
   ];
   const items: MenuItem[] = [
     { label: t('menu.cut'), hint: mod(t, 'X'), onSelect: () => void store.copySelection(true), disabled: locked },

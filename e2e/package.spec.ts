@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ordersWorkbook, setCell, shown, XLSX } from './helpers';
+import { ordersWorkbook, serverUrl, setCell, shown, XLSX } from './helpers';
 
 /**
  * The React component as a host gets it: installed from the packed library
@@ -12,7 +12,7 @@ test('the packaged React component opens, recalculates and edits a workbook in a
   page.on('response', (r) => {
     if (r.status() >= 400) failed.push(`${r.status()} ${r.url()}`);
   });
-  await page.goto('http://localhost:4176/app/');
+  await page.goto(`${serverUrl('hostApp')}/app/`);
   // The app's own React, not this repository's.
   await expect(page.locator('html')).toHaveAttribute('data-react', /^18\./);
   await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles({ name: 'orders.xlsx', mimeType: XLSX, buffer: Buffer.from(await ordersWorkbook()) });

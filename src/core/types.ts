@@ -345,6 +345,8 @@ export interface SheetInfo {
   conditionalFormats: CfRule[];
   /** The range of the sheet's own filter (autoFilter), if it has one. */
   autoFilter?: Rect;
+  /** The filter that hides rows, the sheet's or a table's, when it picks values the editor can show and change. */
+  filter?: FilterState;
   protected: boolean;
   /** Its protection keeps objects as they are (Excel's "Edit objects" left unticked), notes and comments included. */
   objectsLocked?: boolean;
@@ -514,6 +516,8 @@ export type LayoutOp =
   | { kind: 'hidden'; axis: 'rows' | 'cols'; lines: Record<number, boolean> }
   /** Rows above and columns left of the panes that scroll; 0 and 0 unfreezes. */
   | { kind: 'freeze'; rows: number; cols: number }
+  /** A filter, or none, and the rows it hides. */
+  | { kind: 'filter'; filter: FilterState | null; rows: number[] }
   | { kind: 'merges'; add: Rect[]; remove: Rect[] };
 
 /**
@@ -543,6 +547,18 @@ export type PastePart = 'all' | 'values' | 'formulas' | 'formats';
 
 /** Which edges of a range's cells a border goes on. */
 export type BorderPlacement = 'all' | 'outside' | 'inside' | 'top' | 'bottom' | 'left' | 'right' | 'none';
+
+/**
+ * A filter by values on a range whose first row holds the headings: for
+ * each filtered column (a sheet column), the values whose rows show, as the
+ * cells show them ('' for blanks).
+ */
+export interface FilterState {
+  rect: Rect;
+  columns: Record<number, string[]>;
+  /** The table whose filter it is, when the range is a table's; its part holds the filter. */
+  table?: string;
+}
 
 export interface LayoutChange {
   sheet: number;

@@ -75,6 +75,8 @@ export const store = {
   'store.history.restore': 'Undo or redo',
   'store.history.sort': 'Sort',
   'store.history.layout': 'Layout',
+  'store.history.filter': 'Filter',
+  'store.history.clearFilter': 'Clear filter',
   'store.history.format': 'Format cells',
   'store.history.clearFormats': 'Clear formats',
   'store.history.columnWidth_one': 'Column width',

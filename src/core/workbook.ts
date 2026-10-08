@@ -78,6 +78,23 @@ export function joinTexts(items: Text[], key: MessageKey = 'core.list.items'): T
   return items.slice(0, -1).reduceRight<Text>((rest, first) => msg(key, { first, rest }), items[items.length - 1] ?? '');
 }
 
+/**
+ * A filter's picked values by sheet column, as the cells show them ('' for
+ * blanks); undefined when a column filters some other way (by condition,
+ * top ten, colour or date groups), which the editor leaves as it is.
+ */
+function filterColumns(node: XmlNode | undefined, rect: Rect): Record<number, string[]> | undefined {
+  const out: Record<number, string[]> = {};
+  for (const fc of children(node, 'filterColumn')) {
+    const filters = child(fc, 'filters');
+    if (!filters || fc.children.some((c) => c.name !== filters.name) || children(filters, 'dateGroupItem').length) return undefined;
+    const values = children(filters, 'filter').map((f) => attr(f, 'val') ?? '');
+    if (attr(filters, 'blank') === '1' || attr(filters, 'blank') === 'true') values.push('');
+    out[rect.c1 + Number(attr(fc, 'colId') ?? 0)] = values;
+  }
+  return out;
+}
+
 function colWidthPx(width: number): number {
   return Math.max(0, Math.round(width * 7));
 }
@@ -419,6 +436,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     }
     if (child(meta, 'autoFilter')) {
       info.autoFilter = parseRange(attr(child(meta, 'autoFilter'), 'ref') ?? '') ?? undefined;
+      const columns = info.autoFilter && filterColumns(child(meta, 'autoFilter'), info.autoFilter);
+      if (info.autoFilter && columns && Object.keys(columns).length) info.filter = { rect: info.autoFilter, columns };
       findings.push({
         kind: 'autoFilter',
         severity: 'info',
@@ -493,6 +512,11 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
             showColumnStripes: on('showColumnStripes'),
             look: style ? (styles.tableStyles.get(style) ?? builtinTableLook(style, styles.theme)) : undefined,
           });
+          // A table's own filter, if the sheet has no other with values picked.
+          const af = child(t, 'autoFilter');
+          const afRect = af && parseRange(attr(af, 'ref') ?? '');
+          const columns = afRect && filterColumns(af, afRect);
+          if (afRect && columns && Object.keys(columns).length && !info.filter) info.filter = { rect: afRect, columns, table: tname };
         }
         if (range && headerRows > 0) {
           blocked.push({

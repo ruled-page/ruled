@@ -1,11 +1,11 @@
 import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
 import { isDynamicArrayFormula } from './formula';
-import { rowAttributes, writeLayout, type SheetLayout } from './layout';
+import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
-import { CellFlag, VT, type CellNote, type Rect, type SheetGrid } from './types';
+import { CellFlag, VT, type CellNote, type FilterState, type Rect, type SheetGrid } from './types';
 import type { Person } from './comments';
 import { writeComments } from './commentWriter';
 import type { SheetModel, WorkbookModel } from './workbook';
@@ -65,6 +65,18 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     let xml = patches.size || rows.size ? rewriteSheet(m.xml, m.scan, patches, cm, rows) : m.xml;
     if (layout?.changed) xml = writeLayout(xml, m.scan.prefix, layout);
     if (xml !== m.xml) pkg.setText(m.path, xml);
+    // A table's filter is kept in the table's own part: the new one set, a table's that went cleared.
+    if (layout?.filter !== undefined) {
+      const now = layout.filter;
+      const was = layout.fileFilter.table;
+      const patch = (name: string, filter: FilterState | null) => {
+        const t = m.info.tables.find((x) => x.name === name);
+        const txml = t?.path && pkg.text(t.path);
+        if (t && txml) pkg.setText(t.path!, writeTableFilter(txml, filter, { ...t.rect, r2: t.rect.r2 - t.totalsRows }));
+      };
+      if (was && was !== now?.table) patch(was, null);
+      if (now?.table) patch(now.table, now);
+    }
   });
   if (input.notes?.some((m) => m.size)) writeComments(pkg, model, input.notes, input.people ?? new Map());
 
