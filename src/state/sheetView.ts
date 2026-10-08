@@ -271,6 +271,13 @@ export class SheetView {
     return this.notes.get(cellKey(row, col));
   }
 
+  /** Shows a cell's note or thread as it now is; null takes it away. */
+  setNote(row: number, col: number, note: CellNote | null): void {
+    if (note) this.notes.set(cellKey(row, col), note);
+    else this.notes.delete(cellKey(row, col));
+    this.version++;
+  }
+
   blockedAt(row: number, col: number): BlockedRegion | undefined {
     return this.info.blocked.find((b) => inRect(b, row, col));
   }
@@ -288,6 +295,20 @@ export class SheetView {
     const m = this.mergeAt(row, col);
     if (m && (m.r1 !== row || m.c1 !== col)) return msg('sheet.mergedPart');
     return this.blockedAt(row, col)?.reason ?? this.constraint?.(row, col);
+  }
+
+  /**
+   * Why a cell's note or comments can't be changed here, if they can't. A
+   * protected sheet keeps them only when its protection covers objects, as
+   * Excel's does, whether or not the cell is locked; a schema's read-only
+   * cells keep theirs too.
+   */
+  commentReadOnlyReason(row: number, col: number): Text | undefined {
+    if (this.info.kind !== 'worksheet') return msg('sheet.notWorksheet');
+    if (this.info.protected && this.info.objectsLocked) return msg('core.reason.commentsLocked');
+    const m = this.mergeAt(row, col);
+    if (m && (m.r1 !== row || m.c1 !== col)) return msg('sheet.mergedPart');
+    return this.constraint?.(row, col);
   }
 
   colWidth(col: number): number {

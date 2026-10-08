@@ -17,6 +17,7 @@ import {
   type CalcReport,
   type DisplayStyle,
   type CellChange,
+  type CommentChange,
   type EditOp,
   type EditResult,
   type BorderEdge,
@@ -411,6 +412,11 @@ export class WorkbookStore {
   columnWidthFor?: number;
   /** Asking for a row's height, from the keyboard. */
   rowHeightFor?: number;
+  /**
+   * The cell whose note or comments are open to read or change, and where
+   * to show them; `start` is what to add when the cell has neither.
+   */
+  commentFor?: { sheet: number; row: number; col: number; x: number; y: number; start: 'note' | 'thread' };
   designerOpen = false;
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
@@ -804,6 +810,7 @@ export class WorkbookStore {
       changeList: [],
       draftKey: key,
       draftOps: [],
+      commentFor: undefined,
     });
     this.selections.clear();
     this.notify();
@@ -995,7 +1002,17 @@ export class WorkbookStore {
           header: [msg('store.save.reviewCell'), msg('store.save.reviewWas'), msg('store.save.reviewNow')],
           rows: saved.changes
             .slice(0, LIMIT)
-            .map((c) => [`${c.sheet}!${c.ref}`, c.before, c.formatOnly ? this.t('store.save.formatChanged', { value: c.after }) : c.after]),
+            .map((c) => [
+              `${c.sheet}!${c.ref}`,
+              c.before,
+              c.comment
+                ? c.after
+                  ? this.t('store.save.commentChanged', { change: this.t.text(c.comment), text: c.after })
+                  : this.t.text(c.comment)
+                : c.formatOnly
+                  ? this.t('store.save.formatChanged', { value: c.after })
+                  : c.after,
+            ]),
           more: Math.max(0, saved.changes.length - LIMIT),
         },
       });
@@ -1131,7 +1148,7 @@ export class WorkbookStore {
         // Schema logic sees each edited cell's value from before the edit.
         const before = record === 'undo' && ctl ? r.redo.map((c) => ({ sheet: c.sheet, row: c.row, col: c.col, before: ctl.valueAt(c.sheet, c.row, c.col) as FieldValue })) : [];
         this.applyResult(r);
-        const changed = r.undo.length > 0 || !!r.layout?.undo.length;
+        const changed = r.undo.length > 0 || !!r.layout?.undo.length || !!r.noteUndo?.length;
         if (record === 'undo' && changed) {
           this.undoStack.push(r);
           this.redoStack = [];
@@ -1142,7 +1159,8 @@ export class WorkbookStore {
         }
         if (changed) {
           this.recordHistory(op, record, r, opts.label);
-          this.draftOps.push(op);
+          // A new comment's id and time are made in the worker: the draft keeps the comment as made.
+          this.draftOps.push(op.type === 'comment' ? { type: 'restore', cells: [], notes: r.noteRedo } : op);
           this.scheduleDraft();
           if (this.panel === 'changes') void this.refreshChanges();
         }
@@ -1166,19 +1184,21 @@ export class WorkbookStore {
 
   private recordHistory(op: EditOp, record: 'undo' | 'none' | 'merge', r: EditResult, label?: Text): void {
     const action = label ?? msg(record === 'merge' ? 'store.history.businessLogic' : EDIT_ACTIONS[op.type]);
-    const refs = r.redo.slice(0, 5).map((c) => `${this.sheets[c.sheet]?.info.name ?? '?'}!${toA1(c.row, c.col)}`);
-    this.history.push({ at: Date.now(), user: this.options.user, action, cells: r.redo.length, refs });
+    const cells = [...r.redo, ...(r.noteRedo ?? [])];
+    const refs = cells.slice(0, 5).map((c) => `${this.sheets[c.sheet]?.info.name ?? '?'}!${toA1(c.row, c.col)}`);
+    this.history.push({ at: Date.now(), user: this.options.user, action, cells: cells.length, refs });
   }
 
   private applyResult(r: EditResult): void {
     this.dataVersion++;
-    if (r.undo.length || r.layout?.applied.length) this.changeSeq++;
+    if (r.undo.length || r.layout?.applied.length || r.noteUndo?.length) this.changeSeq++;
     for (const c of r.layout?.applied ?? []) {
       this.sheets[c.sheet]?.applyLayout(c.op);
       this.colVersion++;
     }
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
+    for (const n of r.noteRedo ?? []) this.sheets[n.sheet]?.setNote(n.row, n.col, n.note);
     this.editedCount = r.editedCount;
     if (r.rejected) this.toast('error', r.rejected);
     if (r.skipped) {
@@ -1199,8 +1219,9 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.showSheet(entry.undo[0]?.sheet ?? entry.layout?.undo[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.undo, layout: entry.layout?.undo }, 'none', { label: msg('store.history.undo') });
+    this.showSheet(entry.undo[0]?.sheet ?? entry.noteUndo?.[0]?.sheet ?? entry.layout?.undo[0]?.sheet);
+    const notes = entry.noteUndo?.length ? { notes: entry.noteUndo } : {};
+    await this.edit({ type: 'restore', cells: entry.undo, ...notes, layout: entry.layout?.undo }, 'none', { label: msg('store.history.undo') });
     this.redoStack.push(entry);
     this.notify();
   }
@@ -1214,8 +1235,9 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.showSheet(entry.redo[0]?.sheet ?? entry.layout?.applied[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.redo, layout: entry.layout?.applied }, 'none', { label: msg('store.history.redo') });
+    this.showSheet(entry.redo[0]?.sheet ?? entry.noteRedo?.[0]?.sheet ?? entry.layout?.applied[0]?.sheet);
+    const notes = entry.noteRedo?.length ? { notes: entry.noteRedo } : {};
+    await this.edit({ type: 'restore', cells: entry.redo, ...notes, layout: entry.layout?.applied }, 'none', { label: msg('store.history.redo') });
     this.undoStack.push(entry);
     this.notify();
   }
@@ -1295,6 +1317,8 @@ export class WorkbookStore {
     this.formulaLists.clear();
     this.cfRuns.clear();
     this.clip = undefined;
+    // The cell may have moved.
+    this.commentFor = undefined;
     this.bindSchemas();
     this.refreshConditionalFormats(this.active);
   }
@@ -2219,6 +2243,77 @@ export class WorkbookStore {
   }
 
   // ---------------------------------------------------------------------------
+  // Notes and comment threads
+
+  /**
+   * Who new notes and comments are by: the host's user. Without one, notes
+   * have no author, and threads (which need someone) are by "Anonymous".
+   */
+  get commentAuthor(): string {
+    return this.options.user || this.t('store.comment.anonymous');
+  }
+
+  /**
+   * Opens a cell's note or comments, on the active sheet, to read or change.
+   * Where the cell has neither and can't have them, says why instead.
+   */
+  openComment(row: number, col: number, at: { x: number; y: number }, start: 'note' | 'thread' = 'note'): void {
+    const view = this.view;
+    if (!view) return;
+    const reason = view.commentReadOnlyReason(row, col);
+    if (reason && !view.noteAt(row, col)) return this.toast('warn', reason);
+    this.set('commentFor', { sheet: this.active, row, col, x: at.x, y: at.y, start });
+  }
+
+  /** Adds a note to a cell on the active sheet, or changes its text. */
+  setNote(row: number, col: number, text: string): Promise<boolean> {
+    const had = this.view?.noteAt(row, col);
+    return this.changeComment(row, col, { action: 'setNote', text, author: this.options.user || undefined }, had ? 'store.history.editNote' : 'store.history.addNote');
+  }
+
+  /** Deletes a cell's note, or its whole comment thread. */
+  deleteComment(row: number, col: number): Promise<boolean> {
+    const thread = this.view?.noteAt(row, col)?.kind === 'thread';
+    return this.changeComment(row, col, { action: 'delete' }, thread ? 'store.history.deleteThread' : 'store.history.deleteNote');
+  }
+
+  startThread(row: number, col: number, text: string): Promise<boolean> {
+    return this.changeComment(row, col, { action: 'startThread', text, author: this.commentAuthor }, 'store.history.startThread');
+  }
+
+  reply(row: number, col: number, text: string): Promise<boolean> {
+    return this.changeComment(row, col, { action: 'reply', text, author: this.commentAuthor }, 'store.history.reply');
+  }
+
+  /** Changes the text of one comment in a thread: one of the user's own. */
+  editComment(row: number, col: number, id: string, text: string): Promise<boolean> {
+    return this.changeComment(row, col, { action: 'editEntry', id, text }, 'store.history.editComment');
+  }
+
+  /** Deletes one reply; the thread's first comment takes the thread with it. */
+  deleteReply(row: number, col: number, id: string): Promise<boolean> {
+    const first = this.view?.noteAt(row, col)?.entries[0]?.id === id;
+    return this.changeComment(row, col, { action: 'deleteEntry', id }, first ? 'store.history.deleteThread' : 'store.history.deleteReply');
+  }
+
+  resolveThread(row: number, col: number, resolved: boolean): Promise<boolean> {
+    return this.changeComment(row, col, { action: 'resolve', resolved }, resolved ? 'store.history.resolveThread' : 'store.history.reopenThread');
+  }
+
+  /** Makes a change to a note or thread on the active sheet, as a step of its own; resolves whether it was made. */
+  private async changeComment(row: number, col: number, change: CommentChange, label: MessageKey): Promise<boolean> {
+    const view = this.view;
+    if (!view || this.status !== 'ready') return false;
+    const reason = view.commentReadOnlyReason(row, col);
+    if (reason) {
+      this.toast('warn', reason);
+      return false;
+    }
+    const r = await this.edit({ type: 'comment', sheet: this.active, row, col, change }, 'undo', { label: msg(label) });
+    return !!r?.noteRedo?.length;
+  }
+
+  // ---------------------------------------------------------------------------
   // Excel list validations
 
   /** The list validation at a cell, unless a schema field there defines its own values. */
@@ -2496,6 +2591,7 @@ export class WorkbookStore {
       | 'shortcutsOpen'
       | 'columnWidthFor'
       | 'rowHeightFor'
+      | 'commentFor'
       | 'schemaDraft'
       | 'designerPick',
   >(
