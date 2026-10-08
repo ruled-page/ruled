@@ -33,17 +33,18 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
   },
+  // Never another server already on a port: it may be an older build, or another checkout's. A busy port fails the run.
   webServer: [
     {
       command: 'npx vite build && npx vite preview --port 4173 --strictPort',
       url: 'http://localhost:4173',
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       timeout: 180_000,
     },
     {
       command: `${ANGULAR || HOST_APP ? '' : 'npm run build:lib && '}npx vite --port 4174 --strictPort`,
       url: 'http://localhost:4174/examples/html/',
-      reuseExistingServer: !CI,
+      reuseExistingServer: false,
       timeout: 180_000,
     },
     ...(ANGULAR
@@ -51,7 +52,7 @@ export default defineConfig({
           {
             command: 'npm --prefix examples/angular run build && npm --prefix examples/angular run preview',
             url: 'http://localhost:4175',
-            reuseExistingServer: !CI,
+            reuseExistingServer: false,
             timeout: 300_000,
           },
         ]
@@ -61,7 +62,7 @@ export default defineConfig({
           {
             command: 'node scripts/host-app.mjs && npx vite preview -c e2e/host-app/vite.config.ts --port 4176 --strictPort',
             url: 'http://localhost:4176/app/',
-            reuseExistingServer: !CI,
+            reuseExistingServer: false,
             timeout: 180_000,
           },
         ]
