@@ -1,7 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
-import { CellFlag, type CellNote } from '../core/types';
+import { CellFlag, VT, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
+import { displayFormula } from '../core/formula';
 import { linkAddress } from '../core/links';
 import { displayText, editText } from '../state/format';
 import { nameBoxEnter, nameBoxNames, selectionName } from '../state/names';
@@ -61,6 +62,9 @@ function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Sel
   if (!rec) return describe ? { tone: 'field', text: describe } : comment ? { tone: 'note', text: noteSummary(t, comment) } : null;
   const reason = store.calc?.cellReasons.get(`${store.active}:${sel.row}:${sel.col}`);
   const why = reason ? t.text(reason) : undefined;
+  const spill = rec.spill;
+  // A formula whose results have no room, and the cells it needs.
+  if (spill && rec.f !== undefined && rec.t === VT.Error && rec.s === '#SPILL!') return { tone: 'warn', text: t('formulaBar.spillBlocked', { range: rangeToA1(spill) }) };
   if (rec.flags & CellFlag.Stale) {
     return { tone: 'warn', text: why ? t('formulaBar.staleBecause', { reason: why }) : t('formulaBar.stale') };
   }
@@ -72,6 +76,7 @@ function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Sel
   }
   if (describe) return { tone: 'field', text: describe };
   if (comment) return { tone: 'note', text: noteSummary(t, comment) };
+  if (spill && rec.flags & CellFlag.Spilled) return { tone: 'info', text: t('formulaBar.spilled', { ref: toA1(spill.r1, spill.c1) }) };
   if (rec.flags & CellFlag.Edited) return { tone: 'edit', text: t('formulaBar.edited') };
   return null;
 }
@@ -212,6 +217,10 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   // A protected sheet can hide a cell's formula from the formula bar, as Excel does; its value still shows.
   const hidden = !!rec && rec.f !== undefined && view.info.protected && !!style.formulaHidden;
   const value = hidden ? displayText(rec, style, store.date1904, false, store.locale).text : editText(rec, style, store.date1904, store.locale);
+  // A cell a formula's results spill into holds nothing itself; the formula shows greyed, as in Excel.
+  const spiller = rec?.spill && rec.flags & CellFlag.Spilled ? view.get(rec.spill.r1, rec.spill.c1) : null;
+  const ghostStyle = store.styles[spiller?.style ?? 0] ?? store.styles[0];
+  const ghost = spiller?.f !== undefined && !(view.info.protected && ghostStyle.formulaHidden) ? displayFormula(spiller.f) : undefined;
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -287,6 +296,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
           ref={input}
           className="wbe-formula-input"
           value={draft}
+          placeholder={ghost}
           readOnly={readOnly}
           spellCheck={false}
           role="combobox"

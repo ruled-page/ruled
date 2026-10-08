@@ -253,6 +253,8 @@ export function SheetGrid({
       }
       if (merge) parts.push(t('grid.flag.merged', { range: rangeToA1(merge) }));
       if (rec && rec.flags & CellFlag.Formula) parts.push(t('grid.flag.formula'));
+      // Where a spilled value comes from, which the grid outlines only while it is selected.
+      if (rec?.spill && rec.flags & CellFlag.Spilled) parts.push(t('grid.flag.spilled', { ref: toA1(rec.spill.r1, rec.spill.c1) }));
       if (rec && rec.flags & CellFlag.Stale) parts.push(t('grid.flag.stale'));
       else if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) parts.push(t('grid.flag.savedValue'));
       if (rec && highlight && rec.flags & CellFlag.Edited) parts.push(t('grid.flag.edited'));
@@ -611,6 +613,15 @@ export function SheetGrid({
     // A cut waiting to be pasted gets a dashed outline.
     const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
     const marks: Highlights = cut ? [{ color: palette.cutFill, range: cut, style: 'dashed' }] : [];
+    // The range the selected cell's formula spills into, or spills from, outlined as Excel does; dashed while it is blocked.
+    const spill = view.get(selection.row, selection.col)?.spill;
+    const spillSpan = spill && view.gridSpan(spill);
+    if (spillSpan) {
+      const y1 = Math.max(rowStart, spillSpan.y1);
+      const y2 = Math.min(last, spillSpan.y2);
+      const blocked = view.get(spill.r1, spill.c1)?.s === '#SPILL!';
+      if (y1 <= y2) marks.push({ color: withAlpha(palette.spillLine, 0), range: { x: spillSpan.x1 + 1, y: y1 - rowStart, width: spillSpan.x2 - spillSpan.x1 + 1, height: y2 - y1 + 1 }, style: blocked ? 'dashed' : 'solid' });
+    }
     // The references in a formula being typed, outlined and lightly filled in their colours, as Excel does.
     for (const ref of formulaRefs) {
       const span = ref.sheet === view.info.index ? view.gridSpan(ref.rect) : undefined;
@@ -649,7 +660,8 @@ export function SheetGrid({
       gridSelection: { current: { cell: [gc, gr - rowStart], range: first ?? cell, rangeStack: rest }, ...empty } as GridSelection,
       highlights: marks.length ? marks : undefined,
     };
-  }, [view, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the spill outline follows the cells' data
+  }, [view, dataVersion, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors]);
 
   // Mouse presses on the letters, numbers and corner are taken before Glide
   // sees them (below); touches on them, and Glide's keys for whole lines, come here.

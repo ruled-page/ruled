@@ -120,6 +120,8 @@ export const ui = {
   'formulaBar.cantCalculate': "This editor can't calculate this formula.",
   'formulaBar.savedValue': "{{reason}} Showing Excel's saved value.",
   'formulaBar.edited': 'Changed in this session.',
+  'formulaBar.spilled': 'Spilled from the formula in {{ref}}. Typing here blocks its results, which then show #SPILL!.',
+  'formulaBar.spillBlocked': 'Its results need {{range}}, and something there is in the way.',
   'formulaBar.note': 'Note — {{text}}',
   'formulaBar.noteBy': 'Note — {{author}}: {{text}}',
   'formulaBar.comment': 'Comment — {{text}}',
@@ -450,6 +452,7 @@ export const ui = {
   'grid.flag.savedValue': "Excel's saved value",
   'grid.flag.edited': 'changed',
   'grid.flag.list': 'has a list',
+  'grid.flag.spilled': 'spilled from {{ref}}',
   'grid.spokenError': 'error: {{message}}',
   'grid.spokenWarning': 'warning: {{message}}',
 

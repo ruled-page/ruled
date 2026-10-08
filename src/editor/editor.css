@@ -123,6 +123,8 @@
   --wbe-grid-note-mark: #7f56d9;
   --wbe-grid-stale-mark: #e8a33d;
   --wbe-grid-unsupported-mark: #8a94a6;
+  /* The outline of the range a formula's results spill into, while one of its cells is selected */
+  --wbe-grid-spill-line: #2f75d6;
   --wbe-grid-dropdown-arrow: #5f6368;
   /* Hyperlinks with no colour of their own, or in the workbook theme's link colour */
   --wbe-grid-link: #0563c1;
@@ -749,6 +751,12 @@
 
 .wbe .wbe-formula-input[readonly] {
   color: var(--wbe-text-subtle);
+}
+
+/* A cell a formula's results spill into shows the formula greyed, as Excel does. */
+.wbe .wbe-formula-input::placeholder {
+  color: var(--wbe-text-subtle);
+  opacity: 1;
 }
 
 /* Formula help ------------------------------------------------------------------ */

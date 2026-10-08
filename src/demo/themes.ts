@@ -116,6 +116,7 @@ export const DEMO_THEMES: { id: string; label: DemoKey; theme?: EditorTheme }[] 
       gridNoteMark: '#a78bfa',
       gridStaleMark: '#e0a33a',
       gridUnsupportedMark: '#8a939c',
+      gridSpillLine: '#6ea8fe',
       gridDropdownArrow: '#aab3bc',
       formulaRef1: '#85afff',
       formulaRef2: '#ff8a7a',

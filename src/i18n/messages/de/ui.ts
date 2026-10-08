@@ -118,6 +118,8 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.cantCalculate': 'Dieser Editor kann diese Formel nicht berechnen.',
   'formulaBar.savedValue': '{{reason}} Angezeigt wird der in Excel gespeicherte Wert.',
   'formulaBar.edited': 'In dieser Sitzung geändert.',
+  'formulaBar.spilled': 'Übergelaufen aus der Formel in {{ref}}. Eine Eingabe hier steht ihren Ergebnissen im Weg, die dann #SPILL! zeigen.',
+  'formulaBar.spillBlocked': 'Die Ergebnisse brauchen {{range}}, und dort ist etwas im Weg.',
   'formulaBar.note': 'Notiz — {{text}}',
   'formulaBar.noteBy': 'Notiz — {{author}}: {{text}}',
   'formulaBar.comment': 'Kommentar — {{text}}',
@@ -445,6 +447,7 @@ export const ui: Record<keyof typeof en, string> = {
   'grid.flag.savedValue': 'in Excel gespeicherter Wert',
   'grid.flag.edited': 'geändert',
   'grid.flag.list': 'mit Auswahlliste',
+  'grid.flag.spilled': 'übergelaufen aus {{ref}}',
   'grid.spokenError': 'Fehler: {{message}}',
   'grid.spokenWarning': 'Warnung: {{message}}',
 

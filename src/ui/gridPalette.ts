@@ -37,6 +37,7 @@ export interface GridPalette {
   noteMark: string;
   staleMark: string;
   unsupportedMark: string;
+  spillLine: string;
   dropdownArrow: string;
   link: string;
   font: string;
@@ -77,6 +78,7 @@ export const DEFAULT_PALETTE: GridPalette = {
   noteMark: '#7f56d9',
   staleMark: '#e8a33d',
   unsupportedMark: '#8a94a6',
+  spillLine: '#2f75d6',
   dropdownArrow: '#5f6368',
   link: '#0563c1',
   font: "Calibri, Carlito, 'Aptos Narrow', 'Segoe UI', system-ui, sans-serif",
