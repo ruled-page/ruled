@@ -19,14 +19,14 @@ export const core = {
   'core.finding.hiddenSheet.detail': 'Kept in the file but not shown, as in Excel.',
   'core.finding.chartsheet.title': 'Chart sheet "{{sheet}}"',
   'core.finding.chartsheet.detail':
-    'A chart that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.',
+    'A chart that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   'core.finding.chartsheet.detailTitled':
-    'A chart titled "{{title}}" that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.',
+    'A chart titled "{{title}}" that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   /** {{type}} is a core.chartType message, or Excel's own name for a kind of chart it has no message for. */
   'core.finding.chartsheet.detailTyped':
-    '{{type}} chart that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.',
+    '{{type}} chart that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   'core.finding.chartsheet.detailTypedTitled':
-    '{{type}} chart titled "{{title}}" that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.',
+    '{{type}} chart titled "{{title}}" that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   'core.finding.unsupportedSheet.title': 'Unsupported sheet "{{sheet}}"',
   'core.finding.unsupportedSheet.detail': 'A dialog or macro sheet from older versions of Excel. Kept in the file; not shown in this editor.',
   'core.finding.macroSheet.title': 'Excel 4.0 macro sheet "{{sheet}}"',
@@ -93,10 +93,10 @@ export const core = {
   'core.finding.chart.title': 'Chart',
   'core.finding.chart.titleNamed': 'Chart "{{title}}"',
   'core.finding.chart.detail':
-    'Chart. Kept in the file and redrawn by Excel from the edited data when the file is opened. Shown here as a placeholder only.',
+    'Chart. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   /** {{type}} is a core.chartType message, or Excel's own name for a kind of chart it has no message for. */
   'core.finding.chart.detailTyped':
-    '{{type}} chart. Kept in the file and redrawn by Excel from the edited data when the file is opened. Shown here as a placeholder only.',
+    '{{type}} chart. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   'core.finding.pictures.title': 'Pictures',
   'core.finding.pictures.detail_one': '{{count, number}} picture. Kept in the file; shown here as placeholders.',
   'core.finding.pictures.detail_other': '{{count, number}} pictures. Kept in the file; shown here as placeholders.',

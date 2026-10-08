@@ -69,7 +69,7 @@ describe('opening a workbook on a server', () => {
   it('says in English what the file holds that the editor only keeps', () => {
     const findings = HeadlessWorkbook.open(sample('kitchen-sink.xlsx')).findings;
     expect(findings).toContainEqual(
-      expect.objectContaining({ title: 'Chart "Revenue by region"', detail: 'Column chart. Kept in the file and redrawn by Excel from the edited data when the file is opened. Shown here as a placeholder only.' }),
+      expect.objectContaining({ title: 'Chart "Revenue by region"', detail: 'Column chart. Kept in the file and redrawn by Excel from the edited data when the file is opened.' }),
     );
     for (const f of findings) expect([typeof f.title, typeof f.detail]).toEqual(['string', 'string']);
   });

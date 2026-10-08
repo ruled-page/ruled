@@ -126,6 +126,11 @@
   --wbe-grid-header-font-size: 12px;
   --wbe-grid-header-font-weight: 500;
 
+  /* Charts take the grid's colours and font. Series the workbook doesn't
+     colour get these, in order (space-separated); auto gives them the
+     workbook theme's accent colours, as Excel does. */
+  --wbe-chart-colors: auto;
+
   /* Type */
   --wbe-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --wbe-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -672,7 +677,6 @@
 
 .wbe .object-box {
   position: absolute;
-  margin-top: -24px;
   border: 1.5px dashed var(--wbe-placeholder-border);
   border-radius: var(--wbe-radius-sm);
   background: var(--wbe-placeholder-bg);
@@ -711,6 +715,21 @@
   font-style: normal;
   font-weight: 400;
   color: var(--wbe-placeholder-text-muted);
+}
+
+/* Charts are drawn on a canvas sized to their box; Chart.js needs the box to hold nothing else. */
+.wbe .object-box.drawn,
+.wbe .chart-sheet {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--wbe-grid-header-line);
+  border-radius: 0;
+  background: var(--wbe-grid-bg);
+}
+
+.wbe .chart-sheet {
+  position: absolute;
+  inset: 16px;
 }
 
 .wbe .center-state {

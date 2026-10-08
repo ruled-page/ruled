@@ -20,13 +20,13 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.hiddenSheet.detail': 'Bleibt in der Datei erhalten, wird aber wie in Excel nicht angezeigt.',
   'core.finding.chartsheet.title': 'Diagrammblatt „{{sheet}}“',
   'core.finding.chartsheet.detail':
-    'Ein Diagramm, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird von Excel aus den bearbeiteten Daten neu gezeichnet; wird in diesem Editor nicht angezeigt.',
+    'Ein Diagramm, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.chartsheet.detailTitled':
-    'Ein Diagramm mit dem Titel „{{title}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird von Excel aus den bearbeiteten Daten neu gezeichnet; wird in diesem Editor nicht angezeigt.',
+    'Ein Diagramm mit dem Titel „{{title}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.chartsheet.detailTyped':
-    'Ein Diagramm vom Typ „{{type}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird von Excel aus den bearbeiteten Daten neu gezeichnet; wird in diesem Editor nicht angezeigt.',
+    'Ein Diagramm vom Typ „{{type}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.chartsheet.detailTypedTitled':
-    'Ein Diagramm vom Typ „{{type}}“ mit dem Titel „{{title}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird von Excel aus den bearbeiteten Daten neu gezeichnet; wird in diesem Editor nicht angezeigt.',
+    'Ein Diagramm vom Typ „{{type}}“ mit dem Titel „{{title}}“, das ein ganzes Blatt füllt. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.unsupportedSheet.title': 'Nicht unterstütztes Blatt „{{sheet}}“',
   'core.finding.unsupportedSheet.detail':
     'Ein Dialog- oder Makroblatt aus älteren Excel-Versionen. Bleibt in der Datei erhalten; wird in diesem Editor nicht angezeigt.',
@@ -98,9 +98,9 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.chart.title': 'Diagramm',
   'core.finding.chart.titleNamed': 'Diagramm „{{title}}“',
   'core.finding.chart.detail':
-    'Diagramm. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet. Wird hier nur als Platzhalter angezeigt.',
+    'Diagramm. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.chart.detailTyped':
-    'Diagramm vom Typ „{{type}}“. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet. Wird hier nur als Platzhalter angezeigt.',
+    'Diagramm vom Typ „{{type}}“. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.pictures.title': 'Bilder',
   'core.finding.pictures.detail_one': '{{count, number}} Bild. Bleibt in der Datei erhalten; wird hier als Platzhalter angezeigt.',
   'core.finding.pictures.detail_other': '{{count, number}} Bilder. Bleiben in der Datei erhalten; werden hier als Platzhalter angezeigt.',

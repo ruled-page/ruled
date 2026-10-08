@@ -15,6 +15,12 @@ back as .xlsx without losing what the editor can't display.
 - Save writes only the cells that changed back into the original file.
   Charts, pivot tables, macros, conditional formatting, validation, comments,
   pictures, sparklines and everything else stay byte-for-byte as they were.
+- Charts are drawn where they sit (and chart sheets fill their sheet) from
+  the cells as they are now, so editing their data redraws them: column and
+  bar charts (clustered, stacked and 100% stacked), line, area, pie,
+  doughnut and scatter charts, and columns, lines and areas combined, on
+  two axes if need be. Other kinds show as placeholders. Screen readers
+  hear each chart's name and its series and values.
 - Notes and threaded comments are marked in the corner of their cell and
   shown when you point at the cell or select it. They are read-only.
 - "What's in this file" lists everything the editor keeps but can't show,
@@ -279,6 +285,11 @@ leaves in Excel's automatic colour follow `gridText` and `gridBorderAuto`, so
 they stay readable; on cells the file fills, automatic text uses
 `gridTextOnFill`, which stays dark because the fills are light. Colours the
 workbook sets itself are kept.
+
+Charts take the grid's background, text, lines and font. Their series keep
+the colours the file gives them; series it leaves to Excel get the workbook
+theme's accent colours, as in Excel, or the colours in `chartColors`
+(`--wbe-chart-colors`, space-separated) when a theme sets it.
 
 Icons are replaced by name with `icons: { download: 'M12 3v12…' }` (SVG path
 data on a 24×24 grid, drawn in the current text colour), or with any element
@@ -564,6 +575,14 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   from the clipboard's HTML rather than the rounded text. Filling continues
   months and quarters as Excel does. Formula references are shifted with
   `@borgar/fx`. New functions get the `_xlfn.` prefix Excel needs in the file.
+- **Charts** (`src/core/charts.ts`, `src/state/charts.ts`,
+  `src/ui/ChartView.tsx`): the worker reads each chart part (its kind,
+  series, the references they plot with the values Excel saved, titles,
+  axes, legend and colours). The screen reads the series from its own copy
+  of the cells, so a chart follows every edit and recalculation, using the
+  saved values only where a reference can't be followed (another workbook,
+  several areas), and draws it with Chart.js (MIT). The library loads only
+  when a workbook has a chart to draw.
 - **Saving** (`src/core/writer.ts`): only the `<c>` elements of changed cells
   are rewritten, plus cached results of formulas the engine recalculated.
   `calcChain.xml` is removed and the workbook is flagged to recalculate on
@@ -589,8 +608,14 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   made for testing. Open a few saved files in Excel before relying on them,
   especially `pivot.xlsx`, whose pivot table was written by hand because
   ExcelJS can't create one.
-- Not drawn: charts (placeholders only), mixed fonts inside a cell. Merges
-  spanning several rows show only the top row.
+- Not drawn: mixed fonts inside a cell. Merges spanning several rows show
+  only the top row.
+- Charts are drawn without data labels, trendlines, error bars, gradient
+  or picture fills, or the fonts and chart-area colours the file sets (they
+  follow the editor's theme), and can't be pointed at or edited. 3-D charts
+  are drawn flat. Radar, bubble, stock, surface and pie-of-pie charts, and
+  Excel's newer kinds (waterfall, treemap, histogram, funnel…) show as
+  placeholders.
 - Conditional formatting is evaluated in the worker and redrawn after each
   edit: cell-value, formula, text, blank, error, date, top/bottom,
   above-average and duplicate rules, colour scales, data bars and icon sets,

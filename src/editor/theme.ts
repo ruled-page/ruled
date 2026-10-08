@@ -92,6 +92,7 @@ export const THEME_TOKENS = [
   'gridHeaderFont',
   'gridHeaderFontSize',
   'gridHeaderFontWeight',
+  'chartColors',
   'font',
   'fontMono',
   'fontSize',

@@ -318,7 +318,7 @@ export const ui = {
   'editor.thisChartTitled': 'This chart “{{title}}”',
   'editor.typedChart': '{{type}} chart',
   'editor.typedChartTitled': '{{type}} chart “{{title}}”',
-  'editor.chartSheet': '{{chart}} fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; this editor doesn’t display charts.',
+  'editor.chartSheet': '{{chart}} fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; it isn’t shown here.',
 
   'dialog.cancel': 'Cancel',
   'dialog.empty': '(empty)',

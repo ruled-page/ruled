@@ -316,7 +316,7 @@ export const ui: Record<keyof typeof en, string> = {
   'editor.thisChartTitled': 'Das Diagramm „{{title}}“',
   'editor.typedChart': 'Das Diagramm ({{type}})',
   'editor.typedChartTitled': 'Das Diagramm „{{title}}“ ({{type}})',
-  'editor.chartSheet': '{{chart}} füllt dieses ganze Blatt aus. Es bleibt in der Datei erhalten, und Excel zeichnet es aus Ihren bearbeiteten Daten neu; dieser Editor zeigt keine Diagramme an.',
+  'editor.chartSheet': '{{chart}} füllt dieses ganze Blatt aus. Es bleibt in der Datei erhalten, und Excel zeichnet es aus Ihren bearbeiteten Daten neu; es wird hier nicht angezeigt.',
 
   'dialog.cancel': 'Abbrechen',
   'dialog.empty': '(leer)',

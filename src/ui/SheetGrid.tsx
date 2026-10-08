@@ -767,7 +767,7 @@ export function SheetGrid({
         onItemHovered={onItemHovered}
       />
       {hoverNote && <NoteTip {...hoverNote} />}
-      <ObjectsOverlay view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
+      <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
     </div>
   );
 }

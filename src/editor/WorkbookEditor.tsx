@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSPrope
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
+import { ChartSlot } from '../ui/ChartSlot';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
 import { FormulaBar } from '../ui/FormulaBar';
@@ -89,8 +90,8 @@ function DefaultEmptyState({ openPicker, canOpen }: { openPicker: () => void; ca
   );
 }
 
-/** What a chart sheet shows instead of its chart, which the editor doesn't draw. */
-function ChartSheet({ view }: { view: SheetView }) {
+/** A chart sheet's chart, filling the sheet; or, for one the editor doesn't draw, what it is. */
+function ChartSheet({ store, view }: { store: WorkbookStore; view: SheetView }) {
   const t = useT();
   const chart = view.info.objects.find((o) => o.kind === 'chart');
   const type = chart?.chartType ? t.text(chart.chartType) : undefined;
@@ -102,13 +103,14 @@ function ChartSheet({ view }: { view: SheetView }) {
     : title
       ? t('editor.thisChartTitled', { title })
       : t('editor.thisChart');
-  return (
+  const placeholder = (
     <div className="center-state">
       <Icon name="chart" size={32} />
       <h2>{view.info.name}</h2>
       <p>{t('editor.chartSheet', { chart: what })}</p>
     </div>
   );
+  return chart ? <ChartSlot store={store} obj={chart} placeholder={placeholder} className="chart-sheet" /> : placeholder;
 }
 
 /** The workbook editor: toolbar, formula bar, grid, sheet tabs and panels. */
@@ -317,7 +319,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
               selection={selection}
             />
           )}
-          {ready && view.info.kind !== 'worksheet' && <ChartSheet view={view} />}
+          {ready && view.info.kind !== 'worksheet' && <ChartSheet store={store} view={view} />}
           {ready && store.findOpen && <FindPanel store={store} />}
         </section>
         {ready && <SidePanel store={store} />}
