@@ -5,7 +5,9 @@ import { rowAttributes, writeLayout, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
-import { CellFlag, VT, type Rect, type SheetGrid } from './types';
+import { CellFlag, VT, type CellNote, type Rect, type SheetGrid } from './types';
+import type { Person } from './comments';
+import { writeComments } from './commentWriter';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, setAttributes } from './xml';
 import { setCustomProperties } from './properties';
@@ -32,6 +34,10 @@ export interface SaveInput {
   changedIn?: (sheet: number, rect: Rect | null) => boolean;
   /** Per sheet: its layout, where it has been edited. */
   layout?: (SheetLayout | undefined)[];
+  /** Per sheet: cells whose note or thread differs from the file, with what they hold now (null: neither). */
+  notes?: Map<number, CellNote | null>[];
+  /** Everyone who has written a threaded comment, by person id, for those new to the file. */
+  people?: ReadonlyMap<string, Person>;
 }
 
 type Patch =
@@ -60,6 +66,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     if (layout?.changed) xml = writeLayout(xml, m.scan.prefix, layout);
     if (xml !== m.xml) pkg.setText(m.path, xml);
   });
+  if (input.notes?.some((m) => m.size)) writeComments(pkg, model, input.notes, input.people ?? new Map());
 
   // Excel checks calcChain.xml against the cells that hold formulas and
   // reports the file as damaged if they disagree. It rebuilds the chain

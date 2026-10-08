@@ -363,6 +363,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   sort: 'store.history.sort',
   layout: 'store.history.layout',
   format: 'store.history.format',
+  comment: 'store.history.comment',
 };
 
 /** Has the browser download a file. */

@@ -170,6 +170,15 @@ export const core = {
   'core.reason.pivot': 'This cell is part of pivot table "{{name}}". Change the pivot table in Excel.',
   'core.reason.tableHeader':
     'This is a column name in table "{{name}}". Excel stores table column names separately, so rename the column in Excel.',
+  'core.reason.commentsLocked': 'This sheet is protected in Excel, which keeps its notes and comments as they are.',
+
+  // Why a change to a note or comment thread can't be made.
+  'core.comment.noThread': 'This cell has no comment thread.',
+  'core.comment.isThread': 'This cell has a comment thread, not a note.',
+  'core.comment.exists': 'This cell already has a note or comments.',
+  'core.comment.resolved': 'This thread is resolved. Reopen it to reply.',
+  'core.comment.gone': 'That comment is no longer in the thread.',
+  'core.comment.empty': 'A comment needs some text.',
 
   // What the calculation engine can't calculate, as the recalculation report lists it.
   'core.unsupported.function': '{{name}} function',
@@ -267,6 +276,24 @@ export const core = {
   'core.change.deletedRows_other': 'Deleted {{count, number}} rows',
   'core.change.deletedColumns_one': 'Deleted {{count, number}} column',
   'core.change.deletedColumns_other': 'Deleted {{count, number}} columns',
+
+  // The change list's description of a change to a cell's note or comment thread.
+  'core.change.noteAdded': 'Note added',
+  'core.change.noteEdited': 'Note edited',
+  'core.change.noteDeleted': 'Note deleted',
+  'core.change.threadStarted': 'Comment thread started',
+  'core.change.threadEdited': 'Comment thread edited',
+  'core.change.threadDeleted': 'Comment thread deleted',
+  /** {{what}} lists the changes below. */
+  'core.change.thread': 'Comment thread: {{what}}',
+  'core.change.repliesAdded_one': '{{count, number}} reply added',
+  'core.change.repliesAdded_other': '{{count, number}} replies added',
+  'core.change.commentsEdited_one': '{{count, number}} comment edited',
+  'core.change.commentsEdited_other': '{{count, number}} comments edited',
+  'core.change.repliesDeleted_one': '{{count, number}} reply deleted',
+  'core.change.repliesDeleted_other': '{{count, number}} replies deleted',
+  'core.change.resolved': 'resolved',
+  'core.change.reopened': 'reopened',
 
   // An Excel data validation rule, described in the formula bar. {{a}} and {{b}} are the rule's bounds as Excel shows them.
   'core.validation.kind.whole': 'Whole number',

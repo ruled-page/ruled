@@ -16,6 +16,8 @@ import {
 } from './calc';
 import type { EngineValue } from './engineValue';
 import { evaluateConditionalFormats } from './conditionalFormat';
+import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote } from './commentEdits';
+import type { Person } from './comments';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
@@ -32,6 +34,7 @@ import {
   type CalcReport,
   type CalcSample,
   type CellChange,
+  type CellNote,
   type CellContent,
   type CellSnapshot,
   type CellUpdate,
@@ -46,6 +49,7 @@ import {
   type LayoutChange,
   type ListSource,
   type LoadResult,
+  type NoteSnapshot,
   type Rect,
   type SheetGrid,
 } from './types';
@@ -301,6 +305,18 @@ export class WorkbookSession {
   private baked: { changes: CellChange[]; keys: Set<number>[]; structure: CellChange[] };
   /** Per sheet: its layout, once a row, column, pane or merge has been changed. */
   private layouts: (SheetLayout | undefined)[] = [];
+  /** Per sheet: cells whose note or thread differs from the file, with what they hold now (null: neither). */
+  private readonly noteEdits: Map<number, CellNote | null>[];
+  /**
+   * Per sheet, after a structural change: what the workbook as opened had
+   * on the cells whose note or thread the file this session was built from
+   * has changed. Changes to notes are listed against it.
+   */
+  private readonly noteBase: Map<number, CellNote | null>[];
+  /** Everyone who has written a threaded comment, by person id: the file's people, then anyone since. */
+  private readonly people: Map<string, Person>;
+  /** Per sheet: the file's notes and threads by cell, made when first needed. */
+  private fileNotes?: Map<number, CellNote>[];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
@@ -323,6 +339,9 @@ export class WorkbookSession {
     this.stale = Array.from({ length: n }, () => new Set());
     this.sheetIndex = new Map(model.sheets.map((s, i) => [s.info.name.toLowerCase(), i]));
     this.baked = { changes: [], keys: Array.from({ length: n }, () => new Set()), structure: [] };
+    this.noteEdits = Array.from({ length: n }, () => new Map());
+    this.noteBase = Array.from({ length: n }, () => new Map());
+    this.people = new Map(model.people.map((p) => [p.id, p]));
   }
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
@@ -368,7 +387,7 @@ export class WorkbookSession {
   loadResult(): LoadResult {
     return {
       fileName: this.fileName,
-      sheets: this.model.sheets.map((s) => s.info),
+      sheets: this.model.sheets.map((s, i) => (this.noteEdits[i].size ? { ...s.info, notes: this.notesOf(i) } : s.info)),
       grids: this.model.sheets.map((s) => s.scan?.grid ?? null),
       styles: this.model.styles.display,
       findings: this.model.findings,
@@ -379,7 +398,7 @@ export class WorkbookSession {
   }
 
   get editedCount(): number {
-    let n = this.baked.changes.length + this.baked.structure.length + this.layoutNotes().length;
+    let n = this.baked.changes.length + this.baked.structure.length + this.noteChanges().length + this.layoutNotes().length;
     this.edits.forEach((m, s) => {
       for (const key of m.keys()) if (!this.baked.keys[s].has(key)) n++;
     });
@@ -401,11 +420,19 @@ export class WorkbookSession {
 
   /**
    * Every cell that differs from the file as opened (what it held, and what
-   * it holds now), and every structural change, described.
+   * it holds now), every structural change, described, and every cell whose
+   * note or comment thread changed.
    */
   changes(): CellChange[] {
+    const notes = this.noteChanges().map(({ sheet, key, before, after }) => ({
+      sheet: this.model.sheets[sheet].info.name,
+      ref: toA1(Math.floor(key / MAX_COLS), key % MAX_COLS),
+      before: noteText(before),
+      after: noteText(after),
+      comment: describeCommentChange(before, after),
+    }));
     const own = this.ownChanges();
-    if (!this.baked.changes.length && !this.baked.structure.length) return own;
+    if (!this.baked.changes.length && !this.baked.structure.length) return [...own, ...notes];
     // A cell changed before a structural change and again since: it was what the file held, it is what it holds now.
     const merged = new Map(this.baked.changes.map((c) => [`${c.sheet}!${c.ref}`, c]));
     for (const c of own) {
@@ -415,7 +442,7 @@ export class WorkbookSession {
       else if (earlier.before === c.after && !c.formatOnly) merged.delete(key);
       else merged.set(key, { ...c, before: earlier.before, formatOnly: earlier.before === c.after || undefined });
     }
-    return [...this.baked.structure, ...merged.values()];
+    return [...this.baked.structure, ...merged.values(), ...notes];
   }
 
   private ownChanges(): CellChange[] {
@@ -436,6 +463,106 @@ export class WorkbookSession {
     });
     out.push(...this.layoutNotes());
     return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Notes and comment threads
+
+  private fileNote(sheet: number, row: number, col: number): CellNote | null {
+    this.fileNotes ??= this.model.sheets.map((m) => new Map(m.info.notes.map((n) => [cellKey(n.row, n.col), n])));
+    return this.fileNotes[sheet]?.get(cellKey(row, col)) ?? null;
+  }
+
+  /** A cell's note or comment thread as it is now, or null. */
+  noteAt(sheet: number, row: number, col: number): CellNote | null {
+    const edits = this.noteEdits[sheet];
+    const key = cellKey(row, col);
+    return edits?.has(key) ? (edits.get(key) ?? null) : this.fileNote(sheet, row, col);
+  }
+
+  /** A sheet's notes and threads as they are now. */
+  private notesOf(sheet: number): CellNote[] {
+    const edits = this.noteEdits[sheet];
+    const kept = this.model.sheets[sheet].info.notes.filter((n) => !edits.has(cellKey(n.row, n.col)));
+    return [...kept, ...[...edits.values()].filter((n): n is CellNote => !!n)];
+  }
+
+  /**
+   * Cells whose note or thread differs from the workbook as it was opened,
+   * with what each had then and has now, in order.
+   */
+  private noteChanges(): { sheet: number; key: number; before: CellNote | null; after: CellNote | null }[] {
+    const out: { sheet: number; key: number; before: CellNote | null; after: CellNote | null }[] = [];
+    this.model.sheets.forEach((_m, s) => {
+      const base = this.noteBase[s];
+      for (const key of [...new Set([...this.noteEdits[s].keys(), ...base.keys()])].sort((a, b) => a - b)) {
+        const row = Math.floor(key / MAX_COLS);
+        const col = key % MAX_COLS;
+        const before = base.has(key) ? (base.get(key) ?? null) : this.fileNote(s, row, col);
+        const after = this.noteAt(s, row, col);
+        if (!sameNote(before, after)) out.push({ sheet: s, key, before, after });
+      }
+    });
+    return out;
+  }
+
+  /** Puts notes and threads as given: what they were, for undo, and are, for redo. */
+  private putNotes(notes: NoteSnapshot[]): { undo: NoteSnapshot[]; redo: NoteSnapshot[] } {
+    const undo: NoteSnapshot[] = [];
+    const redo: NoteSnapshot[] = [];
+    for (const n of notes) {
+      const was = this.noteAt(n.sheet, n.row, n.col);
+      if (sameNote(was, n.note)) continue;
+      // Restoring applies them in order, so the earliest goes last.
+      undo.unshift({ sheet: n.sheet, row: n.row, col: n.col, note: was });
+      const note = n.note && { ...n.note, row: n.row, col: n.col };
+      redo.push({ sheet: n.sheet, row: n.row, col: n.col, note });
+      const key = cellKey(n.row, n.col);
+      if (sameNote(this.fileNote(n.sheet, n.row, n.col), note)) this.noteEdits[n.sheet].delete(key);
+      else this.noteEdits[n.sheet].set(key, note);
+      // Someone a restored thread names who isn't in the file yet. (One the file names without listing stays unlisted.)
+      for (const e of note?.entries ?? []) {
+        if (e.personId && e.author !== undefined && !this.people.has(e.personId)) {
+          this.people.set(e.personId, { id: e.personId, displayName: e.author, userId: e.author, providerId: 'None' });
+        }
+      }
+    }
+    return { undo, redo };
+  }
+
+  /** Whoever writes a threaded comment: the person the file has with that name and no account, or a new one. */
+  private personFor(author: string): string {
+    for (const p of this.people.values()) if (p.displayName === author && (p.providerId ?? 'None') === 'None') return p.id;
+    const id = newGuid();
+    this.people.set(id, { id, displayName: author, userId: author, providerId: 'None' });
+    return id;
+  }
+
+  /**
+   * Why a cell's note or comments can't be changed, if they can't. As in
+   * Excel, a protected sheet keeps them as they are unless its protection
+   * lets objects be edited; whether the cell itself is locked doesn't matter.
+   */
+  private commentBlockedReason(sheet: number, row: number, col: number): Text | undefined {
+    const info = this.sheet(sheet).info;
+    if (info.kind !== 'worksheet') return msg('core.reason.notWorksheet');
+    if (info.protected && info.objectsLocked) return msg('core.reason.commentsLocked');
+    if (info.merges.some((m) => inRect(m, row, col) && (row !== m.r1 || col !== m.c1))) return msg('sheet.mergedPart');
+    return undefined;
+  }
+
+  private applyComment(op: Extract<EditOp, { type: 'comment' }>): EditResult {
+    const reason = this.commentBlockedReason(op.sheet, op.row, op.col);
+    if (reason) return this.emptyResult(reason);
+    let note: CellNote | null;
+    try {
+      note = applyCommentChange(this.noteAt(op.sheet, op.row, op.col), op.row, op.col, op.change, { person: (author) => this.personFor(author) });
+    } catch (err) {
+      if (err instanceof TextError) return this.emptyResult(err.text);
+      throw err;
+    }
+    const { undo, redo } = this.putNotes([{ sheet: op.sheet, row: op.row, col: op.col, note }]);
+    return { ...this.emptyResult(), noteUndo: undo, noteRedo: redo };
   }
 
   // ---------------------------------------------------------------------------
@@ -1031,7 +1158,9 @@ export class WorkbookSession {
   apply(op: EditOp): EditResult {
     this.ensureEngine();
     if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
+    if (op.type === 'comment') return this.applyComment(op);
     if (op.type === 'layout') return this.applyLayout([{ sheet: op.sheet, op: op.op }]);
+    let notes: { undo: NoteSnapshot[]; redo: NoteSnapshot[] } | undefined;
     const writes = new Map<string, Write>();
     const warnings: Text[] = [];
     const newStyles: { index: number; style: DisplayStyle }[] = [];
@@ -1146,6 +1275,7 @@ export class WorkbookSession {
       }
       case 'restore': {
         for (const c of op.cells) put({ ...c });
+        if (op.notes?.length) notes = this.putNotes(op.notes);
         break;
       }
       case 'format': {
@@ -1193,7 +1323,8 @@ export class WorkbookSession {
         break;
       }
     }
-    const result = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore');
+    const committed = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore');
+    const result = notes ? { ...committed, noteUndo: notes.undo, noteRedo: notes.redo } : committed;
     return op.type === 'restore' && op.layout?.length ? mergeEditResults([result, this.applyLayout(op.layout)]) : result;
   }
 
@@ -1214,7 +1345,7 @@ export class WorkbookSession {
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
   }
 
-  private emptyResult(rejected: Text): EditResult {
+  private emptyResult(rejected?: Text): EditResult {
     return { updates: [], undo: [], redo: [], skipped: 0, skippedReasons: [], warnings: [], newStyles: [], editedCount: this.editedCount, rejected };
   }
 
@@ -1399,7 +1530,8 @@ export class WorkbookSession {
 
   /** The workbook with every edit written in, as a package. */
   private savedPackage(): OoxmlPackage {
-    return this.edits.some((m) => m.size) || this.layouts.some((l) => l?.changed) ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
+    const edited = this.edits.some((m) => m.size) || this.noteEdits.some((m) => m.size) || this.layouts.some((l) => l?.changed);
+    return edited ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
   }
 
   private saveInput(): SaveInput {
@@ -1418,6 +1550,8 @@ export class WorkbookSession {
       ),
       isArray: (sheet, row, col) => !!this.engine?.isArray(sheet, row, col),
       layout: this.layouts,
+      notes: this.noteEdits,
+      people: this.people,
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;
@@ -1453,6 +1587,8 @@ export class WorkbookSession {
     const names = this.model.sheets.map((m) => m.info.name);
     const index = (name: string) => names.findIndex((n) => n === name);
     for (const c of this.changes()) {
+      // Notes and threads are listed from what the workbook had, carried below.
+      if (c.comment) continue;
       const s = index(c.sheet);
       const at = parseA1(c.ref);
       if (c.note || s < 0 || !at) {
@@ -1461,6 +1597,12 @@ export class WorkbookSession {
       }
       const to = map.range(s, { r1: at.row, c1: at.col, r2: at.row, c2: at.col });
       if (to) next.baked.changes.push({ ...c, sheet: names[to.sheet], ref: toA1(to.rect.r1, to.rect.c1) });
+    }
+    for (const { sheet, key, before } of this.noteChanges()) {
+      const row = Math.floor(key / MAX_COLS);
+      const col = key % MAX_COLS;
+      const to = map.range(sheet, { r1: row, c1: col, r2: row, c2: col });
+      if (to) next.noteBase[to.sheet].set(cellKey(to.rect.r1, to.rect.c1), before && { ...before, row: to.rect.r1, col: to.rect.c1 });
     }
     this.model.sheets.forEach((_m, s) => {
       for (const key of new Set([...this.edits[s].keys(), ...this.baked.keys[s]])) {

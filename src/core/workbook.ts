@@ -6,7 +6,7 @@ import { parseConditionalFormats } from './conditionalFormat';
 import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
-import { mergeNotes, parseNotes, parsePersons, parseThreads } from './comments';
+import { mergeNotes, parseNotes, parsePeople, parseThreads, type Person } from './comments';
 import type { Anchor, BlockedRegion, CellNote, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
@@ -43,6 +43,8 @@ export interface WorkbookModel {
   hasActiveContent: boolean;
   /** Custom document properties. */
   properties: Record<string, string>;
+  /** The people who have written threaded comments. */
+  people: Person[];
 }
 
 const EMU_PER_PX = 9525;
@@ -173,7 +175,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const wbRels = pkg.rels(workbookPath);
   const relById = new Map(wbRels.map((r) => [r.id, r]));
   const relOfType = (type: string) => wbRels.filter((r) => r.type === type);
-  const persons = parsePersons(relOfType('person').map((r) => pkg.text(r.target)).find((x) => x));
+  const people = parsePeople(relOfType('person').map((r) => pkg.text(r.target)).find((x) => x));
+  const persons = new Map(people.map((p) => [p.id, p.displayName]));
 
   const date1904 = ['1', 'true'].includes(attr(child(wb, 'workbookPr'), 'date1904') ?? '');
   const sst = parseSharedStrings(relOfType('sharedStrings')[0] ? pkg.text(relOfType('sharedStrings')[0].target) : undefined);
@@ -342,6 +345,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     const protection = child(meta, 'sheetProtection');
     if (protection && ['1', 'true'].includes(attr(protection, 'sheet') ?? '')) {
       info.protected = true;
+      info.objectsLocked = ['1', 'true'].includes(attr(protection, 'objects') ?? '');
       findings.push({
         kind: 'protection',
         severity: 'info',
@@ -665,5 +669,6 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     hasMacros: vba || macroSheets,
     hasActiveContent: controls + objects > 0,
     properties: readCustomProperties(pkg),
+    people,
   };
 }

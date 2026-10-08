@@ -118,11 +118,11 @@ describe('threaded comments', () => {
         kind: 'thread',
         resolved: false,
         entries: [
-          { author: 'Jo Smith', text: 'Is this right?', date: '2026-03-04' },
-          { author: 'Kim Lee', text: 'Yes & checked.', date: '2026-03-05' },
+          { author: 'Jo Smith', text: 'Is this right?', date: '2026-03-04', id: '{T1}', personId: '{P1}', time: '2026-03-04T10:00:00.00' },
+          { author: 'Kim Lee', text: 'Yes & checked.', date: '2026-03-05', id: '{T2}', personId: '{P2}', time: '2026-03-05T09:00:00.00' },
         ],
       },
-      { row: 8, col: 2, kind: 'thread', resolved: true, entries: [{ author: 'Kim Lee', text: 'Done', date: undefined }] },
+      { row: 8, col: 2, kind: 'thread', resolved: true, entries: [{ author: 'Kim Lee', text: 'Done', date: undefined, id: '{T3}', personId: '{P2}' }] },
     ]);
   });
 

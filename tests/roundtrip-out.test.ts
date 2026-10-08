@@ -4,7 +4,7 @@ import { strToU8 } from 'fflate';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1 } from '../src/core/refs';
-import type { LayoutOp } from '../src/core/types';
+import type { CommentChange, LayoutOp } from '../src/core/types';
 import { open, sheetIndex } from './helpers';
 
 /**
@@ -67,6 +67,29 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   write('templates.typed.xlsx', t);
   write('templates.row-inserted.xlsx', t.restructure({ type: 'insertRows', sheet: lines, at: 2, count: 1 }));
 
+  // Notes and threaded comments: changed, added to sheets that had none, and removed.
+  const note = (s: WorkbookSession, sheet: string, ref: string, change: CommentChange) => s.apply({ type: 'comment', sheet: sheetIndex(s, sheet), ...at(ref), change });
+  const c = corpus('comments.xlsx');
+  note(c, 'Review', 'B2', { action: 'setNote', text: 'Agreed.\nRevisit in March.' });
+  note(c, 'Review', 'C3', { action: 'reply', text: 'Thanks & noted <ok>.', author: 'Ann Analyst' });
+  note(c, 'Review', 'C3', { action: 'editEntry', id: c.noteAt(sheetIndex(c, 'Review'), 2, 2)!.entries[1].id!, text: 'Yes, since Tuesday.' });
+  note(c, 'Review', 'C3', { action: 'resolve', resolved: true });
+  note(c, 'Review', 'A6', { action: 'delete' });
+  note(c, 'Review', 'D5', { action: 'startThread', text: 'New line?', author: 'Cara' });
+  note(c, 'Plain', 'B2', { action: 'setNote', text: 'Counted twice.', author: 'Cara' });
+  note(c, 'Plain', 'A1', { action: 'startThread', text: 'Units?', author: 'Cara' });
+  note(c, 'Plain', 'A1', { action: 'reply', text: 'Each.', author: 'Dee' });
+  note(c, 'Objects', 'A1', { action: 'setNote', text: 'Allowed here.' });
+  write('comments.edited.xlsx', c);
+  const k2 = open('kitchen-sink.xlsx');
+  note(k2, 'Summary', 'A4', { action: 'delete' });
+  note(k2, 'Data', 'B3', { action: 'setNote', text: 'Checked.', author: 'Cara' });
+  write('kitchen-sink.notes.xlsx', k2);
+  const t2 = corpus('templates.xlsx');
+  note(t2, 'Arrays', 'D2', { action: 'setNote', text: 'Largest line.', author: 'Cara' });
+  note(t2, 'Arrays', 'A1', { action: 'startThread', text: 'Sorted?', author: 'Cara' });
+  write('templates.commented.xlsx', t2);
+
   const d = corpus('dates-1904.xlsx');
   d.apply({ type: 'input', sheet: 0, ...at('A3'), text: '2026-05-01' });
   d.apply({ type: 'input', sheet: 0, ...at('B4'), text: '120' });
@@ -76,8 +99,8 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   const csv = () =>
     WorkbookSession.open(strToU8('Item;Price;Due;Share;Done\r\nBolts;1,50;31.12.2025;12%;TRUE\r\n"two\nlines";=1+2;;;#N/A\r\n'), 'prices.csv', 'de-DE');
   write('prices-csv.unchanged.xlsx', csv());
-  const c = csv();
-  c.apply({ type: 'input', sheet: 0, ...at('C3'), text: '=B2*2' });
-  c.apply({ type: 'input', sheet: 0, ...at('F1'), text: '7%' });
-  write('prices-csv.edited.xlsx', c);
+  const fromCsv = csv();
+  fromCsv.apply({ type: 'input', sheet: 0, ...at('C3'), text: '=B2*2' });
+  fromCsv.apply({ type: 'input', sheet: 0, ...at('F1'), text: '7%' });
+  write('prices-csv.edited.xlsx', fromCsv);
 });

@@ -275,6 +275,12 @@ export interface NoteEntry {
   text: string;
   /** ISO date, for threaded comments. */
   date?: string;
+  /** A threaded comment's id ({GUID}), which its replies point at. */
+  id?: string;
+  /** Who wrote a threaded comment: their id in the workbook's list of people. */
+  personId?: string;
+  /** When a threaded comment was written, as the file has it: UTC, to hundredths of a second. */
+  time?: string;
 }
 
 /** A note, or a threaded comment with its replies, on one cell. */
@@ -284,6 +290,28 @@ export interface CellNote {
   kind: 'note' | 'thread';
   entries: NoteEntry[];
   resolved?: boolean;
+}
+
+/** A change to a cell's note or comment thread. */
+export type CommentChange =
+  /** Adds a note, or changes its text. */
+  | { action: 'setNote'; text: string; author?: string }
+  | { action: 'startThread'; text: string; author: string }
+  | { action: 'reply'; text: string; author: string }
+  /** Changes the text of one comment in the thread. */
+  | { action: 'editEntry'; id: string; text: string }
+  /** Deletes a reply; deleting the first comment deletes the thread. */
+  | { action: 'deleteEntry'; id: string }
+  | { action: 'resolve'; resolved: boolean }
+  /** Deletes the cell's note, or its whole thread. */
+  | { action: 'delete' };
+
+/** A cell's note or thread at one moment, for undo and redo; null when it has none. */
+export interface NoteSnapshot {
+  sheet: number;
+  row: number;
+  col: number;
+  note: CellNote | null;
 }
 
 export interface SheetInfo {
@@ -318,6 +346,8 @@ export interface SheetInfo {
   /** The range of the sheet's own filter (autoFilter), if it has one. */
   autoFilter?: Rect;
   protected: boolean;
+  /** Its protection keeps objects as they are (Excel's "Edit objects" left unticked), notes and comments included. */
+  objectsLocked?: boolean;
   showGridLines: boolean;
   tabColor?: string;
 }
@@ -424,6 +454,8 @@ export interface CellChange {
   formatOnly?: boolean;
   /** A change to rows, columns or where cells are, rather than to one cell; `ref` is the rows, columns or range. */
   note?: Text;
+  /** A change to the cell's note or comment thread, in words; `before` and `after` are its text. */
+  comment?: Text;
 }
 
 export interface CellSnapshot {
@@ -449,8 +481,10 @@ export type EditOp =
   | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect; what?: PastePart; transpose?: boolean }
   /** Drag-fill from the source into the destination, extending series. */
   | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
-  /** Put cells, and the layout, back to an exact earlier state (undo/redo). */
-  | { type: 'restore'; cells: CellSnapshot[]; layout?: LayoutChange[] }
+  /** Put cells, their notes and threads, and the layout back to an exact earlier state (undo/redo). */
+  | { type: 'restore'; cells: CellSnapshot[]; notes?: NoteSnapshot[]; layout?: LayoutChange[] }
+  /** Adds, changes or deletes a cell's note or comment thread. */
+  | { type: 'comment'; sheet: number; row: number; col: number; change: CommentChange }
   /** Text for scattered cells, parsed like typed input (used by schema hooks). */
   | { type: 'inputs'; sheet: number; cells: { row: number; col: number; text: string }[] }
   /**
@@ -528,4 +562,8 @@ export interface EditResult {
   rejected?: Text;
   /** Layout changes made, in order, and the ones that undo them, in the order to apply them. */
   layout?: { applied: LayoutChange[]; undo: LayoutChange[] };
+  /** Notes and threads as they were before the edit, for undo. */
+  noteUndo?: NoteSnapshot[];
+  /** Notes and threads as the edit left them, to show and for redo. */
+  noteRedo?: NoteSnapshot[];
 }

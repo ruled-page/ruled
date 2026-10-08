@@ -96,6 +96,7 @@ export const store = {
   'store.merge.body_other': 'Merged cells keep only the top-left value. {{count, number}} other cells will be cleared.',
   'store.merge.confirm': 'Merge and clear',
   'store.merge.tooLarge': 'That range is too large to merge here.',
+  'store.history.comment': 'Note or comment',
   'store.history.businessLogic': 'Filled in by business logic',
   'store.history.restoredDraft': 'Restored unsaved changes',
   'store.history.undo': 'Undo',

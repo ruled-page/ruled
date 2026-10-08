@@ -1,16 +1,29 @@
 import { parseRange } from './refs';
-import type { CellNote } from './types';
+import type { CellNote, NoteEntry } from './types';
 import { attr, child, decodeOoxmlText, descendants, parseXml, textOf } from './xml';
+
+/** Someone who has written a threaded comment in the workbook. */
+export interface Person {
+  /** {GUID}, which their comments name. */
+  id: string;
+  displayName: string;
+  userId?: string;
+  /** Where userId comes from: "AD", "PeoplePicker"…, or "None" for a name with no account behind it. */
+  providerId?: string;
+}
+
+/** The people in a workbook's threaded comments, from its persons part. */
+export function parsePeople(xml: string | undefined): Person[] {
+  if (!xml) return [];
+  return descendants(parseXml(xml), 'person').flatMap((p) => {
+    const id = attr(p, 'id');
+    return id ? [{ id, displayName: attr(p, 'displayName') ?? '', userId: attr(p, 'userId'), providerId: attr(p, 'providerId') }] : [];
+  });
+}
 
 /** Display names of the people in a workbook's threaded comments, by person id. */
 export function parsePersons(xml: string | undefined): Map<string, string> {
-  const out = new Map<string, string>();
-  if (!xml) return out;
-  for (const p of descendants(parseXml(xml), 'person')) {
-    const id = attr(p, 'id');
-    if (id) out.set(id, attr(p, 'displayName') ?? '');
-  }
-  return out;
+  return new Map(parsePeople(xml).map((p) => [p.id, p.displayName]));
 }
 
 /** Notes (Excel's older "comments") from a comments part. */
@@ -35,10 +48,15 @@ export function parseThreads(xml: string, persons: Map<string, string>): CellNot
   const byId = new Map<string, CellNote>();
   const out: CellNote[] = [];
   for (const c of descendants(parseXml(xml), 'threadedComment')) {
-    const entry = {
-      author: persons.get(attr(c, 'personId') ?? '') || undefined,
+    const personId = attr(c, 'personId');
+    const time = attr(c, 'dT');
+    const entry: NoteEntry = {
+      author: persons.get(personId ?? '') || undefined,
       text: decodeOoxmlText(child(c, 'text')?.text ?? ''),
-      date: attr(c, 'dT')?.slice(0, 10),
+      date: time?.slice(0, 10),
+      id: attr(c, 'id'),
+      personId,
+      time,
     };
     const parent = byId.get(attr(c, 'parentId') ?? '');
     if (parent) {

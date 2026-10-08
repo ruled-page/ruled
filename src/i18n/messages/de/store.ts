@@ -102,6 +102,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.merge.body_other': 'Verbundene Zellen behalten nur den Wert oben links. {{count, number}} andere Zellen werden geleert.',
   'store.merge.confirm': 'Verbinden und leeren',
   'store.merge.tooLarge': 'Dieser Bereich ist zu groß, um ihn hier zu verbinden.',
+  'store.history.comment': 'Notiz oder Kommentar',
   'store.history.businessLogic': 'Von der Geschäftslogik ausgefüllt',
   'store.history.restoredDraft': 'Nicht gespeicherte Änderungen wiederhergestellt',
   'store.history.undo': 'Rückgängig',

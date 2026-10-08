@@ -157,8 +157,17 @@ describe('notes and comments', () => {
       persons,
     );
     expect(threads).toEqual([
-      { row: 1, col: 1, kind: 'thread', resolved: true, entries: [{ author: 'Ann', text: 'Is this right?', date: '2026-01-05' }, { author: undefined, text: 'Yes', date: '2026-01-06' }] },
-      { row: 4, col: 4, kind: 'thread', resolved: false, entries: [{ author: undefined, text: '', date: undefined }] },
+      {
+        row: 1,
+        col: 1,
+        kind: 'thread',
+        resolved: true,
+        entries: [
+          { author: 'Ann', text: 'Is this right?', date: '2026-01-05', id: 't1', personId: 'p1', time: '2026-01-05T10:00:00.00' },
+          { author: undefined, text: 'Yes', date: '2026-01-06', id: 't2', personId: 'p2', time: '2026-01-06T09:00:00.00' },
+        ],
+      },
+      { row: 4, col: 4, kind: 'thread', resolved: false, entries: [{ author: undefined, text: '', date: undefined, id: 't4' }] },
     ]);
     const placeholder = { row: 1, col: 1, kind: 'note' as const, entries: [{ text: '[Threaded comment]' }] };
     const other = { row: 9, col: 0, kind: 'note' as const, entries: [{ text: 'Plain note' }] };
