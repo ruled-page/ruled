@@ -1470,28 +1470,48 @@ export class WorkbookStore {
     return true;
   }
 
-  /** The selected cells as tab-separated text, as they are copied to the clipboard. */
-  selectionText(rect: Rect): string {
+  /** The selected cells as they are copied: the text each shows, and a number's exact value. */
+  private selectionCells(rect: Rect): { text: string; value?: number }[][] {
     const view = this.view;
-    if (!view) return '';
-    const lines: string[] = [];
+    if (!view) return [];
+    const rows: { text: string; value?: number }[][] = [];
     // The file's used range, grown by any cells typed or pasted beyond it since it was opened.
     const extent = view.extent();
     const lastRow = Math.max(extent.maxRow, rect.r1);
     const lastCol = Math.max(extent.maxCol, rect.c1);
     for (let row = rect.r1; row <= Math.min(rect.r2, lastRow); row++) {
       if (view.gridRow(row) < 0) continue;
-      const cells: string[] = [];
+      const cells: { text: string; value?: number }[] = [];
       for (let col = rect.c1; col <= Math.min(rect.c2, lastCol); col++) {
         const rec = view.get(row, col);
         const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
         const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
         const text = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
-        cells.push(/[\t\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+        cells.push(rec?.t === VT.Number && rec.n !== undefined ? { text, value: rec.n } : { text });
       }
-      lines.push(cells.join('\t'));
+      rows.push(cells);
     }
-    return lines.join('\n');
+    return rows;
+  }
+
+  /** The selected cells as tab-separated text, as they are copied to the clipboard. */
+  selectionText(rect: Rect): string {
+    return this.selectionCells(rect)
+      .map((cells) => cells.map(({ text }) => (/[\t\n"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text)).join('\t'))
+      .join('\n');
+  }
+
+  /**
+   * The selected cells as the HTML table Excel puts on the clipboard: each
+   * cell's text, escaped so nothing in a workbook becomes markup where it is
+   * pasted, and each number's exact value (x:num), which Excel reads back.
+   */
+  selectionHtml(rect: Rect): string {
+    const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const rows = this.selectionCells(rect).map(
+      (cells) => `<tr>${cells.map(({ text, value }) => `<td${value !== undefined ? ` x:num="${value}"` : ''}>${escape(text).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`,
+    );
+    return `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><body><table>${rows.join('')}</table></body></html>`;
   }
 
   /** Copies or cuts the selection from the menu, where the keyboard's clipboard events aren't available. */
@@ -1500,7 +1520,14 @@ export class WorkbookStore {
     if (!rect) return;
     this.noteCopy(rect, cut);
     try {
-      await navigator.clipboard.writeText(this.selectionText(rect));
+      const text = this.selectionText(rect);
+      if (typeof ClipboardItem === 'undefined') await navigator.clipboard.writeText(text);
+      else {
+        const html = this.selectionHtml(rect);
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) }),
+        ]);
+      }
     } catch {
       // Pasting within this workbook still works; other apps won't see it.
       this.toast('info', msg(cut ? 'store.clipboard.cutBlocked' : 'store.clipboard.copyBlocked'));

@@ -29,7 +29,7 @@ import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { effectiveStyle } from '../state/cellStyle';
-import { alignment, displayText, editText, exactText } from '../state/format';
+import { alignment, displayText, editText } from '../state/format';
 import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
@@ -285,7 +285,6 @@ export function SheetGrid({
         kind: GridCellKind.Text,
         data: editText(rec, style, date1904, locale),
         displayData: text,
-        copyData: numbers.copy === 'raw' ? (exactText(rec, style, false) ?? text) : text,
         allowOverlay: !readOnly,
         contentAlign: alignment(rec, style),
         allowWrapping: style.wrap,
@@ -537,26 +536,26 @@ export function SheetGrid({
     [store, view, toSheetRect, rowStart],
   );
 
-  // Remember what was copied, so pasting it back carries formulas. A cut
+  // The editor writes the clipboard itself, the text and an escaped HTML
+  // table, rather than letting the grid write cell text into HTML unescaped.
+  // It remembers what was copied, so pasting it back carries formulas. A cut
   // only marks the cells: like Excel, pasting it moves them, and references follow.
   useEffect(() => {
     const inEditorField = () => {
       const active = document.activeElement;
       return !!active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest('.gdg-clip-region, .dvn-scroller');
     };
-    const onCopy = () => {
-      if (inEditorField()) return;
-      const first = store.selection.rects[0];
-      if (first) store.noteCopy(first);
-    };
-    const onCut = (e: ClipboardEvent) => {
+    const write = (e: ClipboardEvent, cut: boolean) => {
       if (inEditorField() || !host.current?.contains(document.activeElement)) return;
       const first = store.selection.rects[0];
       if (!first || !e.clipboardData) return;
       e.preventDefault();
       e.clipboardData.setData('text/plain', store.selectionText(first));
-      store.noteCopy(first, true);
+      e.clipboardData.setData('text/html', store.selectionHtml(first));
+      store.noteCopy(first, cut);
     };
+    const onCopy = (e: ClipboardEvent) => write(e, false);
+    const onCut = (e: ClipboardEvent) => write(e, true);
     const onKey = (e: KeyboardEvent) => {
       if (!host.current?.contains(document.activeElement)) return;
       if (e.key === 'Escape' && store.cutRange) store.cancelCut();
@@ -736,7 +735,7 @@ export function SheetGrid({
         onGridSelectionChange={onSelectionChange}
         onCellEdited={onCellEdited}
         onCellActivated={onCellActivated}
-        keybindings={{ paste: false, cut: false }}
+        keybindings={{ copy: false, paste: false, cut: false }}
         onCellContextMenu={onCellContextMenu}
         onHeaderContextMenu={onHeaderContextMenu}
         provideEditor={provideEditor}

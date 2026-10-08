@@ -41,6 +41,24 @@ test.describe('editing a workbook', () => {
     await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('0.333333333333333');
   });
 
+  test('copies the text and an escaped HTML table with exact values', async ({ page }) => {
+    await setCell(page, 'A2', '<b onmouseover="alert(1)">Bolts</b>');
+    await setCell(page, 'C2', '=1/3');
+    await goTo(page, 'A2:C2');
+    const copied = await page.evaluate(() => {
+      let html = '';
+      let text = '';
+      // Reads what the editor put on the event once it has handled it.
+      window.addEventListener('copy', (e) => ((html = e.clipboardData!.getData('text/html')), (text = e.clipboardData!.getData('text/plain'))), { once: true });
+      document.activeElement!.dispatchEvent(new ClipboardEvent('copy', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
+      return { html, text };
+    });
+    expect(copied.html).not.toContain('<b ');
+    expect(copied.html).toContain('&#60;b onmouseover=&#34;alert(1)&#34;&#62;Bolts&#60;/b&#62;');
+    expect(copied.html).toContain('x:num="0.333333333333333"');
+    expect(copied.text.split('\t')[1]).toBe('2');
+  });
+
   test('undoes and redoes', async ({ page }) => {
     await setCell(page, 'B3', '10');
     await expect(shown(page, 'D3')).toHaveText('5');

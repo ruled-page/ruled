@@ -3,6 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VT } from '../src/core/types';
 import { english } from '../src/i18n';
 import type { Answer, ConfirmRequest, StoreOptions, WorkbookStore } from '../src/state/store';
+import { clipboardNumbers } from '../src/state/clipboard';
 import { opened, testStore } from './storeHarness';
 
 // An unexpected question would otherwise hang a test until the suite's long timeout.
@@ -434,6 +435,32 @@ describe('copying and pasting from the menu', () => {
     expect(writeText).toHaveBeenCalledWith('Bolts\t2\n"say ""hi""\tthere"\t4\nWashers\t1');
     expect(store.cutRange).toBeUndefined();
     expect(store.toasts).toHaveLength(0);
+  });
+
+  it('puts an escaped HTML table with the exact numbers beside the text, as Excel does', async () => {
+    await open();
+    await store.input(4, 0, '<img src=x onerror="alert(1)">');
+    await store.input(4, 1, '=1/3');
+    const html = store.selectionHtml(rect(4, 0, 4, 1));
+    expect(html).not.toContain('<img');
+    expect(html).toContain('<td>&#60;img src=x onerror=&#34;alert(1)&#34;&#62;</td>');
+    expect(html).toContain('<td x:num="0.333333333333333">0.333333333</td>');
+    // Read back the way a paste from Excel is.
+    expect(clipboardNumbers(html)).toEqual([[null, 0.333333333333333]]);
+
+    const write = vi.fn(async () => undefined);
+    const items: Record<string, Blob>[] = [];
+    vi.stubGlobal('ClipboardItem', class {
+      constructor(parts: Record<string, Blob>) {
+        items.push(parts);
+      }
+    });
+    vi.stubGlobal('navigator', { clipboard: { write } });
+    store.setSelection({ row: 4, col: 0, rects: [rect(4, 0, 4, 1)] });
+    await store.copySelection(false);
+    expect(write).toHaveBeenCalledOnce();
+    expect(await items[0]['text/html'].text()).toBe(html);
+    expect(await items[0]['text/plain'].text()).toBe('"<img src=x onerror=""alert(1)"">"\t0.333333333');
   });
 
   it('copies cells typed beyond the part of the sheet the file used', async () => {
