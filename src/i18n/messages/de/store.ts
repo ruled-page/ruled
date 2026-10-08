@@ -134,6 +134,6 @@ export const store: Record<keyof typeof en, string> = {
   'store.validation.notAllowed': 'Wert nicht zulässig',
 
   'sheet.notWorksheet': 'Dieses Blatt kann hier nicht bearbeitet werden.',
-  'sheet.protected': 'Dieses Tabellenblatt ist in Excel geschützt und daher hier schreibgeschützt.',
+  'sheet.locked': 'Diese Zelle ist gesperrt: Ihr Tabellenblatt ist in Excel geschützt.',
   'sheet.mergedPart': 'Teil einer verbundenen Zelle. Bearbeiten Sie die Zelle oben links.',
 };

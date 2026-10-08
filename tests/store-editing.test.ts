@@ -279,9 +279,9 @@ describe('pasting text from outside the workbook', () => {
     await open();
     store.setActive(2);
     await store.paste({ row: 0, col: 0 }, [['5', '6']], rect(0, 0));
-    expect(toasts()).toEqual(['2 cells were left unchanged. This sheet is protected in Excel, so it is read-only here.']);
+    expect(toasts()).toEqual(['2 cells were left unchanged. This cell is locked: its sheet is protected in Excel.']);
     await store.paste({ row: 0, col: 0 }, [['5']], rect(0, 0));
-    expect(toasts()[1]).toBe('This sheet is protected in Excel, so it is read-only here.');
+    expect(toasts()[1]).toBe('This cell is locked: its sheet is protected in Excel.');
     expect(store.history).toHaveLength(0);
   });
 });

@@ -16,7 +16,14 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   const cols = rect.c2 - rect.c1 + 1;
   const wholeRows = rect.c1 === 0 && rect.c2 >= Math.max(view.info.maxCol, 0);
   const wholeCols = rect.r1 === 0 && rect.r2 >= Math.max(view.info.maxRow, 0);
+  // Rows, columns and sorting are protected with the sheet; cells only where their format locks them.
   const locked = view.info.kind !== 'worksheet' || view.info.protected;
+  const unlocked = () => {
+    if (rows * cols > 10_000) return false;
+    for (let r = rect.r1; r <= rect.r2; r++) for (let c = rect.c1; c <= rect.c2; c++) if (!view.isUnlocked(view.styleAt(r, c))) return false;
+    return true;
+  };
+  const cellsLocked = view.info.kind !== 'worksheet' || (view.info.protected && !unlocked());
   const rowItems: MenuItem[] = [
     { label: t('menu.insertRowsAbove', { count: rows }), onSelect: () => void store.insertRows('above'), disabled: locked || rows >= MAX_ROWS },
     { label: t('menu.insertRowsBelow', { count: rows }), onSelect: () => void store.insertRows('below'), disabled: locked || rows >= MAX_ROWS },
@@ -38,9 +45,9 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   const items: MenuItem[] = [
     { label: t('menu.cut'), hint: mod(t, 'X'), onSelect: () => void store.copySelection(true), disabled: locked },
     { label: t('menu.copy'), hint: mod(t, 'C'), onSelect: () => void store.copySelection(false) },
-    { label: t('menu.paste'), hint: mod(t, 'V'), onSelect: () => void store.pasteFromClipboard(), disabled: locked },
-    { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: locked },
-    { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: locked },
+    { label: t('menu.paste'), hint: mod(t, 'V'), onSelect: () => void store.pasteFromClipboard(), disabled: cellsLocked },
+    { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
+    { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
     { separator: true },
     ...(menu.kind === 'column' || (wholeCols && !wholeRows) ? colItems : menu.kind === 'row' || wholeRows ? rowItems : [...rowItems, { separator: true } as const, ...colItems]),
     { separator: true },

@@ -764,6 +764,7 @@ export class WorkbookStore {
       if (res.type !== 'opened') throw new Error('Unexpected response');
       const r = res.result;
       this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
+      for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
       this.styles = r.styles;
       this.findings = r.findings;
       this.date1904 = r.date1904;
@@ -1205,6 +1206,7 @@ export class WorkbookStore {
   private adoptWorkbook(res: Extract<WorkerResponse, { type: 'restructured' }>): void {
     const r = res.result;
     this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
+    for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
     this.styles = r.styles;
     this.date1904 = r.date1904;
     this.findings = res.report ? [...r.findings.filter((f) => f.kind !== 'formulaEngine'), ...res.report.findings] : r.findings;

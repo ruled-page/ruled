@@ -209,7 +209,7 @@ describe('what a cell is drawn and edited with', () => {
     colStyles: [{ min: 2, max: 3, style: 8 }],
     merges: [merged, { r1: 4, c1: 0, r2: 4, c2: 1 }, { r1: 2, c1: 4, r2: 2, c2: 5 }],
     notes: [{ row: 0, col: 0, kind: 'note', entries: [{ text: 'hello' }] }],
-    blocked: [{ r1: 5, c1: 0, r2: 5, c2: 5, kind: 'pivot', reason: msg('sheet.protected') }],
+    blocked: [{ r1: 5, c1: 0, r2: 5, c2: 5, kind: 'pivot', reason: msg('sheet.locked') }],
   });
 
   it("takes the cell's own format, else its row's, else its column's", () => {
@@ -255,11 +255,16 @@ describe('what a cell is drawn and edited with', () => {
     // The top-left cell of a merge is the one to edit.
     expect(view.readOnlyReason(1, 1)).toBeUndefined();
     expect(reason(view, 2, 3)).toMatch(/^Part of a merged cell/);
-    expect(view.readOnlyReason(5, 0)).toEqual(msg('sheet.protected'));
+    expect(view.readOnlyReason(5, 0)).toEqual(msg('sheet.locked'));
     view.constraint = (row) => (row === 3 ? 'Schema says no' : undefined);
     expect(view.readOnlyReason(3, 0)).toBe('Schema says no');
     expect(view.readOnlyReason(0, 0)).toBeUndefined();
-    expect(reason(new SheetView({ ...info, protected: true }, null), 0, 0)).toBe(english.text(msg('sheet.protected')));
+    // On a protected sheet only cells whose format unlocks them can be edited.
+    const guarded = new SheetView({ ...info, protected: true }, null);
+    expect(reason(guarded, 0, 0)).toBe('This cell is locked: its sheet is protected in Excel.');
+    guarded.isUnlocked = (style) => style === 7;
+    expect(guarded.readOnlyReason(4, 2)).toBeUndefined();
+    expect(reason(guarded, 3, 1)).toBe('This cell is locked: its sheet is protected in Excel.');
     expect(new SheetView({ ...info, kind: 'chartsheet' }, null).readOnlyReason(0, 0)).toEqual(msg('sheet.notWorksheet'));
   });
 });

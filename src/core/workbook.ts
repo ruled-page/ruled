@@ -342,7 +342,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
         kind: 'protection',
         severity: 'info',
         title: msg('core.finding.protectedSheet.title'),
-        detail: msg('core.reason.protected'),
+        detail: msg('core.finding.protectedSheet.detail'),
         sheet: name,
       });
     }

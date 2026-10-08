@@ -266,3 +266,22 @@ describe('engine verdicts reach the UI', () => {
     expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:7:1`))).toMatch(/table references/);
   });
 });
+
+describe('a protected sheet', () => {
+  const form = () => WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'templates.xlsx'))), 'templates.xlsx', 'en-US', { recalc: 'on' });
+
+  it('takes input in the cells its format leaves unlocked, and nowhere else', () => {
+    const s = form();
+    s.ensureEngine();
+    const request = sheetIndex(s, 'Request');
+    expect(s.apply({ type: 'input', sheet: request, ...at('B3'), text: 'Ana' }).rejected).toBeUndefined();
+    const locked = s.apply({ type: 'input', sheet: request, ...at('A3'), text: 'Who' });
+    expect([locked.skipped, locked.skippedReasons.map((x) => english.text(x))]).toEqual([1, ['This cell is locked: its sheet is protected in Excel.']]);
+    // The budget is an input; the check that compares with it recalculates.
+    const r = s.apply({ type: 'input', sheet: request, ...at('B5'), text: '100' });
+    expect(valueOf(updateAt(r.updates, s, 'Request', 'B7'))).toBe('No');
+    // Rows can't go in or out of it.
+    expect(() => s.restructure({ type: 'insertRows', sheet: request, at: 2, count: 1 })).toThrow();
+    expect(english.text(s.model.findings.find((f) => f.kind === 'protection')?.detail)).toMatch(/only the cells it leaves unlocked can be edited/);
+  });
+});

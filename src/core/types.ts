@@ -192,6 +192,10 @@ export interface DisplayStyle {
   wrap: boolean;
   indent: number;
   border?: CellBorders;
+  /** Left unlocked for editing when its sheet is protected; cells are locked unless the format says otherwise. */
+  unlocked?: boolean;
+  /** Its formula is hidden from the formula bar when its sheet is protected. */
+  formulaHidden?: boolean;
 }
 
 export interface Anchor {

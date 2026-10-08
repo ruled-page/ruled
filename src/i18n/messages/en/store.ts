@@ -125,6 +125,6 @@ export const store = {
   'store.validation.notAllowed': 'Value not allowed',
 
   'sheet.notWorksheet': 'This sheet cannot be edited here.',
-  'sheet.protected': 'This sheet is protected in Excel, so it is read-only here.',
+  'sheet.locked': 'This cell is locked: its sheet is protected in Excel.',
   'sheet.mergedPart': 'Part of a merged cell. Edit its top-left cell.',
 } satisfies Record<string, string>;

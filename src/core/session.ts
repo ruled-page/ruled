@@ -504,7 +504,8 @@ export class WorkbookSession {
   private blockedReason(sheet: number, row: number, col: number): Text | undefined {
     const info = this.sheet(sheet).info;
     if (info.kind !== 'worksheet') return msg('core.reason.notWorksheet');
-    if (info.protected) return msg('core.reason.protected');
+    // A protected sheet's cells are locked unless their format unlocks them, as Excel's input cells are.
+    if (info.protected && !this.model.styles.get(this.current(sheet, row, col).style).unlocked) return msg('core.reason.locked');
     for (const b of info.blocked) if (inRect(b, row, col)) return b.reason;
     for (const m of info.merges) {
       if (inRect(m, row, col) && (row !== m.r1 || col !== m.c1)) return MERGED;

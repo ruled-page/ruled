@@ -40,6 +40,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.mergedCells.detail_other':
     '{{count, number}} verbundene Bereiche erstrecken sich über mehr als eine Zeile. Ihr Wert wird nur in der oberen linken Zelle angezeigt; die Verbindung bleibt in der Datei erhalten.',
   'core.finding.protectedSheet.title': 'Geschütztes Tabellenblatt',
+  'core.finding.protectedSheet.detail':
+    'In Excel geschützt: Hier lassen sich nur die nicht gesperrten Zellen bearbeiten, und Zeilen und Spalten lassen sich weder einfügen, löschen noch sortieren.',
   'core.finding.arrayFormulas.title': 'Matrixformeln',
   'core.finding.arrayFormulas.detail_one':
     '{{count, number}} Matrix- oder Überlaufformel erstreckt sich über mehr als eine Zelle. Sie behält den zuletzt von Excel berechneten Wert, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
@@ -164,6 +166,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.pivot.otherRange': 'einem anderen Bereich',
 
   'core.reason.protected': 'Dieses Tabellenblatt ist in Excel geschützt und daher hier schreibgeschützt.',
+  'core.reason.locked': 'Diese Zelle ist gesperrt: Ihr Tabellenblatt ist in Excel geschützt.',
   'core.reason.notWorksheet': 'Dieses Blatt kann hier nicht bearbeitet werden.',
   'core.reason.arrayFormula': 'Diese Zelle gehört zu einer Matrixformel. Bearbeiten Sie sie in Excel.',
   'core.reason.pivot': 'Diese Zelle gehört zur PivotTable „{{name}}“. Ändern Sie die PivotTable in Excel.',

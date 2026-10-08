@@ -38,6 +38,8 @@ export const core = {
   'core.finding.mergedCells.detail_other':
     '{{count, number}} merged ranges span more than one row. Their value is shown in the top-left cell only; the merge is kept in the file.',
   'core.finding.protectedSheet.title': 'Protected sheet',
+  'core.finding.protectedSheet.detail':
+    "Protected in Excel: only the cells it leaves unlocked can be edited here, and its rows and columns can't be inserted, deleted or sorted.",
   'core.finding.arrayFormulas.title': 'Array formulas',
   'core.finding.arrayFormulas.detail_one':
     "{{count, number}} array or spill formula cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.",
@@ -157,6 +159,7 @@ export const core = {
 
   // Why a cell can't be edited.
   'core.reason.protected': 'This sheet is protected in Excel, so it is read-only here.',
+  'core.reason.locked': 'This cell is locked: its sheet is protected in Excel.',
   'core.reason.notWorksheet': 'This sheet cannot be edited here.',
   'core.reason.arrayFormula': 'This cell is part of an array formula. Edit it in Excel.',
   'core.reason.pivot': 'This cell is part of pivot table "{{name}}". Change the pivot table in Excel.',

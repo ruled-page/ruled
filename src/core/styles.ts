@@ -335,6 +335,7 @@ export class StyleBook {
     for (const xf of children(cellXfsNode, 'xf')) {
       const font = fonts[Number(attr(xf, 'fontId') ?? 0)] ?? fonts[0];
       const align = child(xf, 'alignment');
+      const protection = child(xf, 'protection');
       this.display.push({
         numFmt: this.numFmtCode(Number(attr(xf, 'numFmtId') ?? 0), locale),
         bold: font?.bold ?? false,
@@ -350,6 +351,8 @@ export class StyleBook {
         wrap: attr(align, 'wrapText') === '1' || attr(align, 'wrapText') === 'true',
         indent: Number(attr(align, 'indent') ?? 0),
         border: cellBorders(borders[Number(attr(xf, 'borderId') ?? 0)]),
+        ...(['0', 'false'].includes(attr(protection, 'locked') ?? '') ? { unlocked: true } : {}),
+        ...(['1', 'true'].includes(attr(protection, 'hidden') ?? '') ? { formulaHidden: true } : {}),
       });
     }
     if (this.display.length === 0) this.display.push(defaultStyle());

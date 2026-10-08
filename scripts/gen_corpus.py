@@ -49,7 +49,8 @@ def templates():
     form.write_number("B5", 2500, wb.add_format({"num_format": "#,##0", "locked": False, "bg_color": "#FFF2CC"}))
     form.write("A6", "Order total")
     total = sum(q * p for _, _, q, p in ORDERS)
-    form.write_formula("B6", "=SUM(Orders[Total])", money, total)
+    # Its formula is hidden from the formula bar while the sheet is protected.
+    form.write_formula("B6", "=SUM(Orders[Total])", wb.add_format({"num_format": "#,##0.00", "hidden": True}), total)
     form.write("A7", "Within budget")
     form.write_formula("B7", "=IF(B6<=Budget,\"Yes\",\"No\")", None, "Yes" if total <= 2500 else "No")
     form.data_validation("B5", {"validate": "integer", "criteria": ">", "value": 0})

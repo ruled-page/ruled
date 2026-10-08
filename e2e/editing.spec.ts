@@ -125,3 +125,16 @@ test('switching theme restyles the editor and keeps the workbook open', async ({
   await page.getByRole('combobox', { name: 'Theme' }).selectOption('Default');
   await expect(root).toHaveCSS('color-scheme', 'light');
 });
+
+test('a protected form takes input in its unlocked cells only, and hides its protected formulas', async ({ page }) => {
+  await openFile(page, 'templates.xlsx', new Uint8Array(await readFile('tests/corpus/templates.xlsx')));
+  await expect(page.getByRole('button', { name: 'Request' })).toHaveAttribute('aria-current', 'true');
+  await setCell(page, 'B3', 'Ana');
+  await expect(shown(page, 'B3')).toHaveText('Ana');
+  await goTo(page, 'A3');
+  await expect(page.getByText('This cell is locked: its sheet is protected in Excel.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveAttribute('readonly', '');
+  // The total's formula is hidden from the formula bar; its value shows.
+  await goTo(page, 'B6');
+  await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('373.50');
+});

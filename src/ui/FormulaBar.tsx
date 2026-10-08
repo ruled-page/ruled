@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
 import { CellFlag, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
-import { editText } from '../state/format';
+import { displayText, editText } from '../state/format';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
@@ -116,7 +116,9 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const t = useT();
   const rec = view.get(selection.row, selection.col);
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
-  const value = editText(rec, style, store.date1904, store.locale);
+  // A protected sheet can hide a cell's formula from the formula bar, as Excel does; its value still shows.
+  const hidden = !!rec && rec.f !== undefined && view.info.protected && !!style.formulaHidden;
+  const value = hidden ? displayText(rec, style, store.date1904).text : editText(rec, style, store.date1904, store.locale);
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const input = useRef<HTMLInputElement>(null);

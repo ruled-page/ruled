@@ -219,9 +219,12 @@ export class SheetView {
     return this.mergesByRow.get(row)?.find((m) => col >= m.c1 && col <= m.c2);
   }
 
+  /** Whether a format leaves its cells unlocked on a protected sheet; the store knows the formats. */
+  isUnlocked: (style: number) => boolean = () => false;
+
   readOnlyReason(row: number, col: number): Text | undefined {
     if (this.info.kind !== 'worksheet') return msg('sheet.notWorksheet');
-    if (this.info.protected) return msg('sheet.protected');
+    if (this.info.protected && !this.isUnlocked(this.styleAt(row, col))) return msg('sheet.locked');
     const m = this.mergeAt(row, col);
     if (m && (m.r1 !== row || m.c1 !== col)) return msg('sheet.mergedPart');
     return this.blockedAt(row, col)?.reason ?? this.constraint?.(row, col);
