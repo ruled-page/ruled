@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
-import { goTo as goToCell, openFile } from './helpers';
+import { goTo as goToCell, openFile, tabKey } from './helpers';
 
 /** Everything here is done without the mouse. */
 
@@ -17,7 +17,7 @@ async function reach(page: Page, el: Locator, key: string): Promise<void> {
 
 /** Goes to a cell from the keyboard: into the editor with Tab, to the name box with F6, and the cell's reference. */
 async function goTo(page: Page, ref: string): Promise<void> {
-  await reach(page, page.locator('.wbe-root'), 'Tab');
+  await reach(page, page.locator('.wbe-root'), tabKey(page));
   const box = page.getByRole('combobox', { name: 'Go to cell' });
   await reach(page, box, 'F6');
   await page.keyboard.type(ref);
@@ -62,7 +62,7 @@ test.describe('notes and comments with only a keyboard', () => {
     await expect(popup).toBeVisible();
     await expect(popup.getByRole('textbox', { name: 'Note' })).toBeFocused();
     await page.keyboard.type('Counted twice.');
-    await reach(page, popup.getByRole('button', { name: 'Save note' }), 'Tab');
+    await reach(page, popup.getByRole('button', { name: 'Save note' }), tabKey(page));
     await page.keyboard.press('Enter');
     await expect(popup).toBeHidden();
     await expect(grid(page)).toHaveCount(1);
@@ -84,7 +84,7 @@ test.describe('notes and comments with only a keyboard', () => {
     await expect(popup.getByRole('listitem')).toHaveCount(2);
     await expect(popup.getByRole('textbox', { name: 'Reply' })).toBeFocused();
     await page.keyboard.type('Thanks, Bob.');
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(tabKey(page));
     await expect(popup.getByRole('button', { name: 'Reply', exact: true })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(popup.getByRole('listitem')).toHaveCount(3);
@@ -96,7 +96,7 @@ test.describe('notes and comments with only a keyboard', () => {
     await expect(popup.getByRole('listitem').first().getByRole('button')).toHaveCount(0);
     await expect(popup.getByRole('textbox', { name: 'Reply' })).toHaveValue('');
 
-    await reach(page, popup.getByRole('button', { name: 'Resolve thread' }), 'Tab');
+    await reach(page, popup.getByRole('button', { name: 'Resolve thread' }), tabKey(page));
     await page.keyboard.press('Enter');
     await expect(popup.getByText('Resolved', { exact: true })).toBeVisible();
     await expect(popup.getByRole('textbox', { name: 'Reply' })).toHaveCount(0);

@@ -25,6 +25,15 @@ export async function openFile(page: Page, name: string, bytes: Uint8Array): Pro
   await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
 }
 
+/**
+ * The key that moves the focus to the next control: Tab, or Option+Tab in
+ * Safari on a Mac, where Tab passes over buttons unless that is set.
+ */
+export function tabKey(page: Page, back = false): string {
+  const mac = process.platform === 'darwin' && page.context().browser()?.browserType().name() === 'webkit';
+  return `${back ? 'Shift+' : ''}${mac ? 'Alt+' : ''}Tab`;
+}
+
 /** Selects a cell or range by typing it into the name box; the grid takes the focus. */
 export async function goTo(page: Page, ref: string): Promise<void> {
   const box = page.getByRole('combobox', { name: 'Go to cell' });

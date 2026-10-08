@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openFile, ordersWorkbook, readWorkbook, shown } from './helpers';
+import { openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
 
 /** Everything here is done with the keyboard. */
 
@@ -69,7 +69,7 @@ test('names the selection from the name box, goes to the name, uses it in a form
   const manager = page.getByRole('dialog', { name: 'Name manager' });
   await expect(manager.getByRole('radio', { name: 'Totals' })).toBeChecked();
   await expect(manager.getByRole('row', { name: /Totals/ })).toContainText('{6;2}');
-  await page.keyboard.press('Tab');
+  await page.keyboard.press(tabKey(page));
   await expect(manager.getByRole('button', { name: 'Edit…' })).toBeFocused();
   await page.keyboard.press('Enter');
   const edit = page.getByRole('dialog', { name: 'Edit name' });

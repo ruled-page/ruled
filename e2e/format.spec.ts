@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, readWorkbook, shown } from './helpers';
+import { goTo, openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
 
 async function save(page: Page) {
   const download = page.waitForEvent('download');
@@ -63,8 +63,8 @@ test('opens the colour palette and the borders menu from the keyboard', async ({
   await expect(palette).toBeHidden();
   await expect(bar.getByRole('button', { name: 'Font colour' })).toBeFocused();
   await page.keyboard.press('Enter');
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
+  await page.keyboard.press(tabKey(page));
+  await page.keyboard.press(tabKey(page));
   await page.keyboard.press('Enter');
   await expect(palette).toBeHidden();
   await bar.getByRole('button', { name: 'Borders' }).focus();

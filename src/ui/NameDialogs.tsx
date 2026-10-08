@@ -125,7 +125,19 @@ export function NameDialog({ store }: { store: WorkbookStore }) {
           </div>
           <div className="wbe-field">
             <label htmlFor={`${id}-scope`}>{t('names.field.scope')}</label>
-            <select id={`${id}-scope`} value={scope} disabled={editing} onChange={(e) => setScope(e.target.value)} aria-describedby={editing ? `${id}-scope-note` : undefined}>
+            <select
+              id={`${id}-scope`}
+              value={scope}
+              disabled={editing}
+              onChange={(e) => setScope(e.target.value)}
+              // Enter takes OK from here too, as from the other fields; Firefox doesn't submit from a list.
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.altKey) return;
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }}
+              aria-describedby={editing ? `${id}-scope-note` : undefined}
+            >
               <option value="">{t('names.scope.workbook')}</option>
               {sheets.map((s) => (
                 <option key={s.i} value={String(s.i)}>
