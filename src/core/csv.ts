@@ -203,8 +203,8 @@ export interface CsvOptions {
 
 /** What makes Excel, LibreOffice and Google Sheets read a cell as a formula, or start one. */
 const FORMULA_START = /^[=+\-@\t\r＝＋－＠]/;
-/** A number as text (sign, currency, digits and separators, exponent, percent): read as a number, never a formula. */
-const PLAIN_NUMBER = /^[-+]?[\s\p{Sc}]*[\d.,'’\s]*\d[\d.,'’\s]*(?:[eE][-+]?\d+)?[\s%\p{Sc}]*$/u;
+/** A signed number as text (currency, digits and separators, exponent, percent): read as a number, never a formula. */
+const PLAIN_NUMBER = /^[-+][\s\p{Sc}]*[\d.,'’\s]*\d[\d.,'’\s]*(?:[eE][-+]?\d+)?[\s%\p{Sc}]*$/u;
 
 /** A value made safe to open in a spreadsheet app: one that would run as a formula gets an apostrophe in front. */
 export function escapeFormula(text: string): string {

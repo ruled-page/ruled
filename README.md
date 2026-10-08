@@ -446,9 +446,9 @@ The toolbar's CSV button, `downloadCsv(options)` and `getCsv(options)` write
 the sheet shown, and only that sheet, as Excel's "CSV UTF-8" does: each
 cell as its number format shows it, with the locale's decimal and thousands
 separators; formulas as their results; from A1 to the last row and column
-holding a value; quoted where needed; CRLF line ends; and in the download,
-UTF-8 with a byte order mark (`getCsv` returns the text without one). The
-delimiter is the locale's list separator, as Excel's is: a comma, or a
+holding a value, hidden and filtered rows included; quoted where needed;
+CRLF line ends; and in the download, UTF-8 with a byte order mark (`getCsv`
+returns the text without one). The delimiter is the locale's list separator, as Excel's is: a comma, or a
 semicolon where decimals are written with a comma, and in Switzerland.
 `delimiter` (`','`, `';'` or `'\t'`) overrides it, per call or for the
 button through the `csvExport` option. Downloading CSV is an export: it

@@ -244,6 +244,8 @@ describe('writing CSV', () => {
       '＠SUM(A1)',
       '-',
       '+1 (555) 010-0199',
+      '\t5',
+      '\r-5',
       '-1e5+A1',
     ];
     for (const text of attacks) expect(escapeFormula(text), JSON.stringify(text)).toBe(`'${text}`);
