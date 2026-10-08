@@ -1390,7 +1390,32 @@ export class WorkbookSession {
       next.comparedOnly = compared;
     }
     next.baked.structure.push(describeStructure(op, names));
+    if (op.type === 'insertRows') next.fillInsertedTableRows(op.sheet, op.at, op.count);
     return next;
+  }
+
+  /**
+   * Rows inserted inside an Excel table take the table's calculated column
+   * formulas and the formats of the row next to them, as Excel fills them.
+   */
+  private fillInsertedTableRows(sheet: number, at: number, count: number): void {
+    const info = this.model.sheets[sheet]?.info;
+    for (const t of info?.tables ?? []) {
+      const top = t.rect.r1 + t.headerRows;
+      const bottom = t.rect.r2 - t.totalsRows;
+      if (at < top || at + count - 1 > bottom) continue;
+      // The row above, or below when the rows went in at the top.
+      const like = at > top ? at - 1 : at + count <= bottom ? at + count : -1;
+      for (let row = at; row < at + count; row++) {
+        for (let j = 0; j < t.columns.length; j++) {
+          const col = t.rect.c1 + j;
+          const style = like >= 0 ? this.current(sheet, like, col).style : 0;
+          const formula = t.calculated?.[j];
+          if (!formula && !style) continue;
+          this.setCurrent({ sheet, row, col, content: formula ? { kind: 'formula', formula } : EMPTY, style });
+        }
+      }
+    }
   }
 
   /** Every cell whose state differs from the file the session was built from, for redrawing all of it. */

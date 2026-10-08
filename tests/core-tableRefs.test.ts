@@ -50,3 +50,23 @@ describe('a workbook with an Excel table', () => {
     expect(at('Lines', 6, 4)).toBeCloseTo(383.5);
   });
 });
+
+describe('rows inserted into a table', () => {
+  it('take its calculated column formulas and the formats of the row beside them, and count in its totals', () => {
+    const s = WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'templates.xlsx'))), 'templates.xlsx', 'en-US', { recalc: 'on' });
+    s.ensureEngine();
+    const lines = s.model.sheets.findIndex((m) => m.info.name === 'Lines');
+    // A row between Nuts and Cable, inside the Orders table (A1:E7).
+    const next = s.restructure({ type: 'insertRows', sheet: lines, at: 3, count: 1 });
+    next.ensureEngine();
+    const total = next.current(lines, 3, 4);
+    expect(total.content).toMatchObject({ kind: 'formula' });
+    expect(next.current(lines, 3, 3).style).toBe(next.current(lines, 2, 3).style);
+    next.apply({ type: 'input', sheet: lines, row: 3, col: 2, text: '10' });
+    const r = next.apply({ type: 'input', sheet: lines, row: 3, col: 3, text: '2.5' });
+    const at = (row: number, col: number) => r.updates.find((u) => u.sheet === lines && u.row === row && u.col === col)?.n;
+    expect(at(3, 4)).toBe(25);
+    // The totals row, now row 8, adds the new line in.
+    expect(at(7, 4)).toBeCloseTo(373.5 + 25);
+  });
+});

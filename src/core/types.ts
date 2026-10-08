@@ -118,6 +118,8 @@ export interface TableInfo {
   headerRows: number;
   totalsRows: number;
   columns: string[];
+  /** Each column's calculated formula, which Excel fills into every row of the column, in file form. */
+  calculated?: (string | undefined)[];
   style?: string;
   showFirstColumn: boolean;
   showLastColumn: boolean;
