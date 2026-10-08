@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { glidePatches } from './vite.glide.ts';
 
@@ -7,6 +8,8 @@ export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   worker: { format: 'es' },
   plugins: [glidePatches()],
+  // The grid's markdown cells are never shown, so their parser isn't needed.
+  resolve: { alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) }] },
   // The dev server bundles Glide ahead of time, outside the plugins above.
   optimizeDeps: { rolldownOptions: { plugins: [glidePatches()] } },
   // Two pages: the editor demo, and the editor embedded in a host app. Each is

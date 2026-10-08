@@ -47,6 +47,8 @@ export default defineConfig(({ mode }) => {
       alias: [
         { find: /^use-sync-external-store\/shim$/, replacement: fileURLToPath(new URL('src/editor/shims/useSyncExternalStore.ts', import.meta.url)) },
         { find: /^react-responsive-carousel$/, replacement: fileURLToPath(new URL('src/editor/shims/carousel.ts', import.meta.url)) },
+        // Not CommonJS, but the markdown it renders is never shown.
+        { find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) },
       ],
     },
     define: { 'process.env.NODE_ENV': JSON.stringify('production') },

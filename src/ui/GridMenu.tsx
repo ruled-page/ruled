@@ -2,7 +2,7 @@ import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { mod } from './keys';
-import { openDefineName } from './NameDialogs';
+import { openDefineName } from '../state/names';
 import { useT } from '../i18n/react';
 
 /** The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find. */

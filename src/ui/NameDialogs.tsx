@@ -10,19 +10,14 @@ import {
   nameError,
   nameHasError,
   nameValue,
+  openDefineName,
   refersToError,
   refersToFile,
-  selectionRefersTo,
 } from '../state/names';
 import type { NameDialog as NameDialogState, WorkbookStore } from '../state/store';
 import { useDialog } from './useDialog';
 
 const refersToText = (n: DefinedName) => displayFormula(n.formula);
-
-/** Opens the dialog that defines a name for the selection, as Excel's Define Name does. */
-export function openDefineName(store: WorkbookStore): void {
-  store.set('nameDialog', { name: '', refersTo: selectionRefersTo(store), comment: '' });
-}
 
 function openEditName(store: WorkbookStore, n: DefinedName): void {
   store.set('nameDialog', { from: { name: n.name, localSheet: n.localSheet }, name: n.name, localSheet: n.localSheet, refersTo: refersToText(n), comment: n.comment ?? '' });

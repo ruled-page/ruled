@@ -3,17 +3,15 @@ import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
-import { CommentPopup } from '../ui/CommentPopup';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
+import { lazyModule } from '../ui/lazyModule';
 import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
-import { LinkDialog } from '../ui/LinkDialog';
 import { ShortcutsDialog, SizeDialog } from '../ui/KeyboardDialogs';
-import { NameDialog, NameManager } from '../ui/NameDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
@@ -23,7 +21,6 @@ import { I18nextProvider, Trans } from 'react-i18next';
 import { NAMESPACE } from '../i18n';
 import { useT } from '../i18n/react';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
-import { SchemaDesigner } from '../ui/SchemaDesigner';
 import { SheetPanes } from '../ui/SheetPanes';
 import { SidePanel } from '../ui/SidePanel';
 import './editor.css';
@@ -31,6 +28,12 @@ import './editor.css';
 function isTextField(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
+
+// Dialogs seldom opened, loaded when first wanted or once the page is idle.
+const designer = lazyModule(() => import('../ui/SchemaDesigner'));
+const comments = lazyModule(() => import('../ui/CommentPopup'));
+const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
+const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
 
 /** The editor's parts, in the order F6 visits them. */
 const REGIONS = ['.wbe-toolbar', '.wbe-format-bar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
@@ -239,6 +242,19 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const view = store.view;
   const selection = store.selection;
   const ready = store.status === 'ready' && view;
+  const Designer = designer.useModule(store.designerOpen);
+  const Comments = comments.useModule(!!store.commentFor);
+  const Names = nameDialogs.useModule(!!store.nameDialog || store.nameManagerOpen);
+  const Links = linkDialog.useModule(store.linkDialog);
+  // Once a workbook is open, they load while the page has nothing else to do.
+  const opened = !!ready;
+  useEffect(() => {
+    if (!opened) return;
+    const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
+    idle(() => {
+      for (const m of [designer, comments, nameDialogs, linkDialog]) m.preload();
+    });
+  }, [opened]);
 
   return (
     <div
@@ -333,15 +349,15 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
           <p>{t('editor.dropToOpen')}</p>
         </div>
       )}
-      {store.designerOpen && <SchemaDesigner store={store} />}
+      {store.designerOpen && Designer && <Designer.SchemaDesigner store={store} />}
       {ready && <GridMenu store={store} />}
       {ready && <FilterPicker store={store} />}
       {ready && <SizeDialog store={store} axis="cols" />}
       {ready && <SizeDialog store={store} axis="rows" />}
-      {ready && <CommentPopup store={store} />}
-      {ready && <NameManager store={store} />}
-      {ready && <NameDialog store={store} />}
-      {ready && <LinkDialog store={store} />}
+      {ready && store.commentFor && Comments && <Comments.CommentPopup store={store} />}
+      {ready && store.nameManagerOpen && Names && <Names.NameManager store={store} />}
+      {ready && store.nameDialog && Names && <Names.NameDialog store={store} />}
+      {ready && store.linkDialog && Links && <Links.LinkDialog store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

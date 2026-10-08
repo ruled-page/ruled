@@ -203,3 +203,8 @@ export function nameValue(store: WorkbookStore, n: DefinedName): string {
 export function nameHasError(store: WorkbookStore, n: DefinedName): boolean {
   return nameValue(store, n).startsWith('#');
 }
+
+/** Opens the dialog that defines a name for the selection, as Excel's Define Name does. */
+export function openDefineName(store: WorkbookStore): void {
+  store.set('nameDialog', { name: '', refersTo: selectionRefersTo(store), comment: '' });
+}
