@@ -373,9 +373,10 @@ opening the copies there.
 `npm run validate:saves` (after `npm run build:verify`; needs the .NET SDK)
 checks that saving never makes a workbook invalid. It saves edited copies of
 the samples and of the workbooks in `tests/corpus` (made by
-`scripts/gen_corpus.py` with XlsxWriter: a protected form with unlocked
-input cells, an Excel table with structured references, dynamic arrays, LET
-and LAMBDA, the 1904 date system), validates them with Microsoft's Open XML
+`scripts/gen_corpus.py` and `scripts/gen_charts.py` with XlsxWriter: a
+protected form with unlocked input cells, an Excel table with structured
+references, dynamic arrays, LET and LAMBDA, the 1904 date system, one chart
+of each kind), validates them with Microsoft's Open XML
 SDK (`tools/ooxml-validate`), and fails on any error a copy has that its
 original didn't. CI runs it.
 

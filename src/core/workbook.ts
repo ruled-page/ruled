@@ -1,4 +1,5 @@
 import { msg, TextError, type Message, type MessageKey, type Text } from '../i18n/message';
+import { parseChart, type ChartContext, type ChartSpec } from './charts';
 import { parseRange, rangeToA1, toA1 } from './refs';
 import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
@@ -90,7 +91,7 @@ function anchorOf(node: XmlNode | undefined): Anchor | undefined {
   };
 }
 
-function readChart(pkg: OoxmlPackage, path: string): { title?: string; type?: Text } {
+function readChart(pkg: OoxmlPackage, path: string, ctx: ChartContext): { title?: string; type?: Text; chart?: ChartSpec } {
   const xml = pkg.text(path);
   if (!xml) return {};
   const root = parseXml(xml);
@@ -118,10 +119,10 @@ function readChart(pkg: OoxmlPackage, path: string): { title?: string; type?: Te
     const id = layout ? attr(layout, 'layoutId') : undefined;
     if (id) type = id.charAt(0).toUpperCase() + id.slice(1);
   }
-  return { title: title || undefined, type };
+  return { title: title || undefined, type, chart: plot ? parseChart(root, ctx) : undefined };
 }
 
-function readDrawing(pkg: OoxmlPackage, path: string): SheetObject[] {
+function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetObject[] {
   const xml = pkg.text(path);
   if (!xml) return [];
   const rels = new Map(pkg.rels(path).map((r) => [r.id, r]));
@@ -138,8 +139,9 @@ function readDrawing(pkg: OoxmlPackage, path: string): SheetObject[] {
     const chartRef = descendants(anchor, 'chart').find((c) => attr(c, 'id'));
     const rel = chartRef ? rels.get(attr(chartRef, 'id') ?? '') : undefined;
     if (rel && (rel.type === 'chart' || rel.type === 'chartEx')) {
-      const { title, type } = readChart(pkg, rel.target);
-      out.push({ kind: 'chart', name, title, chartType: type, from, to, sizePx });
+      const { title, type, chart } = readChart(pkg, rel.target, ctx);
+      // Excel's newer kinds of chart (chartEx: waterfall, treemap…) aren't read.
+      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx });
     } else if (descendants(anchor, 'pic').length) {
       out.push({ kind: 'image', name, from, to, sizePx });
     } else if (descendants(anchor, 'sp').length || descendants(anchor, 'grpSp').length || descendants(anchor, 'cxnSp').length) {
@@ -190,6 +192,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     const local = attr(d, 'localSheetId');
     return { name: attr(d, 'name') ?? '', formula: d.text, localSheet: local !== undefined ? Number(local) : undefined };
   });
+
+  const chartContext: ChartContext = { theme: styles.theme, sheetIndex: sheetIndexByName, names };
 
   // Pivot caches, keyed by their definition part path, to describe each pivot's source.
   const pivotSources = new Map<string, Text>();
@@ -247,7 +251,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
 
     if (info.kind === 'chartsheet') {
       const drawing = sheetRels.find((r) => r.type === 'drawing');
-      const objects = drawing ? readDrawing(pkg, drawing.target) : [];
+      const objects = drawing ? readDrawing(pkg, drawing.target, chartContext) : [];
       info.objects = objects;
       const chart = objects.find((o) => o.kind === 'chart');
       findings.push({
@@ -433,7 +437,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     const threads: CellNote[] = [];
     for (const r of sheetRels) {
       if (r.type === 'drawing') {
-        info.objects.push(...readDrawing(pkg, r.target));
+        info.objects.push(...readDrawing(pkg, r.target, chartContext));
       } else if (r.type === 'pivotTable') {
         const pxml = pkg.text(r.target);
         if (!pxml) continue;

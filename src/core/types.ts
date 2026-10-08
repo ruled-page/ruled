@@ -1,4 +1,5 @@
 import type { Text } from '../i18n/message';
+import type { ChartSpec } from './charts';
 /** Inclusive, 0-based cell rectangle. */
 export interface Rect {
   r1: number;
@@ -212,6 +213,8 @@ export interface SheetObject {
   title?: string;
   /** The kind of chart ("Bar", "Pie"), to show as "{{type}} chart"; Excel's own name for kinds without a message. */
   chartType?: Text;
+  /** What a chart plots and how, for drawing it. */
+  chart?: ChartSpec;
   from?: Anchor;
   to?: Anchor;
   /** Size in pixels when the object is anchored to one cell only. */
