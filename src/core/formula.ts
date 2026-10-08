@@ -34,7 +34,20 @@ const FUTURE_FUNCTIONS = new Set(
 );
 const WORKSHEET_FUNCTIONS = new Set(['FILTER', 'SORT']);
 
-const PREFIX_RE = /_xlfn\.(?:_xlws\.)?|_xlws\./gi;
+/**
+ * Functions that can return an array. Excel saves a formula using one as a
+ * dynamic array formula; saved as a plain one, Excel would show it as
+ * =@SORT(…), a single value. The same list as XlsxWriter's.
+ */
+const DYNAMIC_ARRAY_FUNCTIONS = new Set(
+  (
+    'ANCHORARRAY BYCOL BYROW CHOOSECOLS CHOOSEROWS DROP EXPAND FILTER HSTACK LAMBDA MAKEARRAY MAP RANDARRAY ' +
+    'REDUCE SCAN SEQUENCE SINGLE SORT SORTBY SWITCH TAKE TEXTSPLIT TOCOL TOROW UNIQUE VSTACK WRAPCOLS WRAPROWS XLOOKUP'
+  ).split(' '),
+);
+
+/** Function prefixes, and the one Excel puts on LET and LAMBDA parameter names. */
+const PREFIX_RE = /_xlfn\.(?:_xlws\.)?|_xlws\.|_xlpm\./gi;
 
 export function stripFunctionPrefixes(formula: string): string {
   return formula.indexOf('_xl') === -1 ? formula : formula.replace(PREFIX_RE, '');
@@ -67,7 +80,10 @@ function tokens(formula: string): Token[] {
 
 /** Converts a formula typed by the user (without "=") into file form. */
 export function toFileFormula(userFormula: string): string {
-  const out = tokens(userFormula).map((t) => {
+  const list = tokens(userFormula);
+  const params = lambdaParameters(list);
+  const out = list.map((t, i) => {
+    if (params.has(i) && !/^_xlpm\./i.test(t.value)) return { ...t, value: `_xlpm.${t.value}` };
     if (t.type !== 'func') return t;
     const upper = t.value.toUpperCase();
     if (upper.startsWith('_XL')) return t;
@@ -76,6 +92,55 @@ export function toFileFormula(userFormula: string): string {
     return t;
   });
   return stringifyTokens(out);
+}
+
+/**
+ * Tokens that name a LET or LAMBDA parameter, where it is declared or used.
+ * Excel stores these names with an `_xlpm.` prefix, without which it reads
+ * them as defined names and shows #NAME?. LET(x, 1, y, 2, x + y) declares x
+ * and y; LAMBDA(a, b, a + b) declares a and b; either's names count anywhere
+ * inside it.
+ */
+function lambdaParameters(list: Token[]): Set<number> {
+  const out = new Set<number>();
+  for (let i = 0; i < list.length; i++) {
+    const name = list[i].type === 'func' ? stripFunctionPrefixes(list[i].value).toUpperCase() : '';
+    if ((name !== 'LET' && name !== 'LAMBDA') || list[i + 1]?.value !== '(') continue;
+    // The call's arguments, as token ranges, up to its closing parenthesis.
+    const args: [number, number][] = [];
+    let depth = 0;
+    let start = i + 2;
+    let end = list.length;
+    for (let k = i + 1; k < list.length; k++) {
+      const v = list[k].type === 'operator' ? list[k].value : '';
+      if (v === '(' || v === '{') depth++;
+      else if (v === ')' || v === '}') {
+        if (--depth === 0) {
+          args.push([start, k]);
+          end = k;
+          break;
+        }
+      } else if (v === ',' && depth === 1) {
+        args.push([start, k]);
+        start = k + 1;
+      }
+    }
+    const declared = new Set<string>();
+    args.slice(0, -1).forEach(([a, b], n) => {
+      const solid = list.slice(a, b).filter((t) => t.type !== 'whitespace');
+      if ((name === 'LAMBDA' || n % 2 === 0) && solid.length === 1 && solid[0].type === 'range_named') declared.add(solid[0].value.toUpperCase());
+    });
+    for (let k = i + 2; k < end; k++) {
+      const t = list[k];
+      if (t.type === 'range_named' && declared.has(t.value.toUpperCase())) out.add(k);
+    }
+  }
+  return out;
+}
+
+/** Whether Excel would save this formula as a dynamic array formula. */
+export function isDynamicArrayFormula(fileFormula: string): boolean {
+  return functionNames(fileFormula).some((n) => DYNAMIC_ARRAY_FUNCTIONS.has(n));
 }
 
 /**

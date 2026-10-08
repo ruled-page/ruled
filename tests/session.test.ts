@@ -193,6 +193,7 @@ describe('pivot.xlsx', () => {
 
     const bytes = s.save();
     const p = parts(bytes);
+    // The pivot's data changed, so Excel is asked to refresh it on opening.
     expect(p['xl/pivotCache/pivotCacheDefinition1.xml']).toContain('refreshOnLoad="1"');
     const sheet1 = p['xl/worksheets/sheet1.xml'];
     expect(sheet1).not.toContain('t="shared"');

@@ -245,6 +245,17 @@ export class CalcEngine {
     return convert(this.hf.getCellValue({ sheet: id, row, col }));
   }
 
+  /** Whether the engine worked out an array for the formula in this cell, which Excel would spill. */
+  isArray(sheet: number, row: number, col: number): boolean {
+    const id = this.ids[sheet];
+    if (id === undefined || id < 0) return false;
+    try {
+      return this.hf.isCellPartOfArray({ sheet: id, row, col });
+    } catch {
+      return false;
+    }
+  }
+
   /** Applies writes in one batch and returns every cell whose value changed. */
   write(writes: EngineWrite[]): EngineChange[] {
     if (!writes.length) return [];

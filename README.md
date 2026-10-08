@@ -356,6 +356,15 @@ reference still works. `verify-out/` gets the edited copies, `report.md` and
 `report.json`. The report ends with the one step that needs desktop Excel:
 opening the copies there.
 
+`npm run validate:saves` (after `npm run build:node`; needs the .NET SDK)
+checks that saving never makes a workbook invalid. It saves edited copies of
+the samples and of the workbooks in `tests/corpus` (made by
+`scripts/gen_corpus.py` with XlsxWriter: a protected form with unlocked
+input cells, an Excel table with structured references, dynamic arrays, LET
+and LAMBDA, the 1904 date system), validates them with Microsoft's Open XML
+SDK (`tools/ooxml-validate`), and fails on any error a copy has that its
+original didn't. CI runs it.
+
 Calculation accuracy is also tested with a catalogue of 117 formulas and the
 results Excel gives (`tests/calc-accuracy.test.ts`). It found that
 HyperFormula's INT, MOD, ROUND, ROUNDUP, ROUNDDOWN, TEXT and DATEDIF differ
@@ -535,8 +544,12 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
 - **Saving** (`src/core/writer.ts`): only the `<c>` elements of changed cells
   are rewritten, plus cached results of formulas the engine recalculated.
   `calcChain.xml` is removed and the workbook is flagged to recalculate on
-  open; pivot caches are flagged to refresh on open. A workbook with no edits
-  is returned byte for byte.
+  open; pivot caches whose source data changed are flagged to refresh on
+  open. Typed formulas are stored the way Excel stores them: functions added
+  since Excel 2007 with `_xlfn.`, LET and LAMBDA parameters with `_xlpm.`,
+  and formulas that can return an array as dynamic array formulas (with the
+  `metadata.xml` entry that marks them), which Excel spills when it
+  recalculates on opening. A workbook with no edits is returned byte for byte.
 
 ## Measured (MacBook, Chrome)
 
@@ -548,8 +561,9 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 
 ## Known limits
 
-- Saved files have been checked with openpyxl, ExcelJS and this editor, not
-  with Excel itself. Open a few saved files in Excel before relying on them,
+- Saved files have been checked with openpyxl, ExcelJS, Microsoft's Open XML
+  SDK validator and this editor, not with Excel itself, and only on workbooks
+  made for testing. Open a few saved files in Excel before relying on them,
   especially `pivot.xlsx`, whose pivot table was written by hand because
   ExcelJS can't create one.
 - Not drawn: charts (placeholders only), mixed fonts inside a cell. Merges

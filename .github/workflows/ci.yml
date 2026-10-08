@@ -36,6 +36,11 @@ jobs:
       - run: npm run build:node
       - name: Round-trip the sample workbooks
         run: node dist-node/verify.js public/samples --structure
+      # Microsoft's Open XML SDK checks every saved copy is as valid as its original.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: npm run validate:saves
 
   e2e:
     name: End-to-end, keyboard and accessibility

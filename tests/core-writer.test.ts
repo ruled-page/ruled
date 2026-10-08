@@ -1,8 +1,9 @@
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { displayFormula } from '../src/core/formula';
 import { WorkbookSession, type OpenOptions } from '../src/core/session';
-import { loadedFormula, loadedValue, parts } from './helpers';
+import { loadedFormula, loadedValue, parts, sample } from './helpers';
 
 function patch(bytes: Uint8Array, edits: Record<string, string | Uint8Array | ((xml: string) => string)>): Uint8Array {
   const files = unzipSync(bytes);
@@ -167,5 +168,93 @@ describe('the workbook parts', () => {
     expect(Object.keys(xml).filter((k) => /vba/i.test(k))).toEqual([]);
     expect(xml['[Content_Types].xml']).not.toMatch(/vbaProject|macroEnabled/);
     expect(xml['[Content_Types].xml']).toContain('spreadsheetml.sheet.main+xml');
+  });
+});
+
+describe('formulas Excel stores in its own forms', () => {
+  it('prefix LET and LAMBDA parameters as Excel does, and show them without it', () => {
+    const { xml, file } = edited([
+      ['B1', '=LET(x, A1*2, y, x+1, x*y)'],
+      ['B2', '=LAMBDA(a,b,a+b)(A1,2)'],
+      ['B3', '=LET(rate,0.2,MAP(A1:A2,LAMBDA(v,v*rate)))'],
+    ]);
+    expect(cell(xml, 'B1')).toContain('<f>_xlfn.LET(_xlpm.x, A1*2, _xlpm.y, _xlpm.x+1, _xlpm.x*_xlpm.y)</f>');
+    expect(cell(xml, 'B2')).toContain('_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a+_xlpm.b)(A1,2)</f>');
+    expect(cell(xml, 'B3')).toContain('_xlfn.LET(_xlpm.rate,0.2,_xlfn.MAP(A1:A2,_xlfn.LAMBDA(_xlpm.v,_xlpm.v*_xlpm.rate)))</f>');
+    expect(loadedFormula(file, 'S', 'B1')).toBe('_xlfn.LET(_xlpm.x, A1*2, _xlpm.y, _xlpm.x+1, _xlpm.x*_xlpm.y)');
+    expect(displayFormula(loadedFormula(file, 'S', 'B1')!)).toBe('=LET(x, A1*2, y, x+1, x*y)');
+    // A name that is no parameter is left alone.
+    expect(cell(edited([['B1', '=LET(x,Total,x)']]).xml, 'B1')).toContain('_xlfn.LET(_xlpm.x,Total,_xlpm.x)');
+  });
+
+  it('save formulas that return arrays as dynamic array formulas, with the metadata that marks them', () => {
+    const { xml } = edited([
+      ['B1', '=SORT(A1:A3)'],
+      ['B5', '=UNIQUE(A1:A3)'],
+      ['C1', '=SUM(A1:A3)'],
+    ]);
+    expect(cell(xml, 'B1')).toMatch(/^<c r="B1" cm="1"[^>]*><f t="array" ref="B1">_xlfn._xlws.SORT\(A1:A3\)<\/f>/);
+    expect(cell(xml, 'B5')).toMatch(/^<c r="B5" cm="1"[^>]*><f t="array" ref="B5">_xlfn.UNIQUE\(A1:A3\)<\/f>/);
+    expect(cell(xml, 'C1')).not.toContain('cm=');
+    expect(xml['xl/metadata.xml']).toContain('<metadataType name="XLDAPR"');
+    expect(xml['xl/metadata.xml']).toContain('<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata>');
+    expect(xml['xl/_rels/workbook.xml.rels']).toContain('relationships/sheetMetadata" Target="metadata.xml"');
+    expect(xml['[Content_Types].xml']).toContain('<Override PartName="/xl/metadata.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml"/>');
+    // A range of values the engine works out is an array too.
+    expect(cell(edited([['D1', '=A1:A3*2']], { recalc: 'on' }).xml, 'D1')).toContain('cm="1"');
+  });
+
+  it('use the dynamic array entry a workbook already has, or add one beside its other metadata', () => {
+    const XLDAPR =
+      '<metadataTypes count="2"><metadataType name="XLRICHVALUE" minSupportedVersion="120000"/><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1"/></metadataTypes>' +
+      '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>' +
+      '<cellMetadata count="2"><bk><rc t="1" v="0"/></bk><bk><rc t="2" v="0"/></bk></cellMetadata>';
+    const RICH = '<metadataTypes count="1"><metadataType name="XLRICHVALUE" minSupportedVersion="120000"/></metadataTypes><valueMetadata count="1"><bk><rc t="1" v="0"/></bk></valueMetadata>';
+    const withMetadata = (body: string) =>
+      patch(bytes, {
+        'xl/metadata.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">${body}</metadata>`,
+        'xl/_rels/workbook.xml.rels': (xml) =>
+          xml.replace('</Relationships>', '<Relationship Id="rIdMeta" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata" Target="metadata.xml"/></Relationships>'),
+        '[Content_Types].xml': (xml) => xml.replace('</Types>', '<Override PartName="/xl/metadata.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml"/></Types>'),
+      });
+
+    const reused = edited([['B1', '=SEQUENCE(3)']], {}, withMetadata(XLDAPR)).xml;
+    expect(cell(reused, 'B1')).toContain('cm="2"');
+    expect(reused['xl/metadata.xml']).toContain('<cellMetadata count="2">');
+
+    const added = edited([['B1', '=SEQUENCE(3)']], {}, withMetadata(RICH)).xml;
+    expect(cell(added, 'B1')).toContain('cm="1"');
+    const meta = added['xl/metadata.xml'];
+    expect(meta).toContain('<metadataTypes count="2"><metadataType name="XLRICHVALUE" minSupportedVersion="120000"/><metadataType name="XLDAPR"');
+    // Future metadata, then cell metadata, then value metadata, as the schema orders them.
+    expect(meta.indexOf('<futureMetadata name="XLDAPR"')).toBeLessThan(meta.indexOf('<cellMetadata count="1"><bk><rc t="2" v="0"/></bk></cellMetadata>'));
+    expect(meta.indexOf('<cellMetadata')).toBeLessThan(meta.indexOf('<valueMetadata'));
+    expect(added['xl/_rels/workbook.xml.rels'].match(/sheetMetadata/g)).toHaveLength(1);
+  });
+});
+
+describe('pivot tables', () => {
+  /** pivot.xlsx with its pivot cache not set to refresh: the state Excel leaves it in. */
+  const settled = () => {
+    const files = unzipSync(sample('pivot.xlsx'));
+    const path = 'xl/pivotCache/pivotCacheDefinition1.xml';
+    files[path] = strToU8(strFromU8(files[path]).replace(' refreshOnLoad="1"', ''));
+    return zipSync(files);
+  };
+  const refreshes = (edit: { sheet: string; ref: string; text: string }, structure = false) => {
+    const s = WorkbookSession.open(settled(), 'pivot.xlsx');
+    const sheet = s.model.sheets.findIndex((m) => m.info.name === edit.sheet);
+    const [, col, row] = /^([A-Z]+)(\d+)$/.exec(edit.ref)!;
+    s.apply({ type: 'input', sheet, row: Number(row) - 1, col: col.charCodeAt(0) - 65, text: edit.text });
+    const next = structure ? s.restructure({ type: 'insertRows', sheet, at: 0, count: 1 }) : s;
+    return parts(next.save())['xl/pivotCache/pivotCacheDefinition1.xml'].includes('refreshOnLoad="1"');
+  };
+
+  it('are refreshed on opening only when their source data changed', () => {
+    expect(refreshes({ sheet: 'Data', ref: 'C10', text: '77' })).toBe(true);
+    // Outside the source range A1:E101.
+    expect(refreshes({ sheet: 'Data', ref: 'H2', text: 'note' })).toBe(false);
+    // Rows inserted on the source sheet move its data.
+    expect(refreshes({ sheet: 'Data', ref: 'H2', text: 'note' }, true)).toBe(true);
   });
 });

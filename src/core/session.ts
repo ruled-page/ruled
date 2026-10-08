@@ -1251,6 +1251,15 @@ export class WorkbookSession {
       recalculated: this.values.map((m, s) =>
         new Set([...m.keys()].filter((k) => !this.edits[s].has(k) && !this.newFormulaFlags[s].has(k))),
       ),
+      isArray: (sheet, row, col) => !!this.engine?.isArray(sheet, row, col),
+      changedIn: (sheet, rect) => {
+        // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
+        if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;
+        for (const keys of [this.edits[sheet].keys(), this.baked.keys[sheet], this.values[sheet].keys()]) {
+          for (const key of keys) if (!rect || inRect(rect, Math.floor(key / MAX_COLS), key % MAX_COLS)) return true;
+        }
+        return false;
+      },
     };
   }
 

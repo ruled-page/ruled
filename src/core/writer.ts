@@ -1,12 +1,16 @@
 import type { EngineValue } from './calc';
-import { cellKey, MAX_COLS, rangeToA1, toA1 } from './refs';
+import { parseA1Ref } from '@borgar/fx';
+import { isDynamicArrayFormula } from './formula';
+import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement } from './xml';
+import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs } from './xml';
 import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
+
+const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
 export interface SaveInput {
   pkg: OoxmlPackage;
@@ -21,10 +25,14 @@ export interface SaveInput {
   stripMacros?: boolean;
   /** Custom document properties to set, e.g. the schema the file was checked against. */
   properties?: Record<string, string>;
+  /** Whether the engine's result for a formula cell is an array, which Excel would spill. */
+  isArray?: (sheet: number, row: number, col: number) => boolean;
+  /** Whether anything in a sheet's range (the whole sheet when null) differs from the file as opened. */
+  changedIn?: (sheet: number, rect: Rect | null) => boolean;
 }
 
 type Patch =
-  | { kind: 'edit'; state: CellState; value?: EngineValue }
+  | { kind: 'edit'; state: CellState; value?: EngineValue; dynamic?: boolean }
   | { kind: 'value'; value: EngineValue }
   | { kind: 'expand'; formula: string; value: EngineValue | undefined };
 
@@ -37,10 +45,13 @@ export function writeWorkbook(input: SaveInput): Uint8Array {
 export function buildPackage(input: SaveInput): OoxmlPackage {
   const { pkg, model } = input;
 
+  // The metadata entry that marks dynamic array formulas, added when the first one is written.
+  let dynamicArray: number | undefined;
+  const cm = () => (dynamicArray ??= dynamicArrayMetadata(pkg, model.workbookPath));
   model.sheets.forEach((m, s) => {
     if (!m.scan || m.xml === undefined) return;
     const patches = sheetPatches(m, s, input);
-    if (patches.size) pkg.setText(m.path, rewriteSheet(m.xml, m.scan, patches));
+    if (patches.size) pkg.setText(m.path, rewriteSheet(m.xml, m.scan, patches, cm));
   });
 
   // Excel checks calcChain.xml against the cells that hold formulas and
@@ -51,11 +62,12 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   const wbXml = pkg.text(model.workbookPath);
   if (wbXml) pkg.setText(model.workbookPath, forceFullCalcOnLoad(wbXml));
 
+  // A pivot table keeps its own copy of its source data; Excel refreshes it on
+  // opening only when asked to, so ask when that data changed.
   for (const path of pkg.list()) {
-    if (/pivotCacheDefinition\d*\.xml$/.test(path)) {
-      const xml = pkg.text(path);
-      if (xml) pkg.setText(path, setRootAttr(xml, 'refreshOnLoad', '1'));
-    }
+    if (!/pivotCacheDefinition\d*\.xml$/.test(path)) continue;
+    const xml = pkg.text(path);
+    if (xml && pivotSourceChanged(xml, model, input)) pkg.setText(path, setRootAttr(xml, 'refreshOnLoad', '1'));
   }
 
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
@@ -74,8 +86,12 @@ function sheetPatches(m: SheetModel, s: number, input: SaveInput): Map<number, P
   const patches = new Map<number, Patch>();
   const grid = m.scan!.grid;
   for (const [key, state] of input.edits[s]) {
-    const value = state.content.kind === 'formula' ? input.cachedValue(s, Math.floor(key / MAX_COLS), key % MAX_COLS) : undefined;
-    patches.set(key, { kind: 'edit', state, value });
+    const row = Math.floor(key / MAX_COLS);
+    const col = key % MAX_COLS;
+    const formula = state.content.kind === 'formula' ? state.content.formula : undefined;
+    const value = formula !== undefined ? input.cachedValue(s, row, col) : undefined;
+    const dynamic = formula !== undefined && (isDynamicArrayFormula(formula) || !!input.isArray?.(s, row, col));
+    patches.set(key, { kind: 'edit', state, value, dynamic });
   }
   for (const key of input.recalculated[s]) {
     if (patches.has(key)) continue;
@@ -129,7 +145,7 @@ function gridValueOf(grid: SheetGrid, idx: number): EngineValue {
   }
 }
 
-function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>): string {
+function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>, cm: () => number): string {
   const p = scan.prefix;
   const grid = scan.grid;
   const rec = scan.rowRec;
@@ -170,7 +186,7 @@ function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>
       const patch = patches.get(cellKey(row, col));
       if (!patch) cells.push(raw!);
       else {
-        const out = patchCell(p, row, col, raw, patch);
+        const out = patchCell(p, row, col, raw, patch, cm);
         if (out) cells.push(out);
       }
     }
@@ -213,7 +229,7 @@ function rawFormulaElement(raw: string, p: string): string {
   return f && f.qname === `${p}f` ? raw.slice(f.start, f.end) : '';
 }
 
-function patchCell(p: string, row: number, col: number, raw: string | undefined, patch: Patch): string | null {
+function patchCell(p: string, row: number, col: number, raw: string | undefined, patch: Patch, cm: () => number): string | null {
   const r = toA1(row, col);
   if (patch.kind === 'value') {
     if (!raw) return null;
@@ -250,6 +266,9 @@ function patchCell(p: string, row: number, col: number, raw: string | undefined,
       return `${open} t="e"><${p}v>${escapeXml(content.value)}</${p}v></${p}c>`;
     case 'formula': {
       const { t, v } = valueXml(p, patch.value ?? null);
+      // A dynamic array formula covers just its own cell here; Excel spills it
+      // when it recalculates the workbook on opening.
+      if (patch.dynamic) return `${open} cm="${cm()}"${t}><${p}f t="array" ref="${r}">${escapeXml(content.formula)}</${p}f>${v}</${p}c>`;
       return `${open}${t}><${p}f>${escapeXml(content.formula)}</${p}f>${v}</${p}c>`;
     }
   }
@@ -344,6 +363,124 @@ function forceFullCalcOnLoad(xml: string): string {
     if (close) return xml.slice(0, close.index + close[0].length) + tag + xml.slice(close.index + close[0].length);
   }
   return xml;
+}
+
+/**
+ * Whether a pivot table's source data may have changed: its range, table or
+ * name on a sheet with edits in it. A source this can't find, such as
+ * another workbook, counts as changed.
+ */
+function pivotSourceChanged(xml: string, model: WorkbookModel, input: SaveInput): boolean {
+  if (!input.changedIn) return true;
+  const source = firstElement(xml, 'worksheetSource');
+  if (!source) return true;
+  const a = parseAttrs(source.attrs);
+  let sheet = a.sheet !== undefined ? model.sheets.findIndex((m) => m.info.name === a.sheet) : -1;
+  let rect: Rect | null = null;
+  const area = (ref: string) => {
+    const parsed = parseA1Ref(ref, { allowTernary: false });
+    const r = parsed && 'range' in parsed ? parsed.range : undefined;
+    if (!r) return null;
+    return { r1: r.top ?? 0, c1: r.left ?? 0, r2: r.bottom ?? MAX_ROWS - 1, c2: r.right ?? MAX_COLS - 1 };
+  };
+  if (a.ref) rect = area(a.ref);
+  else if (a.name) {
+    const table = model.sheets.findIndex((m) => m.info.tables.some((t) => t.name === a.name));
+    const name = model.names.find((n) => n.name === a.name);
+    if (table >= 0) {
+      sheet = table;
+      rect = model.sheets[table].info.tables.find((t) => t.name === a.name)!.rect;
+    } else if (name) {
+      const parsed = parseA1Ref(name.formula, { allowTernary: false });
+      const context = parsed && 'context' in parsed ? parsed.context?.[0] : undefined;
+      sheet = context !== undefined ? model.sheets.findIndex((m) => m.info.name === context) : -1;
+      rect = area(name.formula.replace(/^.*!/, ''));
+    }
+  }
+  return sheet < 0 || input.changedIn(sheet, rect);
+}
+
+const METADATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata';
+const METADATA_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml';
+const DYNAMIC_ARRAY_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray';
+const XLDAPR_TYPE =
+  '<metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/>';
+const XLDAPR_BLOCK = `<bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties xmlns:xda="${DYNAMIC_ARRAY_NS}" fDynamic="1" fCollapsed="0"/></ext></extLst></bk>`;
+
+/**
+ * The cell metadata index (a cell's cm attribute) that marks a dynamic array
+ * formula, as Excel writes it: an XLDAPR entry in the workbook's metadata
+ * part. The part, or the entry, is added when the workbook has none.
+ */
+function dynamicArrayMetadata(pkg: OoxmlPackage, workbookPath: string): number {
+  const rel = pkg.rels(workbookPath).find((r) => r.type === 'sheetMetadata');
+  const existing = rel ? pkg.text(rel.target) : undefined;
+  if (!rel || !existing) {
+    const dir = workbookPath.includes('/') ? workbookPath.slice(0, workbookPath.lastIndexOf('/') + 1) : '';
+    let path = `${dir}metadata.xml`;
+    for (let n = 2; pkg.has(path); n++) path = `${dir}metadata${n}.xml`;
+    pkg.setText(
+      path,
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+        `<metadata xmlns="${MAIN_NS}"><metadataTypes count="1">${XLDAPR_TYPE}</metadataTypes>` +
+        `<futureMetadata name="XLDAPR" count="1">${XLDAPR_BLOCK}</futureMetadata><cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>`,
+    );
+    const relsPath = relsPathFor(workbookPath);
+    const rels = pkg.text(relsPath);
+    if (rels) {
+      let id = 'rIdWbeMetadata';
+      for (let n = 2; rels.includes(`Id="${id}"`); n++) id = `rIdWbeMetadata${n}`;
+      pkg.setText(relsPath, rels.replace(/<\/(\w+:)?Relationships>/, (close) => `<Relationship Id="${id}" Type="${METADATA_REL}" Target="${path.slice(dir.length)}"/>${close}`));
+    }
+    const ct = pkg.text('[Content_Types].xml');
+    if (ct) pkg.setText('[Content_Types].xml', ct.replace(/<\/(\w+:)?Types>/, (close) => `<Override PartName="/${path}" ContentType="${METADATA_TYPE}"/>${close}`));
+    return 1;
+  }
+
+  // The workbook has metadata already: use its XLDAPR entry, or add one.
+  let xml = existing;
+  const p = /<(\w+:)?metadata\b/.exec(xml)?.[1] ?? '';
+  const typesEl = firstElement(xml, 'metadataTypes');
+  const types = typesEl?.inner ? [...typesEl.inner.matchAll(/<(?:\w+:)?metadataType\b[^>]*\bname="([^"]*)"/g)].map((m) => m[1]) : [];
+  let type = types.indexOf('XLDAPR') + 1;
+  if (!type) {
+    type = types.length + 1;
+    const tag = XLDAPR_TYPE.replace('<metadataType', `<${p}metadataType`);
+    xml = typesEl
+      ? xml.slice(0, typesEl.start) + `<${typesEl.qname}${typesEl.attrs.replace(/\scount="\d+"/, '')} count="${type}">${typesEl.inner ?? ''}${tag}</${typesEl.qname}>` + xml.slice(typesEl.end)
+      : xml.replace(/<(\w+:)?metadata\b[^>]*>/, (open) => `${open}<${p}metadataTypes count="1">${tag}</${p}metadataTypes>`);
+  }
+  // The block in the XLDAPR future metadata that says "dynamic, not collapsed".
+  const future = [...xml.matchAll(/<(?:\w+:)?futureMetadata\b[^>]*\bname="XLDAPR"[^>]*>/g)][0];
+  let block = -1;
+  if (future) {
+    const el = firstElement(xml, 'futureMetadata', future.index);
+    block = (el?.inner?.split(/<(?:\w+:)?bk\b/).slice(1) ?? []).findIndex((bk) => /fDynamic="1"/.test(bk) && !/fCollapsed="1"/.test(bk));
+    if (el && block < 0) {
+      block = countElements(el.inner ?? '', 'bk');
+      xml = xml.slice(0, el.start) + `<${el.qname}${el.attrs.replace(/\scount="\d+"/, '')} count="${block + 1}">${el.inner ?? ''}${XLDAPR_BLOCK}</${el.qname}>` + xml.slice(el.end);
+    }
+  } else {
+    block = 0;
+    const at = firstElement(xml, 'cellMetadata')?.start ?? firstElement(xml, 'valueMetadata')?.start ?? xml.lastIndexOf('</');
+    xml = xml.slice(0, at) + `<${p}futureMetadata name="XLDAPR" count="1">${XLDAPR_BLOCK}</${p}futureMetadata>` + xml.slice(at);
+  }
+  // The cell metadata entry pointing at that block; its position is the cm value.
+  const cells = firstElement(xml, 'cellMetadata');
+  const entries = cells?.inner?.split(/<(?:\w+:)?bk\b/).slice(1) ?? [];
+  let cm = entries.findIndex((bk) => new RegExp(`\\bt="${type}"`).test(bk) && new RegExp(`\\bv="${block}"`).test(bk)) + 1;
+  if (!cm) {
+    cm = entries.length + 1;
+    const entry = `<${p}bk><${p}rc t="${type}" v="${block}"/></${p}bk>`;
+    xml = cells
+      ? xml.slice(0, cells.start) + `<${cells.qname}${cells.attrs.replace(/\scount="\d+"/, '')} count="${cm}">${cells.inner ?? ''}${entry}</${cells.qname}>` + xml.slice(cells.end)
+      : (() => {
+          const at = firstElement(xml, 'valueMetadata')?.start ?? firstElement(xml, 'extLst')?.start ?? xml.lastIndexOf('</');
+          return xml.slice(0, at) + `<${p}cellMetadata count="1">${entry}</${p}cellMetadata>` + xml.slice(at);
+        })();
+  }
+  pkg.setText(rel.target, xml);
+  return cm;
 }
 
 function setRootAttr(xml: string, name: string, value: string): string {
