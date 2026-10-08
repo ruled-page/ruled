@@ -4,9 +4,9 @@ import type { CellChange } from '../core/types';
 import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { RichText } from './RichText';
 import { ReportBody } from './ReportPanel';
 import { Tabs } from './Tabs';
-import { Trans } from 'react-i18next';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
 
@@ -34,7 +34,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
   return (
     <div className="report-body">
       <p className="report-lede schema-lede">
-        <Trans i18nKey="checks.checkedAgainst" values={{ name: t.localized(ctl.schema.name) }} components={{ b: <strong /> }} />
+        <RichText i18nKey="checks.checkedAgainst" values={{ name: t.localized(ctl.schema.name) }} components={{ b: <strong /> }} />
         {ctl.schema.description ? <span className="muted"> {t.localized(ctl.schema.description)}</span> : null}
       </p>
       <div className="calc-summary">

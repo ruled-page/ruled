@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { goTo, openSample, setCell, shown } from './helpers';
+import { goTo, openFile, openSample, ordersWorkbook, setCell, shown } from './helpers';
 
 test.describe('a workbook checked by a schema', () => {
   test.beforeEach(async ({ page }) => {
@@ -64,4 +64,20 @@ test('the banner about a file no schema matches can be dismissed', async ({ page
   // It comes back for the next workbook that doesn't match.
   await openSample(page, 'Price list, old layout');
   await expect(banner).toBeVisible();
+});
+
+test('a schema whose name holds markup shows it as written', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  await page.getByRole('button', { name: 'Schemas' }).click();
+  const name = '<i style="color:red">Evil & co</i>';
+  await page.locator('input[type="file"][accept*=".json"]').setInputFiles({
+    name: 'evil.schema.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ id: 'evil', name, sheets: [{ name: 'Lines' }] })),
+  });
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /All checks pass$/ }).click();
+  const panel = page.getByRole('tabpanel');
+  await expect(panel.getByText(`Checked against the ${name} schema.`)).toBeVisible();
+  await expect(panel.locator('i')).toHaveCount(0);
 });

@@ -3,8 +3,8 @@ import { useMemo } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
-import { Trans } from 'react-i18next';
 import { Icon } from './icons';
+import { RichText } from './RichText';
 import { mod, shortcutsKey } from './keys';
 import { useT } from '../i18n/react';
 
@@ -179,7 +179,7 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
       <div className="banner-text">
         <p>
           {m.name ? (
-            <Trans i18nKey="banner.mismatchNamed" values={{ name: t.localized(m.name) }} components={{ b: <strong /> }} />
+            <RichText i18nKey="banner.mismatchNamed" values={{ name: t.localized(m.name) }} components={{ b: <strong /> }} />
           ) : (
             t('banner.mismatch', { count: m.tried })
           )}
@@ -225,7 +225,7 @@ export function Banner({ store }: { store: WorkbookStore }) {
     <div className="banner" role="status">
       <Icon name="info" />
       <p>
-        <Trans i18nKey="banner.workbookHas" values={{ list: t.list(summary) }} components={{ b: <strong /> }} />
+        <RichText i18nKey="banner.workbookHas" values={{ list: t.list(summary) }} components={{ b: <strong /> }} />
       </p>
       <button className="link" onClick={() => store.set('panel', 'report')}>
         {t('banner.reviewDetails')}
