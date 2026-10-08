@@ -134,7 +134,8 @@ test.describe('in German', () => {
     await step.press('Enter');
     await expect(dialog).toBeHidden();
     await expect(shown(page, 'A3')).toHaveText('2');
-    await expect(shown(page, 'A4')).toHaveText('2.5');
+    // Shown as German writes it, too.
+    await expect(shown(page, 'A4')).toHaveText('2,5');
     await expect(shown(page, 'A5')).toHaveText('');
   });
 });
