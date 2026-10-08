@@ -1,0 +1,6 @@
+{
+  "name": "workbook-editor-host-app",
+  "private": true,
+  "type": "module",
+  "description": "A React app that installs the packed library, as a host would, for e2e/package.spec.ts"
+}

@@ -14,5 +14,7 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "tests", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "tests", "e2e", "vite.config.ts", "playwright.config.ts"],
+  // Built against the packed library by scripts/host-app.mjs, which needs it built first.
+  "exclude": ["e2e/host-app"]
 }

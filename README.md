@@ -111,6 +111,16 @@ const store = new WorkbookStore({ schemas, onSave: (file) => upload(file.bytes) 
 <WorkbookEditor store={store} />;
 ```
 
+The workbook lives in a web worker, which the component starts with
+`new Worker(new URL('./assets/workbook.worker.js', import.meta.url))`. Vite,
+webpack 5 and Parcel see that and bundle the worker with the host app. With
+a bundler that doesn't, serve `fake-spreadsheet/worker` (the file
+`dist-lib/react/assets/workbook.worker.js`) yourself and pass
+`createWorker: () => new Worker(url, { type: 'module' })`.
+`E2E_HOST_APP=1 npx playwright test e2e/package.spec.ts` (after `npm run
+build:lib`) installs the packed library into a fresh Vite React app under
+`/app/` and uses it.
+
 Any other host:
 
 ```ts

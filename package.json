@@ -62,6 +62,7 @@
       "import": "./dist-lib/standalone/workbook-editor.js"
     },
     "./style.css": "./dist-lib/react/workbook-editor.css",
+    "./worker": "./dist-lib/react/assets/workbook.worker.js",
     "./node": {
       "import": "./dist-node/index.js"
     }

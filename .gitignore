@@ -11,3 +11,7 @@ test-results
 playwright-report
 dist-sites
 coverage
+
+# Installed and built by scripts/host-app.mjs.
+e2e/host-app/node_modules
+e2e/host-app/dist
