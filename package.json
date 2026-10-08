@@ -10,7 +10,7 @@
     "test:coverage": "vitest run --coverage",
     "test:perf": "vitest run --mode perf tests/perf.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings",
+    "lint": "oxlint --deny-warnings src tests e2e scripts vite.config.ts vite.lib.config.ts vite.verify.config.ts vite.glide.ts playwright.config.ts",
     "samples": "node scripts/gen-samples.mjs",
     "build:sites": "node scripts/build-sites.mjs",
     "pages:dev": "node scripts/build-sites.mjs demo && wrangler pages dev --port 8788",

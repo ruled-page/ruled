@@ -14,7 +14,11 @@ export function distinctTexts(texts: Text[]): Text[] {
 export function mergeEditResults(results: EditResult[]): EditResult {
   const updates = new Map<string, CellUpdate>();
   for (const r of results) for (const u of r.updates) updates.set(`${u.sheet}:${u.row}:${u.col}`, u);
+  const layout = results.filter((r) => r.layout?.applied.length);
   return {
+    ...(layout.length && {
+      layout: { applied: layout.flatMap((r) => r.layout!.applied), undo: layout.reverse().flatMap((r) => r.layout!.undo) },
+    }),
     updates: [...updates.values()],
     undo: results.slice().reverse().flatMap((r) => r.undo),
     redo: results.flatMap((r) => r.redo),

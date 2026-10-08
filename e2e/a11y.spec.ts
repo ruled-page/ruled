@@ -69,6 +69,9 @@ for (const theme of ['Default', 'Dark']) {
 
       await goTo(page, 'B3');
       await page.keyboard.press('Shift+F10');
+      await page.getByRole('menuitem', { name: 'Columns' }).click();
+      await expect(page.getByRole('menu', { name: 'Columns' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
       await page.getByRole('menuitem', { name: 'Column width…' }).click();
       await expect(page.getByRole('dialog', { name: 'Width of column B' })).toBeVisible();
       expect(await violations(page)).toEqual([]);

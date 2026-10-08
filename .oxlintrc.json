@@ -31,5 +31,5 @@
       "rules": { "no-loss-of-precision": "off" }
     }
   ],
-  "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "sites", "public", "e2e/host-app", "examples", ".claude"]
+  "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "sites", "public", "e2e/host-app", "examples"]
 }

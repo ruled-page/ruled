@@ -17,6 +17,7 @@ import {
   type EditOp,
   type EditResult,
   type Finding,
+  type LayoutOp,
   type ListValidation,
   type Rect,
   type RuleValidation,
@@ -335,6 +336,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   clear: 'store.history.clear',
   restore: 'store.history.restore',
   sort: 'store.history.sort',
+  layout: 'store.history.layout',
 };
 
 const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
@@ -370,6 +372,8 @@ export class WorkbookStore {
   shortcutsOpen = false;
   /** Asking for a column's width, from the keyboard. */
   columnWidthFor?: number;
+  /** Asking for a row's height, from the keyboard. */
+  rowHeightFor?: number;
   designerOpen = false;
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
@@ -1068,15 +1072,16 @@ export class WorkbookStore {
         // Schema logic sees each edited cell's value from before the edit.
         const before = record === 'undo' && ctl ? r.redo.map((c) => ({ sheet: c.sheet, row: c.row, col: c.col, before: ctl.valueAt(c.sheet, c.row, c.col) as FieldValue })) : [];
         this.applyResult(r);
-        if (record === 'undo' && r.undo.length) {
+        const changed = r.undo.length > 0 || !!r.layout?.undo.length;
+        if (record === 'undo' && changed) {
           this.undoStack.push(r);
           this.redoStack = [];
-        } else if (record === 'merge' && r.undo.length) {
+        } else if (record === 'merge' && changed) {
           const last = this.undoStack.pop();
           if (last && isStructure(last)) this.undoStack.push(last, r);
           else this.undoStack.push(last ? mergeEditResults([last, r]) : r);
         }
-        if (r.undo.length) {
+        if (changed) {
           this.recordHistory(op, record, r, opts.label);
           this.draftOps.push(op);
           this.scheduleDraft();
@@ -1108,7 +1113,11 @@ export class WorkbookStore {
 
   private applyResult(r: EditResult): void {
     this.dataVersion++;
-    if (r.undo.length) this.changeSeq++;
+    if (r.undo.length || r.layout?.applied.length) this.changeSeq++;
+    for (const c of r.layout?.applied ?? []) {
+      this.sheets[c.sheet]?.applyLayout(c.op);
+      this.colVersion++;
+    }
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     this.editedCount = r.editedCount;
@@ -1131,8 +1140,8 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.showSheet(entry.undo[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.undo }, 'none', { label: msg('store.history.undo') });
+    this.showSheet(entry.undo[0]?.sheet ?? entry.layout?.undo[0]?.sheet);
+    await this.edit({ type: 'restore', cells: entry.undo, layout: entry.layout?.undo }, 'none', { label: msg('store.history.undo') });
     this.redoStack.push(entry);
     this.notify();
   }
@@ -1146,8 +1155,8 @@ export class WorkbookStore {
       this.notify();
       return;
     }
-    this.showSheet(entry.redo[0]?.sheet);
-    await this.edit({ type: 'restore', cells: entry.redo }, 'none', { label: msg('store.history.redo') });
+    this.showSheet(entry.redo[0]?.sheet ?? entry.layout?.applied[0]?.sheet);
+    await this.edit({ type: 'restore', cells: entry.redo, layout: entry.layout?.applied }, 'none', { label: msg('store.history.redo') });
     this.undoStack.push(entry);
     this.notify();
   }
@@ -1307,6 +1316,134 @@ export class WorkbookStore {
   deleteCols(): Promise<boolean> {
     const r = this.selection.rects[0] ?? { r1: 0, r2: 0, c1: this.selection.col, c2: this.selection.col };
     return this.restructure({ type: 'deleteCols', sheet: this.active, at: r.c1, count: r.c2 - r.c1 + 1 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout: sizes, hidden rows and columns, frozen panes and merged cells
+
+  /** Changes the active sheet's layout as one undoable step, after `before` (edits to cells that go with it). */
+  private changeLayout(op: LayoutOp, label: Text, before: EditOp[] = []): Promise<EditResult | undefined> {
+    const ops: EditOp[] = [...before, { type: 'layout', sheet: this.active, op }];
+    return this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label });
+  }
+
+  /**
+   * The rows (or columns) the selection spans. A whole column selected
+   * spans every row; only those to just past the used range count.
+   */
+  private selectedLines(axis: 'rows' | 'cols'): number[] {
+    const view = this.view;
+    const sel = this.selection;
+    const limit = axis === 'rows' ? Math.max(view?.info.maxRow ?? 0, sel.row) + 200 : Math.max(view?.info.maxCol ?? 0, sel.col) + 50;
+    const lines = new Set<number>();
+    for (const r of sel.rects.length ? sel.rects : [{ r1: sel.row, r2: sel.row, c1: sel.col, c2: sel.col }]) {
+      const [a, b] = axis === 'rows' ? [r.r1, r.r2] : [r.c1, r.c2];
+      for (let i = a; i <= Math.min(b, limit); i++) lines.add(i);
+    }
+    return [...lines].sort((x, y) => x - y);
+  }
+
+  /** Hides the selected rows or columns. */
+  async hideLines(axis: 'rows' | 'cols'): Promise<void> {
+    const lines = this.selectedLines(axis);
+    const op: LayoutOp = { kind: 'hidden', axis, lines: Object.fromEntries(lines.map((l) => [l, true])) };
+    await this.changeLayout(op, msg(axis === 'rows' ? 'store.history.hideRows' : 'store.history.hideColumns', { count: lines.length }));
+  }
+
+  /**
+   * Shows the hidden rows or columns in the selection, and those hidden
+   * just before or after it, so rows hidden at the top of a sheet, which
+   * can't be selected around, can still be shown.
+   */
+  async unhideLines(axis: 'rows' | 'cols'): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const hidden = new Set(axis === 'rows' ? view.info.hiddenRows : view.info.hiddenCols);
+    const selected = this.selectedLines(axis);
+    let a = selected[0];
+    let b = selected[selected.length - 1];
+    while (hidden.has(a - 1)) a--;
+    while (hidden.has(b + 1)) b++;
+    const lines = [...hidden].filter((l) => l >= a && l <= b);
+    if (!lines.length) return;
+    const op: LayoutOp = { kind: 'hidden', axis, lines: Object.fromEntries(lines.map((l) => [l, false])) };
+    await this.changeLayout(op, msg(axis === 'rows' ? 'store.history.unhideRows' : 'store.history.unhideColumns', { count: lines.length }));
+  }
+
+  /** Whether there are hidden rows or columns that unhideLines would show. */
+  hasHiddenNear(axis: 'rows' | 'cols'): boolean {
+    const view = this.view;
+    const hidden = axis === 'rows' ? view?.info.hiddenRows : view?.info.hiddenCols;
+    if (!hidden?.length) return false;
+    const selected = this.selectedLines(axis);
+    const a = selected[0] - 1;
+    const b = selected[selected.length - 1] + 1;
+    return hidden.some((l) => l >= a && l <= b);
+  }
+
+  /**
+   * Freezes the rows above and the columns left of the active cell, the top
+   * row, or the first column, so they stay in view; "none" unfreezes.
+   */
+  async freezePanes(at: 'cell' | 'topRow' | 'firstColumn' | 'none'): Promise<void> {
+    const { row, col } = this.selection;
+    const [rows, cols] = at === 'cell' ? [row, col] : at === 'topRow' ? [1, 0] : at === 'firstColumn' ? [0, 1] : [0, 0];
+    await this.changeLayout({ kind: 'freeze', rows, cols }, msg(rows || cols ? 'store.history.freeze' : 'store.history.unfreeze'));
+  }
+
+  /** The selection, grown to take in any merged cells it covers part of, as Excel's selection does. */
+  private mergeTarget(): Rect | undefined {
+    const view = this.view;
+    const r = this.selection.rects[0];
+    if (!view || !r) return undefined;
+    const rect = { ...r };
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const m of view.info.merges) {
+        if (m.r1 > rect.r2 || m.r2 < rect.r1 || m.c1 > rect.c2 || m.c2 < rect.c1) continue;
+        if (m.r1 < rect.r1 || m.r2 > rect.r2 || m.c1 < rect.c1 || m.c2 > rect.c2) {
+          Object.assign(rect, { r1: Math.min(rect.r1, m.r1), r2: Math.max(rect.r2, m.r2), c1: Math.min(rect.c1, m.c1), c2: Math.max(rect.c2, m.c2) });
+          grew = true;
+        }
+      }
+    }
+    return rect;
+  }
+
+  /**
+   * Merges the selected cells into one. As in Excel, only the top-left
+   * cell's value stays, so it asks first when others hold something.
+   */
+  async mergeCells(): Promise<void> {
+    const view = this.view;
+    const rect = this.mergeTarget();
+    if (!view || !rect || (rect.r1 === rect.r2 && rect.c1 === rect.c2)) return;
+    if (rectCells(rect) > 1_000_000) return this.toast('warn', msg('store.merge.tooLarge'));
+    let lost = 0;
+    view.forEach(rect, (row, col, rec) => {
+      if ((row !== rect.r1 || col !== rect.c1) && rec.t !== VT.None) lost++;
+    });
+    if (lost && !(await this.confirm({ title: msg('store.merge.title'), body: msg('store.merge.body', { count: lost }), confirmLabel: msg('store.merge.confirm') }))) return;
+    const others: Rect[] = [
+      { r1: rect.r1, r2: rect.r1, c1: rect.c1 + 1, c2: rect.c2 },
+      { r1: rect.r1 + 1, r2: rect.r2, c1: rect.c1, c2: rect.c2 },
+    ].filter((r) => r.r1 <= r.r2 && r.c1 <= r.c2);
+    const inside = view.info.merges.filter((m) => m.r1 >= rect.r1 && m.r2 <= rect.r2 && m.c1 >= rect.c1 && m.c2 <= rect.c2);
+    const clear: EditOp[] = lost ? [{ type: 'clear', sheet: this.active, rects: others }] : [];
+    await this.changeLayout({ kind: 'merges', add: [rect], remove: inside }, msg('store.history.merge'), clear);
+  }
+
+  /** Splits merged cells in the selection back into their cells. */
+  async unmergeCells(): Promise<void> {
+    const remove = this.mergesInSelection();
+    if (remove.length) await this.changeLayout({ kind: 'merges', add: [], remove }, msg('store.history.unmerge'));
+  }
+
+  /** Merged cells the selection covers some of. */
+  mergesInSelection(): Rect[] {
+    const view = this.view;
+    const rects = this.selection.rects;
+    return view?.info.merges.filter((m) => rects.some((r) => m.r1 <= r.r2 && m.r2 >= r.r1 && m.c1 <= r.c2 && m.c2 >= r.c1)) ?? [];
   }
 
   // ---------------------------------------------------------------------------
@@ -1519,13 +1656,42 @@ export class WorkbookStore {
     return Math.round(((this.view?.colWidth(col) ?? 64) / 7) * 100) / 100;
   }
 
-  /** Sets how wide a column is shown. The file keeps its own widths, as with resizing by dragging. */
-  setColumnWidth(col: number, chars: number): void {
-    const view = this.view;
-    if (!view || !(chars >= 0)) return;
-    view.colWidths.set(col, Math.min(2000, Math.round(chars * 7)));
-    this.colVersion++;
-    this.notify();
+  /** Sets a column's width, in characters, and the other selected columns' if it is one of them. */
+  async setColumnWidth(col: number, chars: number): Promise<void> {
+    if (!this.view || !(chars >= 0)) return;
+    await this.resizeLines('cols', col, Math.min(2000, Math.round(chars * 7)));
+  }
+
+  /** A row's height as shown here, in points as Excel gives it. */
+  rowHeightPt(row: number): number {
+    return Math.round((this.view?.rowHeight(row) ?? 20) * 75) / 100;
+  }
+
+  /** Sets a row's height, in points, and the other selected rows' if it is one of them. */
+  async setRowHeight(row: number, points: number): Promise<void> {
+    if (!this.view || !(points >= 0)) return;
+    await this.resizeLines('rows', row, Math.min(546, Math.round((points * 4) / 3)));
+  }
+
+  /**
+   * Keeps a size set in the grid, as dragging a column's edge does: the
+   * grid shows it already. The other selected columns take it too.
+   */
+  resizedColumn(col: number, px: number): Promise<void> {
+    return this.resizeLines('cols', col, Math.round(px));
+  }
+
+  /** Sets a row's height, and the other selected rows', dragged to in the grid. */
+  resizedRow(row: number, px: number): Promise<void> {
+    return this.resizeLines('rows', row, Math.min(546, Math.round(px)));
+  }
+
+  private async resizeLines(axis: 'rows' | 'cols', line: number, px: number): Promise<void> {
+    const selected = this.selectedLines(axis);
+    const lines = selected.includes(line) ? selected : [line];
+    const sizes = Object.fromEntries(lines.map((l) => [l, px]));
+    const op: LayoutOp = axis === 'cols' ? { kind: 'colWidths', widths: sizes } : { kind: 'rowHeights', heights: sizes };
+    await this.changeLayout(op, msg(axis === 'cols' ? 'store.history.columnWidth' : 'store.history.rowHeight', { count: lines.length }));
   }
 
   /** Bumped when column widths change outside the grid. */
@@ -2132,6 +2298,7 @@ export class WorkbookStore {
       | 'findOpen'
       | 'shortcutsOpen'
       | 'columnWidthFor'
+      | 'rowHeightFor'
       | 'schemaDraft'
       | 'designerPick',
   >(

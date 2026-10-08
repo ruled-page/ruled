@@ -21,6 +21,7 @@ import { mergeEditResults } from './editResult';
 import { planFill, type FillSource } from './fill';
 import { displayFormula, engineFormula, isVolatile, makeShifter } from './formula';
 import { parseInput } from './input';
+import { SheetLayout } from './layout';
 import { resolveTableRefs, type TablePlace } from './tableRefs';
 import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from './refs';
 import { findCell } from './sheetScanner';
@@ -39,6 +40,7 @@ import {
   type CfResult,
   type EditResult,
   type Finding,
+  type LayoutChange,
   type ListSource,
   type LoadResult,
   type Rect,
@@ -293,6 +295,8 @@ export class WorkbookSession {
    * description of each structural change.
    */
   private baked: { changes: CellChange[]; keys: Set<number>[]; structure: CellChange[] };
+  /** Per sheet: its layout, once a row, column, pane or merge has been changed. */
+  private layouts: (SheetLayout | undefined)[] = [];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm. */
   get saveFileName(): string {
@@ -368,11 +372,24 @@ export class WorkbookSession {
   }
 
   get editedCount(): number {
-    let n = this.baked.changes.length + this.baked.structure.length;
+    let n = this.baked.changes.length + this.baked.structure.length + this.layoutNotes().length;
     this.edits.forEach((m, s) => {
       for (const key of m.keys()) if (!this.baked.keys[s].has(key)) n++;
     });
     return n;
+  }
+
+  /** How each sheet's layout differs from the file's. */
+  private layoutNotes(): CellChange[] {
+    return this.layouts.flatMap((l, s) => l?.notes(this.model.sheets[s].info.name) ?? []);
+  }
+
+  private layoutOf(sheet: number): SheetLayout {
+    return (this.layouts[sheet] ??= new SheetLayout(this.sheet(sheet).info));
+  }
+
+  private mergesOf(sheet: number): Rect[] {
+    return this.layouts[sheet]?.mergeList ?? this.sheet(sheet).info.merges;
   }
 
   /**
@@ -410,6 +427,7 @@ export class WorkbookSession {
         out.push({ sheet: name, ref: toA1(row, col), before, after, ...(before === after ? { formatOnly: true } : {}) });
       }
     });
+    out.push(...this.layoutNotes());
     return out;
   }
 
@@ -509,7 +527,7 @@ export class WorkbookSession {
     // A protected sheet's cells are locked unless their format unlocks them, as Excel's input cells are.
     if (info.protected && !this.model.styles.get(this.current(sheet, row, col).style).unlocked) return msg('core.reason.locked');
     for (const b of info.blocked) if (inRect(b, row, col)) return b.reason;
-    for (const m of info.merges) {
+    for (const m of this.mergesOf(sheet)) {
       if (inRect(m, row, col) && (row !== m.r1 || col !== m.c1)) return MERGED;
     }
     return undefined;
@@ -1006,6 +1024,7 @@ export class WorkbookSession {
   apply(op: EditOp): EditResult {
     this.ensureEngine();
     if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
+    if (op.type === 'layout') return this.applyLayout([{ sheet: op.sheet, op: op.op }]);
     const writes = new Map<string, Write>();
     const warnings: Text[] = [];
     const newStyles: { index: number; style: DisplayStyle }[] = [];
@@ -1078,7 +1097,7 @@ export class WorkbookSession {
       }
       case 'sort': {
         const { rect } = op;
-        const merged = this.sheet(op.sheet).info.merges.find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
+        const merged = this.mergesOf(op.sheet).find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
         if (merged) return this.emptyResult(msg('core.edit.sortMerged', { range: rangeToA1(merged) }));
         const top = op.header ? rect.r1 + 1 : rect.r1;
         const rows = Array.from({ length: Math.max(0, rect.r2 - top + 1) }, (_, i) => top + i);
@@ -1119,7 +1138,25 @@ export class WorkbookSession {
         break;
       }
     }
-    return this.commit([...writes.values()], warnings, newStyles);
+    const result = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore');
+    return op.type === 'restore' && op.layout?.length ? mergeEditResults([result, this.applyLayout(op.layout)]) : result;
+  }
+
+  /** Changes rows', columns', panes' and merges' layout, after checking each can be made. */
+  private applyLayout(changes: LayoutChange[]): EditResult {
+    for (const { sheet, op } of changes) {
+      const info = this.sheet(sheet).info;
+      if (info.kind !== 'worksheet') return this.emptyResult(msg('core.reason.notWorksheet'));
+      // Excel's protection allows freezing panes, which only changes the view.
+      if (info.protected && op.kind !== 'freeze') return this.emptyResult(msg('core.reason.protected'));
+      if (op.kind === 'merges') {
+        const table = info.tables.find((t) => op.add.some((r) => r.r1 <= t.rect.r2 && r.r2 >= t.rect.r1 && r.c1 <= t.rect.c2 && r.c2 >= t.rect.c1));
+        if (table) return this.emptyResult(msg('core.layout.mergeTable', { table: table.name }));
+      }
+    }
+    const undo: LayoutChange[] = [];
+    for (const { sheet, op } of changes) undo.unshift({ sheet, op: this.layoutOf(sheet).apply(op) });
+    return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
   }
 
   private emptyResult(rejected: Text): EditResult {
@@ -1205,7 +1242,8 @@ export class WorkbookSession {
     return lost ? [msg('core.edit.filledAsValues', { count: lost })] : [];
   }
 
-  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[]): EditResult {
+  /** Applies writes; `restoring` puts back an earlier state, so cells a merge covers then are written too. */
+  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[], restoring = false): EditResult {
     const engine = this.engine;
     const undo: CellSnapshot[] = [];
     const redo: CellSnapshot[] = [];
@@ -1216,7 +1254,7 @@ export class WorkbookSession {
 
     for (const w of writes) {
       const reason = this.blockedReason(w.sheet, w.row, w.col);
-      if (reason) {
+      if (reason && !(restoring && reason === MERGED)) {
         if (reason !== MERGED) {
           skipped++;
           reasons.set(JSON.stringify(reason), reason);
@@ -1304,7 +1342,7 @@ export class WorkbookSession {
 
   /** The workbook with every edit written in, as a package. */
   private savedPackage(): OoxmlPackage {
-    return this.edits.some((m) => m.size) ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
+    return this.edits.some((m) => m.size) || this.layouts.some((l) => l?.changed) ? buildPackage({ ...this.saveInput(), stripMacros: false }) : this.pkg.clone();
   }
 
   private saveInput(): SaveInput {
@@ -1322,6 +1360,7 @@ export class WorkbookSession {
         new Set([...m.keys()].filter((k) => !this.edits[s].has(k) && !this.newFormulaFlags[s].has(k))),
       ),
       isArray: (sheet, row, col) => !!this.engine?.isArray(sheet, row, col),
+      layout: this.layouts,
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

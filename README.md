@@ -4,10 +4,14 @@ Open an Excel workbook in the browser, edit it like a spreadsheet, and save it
 back as .xlsx without losing what the editor can't display.
 
 - View any .xlsx or .xlsm: every sheet, number formats, fonts, fills, column
-  widths, merged cells, hidden rows and columns, frozen columns.
+  widths, merged cells, hidden rows and columns, frozen rows and columns.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill (series,
   dates, months, "Item 1" → "Item 2"), clear, undo and redo.
+- Change the layout and save it: column widths and row heights (drag a
+  column's or row's edge, or set them from the menu), hide and unhide rows
+  and columns, freeze panes, merge and unmerge cells. Merging asks first when
+  it would clear values, as Excel does.
 - Formulas recalculate live as you edit (HyperFormula, about 465 of Excel's functions).
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
@@ -359,8 +363,10 @@ everything on screen. The round-trip checker answers in English.
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows
 and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
-menu key) opens the cell menu with fill down and right, insert, delete,
-column width, sort and filter. F6 (Ctrl+F6 where the browser keeps F6) moves
+menu key) opens the cell menu with fill down and right; rows and columns
+(insert, delete, height or width, hide and unhide); merging; freezing panes;
+sort and filter. Its submenus open with the right arrow, Enter or Space, and
+close with the left arrow or Escape. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4 in the
 formula bar's name box goes there. The sheet tabs are one stop: the arrow

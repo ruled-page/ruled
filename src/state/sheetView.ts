@@ -1,7 +1,7 @@
 import { msg, type Text } from '../i18n/message';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '../core/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -37,16 +37,66 @@ export class SheetView {
   constructor(info: SheetInfo, grid: SheetGrid | null) {
     this.info = info;
     this.grid = grid;
-    for (const m of info.merges) {
+    this.indexMerges();
+    for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
+    for (const n of info.notes) this.notes.set(cellKey(n.row, n.col), n);
+    this.extendTo(Math.max(info.maxRow, 0), Math.max(info.maxCol, 0));
+  }
+
+  private indexMerges(): void {
+    this.mergesByRow.clear();
+    for (const m of this.info.merges) {
       for (let r = m.r1; r <= m.r2; r++) {
         const list = this.mergesByRow.get(r);
         if (list) list.push(m);
         else this.mergesByRow.set(r, [m]);
       }
     }
-    for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
-    for (const n of info.notes) this.notes.set(cellKey(n.row, n.col), n);
-    this.extendTo(Math.max(info.maxRow, 0), Math.max(info.maxCol, 0));
+  }
+
+  /** Bumped when sizes, hidden rows and columns, frozen panes or merges change. */
+  layoutVersion = 0;
+
+  /** Shows a change to the layout that the worker has made. */
+  applyLayout(op: LayoutOp): void {
+    const info = this.info;
+    switch (op.kind) {
+      case 'colWidths':
+        for (const [c, px] of Object.entries(op.widths)) {
+          if (px === null) this.colWidths.delete(Number(c));
+          else this.colWidths.set(Number(c), px);
+        }
+        break;
+      case 'rowHeights':
+        for (const [r, px] of Object.entries(op.heights)) {
+          if (px === null) delete info.rowHeights[Number(r)];
+          else info.rowHeights[Number(r)] = px;
+        }
+        break;
+      case 'hidden': {
+        const key = op.axis === 'rows' ? 'hiddenRows' : 'hiddenCols';
+        const hidden = new Set(info[key]);
+        for (const [line, h] of Object.entries(op.lines)) {
+          if (h) hidden.add(Number(line));
+          else hidden.delete(Number(line));
+        }
+        info[key] = [...hidden].sort((a, b) => a - b);
+        this.layout();
+        break;
+      }
+      case 'freeze':
+        info.frozenRows = op.rows;
+        info.frozenCols = op.cols;
+        break;
+      case 'merges': {
+        const same = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
+        info.merges = [...info.merges.filter((m) => !op.remove.some((r) => same(r, m))), ...op.add.filter((a) => !info.merges.some((m) => same(m, a)))];
+        this.indexMerges();
+        break;
+      }
+    }
+    this.layoutVersion++;
+    this.version++;
   }
 
   /** Makes sure the given cell is inside the scrollable area. */

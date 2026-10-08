@@ -94,11 +94,11 @@ describe('column widths from the keyboard', () => {
   it('reads and sets widths in Excel character units', async () => {
     const store = await open();
     const before = store.colVersion;
-    store.setColumnWidth(1, 20);
+    await store.setColumnWidth(1, 20);
     expect(store.view?.colWidth(1)).toBe(140);
     expect(store.columnWidth(1)).toBe(20);
     expect(store.colVersion).toBe(before + 1);
-    store.setColumnWidth(1, Number.NaN);
+    await store.setColumnWidth(1, Number.NaN);
     expect(store.columnWidth(1)).toBe(20);
     store.dispose();
   });

@@ -625,6 +625,16 @@
 }
 
 /* The grid stays left to right in right-to-left languages, as Excel's sheets do unless set otherwise. */
+.wbe .wbe-row-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--wbe-accent);
+  pointer-events: none;
+  z-index: 5;
+}
+
 .wbe .wbe-grid-host {
   direction: ltr;
 }
@@ -2219,9 +2229,20 @@
 }
 
 .wbe .wbe-context-menu button:hover:not(:disabled),
-.wbe .wbe-context-menu button:focus-visible {
+.wbe .wbe-context-menu button:focus-visible,
+.wbe .wbe-context-menu button[aria-expanded='true'] {
   background: var(--wbe-accent-soft);
-  outline: none;
+  /* Invisible, except in forced colours, where the background goes. */
+  outline: 2px solid transparent;
+}
+
+.wbe .wbe-menu-arrow {
+  color: var(--wbe-text-subtle);
+}
+
+[dir='rtl'] .wbe .wbe-menu-arrow,
+.wbe[dir='rtl'] .wbe-menu-arrow {
+  transform: scaleX(-1);
 }
 
 .wbe .wbe-context-menu button:disabled {

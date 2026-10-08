@@ -1,6 +1,7 @@
 import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
 import { isDynamicArrayFormula } from './formula';
+import { rowAttributes, setAttributes, writeLayout, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
@@ -29,6 +30,8 @@ export interface SaveInput {
   isArray?: (sheet: number, row: number, col: number) => boolean;
   /** Whether anything in a sheet's range (the whole sheet when null) differs from the file as opened. */
   changedIn?: (sheet: number, rect: Rect | null) => boolean;
+  /** Per sheet: its layout, where it has been edited. */
+  layout?: (SheetLayout | undefined)[];
 }
 
 type Patch =
@@ -51,7 +54,11 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   model.sheets.forEach((m, s) => {
     if (!m.scan || m.xml === undefined) return;
     const patches = sheetPatches(m, s, input);
-    if (patches.size) pkg.setText(m.path, rewriteSheet(m.xml, m.scan, patches, cm));
+    const layout = input.layout?.[s];
+    const rows = layout ? rowAttributes(layout) : new Map<number, Record<string, string | null>>();
+    let xml = patches.size || rows.size ? rewriteSheet(m.xml, m.scan, patches, cm, rows) : m.xml;
+    if (layout?.changed) xml = writeLayout(xml, m.scan.prefix, layout);
+    if (xml !== m.xml) pkg.setText(m.path, xml);
   });
 
   // Excel checks calcChain.xml against the cells that hold formulas and
@@ -145,7 +152,13 @@ function gridValueOf(grid: SheetGrid, idx: number): EngineValue {
   }
 }
 
-function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>, cm: () => number): string {
+function rewriteSheet(
+  xml: string,
+  scan: ScanResult,
+  patches: Map<number, Patch>,
+  cm: () => number,
+  rowAttrs: Map<number, Record<string, string | null>>,
+): string {
   const p = scan.prefix;
   const grid = scan.grid;
   const rec = scan.rowRec;
@@ -159,14 +172,18 @@ function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>
   }
   const recByRow = new Map<number, number>();
   for (let i = 0; i < rec.row.length; i++) recByRow.set(rec.row[i], i);
-  const rows = [...new Set([...rec.row, ...byRow.keys()])].sort((a, b) => a - b);
+  const rows = [...new Set([...rec.row, ...byRow.keys(), ...rowAttrs.keys()])].sort((a, b) => a - b);
 
   const parts: string[] = [];
   for (const row of rows) {
     const ri = recByRow.get(row);
     const dirtyCols = byRow.get(row);
+    const attrs = rowAttrs.get(row);
     if (!dirtyCols) {
-      parts.push(xml.slice(rec.start[ri!], rec.end[ri!]));
+      // A row whose height or visibility changed keeps its cells as they were.
+      if (!attrs) parts.push(xml.slice(rec.start[ri!], rec.end[ri!]));
+      else if (ri === undefined) parts.push(setAttributes(`<${p}row r="${row + 1}"/>`, attrs));
+      else parts.push(setAttributes(xml.slice(rec.start[ri], rec.tagEnd[ri] + 1), attrs) + xml.slice(rec.tagEnd[ri] + 1, rec.end[ri]));
       continue;
     }
     let open: string;
@@ -176,6 +193,7 @@ function rewriteSheet(xml: string, scan: ScanResult, patches: Map<number, Patch>
     } else {
       open = `<${p}row r="${row + 1}">`;
     }
+    if (attrs) open = setAttributes(open, attrs);
     const cells: string[] = [];
     const existing = new Map<number, number>();
     if (row < grid.rowCount) for (let i = grid.rowPtr[row]; i < grid.rowPtr[row + 1]; i++) existing.set(grid.cols[i], i);

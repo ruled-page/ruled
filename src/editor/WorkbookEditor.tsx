@@ -9,7 +9,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
-import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
+import { ShortcutsDialog, SizeDialog } from '../ui/KeyboardDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
@@ -331,7 +331,8 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {store.designerOpen && <SchemaDesigner store={store} />}
       {ready && <GridMenu store={store} />}
       {ready && <FilterPicker store={store} />}
-      {ready && <ColumnWidthDialog store={store} />}
+      {ready && <SizeDialog store={store} axis="cols" />}
+      {ready && <SizeDialog store={store} axis="rows" />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

@@ -445,8 +445,8 @@ export type EditOp =
   | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect }
   /** Drag-fill from the source into the destination, extending series. */
   | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
-  /** Put cells back to an exact earlier state (undo/redo). */
-  | { type: 'restore'; cells: CellSnapshot[] }
+  /** Put cells, and the layout, back to an exact earlier state (undo/redo). */
+  | { type: 'restore'; cells: CellSnapshot[]; layout?: LayoutChange[] }
   /** Text for scattered cells, parsed like typed input (used by schema hooks). */
   | { type: 'inputs'; sheet: number; cells: { row: number; col: number; text: string }[] }
   /**
@@ -454,8 +454,28 @@ export type EditOp =
    * cells move with their formats, and formulas move as if copied.
    */
   | { type: 'sort'; sheet: number; rect: Rect; keys: { col: number; descending: boolean }[]; header: boolean }
+  /** Changes how a sheet is laid out, rather than what its cells hold. */
+  | { type: 'layout'; sheet: number; op: LayoutOp }
   /** Several operations applied in order and undone as one. */
   | { type: 'batch'; ops: EditOp[] };
+
+/**
+ * A change to a sheet's layout. Sizes are in pixels, null being the sheet's
+ * default; each lists only the rows or columns it changes, so the same kind
+ * of change, with the values from before, undoes it.
+ */
+export type LayoutOp =
+  | { kind: 'colWidths'; widths: Record<number, number | null> }
+  | { kind: 'rowHeights'; heights: Record<number, number | null> }
+  | { kind: 'hidden'; axis: 'rows' | 'cols'; lines: Record<number, boolean> }
+  /** Rows above and columns left of the panes that scroll; 0 and 0 unfreezes. */
+  | { kind: 'freeze'; rows: number; cols: number }
+  | { kind: 'merges'; add: Rect[]; remove: Rect[] };
+
+export interface LayoutChange {
+  sheet: number;
+  op: LayoutOp;
+}
 
 export interface EditResult {
   updates: CellUpdate[];
@@ -468,4 +488,6 @@ export interface EditResult {
   editedCount: number;
   /** Set when the input could not be accepted at all, e.g. a malformed formula. */
   rejected?: Text;
+  /** Layout changes made, in order, and the ones that undo them, in the order to apply them. */
+  layout?: { applied: LayoutChange[]; undo: LayoutChange[] };
 }

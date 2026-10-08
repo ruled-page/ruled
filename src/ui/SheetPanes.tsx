@@ -29,16 +29,19 @@ export function SheetPanes(props: Props) {
   const panes = useRef<HTMLDivElement>(null);
 
   /** Frozen rows that are visible, i.e. not hidden. */
+  const layoutVersion = view.layoutVersion;
   const frozen = useMemo(() => {
     let n = 0;
     for (let r = 0; r < view.info.frozenRows; r++) if (view.gridRow(r) >= 0) n++;
     return Math.min(n, view.rowCount - 1);
-  }, [view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, layoutVersion]);
   const topHeight = useMemo(() => {
     let h = 24;
     for (let g = 0; g < frozen; g++) h += view.rowHeight(view.visibleRows[g]);
     return h;
-  }, [view, frozen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, frozen, layoutVersion]);
 
   // Scrolling either pane sideways scrolls the other. Scroll events don't
   // bubble, but a capturing listener here still sees each grid's scroller.

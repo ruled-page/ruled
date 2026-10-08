@@ -83,30 +83,32 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
   );
 }
 
-/** Sets a column's width from the keyboard, as dragging its edge does. */
-export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
+/** Sets a column's width, or a row's height, from the keyboard, as dragging its edge does. */
+export function SizeDialog({ store, axis }: { store: WorkbookStore; axis: 'cols' | 'rows' }) {
   const t = useT();
-  const col = store.columnWidthFor;
+  const cols = axis === 'cols';
+  const line = cols ? store.columnWidthFor : store.rowHeightFor;
   const dialog = useRef<HTMLFormElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
   const [text, setText] = useState('');
-  const open = col !== undefined;
+  const open = line !== undefined;
   const opened = useRef<number | undefined>(undefined);
-  if (opened.current !== col) {
-    opened.current = col;
-    if (open) setText(t.number(store.columnWidth(col), { useGrouping: false, maximumFractionDigits: 2 }));
+  if (opened.current !== line) {
+    opened.current = line;
+    if (open) setText(t.number(cols ? store.columnWidth(line) : store.rowHeightPt(line), { useGrouping: false, maximumFractionDigits: 2 }));
   }
-  const close = () => store.set('columnWidthFor', undefined);
+  const close = () => store.set(cols ? 'columnWidthFor' : 'rowHeightFor', undefined);
   useDialog(dialog, open, close, { modal: true, initial: input });
   if (!open) return null;
-  const chars = Number(text.replace(',', '.'));
-  const valid = text.trim() !== '' && chars >= 0 && chars <= 255;
+  const size = Number(text.replace(',', '.'));
+  const valid = text.trim() !== '' && size >= 0 && size <= (cols ? 255 : 409);
   const apply = () => {
     if (!valid) return;
-    store.setColumnWidth(col, chars);
+    void (cols ? store.setColumnWidth(line, size) : store.setRowHeight(line, size));
     close();
   };
+  const k = cols ? 'columnWidth' : 'rowHeight';
   return (
     <div className="wbe-modal-backdrop" onMouseDown={close}>
       <form
@@ -123,9 +125,9 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
         }}
       >
         <div className="wbe-modal-content">
-          <h2 id={`${id}-title`}>{t('columnWidth.title', { column: colToLetters(col) })}</h2>
+          <h2 id={`${id}-title`}>{cols ? t('columnWidth.title', { column: colToLetters(line) }) : t('rowHeight.title', { row: line + 1 })}</h2>
           <label className="wbe-field">
-            <span>{t('columnWidth.label')}</span>
+            <span>{t(`${k}.label`)}</span>
             <input
               ref={input}
               inputMode="decimal"
@@ -137,14 +139,14 @@ export function ColumnWidthDialog({ store }: { store: WorkbookStore }) {
             />
           </label>
           <p id={`${id}-note`} className="wbe-muted wbe-small">
-            {t('columnWidth.note')}
+            {t(`${k}.note`)}
           </p>
           <div className="wbe-modal-actions">
             <button type="button" className="wbe-btn" onClick={close}>
               {t('dialog.cancel')}
             </button>
             <button type="submit" className="wbe-btn wbe-primary" disabled={!valid}>
-              {t('columnWidth.set')}
+              {t(`${k}.set`)}
             </button>
           </div>
         </div>

@@ -153,9 +153,9 @@ describe('moving around the workbook', () => {
   it('reads column widths in characters, with the file’s own widths', async () => {
     await open();
     expect(store.columnWidth(0)).toBeCloseTo(20, 0);
-    store.setColumnWidth(1, 10000);
+    await store.setColumnWidth(1, 10000);
     expect(store.view?.colWidth(1)).toBe(2000);
-    store.setColumnWidth(1, -1);
+    await store.setColumnWidth(1, -1);
     expect(store.view?.colWidth(1)).toBe(2000);
     expect(new WorkbookStore({ drafts: false }).columnWidth(0)).toBe(9.14);
   });

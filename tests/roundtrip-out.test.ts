@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1 } from '../src/core/refs';
+import type { LayoutOp } from '../src/core/types';
 import { open, sheetIndex } from './helpers';
 
 /**
@@ -26,6 +27,21 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   k.apply({ type: 'fill', sheet: notes, src: { r1: 19, c1: 0, r2: 19, c2: 6 }, dst: { r1: 19, c1: 0, r2: 23, c2: 6 } });
   k.apply({ type: 'clear', sheet: sheetIndex(k, 'Summary'), rects: [{ r1: 13, c1: 1, r2: 13, c2: 1 }] });
   write('kitchen-sink.edited.xlsx', k);
+
+  // Sizes, hidden rows and columns, frozen panes and merges, on sheets that had some of each and on one that had none.
+  for (const [name, sheets] of [['kitchen-sink.xlsx', ['Data', 'Notes', 'Summary']], ['orders.xlsx', []]] as const) {
+    const l = open(name);
+    for (const s of sheets.length ? sheets.map((n) => sheetIndex(l, n)) : [0]) {
+      const layout = (op: LayoutOp) => l.apply({ type: 'layout', sheet: s, op });
+      layout({ kind: 'colWidths', widths: { 0: 120, 1: null, 5: 30 } });
+      layout({ kind: 'rowHeights', heights: { 0: 32, 1: null, 40: 10 } });
+      layout({ kind: 'hidden', axis: 'rows', lines: { 2: true, 60: true } });
+      layout({ kind: 'hidden', axis: 'cols', lines: { 3: true } });
+      layout({ kind: 'freeze', rows: 1, cols: 1 });
+      layout({ kind: 'merges', add: [{ r1: 30, c1: 0, r2: 31, c2: 1 }], remove: [] });
+    }
+    write(name.replace('.xlsx', '.layout.xlsx'), l);
+  }
 
   const p = open('pivot.xlsx');
   p.apply({ type: 'input', sheet: 0, ...at('E2'), text: '=C2*D2*2' });

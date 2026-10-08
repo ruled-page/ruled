@@ -9,12 +9,19 @@ import type { WorkerRequest, WorkerResponse } from '../src/worker/protocol';
 export async function testStore(options: StoreOptions = {}): Promise<WorkbookStore> {
   const client = {
     onmessage: null as ((e: MessageEvent<WorkerResponse>) => void) | null,
-    postMessage: (req: WorkerRequest) => setTimeout(() => scope.onmessage?.({ data: req } as MessageEvent<WorkerRequest>)),
+    // Copied as a worker's messages are, so neither side shares objects with the other.
+    postMessage: (req: WorkerRequest) => {
+      const data = structuredClone(req);
+      setTimeout(() => scope.onmessage?.({ data } as MessageEvent<WorkerRequest>));
+    },
     terminate: () => undefined,
   };
   const scope = {
     onmessage: null as ((e: MessageEvent<WorkerRequest>) => void) | null,
-    postMessage: (msg: WorkerResponse) => setTimeout(() => client.onmessage?.({ data: msg } as MessageEvent<WorkerResponse>)),
+    postMessage: (msg: WorkerResponse) => {
+      const data = structuredClone(msg);
+      setTimeout(() => client.onmessage?.({ data } as MessageEvent<WorkerResponse>));
+    },
   };
   (globalThis as { self?: unknown }).self = scope;
   vi.resetModules();

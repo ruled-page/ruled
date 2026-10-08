@@ -24,7 +24,7 @@ import {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
@@ -178,11 +178,13 @@ export function SheetGrid({
   const sheetIndex = view.info.index;
   const rowHeaderWidth = Math.max(40, String(view.visibleRows[view.rowCount - 1] + 1).length * 8 + 16);
 
+  const layoutVersion = view.layoutVersion;
   const frozen = useMemo(() => {
     let n = 0;
     for (let c = 0; c < view.info.frozenCols; c++) if (view.gridCol(c) >= 0) n++;
     return n;
-  }, [view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, layoutVersion]);
 
   const columns = useMemo<GridColumn[]>(
     () => [
@@ -715,13 +717,60 @@ export function SheetGrid({
     [store, view, rowStart],
   );
 
+  // Columns keep the width dragged to, as in Excel, except on a protected sheet.
+  const resizable = view.info.kind === 'worksheet' && !view.info.protected;
   const onColumnResize = useCallback(
     (_c: GridColumn, size: number, index: number) => {
-      if (index === 0) return;
+      if (index === 0 || !resizable) return;
       view.colWidths.set(view.visibleCols[index - 1], size);
       onColumnResized();
     },
-    [view, onColumnResized],
+    [view, onColumnResized, resizable],
+  );
+  // Rows are resized by dragging the bottom edge of their number, which Glide
+  // doesn't offer: a press there is taken before Glide sees it.
+  const visible = useRef({ y: 0, height: 0 });
+  const [rowDrag, setRowDrag] = useState<{ row: number; from: number; px: number; y: number } | null>(null);
+  const rowEdgeAt = (x: number, y: number): { row: number; edge: number } | undefined => {
+    const grid = ref.current;
+    if (!grid || !resizable) return undefined;
+    for (let gr = visible.current.y; gr <= visible.current.y + visible.current.height; gr++) {
+      const b = grid.getBounds(0, gr);
+      if (!b || x < b.x || x > b.x + b.width) return undefined;
+      const edge = b.y + b.height;
+      if (Math.abs(y - edge) <= 3 && gr + rowStart < view.rowCount) return { row: view.visibleRows[gr + rowStart], edge };
+    }
+    return undefined;
+  };
+  const onHostMouseMove = (e: ReactMouseEvent) => {
+    if (!rowDrag && host.current) host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : '';
+  };
+  const onHostMouseDown = (e: ReactMouseEvent) => {
+    const at = e.button === 0 ? rowEdgeAt(e.clientX, e.clientY) : undefined;
+    if (!at) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = { row: at.row, from: e.clientY, px: view.rowHeight(at.row), y: at.edge };
+    setRowDrag(start);
+    const move = (m: MouseEvent) => setRowDrag({ ...start, y: start.y + Math.max(-start.px, m.clientY - start.from) });
+    const up = (m: MouseEvent) => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      // The click that ends the drag isn't one on the grid.
+      window.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true });
+      setRowDrag(null);
+      const px = Math.max(0, Math.round(start.px + m.clientY - start.from));
+      if (px !== start.px) void store.resizedRow(start.row, px);
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  };
+
+  const onColumnResizeEnd = useCallback(
+    (_c: GridColumn, size: number, index: number) => {
+      if (index > 0 && resizable) void store.resizedColumn(view.visibleCols[index - 1], size);
+    },
+    [store, view, resizable],
   );
 
   const onItemHovered = useCallback(
@@ -738,14 +787,18 @@ export function SheetGrid({
     [view, rowStart],
   );
 
-  const rowHeight = useCallback((gr: number) => view.rowHeight(view.visibleRows[gr + rowStart]), [view, rowStart]);
+  const rowHeight = useCallback(
+    (gr: number) => view.rowHeight(view.visibleRows[gr + rowStart]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, rowStart, layoutVersion],
+  );
   const provideEditor = useCallback(
     (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
     [],
   );
 
   return (
-    <div className={`wbe-grid-host ${className ?? ''}`} ref={host} style={hostStyle}>
+    <div className={`wbe-grid-host ${className ?? ''}`} ref={host} style={hostStyle} onMouseMoveCapture={onHostMouseMove} onMouseDownCapture={onHostMouseDown}>
       <DataEditorCore
         ref={ref}
         key={view.info.index}
@@ -770,6 +823,7 @@ export function SheetGrid({
         allowedFillDirections="orthogonal"
         onFillPattern={onFillPattern}
         onColumnResize={onColumnResize}
+        onColumnResizeEnd={onColumnResizeEnd}
         getCellsForSelection
         rangeSelect="rect"
         columnSelect="multi"
@@ -789,10 +843,14 @@ export function SheetGrid({
         height="100%"
         minColumnWidth={18}
         maxColumnWidth={1200}
-        onVisibleRegionChanged={() => setRegion((n) => n + 1)}
+        onVisibleRegionChanged={(r) => {
+          visible.current = { y: r.y, height: r.height };
+          setRegion((n) => n + 1);
+        }}
         onItemHovered={onItemHovered}
       />
       {hoverNote && <NoteTip {...hoverNote} />}
+      {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
       <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
     </div>
   );

@@ -84,11 +84,22 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Shift+F10');
     const menu = page.getByRole('menu');
     await expect(menu.getByRole('menuitem', { name: 'Cut' })).toBeFocused();
-    // Cut, Copy, Paste, Fill down, Fill right, then the first row item.
+    // Cut, Copy, Paste, Fill down, Fill right, then the rows' submenu.
     for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown');
-    await expect(menu.getByRole('menuitem', { name: 'Insert 1 row above' })).toBeFocused();
+    const rows = page.getByRole('menuitem', { name: 'Rows' });
+    await expect(rows).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    const sub = page.getByRole('menu', { name: 'Rows' });
+    await expect(sub.getByRole('menuitem', { name: 'Insert 1 row above' })).toBeFocused();
+    await expect(rows).toHaveAttribute('aria-expanded', 'true');
+    // Left closes it, back on the item that opened it; Enter opens it again.
+    await page.keyboard.press('ArrowLeft');
+    await expect(sub).toBeHidden();
+    await expect(rows).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(menu).toBeHidden();
+    await expect(sub.getByRole('menuitem', { name: 'Insert 1 row above' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(grid(page)).toHaveCount(1);
     await expect(shown(page, 'A3')).toHaveText('Bolts');
     // The formulas moved with their rows.
@@ -106,6 +117,8 @@ test.describe('with only a keyboard', () => {
   test('sets a column width from the menu', async ({ page }) => {
     await goTo(page, 'B2');
     await page.keyboard.press('Shift+F10');
+    await page.getByRole('menuitem', { name: 'Columns' }).focus();
+    await page.keyboard.press('Enter');
     await page.getByRole('menuitem', { name: 'Column width…' }).focus();
     await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: 'Width of column B' });
@@ -117,6 +130,8 @@ test.describe('with only a keyboard', () => {
     await expect(grid(page)).toHaveCount(1);
 
     await page.keyboard.press('Shift+F10');
+    await page.getByRole('menuitem', { name: 'Columns' }).focus();
+    await page.keyboard.press('Enter');
     await page.getByRole('menuitem', { name: 'Column width…' }).focus();
     await page.keyboard.press('Enter');
     await expect(input).toHaveValue('25');

@@ -1,4 +1,4 @@
-import { MAX_COLS, MAX_ROWS } from '../core/refs';
+import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { mod } from './keys';
@@ -29,12 +29,42 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.insertRowsBelow', { count: rows }), onSelect: () => void store.insertRows('below'), disabled: locked || rows >= MAX_ROWS },
     { label: t('menu.deleteRows', { count: rows }), onSelect: () => void store.deleteRows(), disabled: locked, danger: true },
   ];
+  const rowLayout: MenuItem[] = [
+    { label: t('menu.rowHeight'), onSelect: () => store.set('rowHeightFor', sel.row), disabled: locked },
+    { label: t('menu.hideRows', { count: rows }), onSelect: () => void store.hideLines('rows'), disabled: locked },
+    ...(store.hasHiddenNear('rows') ? [{ label: t('menu.unhideRows'), onSelect: () => void store.unhideLines('rows'), disabled: locked }] : []),
+  ];
   const colItems: MenuItem[] = [
     { label: t('menu.insertColumnsLeft', { count: cols }), onSelect: () => void store.insertCols('left'), disabled: locked || cols >= MAX_COLS },
     { label: t('menu.insertColumnsRight', { count: cols }), onSelect: () => void store.insertCols('right'), disabled: locked || cols >= MAX_COLS },
     { label: t('menu.deleteColumns', { count: cols }), onSelect: () => void store.deleteCols(), disabled: locked, danger: true },
-    { label: t('menu.columnWidth'), onSelect: () => store.set('columnWidthFor', sel.col) },
   ];
+  const colLayout: MenuItem[] = [
+    { label: t('menu.columnWidth'), onSelect: () => store.set('columnWidthFor', sel.col), disabled: locked },
+    { label: t('menu.hideColumns', { count: cols }), onSelect: () => void store.hideLines('cols'), disabled: locked },
+    ...(store.hasHiddenNear('cols') ? [{ label: t('menu.unhideColumns'), onSelect: () => void store.unhideLines('cols'), disabled: locked }] : []),
+  ];
+  const frozen = view.info.frozenRows > 0 || view.info.frozenCols > 0;
+  const merged = store.mergesInSelection().length > 0;
+  const freezeItems: MenuItem[] = [
+    ...(sel.row > 0 || sel.col > 0 ? [{ label: t('menu.freezePanes', { cell: toA1(sel.row, sel.col) }), onSelect: () => void store.freezePanes('cell') }] : []),
+    { label: t('menu.freezeTopRow'), onSelect: () => void store.freezePanes('topRow') },
+    { label: t('menu.freezeFirstColumn'), onSelect: () => void store.freezePanes('firstColumn') },
+    ...(frozen ? [{ label: t('menu.unfreeze'), onSelect: () => void store.freezePanes('none') }] : []),
+  ];
+  // On a cell, rows, columns and freezing are submenus; on a heading, its own items are the menu.
+  const lineItems: MenuItem[] =
+    menu.kind === 'column' || (wholeCols && !wholeRows)
+      ? [...colItems, ...colLayout]
+      : menu.kind === 'row' || wholeRows
+        ? [...rowItems, ...rowLayout]
+        : [
+            { label: t('menu.rows'), items: [...rowItems, { separator: true }, ...rowLayout] },
+            { label: t('menu.columns'), items: [...colItems, { separator: true }, ...colLayout] },
+            ...(rows * cols > 1 ? [{ label: t('menu.merge'), onSelect: () => void store.mergeCells(), disabled: locked }] : []),
+            ...(merged ? [{ label: t('menu.unmerge'), onSelect: () => void store.unmergeCells(), disabled: locked }] : []),
+            { label: t('menu.freeze'), items: freezeItems },
+          ];
   const filtered = !!view.filter;
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
@@ -49,11 +79,11 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
     { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
     { separator: true },
-    ...(menu.kind === 'column' || (wholeCols && !wholeRows) ? colItems : menu.kind === 'row' || wholeRows ? rowItems : [...rowItems, { separator: true } as const, ...colItems]),
+    ...lineItems,
     { separator: true },
     ...dataItems,
     { separator: true },
     { label: t('menu.find'), hint: mod(t, 'F'), onSelect: () => store.set('findOpen', true) },
   ];
-  return <ContextMenu x={menu.x} y={menu.y} items={items} onClose={() => store.set('menu', undefined)} />;
+  return <ContextMenu x={menu.x} y={menu.y} items={items} label={t('menu.label')} onClose={() => store.set('menu', undefined)} />;
 }

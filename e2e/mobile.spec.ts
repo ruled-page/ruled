@@ -56,7 +56,8 @@ test('the cell menu opens from the formula bar, without right-clicking', async (
   await page.getByRole('button', { name: 'Cell menu' }).tap();
   const menu = page.getByRole('menu');
   await expect(menu).toBeInViewport();
-  await menu.getByRole('menuitem', { name: 'Insert 1 row above' }).tap();
+  await menu.getByRole('menuitem', { name: 'Rows' }).tap();
+  await page.getByRole('menu', { name: 'Rows' }).getByRole('menuitem', { name: 'Insert 1 row above' }).tap();
   await goTo(page, 'A4');
   await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('SKU-1002');
 });
