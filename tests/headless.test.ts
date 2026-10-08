@@ -1,5 +1,7 @@
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { schemaFromJSON, schemaToJSON, HeadlessWorkbook, validateWorkbook } from './headless';
+import type { WorkbookSchema } from '../src/schema/types';
 import { forecastSchema, priceListSchema } from '../src/demo/schemas';
 import { sample } from './helpers';
 
@@ -46,5 +48,38 @@ describe('the editor without a browser', () => {
     expect(again.note).toMatch(/version 7 .* version 8/);
     const r = await validateWorkbook(wb.save(), { schemas: [schema] });
     expect(r).toMatchObject({ ok: true, errors: 0, schema: { id: schema.id, version: '7' } });
+  });
+});
+
+describe('names that are also JavaScript property names', () => {
+  it('keeps a sheet, a table and a field called __proto__ as data', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('__proto__');
+    ws.addRow(['__proto__', 'constructor']);
+    ws.addRow([2, { formula: "'__proto__'!A2*3", result: 6 }]);
+    const schema: WorkbookSchema = {
+      id: 'odd',
+      name: 'Odd names',
+      sheets: [
+        {
+          name: '__proto__',
+          tables: [
+            {
+              key: '__proto__',
+              at: 'A1',
+              fields: [
+                { key: '__proto__', label: '__proto__', type: 'number' },
+                { key: 'constructor', label: 'constructor', type: 'number' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const book = HeadlessWorkbook.open(new Uint8Array(await wb.xlsx.writeBuffer()), { schemas: [schema], recalc: 'on' });
+    expect(book.sheetNames).toEqual(['__proto__']);
+    expect(book.cell('__proto__', 'B2')).toBe(6);
+    // Written as JSON: in an object literal, __proto__ would set the prototype.
+    expect(JSON.stringify(book.values())).toBe('{"__proto__":{"tables":{"__proto__":[{"__proto__":2,"constructor":6}]},"cells":{}}}');
   });
 });

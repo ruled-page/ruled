@@ -213,6 +213,15 @@ function valueKey(v: FieldValue): string {
   return `${typeof v}:${String(v)}`;
 }
 
+/**
+ * Sets a property, even one called __proto__: keys come from schemas and
+ * sheet names come from files, and plain assignment would set the object's
+ * prototype instead of a value.
+ */
+function put<T>(obj: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(obj, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
 const patterns = new Map<string, RegExp>();
 function regex(source: string): RegExp {
   let re = patterns.get(source);
@@ -407,7 +416,7 @@ export class SchemaController {
     const out: Record<string, FieldValue> = {};
     t.fields.forEach((f, j) => {
       const p = t.cell(record, j);
-      out[f.key] = this.toValue(t.view.get(p.row, p.col), f);
+      put(out, f.key, this.toValue(t.view.get(p.row, p.col), f));
     });
     return out;
   }
@@ -453,13 +462,17 @@ export class SchemaController {
     for (const bs of this.binding.sheets) {
       const sheet: SchemaValues[string] = { tables: {}, cells: {} };
       for (const t of bs.tables) {
-        sheet.tables[t.schema.key] = Array.from({ length: t.recordCount() }, (_, r) => {
-          const values = this.recordValues(t, r);
-          return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, toJson(v)]));
-        });
+        put(
+          sheet.tables,
+          t.schema.key,
+          Array.from({ length: t.recordCount() }, (_, r) => {
+            const values = this.recordValues(t, r);
+            return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, toJson(v)]));
+          }),
+        );
       }
-      for (const c of bs.cells) sheet.cells[c.schema.key] = toJson(this.toValue(bs.view.get(c.pos.row, c.pos.col), c.schema));
-      out[bs.name] = sheet;
+      for (const c of bs.cells) put(sheet.cells, c.schema.key, toJson(this.toValue(bs.view.get(c.pos.row, c.pos.col), c.schema)));
+      put(out, bs.name, sheet);
     }
     return out;
   }

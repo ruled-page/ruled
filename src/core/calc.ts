@@ -174,7 +174,8 @@ export class CalcEngine {
 
     registerExcelFunctions();
     installEngineLimits();
-    const data: Record<string, RawCellContent[][]> = {};
+    // Sheet names come from the file; one called __proto__ must be a sheet, not the object's prototype.
+    const data: Record<string, RawCellContent[][]> = Object.create(null);
     for (const s of sheets) if (s) data[s.name] = s.rows;
 
     // Probe names against an empty copy of the workbook so one bad name
