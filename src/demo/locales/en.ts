@@ -18,7 +18,7 @@ export const en = {
   'welcome.lede':
     'Open a .xlsx file, change cells, paste from Excel, drag to fill, and save it back as .xlsx. Formulas recalculate as you edit. Charts, pivot tables, macros and formatting are kept in the saved file, even the ones this editor can’t display.',
   'welcome.choose': '<strong>Choose a workbook</strong> or drop it anywhere on this page',
-  'welcome.fileTypes': '.xlsx or .xlsm, processed entirely in your browser',
+  'welcome.fileTypes': '.xlsx, .xlsm or .csv, processed entirely in your browser',
   'welcome.schemaSamples': 'Samples checked by a schema',
   'welcome.schemaCount_one': '{{count, number}} schema is registered.',
   'welcome.schemaCount_other': '{{count, number}} schemas are registered.',

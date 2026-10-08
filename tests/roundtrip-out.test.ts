@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { strToU8 } from 'fflate';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1 } from '../src/core/refs';
@@ -70,4 +71,13 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   d.apply({ type: 'input', sheet: 0, ...at('A3'), text: '2026-05-01' });
   d.apply({ type: 'input', sheet: 0, ...at('B4'), text: '120' });
   write('dates-1904.edited.xlsx', d);
+
+  // A CSV file saved as the workbook it opens as, unchanged and edited.
+  const csv = () =>
+    WorkbookSession.open(strToU8('Item;Price;Due;Share;Done\r\nBolts;1,50;31.12.2025;12%;TRUE\r\n"two\nlines";=1+2;;;#N/A\r\n'), 'prices.csv', 'de-DE');
+  write('prices-csv.unchanged.xlsx', csv());
+  const c = csv();
+  c.apply({ type: 'input', sheet: 0, ...at('C3'), text: '=B2*2' });
+  c.apply({ type: 'input', sheet: 0, ...at('F1'), text: '7%' });
+  write('prices-csv.edited.xlsx', c);
 });

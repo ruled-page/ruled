@@ -17,7 +17,7 @@ export const de: Record<keyof typeof en, string> = {
   'welcome.lede':
     'Öffnen Sie eine .xlsx-Datei, ändern Sie Zellen, fügen Sie aus Excel ein, füllen Sie durch Ziehen aus und speichern Sie sie wieder als .xlsx. Formeln werden beim Bearbeiten neu berechnet. Diagramme, PivotTables, Makros und Formatierungen bleiben in der gespeicherten Datei erhalten, auch die, die dieser Editor nicht anzeigen kann.',
   'welcome.choose': '<strong>Arbeitsmappe auswählen</strong> oder an einer beliebigen Stelle auf dieser Seite ablegen',
-  'welcome.fileTypes': '.xlsx oder .xlsm, vollständig in Ihrem Browser verarbeitet',
+  'welcome.fileTypes': '.xlsx, .xlsm oder .csv, vollständig in Ihrem Browser verarbeitet',
   'welcome.schemaSamples': 'Von einem Schema geprüfte Beispiele',
   'welcome.schemaCount_one': '{{count, number}} Schema ist registriert.',
   'welcome.schemaCount_other': '{{count, number}} Schemas sind registriert.',
