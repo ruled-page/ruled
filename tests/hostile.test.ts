@@ -191,3 +191,38 @@ describe('damaged copies of the sample workbooks', () => {
     expect(opened + refused).toBe(120);
   });
 });
+
+describe('CSV files', () => {
+  /** Opens the text as a CSV file and saves it; what was thrown, in English, and how long it took. */
+  function csv(text: string): { error?: string; ms: number } {
+    const t0 = performance.now();
+    try {
+      WorkbookSession.open(strToU8(text), 'hostile.csv').save();
+      return { ms: performance.now() - t0 };
+    } catch (e) {
+      return { error: english.text(errorText(e)), ms: performance.now() - t0 };
+    }
+  }
+
+  it('refuse, quickly, a quote never closed, a run of doubled quotes, or more rows or columns than a sheet has', () => {
+    const results = [
+      csv(`a,"${'x,y\n'.repeat(250_000)}`),
+      csv(`"${'""'.repeat(500_000)}"`),
+      csv(','.repeat(1_000_000)),
+      csv('\n'.repeat(2_000_000) + 'x'),
+    ];
+    expect(results.map((r) => r.error)).toEqual([
+      'Row 1 of this CSV file has a value longer than 32,767 characters, the most a cell can hold. A quote may be missing its closing quote.',
+      'Row 1 of this CSV file has a value longer than 32,767 characters, the most a cell can hold. A quote may be missing its closing quote.',
+      'This CSV file has more than 16,384 columns, the most a sheet can hold.',
+      'This CSV file has more than 1,048,576 rows, the most a sheet can hold.',
+    ]);
+    for (const r of results) expect(r.ms).toBeLessThan(3000);
+  });
+
+  it('hold only the values there are, however many empty fields and lines come first', () => {
+    const r = csv(`${',,,,\r\n'.repeat(500_000)}"",x`);
+    expect(r.error).toBeUndefined();
+    expect(r.ms).toBeLessThan(3000);
+  });
+});

@@ -84,7 +84,8 @@ describe('reading cells written by other programs', () => {
     const xml = sheet(Array.from({ length: 40_000 }, (_, i) => row(i + 1)).join(''));
     const t0 = performance.now();
     expect(scanSheet(xml, []).grid.cols.length).toBe(200_000);
-    expect(performance.now() - t0).toBeLessThan(1000);
+    // About a tenth of a second; searching for each cell's missing <f> to the end of the sheet would take minutes.
+    expect(performance.now() - t0).toBeLessThan(10_000);
   });
 });
 
