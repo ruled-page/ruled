@@ -2402,7 +2402,8 @@ export class WorkbookStore {
       if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     }
     const label = msg(transpose && what === 'all' ? 'store.history.pasteTransposed' : `store.history.paste.${what}`);
-    await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst, what, transpose }, 'undo', { label });
+    const readOnly = this.schemaReadOnly(dst);
+    await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst, what, transpose, ...(readOnly && { readOnly }) }, 'undo', { label });
   }
 
   /** The references in the formula being typed, by sheet, which the grid outlines in their colours. */
@@ -2496,7 +2497,9 @@ export class WorkbookStore {
     const view = this.view;
     if (!view) return;
     if (!(await this.okToReplace(this.formulasLost(view, rects)))) return;
-    await this.edit({ type: 'clear', sheet: this.active, rects });
+    // A schema's read-only cells are left as they are, as a protected sheet's locked ones are.
+    const readOnly = rects.flatMap((r) => this.schemaReadOnly(r) ?? []);
+    await this.edit({ type: 'clear', sheet: this.active, rects, ...(readOnly.length && { readOnly }) });
   }
 
   /** Records what was copied (or cut) so a paste back into the workbook can carry formulas, or move the cells. */
@@ -2557,7 +2560,8 @@ export class WorkbookStore {
       };
       if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
       if (!(await this.growTableTo(dst))) return;
-      await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst });
+      const readOnly = this.schemaReadOnly(dst);
+      await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst, ...(readOnly && { readOnly }) });
       return;
     }
 
@@ -2609,7 +2613,8 @@ export class WorkbookStore {
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', msg('store.paste.large', { count: rectCells(dst) }));
     if (!(await this.growTableTo(dst))) return;
-    const text: EditOp = { type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}) };
+    const readOnly = this.schemaReadOnly(dst);
+    const text: EditOp = { type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}), ...(readOnly && { readOnly }) };
     const formatOps = formats && this.features.format && rectCells(dst) <= 100_000 ? this.pastedFormats(dst, formats, h, w) : [];
     await this.edit(formatOps.length ? { type: 'batch', ops: [text, ...formatOps] } : text, 'undo', { label: msg('store.history.paste') });
   }

@@ -554,8 +554,8 @@ export type EditOp =
   | { type: 'input'; sheet: number; row: number; col: number; text: string }
   /** Text pasted from outside the app; each value is parsed like typed input. */
   /** Text pasted from elsewhere; `exact` has the full value of numbers the text shows rounded, where the source gave it. */
-  | { type: 'pasteText'; sheet: number; row: number; col: number; values: string[][]; exact?: (number | null)[][] }
-  | { type: 'clear'; sheet: number; rects: Rect[] }
+  | { type: 'pasteText'; sheet: number; row: number; col: number; values: string[][]; exact?: (number | null)[][]; readOnly?: ReadOnlyCells[] }
+  | { type: 'clear'; sheet: number; rects: Rect[]; readOnly?: ReadOnlyCells[] }
   /**
    * Copy cells within the workbook, tiling the source over the destination:
    * everything, or only the values (formulas' results), the formulas or the

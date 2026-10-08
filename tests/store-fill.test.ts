@@ -230,6 +230,19 @@ describe("a schema's read-only cells", () => {
     expect(toasts()).toEqual([left]);
   });
 
+  it('are left as they were by pasting, from here or elsewhere, and by clearing', async () => {
+    await open({ schemas: [schema] }, await lines());
+    // Copied here: A2:C2 over A3:C3.
+    store.noteCopy(rect(1, 0, 1, 2));
+    await store.paste({ row: 2, col: 0 }, [['Bolts', '2', '3']], rect(2, 0));
+    expect(values('A3', 'B3', 'C3')).toEqual(['Nuts', 2, 5]);
+    // Pasted from another app.
+    await store.paste({ row: 3, col: 0 }, [['Drill', '9', '99']], rect(3, 0));
+    expect(values('A4', 'B4', 'C4')).toEqual(['Saw', 9, 7]);
+    await store.clear([rect(1, 0, 1, 2)]);
+    expect(values('A2', 'B2', 'C2')).toEqual(['Bolts', undefined, 3]);
+  });
+
   it('are left as they were by Fill Series', async () => {
     await open({ schemas: [schema] }, await lines());
     store.goTo('B2:C4');
