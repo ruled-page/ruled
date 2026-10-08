@@ -55,7 +55,7 @@ describe('when the worker fails', () => {
     expect(store.busy).toBe(false);
     expect(store.canReopen).toBe(true);
     // Nothing more goes to the dead worker.
-    await expect(store.save()).resolves.toBeUndefined();
+    await expect(store.snapshot()).resolves.toBeUndefined();
 
     // The test's stand-in worker is reused for the new one.
     worker.postMessage = send;

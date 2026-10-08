@@ -27,3 +27,34 @@ test('hands the host the workbook and its values on save', async ({ page }) => {
   expect(received.values.Forecast.tables.quarters[3]).toMatchObject({ cost: 30000 });
   expect(received.changes.map((c: { ref: string }) => c.ref)).toEqual(['B2', 'E3']);
 });
+
+test('the element says when a workbook opens or can’t be loaded, and keeps it when moved', async ({ page }) => {
+  await page.goto('http://localhost:4174/examples/html/');
+  await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
+  await setCell(page, 'B2', '125000');
+
+  const edits = await page.evaluate(async () => {
+    const editor = document.getElementById('editor') as HTMLElement & { editedCount: number };
+    const heard: string[] = ((window as unknown as { heard: string[] }).heard = []);
+    editor.addEventListener('opened', (e) => heard.push(`opened ${(e as CustomEvent<{ fileName: string }>).detail.fileName}`));
+    editor.addEventListener('editorerror', (e) => heard.push(`error ${(e as CustomEvent<{ message: string }>).detail.message}`));
+    // Moved to another place in the page: the edit is still there.
+    const holder = document.createElement('div');
+    document.body.append(holder);
+    holder.append(editor);
+    await new Promise((r) => setTimeout(r, 50));
+    return editor.editedCount;
+  });
+  expect(edits).toBe(1);
+
+  // Another workbook, while this one has an unsaved edit: the user is asked first.
+  await page.evaluate(() => document.getElementById('editor')!.setAttribute('src', '/samples/orders.xlsx'));
+  await page.getByRole('button', { name: 'Discard and open' }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { heard: string[] }).heard)).toEqual(['opened orders.xlsx']);
+
+  // One that isn't there.
+  await page.evaluate(() => document.getElementById('editor')!.setAttribute('src', '/nothing/here.xlsx'));
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { heard: string[] }).heard[1]))
+    .toMatch(/^error (Could not load \/nothing\/here\.xlsx: 404|This file is not an Excel workbook)/);
+});

@@ -1,7 +1,9 @@
 import { StrictMode, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
-import { WorkbookEditor, WorkbookStore } from '../editor';
+import { WorkbookEditor } from '../editor';
+import { handleFor } from '../editor/handle';
+import { WorkbookStore } from '../state/store';
 import { DEMO_NS, i18next, LANGUAGE_STORAGE_KEY, LANGUAGES } from './i18n';
 import { DEMO_SCHEMAS } from './schemas';
 import { DEMO_THEMES } from './themes';
@@ -12,7 +14,9 @@ import './demo.css';
 // registers the example schemas and lets saves download the file. The
 // editor's text starts in the demo's language; numbers typed into cells are
 // still read in the browser's locale.
+// The demo reaches into the editor's store for its welcome screen; hosts use the handle.
 const store = new WorkbookStore({ schemas: DEMO_SCHEMAS, language: i18next.language });
+const editor = handleFor(store);
 if (import.meta.env.DEV) (window as unknown as { __store: WorkbookStore }).__store = store;
 
 /**
@@ -91,7 +95,7 @@ function LanguagePicker() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <WorkbookEditor
-      store={store}
+      editor={editor}
       toolbarEnd={
         <HostText>
           <ThemePicker />

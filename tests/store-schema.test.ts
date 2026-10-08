@@ -213,7 +213,7 @@ describe('a file saved with another version of the schema', () => {
     let saved: Uint8Array | undefined;
     await open({ schemas: [schema({ version: '1' })], onSave: (f) => void (saved = f.bytes) });
     await store.input(1, 1, '3');
-    await store.download();
+    await store.save();
     store.dispose();
 
     await open({ schemas: [schema({ version: '2' })] }, saved!);

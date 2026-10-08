@@ -11,6 +11,7 @@ import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
+import { storeOf, type EditorHandle } from './handle';
 import { copyTheme, themeStyle } from './theme';
 import { I18nextProvider, Trans } from 'react-i18next';
 import { NAMESPACE } from '../i18n';
@@ -60,7 +61,8 @@ function ensurePortal(): void {
 }
 
 export interface WorkbookEditorProps {
-  store: WorkbookStore;
+  /** The editor to show, from createWorkbookEditor(). */
+  editor: EditorHandle;
   /** Shown before a workbook is opened; receives a function that opens the file picker. */
   emptyState?: (openPicker: () => void) => ReactNode;
   /** The host's own controls, at the end of the toolbar before the Save button. */
@@ -110,7 +112,8 @@ function ChartSheet({ view }: { view: SheetView }) {
 }
 
 /** The workbook editor: toolbar, formula bar, grid, sheet tabs and panels. */
-export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: WorkbookEditorProps) {
+export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: WorkbookEditorProps) {
+  const store = storeOf(editor);
   useSyncExternalStore(store.subscribe, store.getVersion);
   const root = useRef<HTMLDivElement>(null);
 
@@ -172,7 +175,7 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
       // for another: ⌘R still reloads, ⌘D still bookmarks, ⌘G still finds the next match.
       if (key === 's' && store.features.save) {
         e.preventDefault();
-        void store.download();
+        void store.save();
       } else if (key === 'f' && !store.designerOpen) {
         e.preventDefault();
         store.set('findOpen', true);
@@ -217,7 +220,7 @@ export function WorkbookEditor({ store, emptyState, toolbarEnd, className }: Wor
 }
 
 /** Everything inside the editor's root, where its language and icons are provided. */
-function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
+function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 'editor'> & { store: WorkbookStore }) {
   const t = useT();
   const hintId = useId();
   const fileInput = useRef<HTMLInputElement>(null);

@@ -143,7 +143,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           </button>
         )}
         {store.features.save && (
-          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.download()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
+          <button className="btn primary" disabled={!ready || store.busy} onClick={() => void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
             <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
           </button>
         )}

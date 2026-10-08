@@ -1,4 +1,4 @@
-import type { SavedWorkbook, StoreOptions } from '../state/store';
+import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
 import type { EditorHandle } from './mount';
 import type { EditorTheme } from './theme';
@@ -19,27 +19,54 @@ export interface ChangeEventDetail {
   unsaved: boolean;
 }
 
+/** Detail of the `opened` event. */
+export interface OpenedEventDetail {
+  fileName: string;
+}
+
+/** Detail of the `editorerror` event. */
+export interface EditorErrorEventDetail {
+  /** What went wrong, in the editor's language. */
+  message: string;
+}
+
 /** The events <workbook-editor> fires, for typed listeners. */
 export interface WorkbookEditorEventMap extends HTMLElementEventMap {
+  /** The editor is ready for a workbook. */
   ready: CustomEvent<void>;
+  /** A workbook has opened. */
+  opened: CustomEvent<OpenedEventDetail>;
   change: CustomEvent<ChangeEventDetail>;
   save: CustomEvent<SaveEventDetail>;
+  /** The workbook from `src` couldn't be loaded or opened, or the editor stopped working. */
+  editorerror: CustomEvent<EditorErrorEventDetail>;
 }
 
 /** The <workbook-editor> element: what hosts can set, call and listen to. */
 export interface WorkbookEditorElement extends HTMLElement {
-  /** Editor options. Setting them on a connected element re-creates the editor. */
+  /**
+   * Editor options. Changing the theme, language, user or schemas of a
+   * connected element applies them as it is; changing anything else
+   * re-creates the editor, closing the workbook.
+   */
   options: StoreOptions;
-  open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<void>;
-  /** Runs the save flow: schema checks, then the `save` event (or a download). */
-  save(): Promise<void>;
+  /** Opens a workbook: true once open, false when the user kept the one already open; rejects saying why it can't. */
+  open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<boolean>;
+  /** Runs the save flow (schema checks, then the `save` event or a download), resolving with what happened. */
+  save(): Promise<SaveResult>;
   /** Downloads a copy as .xlsx without saving it to the host. */
-  download(): Promise<void>;
-  /** The edited workbook as it would be saved, without the save checks. */
+  downloadCopy(): Promise<void>;
+  /** The workbook as it is now, as a save would hand it over, without the save checks. */
   getWorkbook(): Promise<SavedWorkbook | undefined>;
+  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it. */
+  goTo(ref: string): void;
   registerSchema(schema: WorkbookSchema): void;
+  removeSchema(id: string): void;
   setTheme(theme: EditorTheme | undefined): void;
   setLanguage(language: string): void;
+  setUser(user: string | undefined): void;
+  readonly status: EditorHandle['status'];
+  readonly fileName: string;
   readonly unsaved: boolean;
   readonly editedCount: number;
   addEventListener<K extends keyof WorkbookEditorEventMap>(type: K, listener: (this: WorkbookEditorElement, ev: WorkbookEditorEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
@@ -54,17 +81,21 @@ declare global {
   }
 }
 
+/** Options a connected element applies without re-creating the editor. */
+const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas'];
+
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
  *
  * Attributes: `src` (URL of a workbook to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
- * download. Properties: `options` (editor options, set before connecting).
- * Methods: open(), save(), download(), getWorkbook(), registerSchema(), setTheme(), setLanguage().
- * Events: `ready`, `change` (detail: { editedCount, unsaved }), `save` (detail:
- * the saved workbook with its bytes, changes, values and readers; call
- * `detail.waitUntil(promise)` to keep the save pending while you store it),
- * `editorerror` (detail: { message }) when the editor stops working.
+ * download. Properties: `options` (editor options).
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser().
+ * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
+ * `save` (detail: the saved workbook with its bytes, changes, values and
+ * readers; call `detail.waitUntil(promise)` to keep the save pending while
+ * you store it), and `editorerror` (detail: { message }) when a workbook from
+ * `src` can't be loaded or opened, or the editor stops working.
  */
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
@@ -76,6 +107,11 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     private unsubscribe?: () => void;
     private lastEdited = 0;
     private lastUnsaved = false;
+    private lastOpened = '';
+    /** A removal that ends the editor unless the element is put back first (moved elsewhere in the page). */
+    private teardown?: ReturnType<typeof setTimeout>;
+    /** The `src` being fetched, cancelled when another replaces it. */
+    private loading?: AbortController;
     /** The editor renders in here, so its own DOM events reach the element after React has seen them. */
     private readonly container = document.createElement('div');
 
@@ -96,20 +132,38 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       });
     }
 
-    /** Editor options. Setting them on a connected element re-creates the editor. */
     get options(): StoreOptions {
       return this.opts;
     }
 
     set options(value: StoreOptions) {
-      this.opts = value ?? {};
-      if (this.handle) {
-        this.disconnectedCallback();
-        this.connectedCallback();
+      const before = this.opts;
+      const next = value ?? {};
+      this.opts = next;
+      if (!this.handle) return;
+      const changed = (Object.keys({ ...before, ...next }) as (keyof StoreOptions)[]).filter((k) => before[k] !== next[k]);
+      if (changed.every((k) => LIVE.includes(k))) {
+        if (changed.includes('theme')) this.handle.setTheme(next.theme);
+        if (changed.includes('language') && next.language) this.handle.setLanguage(next.language);
+        if (changed.includes('user')) this.handle.setUser(next.user);
+        if (changed.includes('schemas')) {
+          const ids = new Set((next.schemas ?? []).map((s) => s.id));
+          for (const s of before.schemas ?? []) if (!ids.has(s.id)) this.handle.removeSchema(s.id);
+          for (const s of [...(next.schemas ?? [])].reverse()) this.handle.registerSchema(s);
+        }
+        return;
       }
+      this.end();
+      this.connectedCallback();
     }
 
     connectedCallback(): void {
+      if (this.teardown !== undefined) {
+        // Moved within the page: the editor carries on as it was.
+        clearTimeout(this.teardown);
+        this.teardown = undefined;
+        if (this.handle) return;
+      }
       if (!this.style.display) this.style.display = 'block';
       if (!this.container.isConnected) this.append(this.container);
       const viaEvent = this.getAttribute('save-handler') === 'event';
@@ -117,13 +171,20 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
         ...this.opts,
         onSave: viaEvent ? (file) => this.emitSave(file) : this.opts.onSave,
         onError: (error) => {
-          this.dispatchEvent(new CustomEvent('editorerror', { detail: { message: error.message } }));
+          this.fail(error.message);
           this.opts.onError?.(error);
         },
       });
+      this.lastOpened = '';
       this.unsubscribe = this.handle.subscribe(() => {
-        const edited = this.handle?.editedCount ?? 0;
-        const unsaved = this.handle?.unsaved ?? false;
+        const handle = this.handle;
+        if (!handle) return;
+        if (handle.status === 'ready' && handle.fileName !== this.lastOpened) {
+          this.lastOpened = handle.fileName;
+          this.dispatchEvent(new CustomEvent<OpenedEventDetail>('opened', { detail: { fileName: handle.fileName } }));
+        } else if (handle.status !== 'ready') this.lastOpened = '';
+        const edited = handle.editedCount;
+        const unsaved = handle.unsaved;
         if (edited === this.lastEdited && unsaved === this.lastUnsaved) return;
         this.lastEdited = edited;
         this.lastUnsaved = unsaved;
@@ -135,6 +196,16 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     }
 
     disconnectedCallback(): void {
+      // Wait a moment: an element moved elsewhere in the page is disconnected and connected again.
+      this.teardown = setTimeout(() => {
+        this.teardown = undefined;
+        this.end();
+      }, 0);
+    }
+
+    /** Ends the editor and its worker. */
+    private end(): void {
+      this.loading?.abort();
       this.unsubscribe?.();
       this.handle?.destroy();
       this.handle = undefined;
@@ -144,11 +215,23 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       if (name === 'src' && value && value !== oldValue && this.handle) void this.load(value);
     }
 
+    private fail(message: string): void {
+      this.dispatchEvent(new CustomEvent<EditorErrorEventDetail>('editorerror', { detail: { message } }));
+    }
+
     private async load(src: string): Promise<void> {
-      const res = await fetch(src);
-      if (!res.ok) throw new Error(`Could not load ${src}: ${res.status}`);
-      const name = this.getAttribute('file-name') ?? decodeURIComponent(src.split('/').pop()?.split('?')[0] || 'workbook.xlsx');
-      await this.open(await res.arrayBuffer(), name);
+      this.loading?.abort();
+      const loading = (this.loading = new AbortController());
+      try {
+        const res = await fetch(src, { signal: loading.signal });
+        if (!res.ok) throw new Error(`Could not load ${src}: ${res.status} ${res.statusText}`.trim());
+        const bytes = await res.arrayBuffer();
+        if (loading.signal.aborted) return;
+        const name = this.getAttribute('file-name') ?? decodeURIComponent(src.split('/').pop()?.split('?')[0] || 'workbook.xlsx');
+        await this.open(bytes, name);
+      } catch (e) {
+        if (!loading.signal.aborted) this.fail((e as Error).message);
+      }
     }
 
     private async emitSave(file: SavedWorkbook): Promise<void> {
@@ -158,30 +241,39 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       await Promise.all(waits);
     }
 
-    open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<void> {
+    private connected(): EditorHandle {
       if (!this.handle) throw new Error('<workbook-editor> is not connected to the document.');
-      return this.handle.open(bytes, fileName);
+      return this.handle;
     }
 
-    save(): Promise<void> {
-      return this.handle?.save() ?? Promise.resolve();
+    open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<boolean> {
+      return this.connected().open(bytes, fileName);
     }
 
-    /** Downloads a copy as .xlsx without saving it to the host. */
-    download(): Promise<void> {
-      return this.handle?.download() ?? Promise.resolve();
+    save(): Promise<SaveResult> {
+      return this.connected().save();
     }
 
-    get unsaved(): boolean {
-      return this.handle?.unsaved ?? false;
+    downloadCopy(): Promise<void> {
+      return this.connected().downloadCopy();
     }
 
-    getWorkbook() {
+    getWorkbook(): Promise<SavedWorkbook | undefined> {
       return this.handle?.getWorkbook() ?? Promise.resolve(undefined);
     }
 
+    goTo(ref: string): void {
+      this.handle?.goTo(ref);
+    }
+
     registerSchema(schema: WorkbookSchema): void {
+      this.opts = { ...this.opts, schemas: [schema, ...(this.opts.schemas ?? []).filter((s) => s.id !== schema.id)] };
       this.handle?.registerSchema(schema);
+    }
+
+    removeSchema(id: string): void {
+      this.opts = { ...this.opts, schemas: (this.opts.schemas ?? []).filter((s) => s.id !== id) };
+      this.handle?.removeSchema(id);
     }
 
     /** Changes the theme tokens without re-creating the editor. */
@@ -194,6 +286,23 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     setLanguage(language: string): void {
       this.opts = { ...this.opts, language };
       this.handle?.setLanguage(language);
+    }
+
+    setUser(user: string | undefined): void {
+      this.opts = { ...this.opts, user };
+      this.handle?.setUser(user);
+    }
+
+    get status(): EditorHandle['status'] {
+      return this.handle?.status ?? 'empty';
+    }
+
+    get fileName(): string {
+      return this.handle?.fileName ?? '';
+    }
+
+    get unsaved(): boolean {
+      return this.handle?.unsaved ?? false;
     }
 
     get editedCount(): number {

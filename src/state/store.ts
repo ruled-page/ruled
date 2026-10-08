@@ -125,6 +125,16 @@ export interface SavedWorkbook extends WorkbookReaders {
   outOfDate: { sheet: string; ref: string }[];
 }
 
+/** What opening a workbook came to: open, declined by the user, or refused with the reason. */
+export type OpenResult = { opened: true } | { opened: false; cancelled: true } | { opened: false; error: Text };
+
+/**
+ * What saving came to: handed to the host's onSave, downloaded (without
+ * one), cancelled by the user, blocked by the schema's checks, or failed
+ * (onSave threw, or the stored copy had changed).
+ */
+export type SaveResult = 'saved' | 'downloaded' | 'cancelled' | 'blocked' | 'failed';
+
 export interface EditorFeatures {
   /** Open button, file picker and drag-and-drop. Default true. */
   open: boolean;
@@ -391,7 +401,8 @@ export class WorkbookStore {
   readonly features: EditorFeatures;
 
   constructor(options: StoreOptions = {}) {
-    this.options = options;
+    // A copy: changing the theme or user later doesn't touch the host's object.
+    this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
     this.features = { open: true, save: true, download: true, schemas: true, report: true, ...options.features };
@@ -437,6 +448,11 @@ export class WorkbookStore {
   themeVersion = 0;
 
   /** Changes the theme while the editor is open. */
+  /** Changes the name recorded against each action in the change history. */
+  setUser(user: string | undefined): void {
+    this.options.user = user;
+  }
+
   setTheme(theme: EditorTheme | undefined): void {
     this.options.theme = theme;
     this.themeVersion++;
@@ -669,24 +685,29 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Opening and saving
 
-  async open(fileName: string, bytes: ArrayBuffer): Promise<void> {
+  /**
+   * Opens a workbook: whether it opened, or why not. The user can decline to
+   * discard edits to the workbook already open; a file that can't be read
+   * leaves the editor showing why.
+   */
+  async open(fileName: string, bytes: ArrayBuffer): Promise<OpenResult> {
     if (this.editedCount > 0 && !(await this.confirm({
       title: msg('store.open.discardTitle'),
       body: msg('store.open.discardBody', { fileName: this.fileName }),
       confirmLabel: msg('store.open.discardConfirm'),
     }))) {
-      return;
+      return { opened: false, cancelled: true };
     }
     if (!/\.xls[xm]$/i.test(fileName)) {
       this.toast('error', msg('store.open.notExcel'));
-      return;
+      return { opened: false, error: msg('store.open.notExcel') };
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
-    await this.load(fileName, bytes);
+    return this.load(fileName, bytes);
   }
 
   /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed. */
-  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc']): Promise<void> {
+  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc']): Promise<OpenResult> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
     this.stopWorker(new Error('Superseded'));
@@ -738,14 +759,17 @@ export class WorkbookStore {
       this.bindSchemas();
       this.refreshConditionalFormats(this.active);
     } catch (err) {
-      if ((err as Error).message === 'Superseded') return;
+      if ((err as Error).message === 'Superseded') return { opened: false, cancelled: true };
       // A failed worker has already said so.
-      if (this.status === 'error') return;
-      this.status = 'error';
-      this.error = errorText(err);
+      if (this.status !== 'error') {
+        this.status = 'error';
+        this.error = errorText(err);
+      }
     }
     this.notify();
-    if (this.status === 'ready' && key) await this.offerDraft(key);
+    if (this.status !== 'ready') return { opened: false, error: this.error ?? msg('store.noWorkbook') };
+    if (key) await this.offerDraft(key);
+    return { opened: true };
   }
 
   /** Offers back edits left unsaved the last time this exact file was open. */
@@ -805,8 +829,8 @@ export class WorkbookStore {
     }
   }
 
-  /** The edited workbook, without running save checks or the host's onSave. */
-  async save(): Promise<SavedWorkbook | undefined> {
+  /** The workbook as it is now, as onSave would receive it, without running save checks or onSave. */
+  async snapshot(): Promise<SavedWorkbook | undefined> {
     await this.queue;
     this.busy = true;
     this.notify();
@@ -841,9 +865,10 @@ export class WorkbookStore {
 
   /**
    * The Save button: schema checks, an optional review of every change,
-   * then the host's onSave or a download.
+   * then the host's onSave or a download. Resolves with what happened; the
+   * editor has already told the user.
    */
-  async download(): Promise<void> {
+  async save(): Promise<SaveResult> {
     if (this.schema) {
       this.busy = true;
       this.notify();
@@ -854,14 +879,14 @@ export class WorkbookStore {
         if (!check.canOverride) {
           this.set('panel', 'issues');
           this.toast('error', msg('store.save.blocked', { reason: check.message }));
-          return;
+          return 'blocked';
         }
         const go = await this.confirm({
           title: msg('store.save.withErrorsTitle'),
           body: msg('store.save.withErrorsBody', { reason: check.message }),
           confirmLabel: msg('store.save.withErrorsConfirm'),
         });
-        if (!go) return;
+        if (!go) return 'cancelled';
       }
     }
     await this.queue;
@@ -874,9 +899,9 @@ export class WorkbookStore {
         confirmLabel: msg('store.save.outOfDateConfirm'),
       }))
     )
-      return;
-    const saved = await this.save();
-    if (!saved) return;
+      return 'cancelled';
+    const saved = await this.snapshot();
+    if (!saved) return 'failed';
     if (this.numbers.reviewBeforeSave && saved.changes.length) {
       const LIMIT = 300;
       const answer = await this.ask({
@@ -892,7 +917,7 @@ export class WorkbookStore {
           more: Math.max(0, saved.changes.length - LIMIT),
         },
       });
-      if (answer !== 'confirm') return;
+      if (answer !== 'confirm') return 'cancelled';
     }
     if (this.options.onSave) {
       this.busy = true;
@@ -901,6 +926,7 @@ export class WorkbookStore {
         await this.options.onSave(saved);
         this.afterSave();
         this.toast('info', msg('store.save.saved', { fileName: saved.fileName }));
+        return 'saved';
       } catch (err) {
         if (err instanceof SaveConflictError || (err as Error)?.name === 'SaveConflictError') {
           const own = (err as Error).message;
@@ -918,11 +944,11 @@ export class WorkbookStore {
         } else {
           this.toast('error', msg('store.save.notSaved', { reason: errorText(err) }));
         }
+        return 'failed';
       } finally {
         this.busy = false;
         this.notify();
       }
-      return;
     }
     this.downloadFile(saved);
     this.afterSave();
@@ -932,6 +958,7 @@ export class WorkbookStore {
         ? msg('store.save.savedChanges', { fileName: saved.fileName, count: saved.editedCount })
         : msg('store.save.savedUnchanged', { fileName: saved.fileName }),
     );
+    return 'downloaded';
   }
 
   private downloadFile(saved: SavedWorkbook): void {
@@ -972,7 +999,7 @@ export class WorkbookStore {
    * With a host handling saves this is an export: the host still has unsaved changes.
    */
   async exportCopy(): Promise<void> {
-    const saved = await this.save();
+    const saved = await this.snapshot();
     if (!saved) return;
     this.downloadFile(saved);
     if (!this.hasSaveHandler) this.afterSave();

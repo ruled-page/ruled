@@ -9,7 +9,7 @@ import { opened, testStore } from './storeHarness';
 
 /** The forecast sample breaks its schema on purpose, so saving asks first; this says yes. */
 async function saveAnyway(store: WorkbookStore): Promise<void> {
-  const saving = store.download();
+  const saving = store.save();
   for (let i = 0; i < 100 && !store.confirmRequest; i++) await new Promise((r) => setTimeout(r, 5));
   store.confirmRequest?.resolve('confirm');
   await saving;

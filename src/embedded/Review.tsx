@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { WorkbookEditor, WorkbookStore, type EditorTheme } from '../editor';
+import { createWorkbookEditor, WorkbookEditor, type EditorHandle, type EditorTheme } from '../editor';
 import { go } from './App';
 import { NS } from './i18n';
 import { readPriceLines } from './parse';
@@ -44,13 +44,13 @@ export function startReview(name: string, bytes: ArrayBuffer): void {
  */
 export function Review({ id }: { id?: string }) {
   const { t, i18n } = useTranslation(NS);
-  const [store, setStore] = useState<WorkbookStore | null>(null);
+  const [editor, setEditor] = useState<EditorHandle | null>(null);
   const [fileName, setFileName] = useState('');
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     let current = true;
-    const editor = new WorkbookStore({
+    const editor = createWorkbookEditor({
       schemas: [supplierPriceList],
       language: i18n.language,
       theme: PORTAL_THEME,
@@ -77,7 +77,7 @@ export function Review({ id }: { id?: string }) {
         setTimeout(() => go(`/submissions/${submission.id}`), 0);
       },
     });
-    setStore(editor);
+    setEditor(editor);
     const source = id
       ? getSubmission(id).then((s) => s && { name: s.fileName, bytes: s.bytes.slice().buffer as ArrayBuffer })
       : Promise.resolve(pending && { ...pending, bytes: pending.bytes.slice(0) });
@@ -85,22 +85,23 @@ export function Review({ id }: { id?: string }) {
       if (!current) return;
       if (!src) return setMissing(true);
       setFileName(src.name);
-      void editor.open(src.name, src.bytes);
+      // A file the editor can't open is shown as such in the editor.
+      editor.open(src.bytes, src.name).catch(() => undefined);
     });
     return () => {
       current = false;
-      editor.dispose();
+      editor.destroy();
     };
     // The language is passed on below, without re-creating the editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
-    if (!store) return;
-    const follow = (lng: string) => store.setLanguage(lng);
+    if (!editor) return;
+    const follow = (lng: string) => editor.setLanguage(lng);
     i18n.on('languageChanged', follow);
     return () => i18n.off('languageChanged', follow);
-  }, [store, i18n]);
+  }, [editor, i18n]);
 
   if (missing) {
     return (
@@ -141,7 +142,7 @@ export function Review({ id }: { id?: string }) {
           </li>
         </ul>
       </div>
-      <div className="editor-frame">{store && <WorkbookEditor store={store} />}</div>
+      <div className="editor-frame">{editor && <WorkbookEditor editor={editor} />}</div>
       <p className="muted small">{t('review.drafts')}</p>
     </>
   );

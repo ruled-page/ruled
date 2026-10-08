@@ -96,7 +96,7 @@ describe('saving without a host', () => {
     expect(store.saveLabel).toBe('Save as Excel');
     expect(store.hasSaveHandler).toBe(false);
     await store.input(1, 1, '5');
-    await store.download();
+    await store.save();
     expect(files).toEqual([{ name: 'lines.xlsx', type: XLSX }]);
     expect(toasts()).toEqual(['Saved lines.xlsx with 1 changed cell.']);
     expect(store.unsaved).toBe(false);
@@ -108,7 +108,7 @@ describe('saving without a host', () => {
   it('says when the workbook was saved unchanged', async () => {
     const files = downloads();
     await open();
-    await store.download();
+    await store.save();
     expect(files).toHaveLength(1);
     expect(toasts()).toEqual(['Saved lines.xlsx (unchanged).']);
   });
@@ -116,7 +116,7 @@ describe('saving without a host', () => {
   it('downloads a macro workbook as one', async () => {
     const files = downloads();
     await open({}, await xlsm(), 'lines.xlsm');
-    await store.download();
+    await store.save();
     // Blob types are lower-cased.
     expect(files[0]).toEqual({ name: 'lines.xlsm', type: 'application/vnd.ms-excel.sheet.macroenabled.12' });
   });
@@ -135,17 +135,17 @@ describe('results that may be out of date', () => {
   it('asks before saving them, and tells the host which cells they are', async () => {
     const saves: SavedWorkbook[] = [];
     await open({ onSave: (f) => void saves.push(f) }, await chain(), 'rates.xlsx');
-    await store.download();
+    await store.save();
     // Nothing changed, so Excel's results stand and nothing is asked.
     expect(saves.map((f) => f.outOfDate)).toEqual([[]]);
 
     await store.input(1, 0, '2');
-    const saving = store.download();
+    const saving = store.save();
     expect(english.text((await answer('cancel')).title)).toBe('Save results that may be out of date?');
     await saving;
     expect(saves).toHaveLength(1);
 
-    const again = store.download();
+    const again = store.save();
     expect(english.text((await answer('confirm')).body)).toMatch(/^2 formulas may be out of date\./);
     await again;
     expect(saves[1].outOfDate).toEqual([
@@ -168,7 +168,7 @@ describe('saving to the host', () => {
     });
     expect(store.saveLabel).toBe('Save');
     await store.input(1, 1, '5');
-    await store.download();
+    await store.save();
     expect(busy).toBe(true);
     expect(got).toMatchObject({ fileName: 'lines.xlsx', editedCount: 1, history: [{ user: 'Ana', action: 'Edit', cells: 1, refs: ['Lines!B2'] }] });
     expect(got!.changes).toEqual([{ sheet: 'Lines', ref: 'B2', before: '2', after: '5' }]);
@@ -183,7 +183,7 @@ describe('saving to the host', () => {
     await open({ onSave: (f) => void (got = f) });
     await store.input(4, 0, 'Screws');
     await store.input(0, 5, 'Note');
-    await store.download();
+    await store.save();
     expect(got!.cell('Lines', 'A5')).toBe('Screws');
     expect(got!.range('Lines', 'A4:A5')).toEqual([['Washers'], ['Screws']]);
     expect(got!.range('Lines')[0]).toEqual(['Item', 'Qty', 'Price', 'Total', null, 'Note']);
@@ -197,7 +197,7 @@ describe('saving to the host', () => {
       },
     });
     await store.input(1, 1, '5');
-    await store.download();
+    await store.save();
     expect(toasts()).toEqual(['Not saved: The server is down.']);
     expect(store.unsaved).toBe(true);
     expect(files).toHaveLength(0);
@@ -212,7 +212,7 @@ describe('saving to the host', () => {
       },
     });
     await store.input(1, 1, '5');
-    const saving = store.download();
+    const saving = store.save();
     const asked = await answer('confirm');
     await saving;
     expect(english.text(asked.title)).toBe('This workbook was changed elsewhere');
@@ -227,7 +227,7 @@ describe('saving to the host', () => {
     // A conflict raised by another copy of the class, as across bundles, is known by its name.
     const conflict = Object.assign(new Error('Ana saved it at 10:02.'), { name: 'SaveConflictError' });
     await open({ onSave: () => Promise.reject(conflict) });
-    const saving = store.download();
+    const saving = store.save();
     const asked = await answer('cancel');
     await saving;
     expect(english.text(asked.body)).toMatch(/^Ana saved it at 10:02\. Your changes/);
@@ -265,9 +265,9 @@ describe('exporting a copy', () => {
     const files = downloads();
     const onSave = vi.fn();
     store = await testStore({ onSave });
-    expect(await store.save()).toBeUndefined();
+    expect(await store.snapshot()).toBeUndefined();
     await store.exportCopy();
-    await store.download();
+    await store.save();
     expect(files).toHaveLength(0);
     expect(onSave).not.toHaveBeenCalled();
     expect(toasts()).toEqual(Array(3).fill('Could not save: No workbook is open.'));
@@ -283,7 +283,7 @@ describe('reviewing changes before saving', () => {
     store.noteCopy(rect(1, 4));
     await store.paste({ row: 1, col: 2 }, [['3.00']], rect(1, 2));
 
-    const saving = store.download();
+    const saving = store.save();
     const asked = await answer('cancel');
     await saving;
     expect(english.text(asked.title)).toBe('Save 2 changed cells?');
@@ -294,7 +294,7 @@ describe('reviewing changes before saving', () => {
     ]);
     expect(onSave).not.toHaveBeenCalled();
 
-    const again = store.download();
+    const again = store.save();
     await answer('confirm');
     await again;
     expect(onSave).toHaveBeenCalledOnce();
@@ -304,7 +304,7 @@ describe('reviewing changes before saving', () => {
     downloads();
     await open({ numbers: { reviewBeforeSave: true } });
     await store.paste({ row: 10, col: 0 }, Array.from({ length: 301 }, (_, i) => [String(i + 1)]), rect(10, 0));
-    const saving = store.download();
+    const saving = store.save();
     const asked = await answer('confirm');
     await saving;
     expect(asked.details?.rows).toHaveLength(300);
@@ -314,7 +314,7 @@ describe('reviewing changes before saving', () => {
   it('does not ask when nothing changed', async () => {
     const onSave = vi.fn();
     await open({ onSave, numbers: { reviewBeforeSave: true } });
-    await store.download();
+    await store.save();
     expect(store.confirmRequest).toBeUndefined();
     expect(onSave).toHaveBeenCalledOnce();
   });
@@ -351,7 +351,7 @@ describe('schema checks before saving', () => {
     expect(store.schema?.schema.id).toBe('lines');
     await store.input(1, 1, '-1');
     store.set('panel', null);
-    await store.download();
+    await store.save();
     expect(onSave).not.toHaveBeenCalled();
     expect(store.panel).toBe('issues');
     expect(toasts().at(-1)).toBe('Not saved. 1 cell breaks the “Order lines” schema.');
@@ -361,7 +361,7 @@ describe('schema checks before saving', () => {
     const onSave = vi.fn();
     await open({ onSave, schemas: [schema({ saveWithErrors: 'confirm' })] });
     await store.input(1, 1, '-1');
-    const saving = store.download();
+    const saving = store.save();
     const asked = await answer('cancel');
     await saving;
     expect(english.text(asked.title)).toBe('Save with errors?');
@@ -372,7 +372,7 @@ describe('schema checks before saving', () => {
   it('stops the save when the schema’s last check says why', async () => {
     const onSave = vi.fn();
     await open({ onSave, schemas: [schema({ beforeSave: () => 'Approval is missing.' })] });
-    await store.download();
+    await store.save();
     expect(onSave).not.toHaveBeenCalled();
     expect(toasts().at(-1)).toBe('Not saved. Approval is missing.');
   });
@@ -380,7 +380,7 @@ describe('schema checks before saving', () => {
   it('hands the schema’s summary and values to the host', async () => {
     let got: SavedWorkbook | undefined;
     await open({ onSave: (f) => void (got = f), schemas: [schema()] });
-    await store.download();
+    await store.save();
     expect(got?.schema).toEqual({ id: 'lines', name: 'Order lines', version: undefined, errors: 0, warnings: 0 });
     expect(got?.values?.Lines.tables.lines[0]).toEqual({ item: 'Bolts', qty: 2, price: 3, total: 6 });
   });

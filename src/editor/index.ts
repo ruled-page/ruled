@@ -1,16 +1,18 @@
 /**
  * Public API of the workbook editor.
  *
- * React hosts render <WorkbookEditor store={new WorkbookStore(options)} />.
+ * React hosts render <WorkbookEditor editor={createWorkbookEditor(options)} />.
  * Other hosts call mountWorkbookEditor(element, options), or use the
- * <workbook-editor> custom element from the standalone build.
+ * <workbook-editor> custom element from the standalone build. Each gives an
+ * EditorHandle to control the editor with.
  */
 export { WorkbookEditor, type WorkbookEditorProps } from './WorkbookEditor';
-export { mountWorkbookEditor, type EditorHandle } from './mount';
+export { createWorkbookEditor, type EditorHandle } from './handle';
+export { mountWorkbookEditor } from './mount';
 export {
   SaveConflictError,
-  WorkbookStore,
   type EditorFeatures,
+  type SaveResult,
   type HistoryEntry,
   type SavedWorkbook,
   type StoreOptions as EditorOptions,

@@ -107,12 +107,27 @@ The editor is a component; the demo app in `src/demo` is one consumer of it.
 React:
 
 ```tsx
-import { WorkbookEditor, WorkbookStore } from 'fake-spreadsheet';
+import { createWorkbookEditor, WorkbookEditor } from 'fake-spreadsheet';
 import 'fake-spreadsheet/style.css';
 
-const store = new WorkbookStore({ schemas, onSave: (file) => upload(file.bytes) });
-<WorkbookEditor store={store} />;
+const editor = createWorkbookEditor({ schemas, onSave: (file) => upload(file.bytes) });
+<WorkbookEditor editor={editor} />;
+// Later: editor.destroy() stops its worker.
 ```
+
+Every host controls the editor through the same handle (`EditorHandle`):
+
+- `open(bytes, fileName)` resolves `true` once the workbook is open, `false`
+  when the user chose to keep the unsaved workbook already open, and rejects
+  with the reason when the file can't be opened. The caller's bytes are
+  copied, not taken.
+- `save()` runs the Save button's flow and resolves with what happened:
+  `'saved'`, `'downloaded'`, `'cancelled'`, `'blocked'` or `'failed'`.
+- `downloadCopy()`, `getWorkbook()` (the workbook as a save would hand it
+  over, without the checks), `goTo(ref)`, `registerSchema`, `removeSchema`,
+  `setTheme`, `setLanguage` and `setUser`.
+- `status`, `fileName`, `editedCount` and `unsaved`, with `subscribe(listener)`
+  to hear when they change, and `destroy()`.
 
 The workbook lives in a web worker, which the component starts with
 `new Worker(new URL('./assets/workbook.worker.js', import.meta.url))`. Vite,
@@ -133,11 +148,20 @@ const editor = mountWorkbookEditor(element, { schemas, features: { open: false }
 await editor.open(bytes, 'report.xlsx');
 ```
 
-Or the element (see `examples/html/index.html`):
+Or the element (see `examples/html/index.html`), which has the handle's
+methods and properties:
 
 ```html
 <workbook-editor src="/files/report.xlsx" save-handler="event"></workbook-editor>
 ```
+
+It fires `ready` once it can take a workbook, `opened` (with the file name)
+when one has opened, `change` as the edit count changes, `save` with the
+saved workbook when `save-handler="event"`, and `editorerror` (with a
+message) when the workbook from `src` can't be loaded or opened, or the
+editor stops working. Moving the element elsewhere in the page keeps the
+editor as it is; changing its theme, language, user or schemas through
+`options` applies them without closing the workbook.
 
 In Angular (see `examples/angular`, a working Angular 22 app), the element
 is used like any custom element: allow it with `CUSTOM_ELEMENTS_SCHEMA`,
@@ -271,7 +295,7 @@ language, in i18next's JSON format: `{{name}}` placeholders,
 exported `en` catalogue:
 
 ```ts
-new WorkbookStore({
+createWorkbookEditor({
   language: 'fr',
   translations: { fr: { 'toolbar.open': 'Ouvrir', /* … */ }, en: { 'toolbar.saveAsExcel': 'Export' } },
 });
@@ -416,11 +440,11 @@ if you have generated it locally.
 ## Schemas
 
 Without a schema the editor is a general spreadsheet. A consumer passes
-schemas when it creates the store (the example app registers the ones in
+schemas when it creates the editor (the example app registers the ones in
 `src/demo/schemas.ts`):
 
 ```ts
-const store = new WorkbookStore({ schemas: [priceListSchema, budgetSchema] });
+const editor = createWorkbookEditor({ schemas: [priceListSchema, budgetSchema] });
 ```
 
 Each opened workbook is checked against them in order and the first that fits

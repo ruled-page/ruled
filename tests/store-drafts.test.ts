@@ -120,7 +120,7 @@ describe('drafts of unsaved changes', () => {
     kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
     const onSave = vi.fn();
     await open({ onSave }, 'confirm');
-    await store.download();
+    await store.save();
     expect(onSave).toHaveBeenCalledOnce();
     expect(kept.has(key)).toBe(false);
   });
