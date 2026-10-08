@@ -89,6 +89,7 @@ export const THEME_TOKENS = [
   'gridStaleMark',
   'gridUnsupportedMark',
   'gridDropdownArrow',
+  'gridLink',
   'gridFont',
   'gridHeaderFont',
   'gridHeaderFontSize',

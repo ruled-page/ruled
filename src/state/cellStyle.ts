@@ -1,5 +1,6 @@
 import { tableCellFormat } from '../core/tableStyles';
 import type { CellBorders, DiffStyle, DisplayStyle } from '../core/types';
+import { cellLink, linkStyle } from './links';
 import type { SheetView } from './sheetView';
 
 type Composed = WeakMap<DiffStyle, WeakMap<DisplayStyle, DisplayStyle>>;
@@ -53,9 +54,14 @@ export function overlay(base: DisplayStyle, diff: DiffStyle): DisplayStyle {
   }));
 }
 
-/** The style a cell is drawn with: its own format over its table's style, with conditional formatting on top. */
-export function effectiveStyle(view: SheetView, styles: DisplayStyle[], row: number, col: number, styleIndex = view.styleAt(row, col)): DisplayStyle {
+/**
+ * The style a cell is drawn with: its own format over its table's style, with
+ * conditional formatting on top. Given `link`, the colour links are drawn in,
+ * a cell with a link has its own format drawn as a link's.
+ */
+export function effectiveStyle(view: SheetView, styles: DisplayStyle[], row: number, col: number, styleIndex = view.styleAt(row, col), link?: string): DisplayStyle {
   let style = styles[styleIndex] ?? styles[0];
+  if (link !== undefined && cellLink(view, row, col)) style = linkStyle(style, link);
   const table = view.tableAt(row, col);
   const format = table && tableCellFormat(table, row, col);
   if (format) style = underlay(style, format);

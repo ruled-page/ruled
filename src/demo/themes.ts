@@ -124,6 +124,7 @@ export const DEMO_THEMES: { id: string; label: DemoKey; theme?: EditorTheme }[] 
       formulaRef5: '#ff85c8',
       formulaRef6: '#4dcfe0',
       formulaRef7: '#f0a45a',
+      gridLink: '#7cc0ff',
       shadow: '0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4)',
       shadowSm: '0 4px 14px rgba(0, 0, 0, 0.45)',
     },

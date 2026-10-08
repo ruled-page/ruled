@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CellFlag, VT, type Hyperlink } from '../src/core/types';
+import { effectiveStyle } from '../src/state/cellStyle';
 import { cellLink, linkStyle } from '../src/state/links';
 import { sheet, style } from './state-fixtures';
 
@@ -55,6 +56,14 @@ describe('how a link is drawn', () => {
     expect(linkStyle(plain, '#0563c1')).toBe(linkStyle(plain, '#0563c1'));
     const red = style({ color: '#FF0000' });
     expect(linkStyle(red, '#0563c1')).toBe(red);
+  });
+
+  it("applies to a linked cell's own format when the grid asks for it", () => {
+    const view = sheet([[0, 0, 'Example'], [0, 1, 'Plain']], { links: [web] });
+    const styles = [style()];
+    expect(effectiveStyle(view, styles, 0, 0, undefined, '#0563c1')).toMatchObject({ color: '#0563c1', underline: true });
+    expect(effectiveStyle(view, styles, 0, 0)).toBe(styles[0]);
+    expect(effectiveStyle(view, styles, 0, 1, undefined, '#0563c1')).toBe(styles[0]);
   });
 
   it("takes the editor's link colour for a font in the workbook theme's, with the font's own underline", () => {

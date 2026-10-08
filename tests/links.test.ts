@@ -12,6 +12,7 @@ import {
   resolvePlace,
   sortLinks,
   splitPlace,
+  typedAddress,
 } from '../src/core/links';
 import type { Hyperlink } from '../src/core/types';
 
@@ -63,6 +64,14 @@ describe('which addresses may be opened', () => {
     expect(linkDestination({})).toBeUndefined();
     expect(linkDestination({ target: '#' })).toBeUndefined();
     expect(linkDestination({ target: ' ', location: ' ' })).toBeUndefined();
+  });
+
+  it('takes addresses typed in, adding the scheme Excel would', () => {
+    expect(typedAddress(' www.example.com/a b ')).toBe('https://www.example.com/a%20b');
+    expect(typedAddress('someone@example.com')).toBe('mailto:someone@example.com');
+    expect(typedAddress('http://example.com')).toBe('http://example.com/');
+    expect(typedAddress('MAILTO:a@b.c?subject=Hi there')).toBe('mailto:a@b.c?subject=Hi%20there');
+    for (const bad of ['', '  ', 'javascript:alert(1)', 'file:///etc/passwd', 'ftp://example.com', 'https://']) expect(typedAddress(bad), bad).toBeUndefined();
   });
 
   it('reads as the address, with any part of the page', () => {

@@ -207,6 +207,15 @@ describe('links and cells', () => {
     expect(info.links.map((l) => [l.rect.r1, linkAddress(l)]).sort()).toEqual([[0, 'Plain!B2'], [1, 'https://example.com/a']]);
   });
 
+  it('move with cut cells on their sheet', () => {
+    const s = open();
+    const moved = s.restructure({ type: 'move', sheet: 1, src: rect(0, 0), toSheet: 1, row: 9, col: 3 });
+    expect(moved.model.sheets[1].info.links.map((l) => [l.rect.r1, l.rect.c1, linkAddress(l)])).toEqual([
+      [9, 3, 'https://example.com/a'],
+      [1, 0, 'Plain!B2'],
+    ]);
+  });
+
   it('follow their cells when rows are inserted, links added here included', () => {
     const s = open();
     links(s, 1, { add: [{ rect: rect(5, 1), location: 'Plain!A1' }], remove: [] });

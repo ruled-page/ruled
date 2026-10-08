@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { rangeToA1, toA1 } from '../core/refs';
 import { CellFlag, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
+import { linkAddress } from '../core/links';
 import { displayText, editText } from '../state/format';
 import { nameBoxEnter, nameBoxNames, selectionName } from '../state/names';
 import type { SheetView } from '../state/sheetView';
@@ -263,6 +264,8 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const rect = selection.rects[0];
   const name = selectionName(store) ?? (rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col));
   const note = cellNote(t, store, view, selection);
+  const link = store.linkAt(selection.row, selection.col);
+  const address = link && linkAddress(link);
 
   const commit = () => {
     if (draft !== value) void store.input(selection.row, selection.col, draft);
@@ -331,6 +334,24 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
           <span>{note.text}</span>
         </div>
       )}
+      {/* Where the cell's link goes, in full; pressing it follows the link, on touch screens too. */}
+      {address &&
+        (store.followsLinks ? (
+          <button
+            className="wbe-cell-link"
+            title={address}
+            aria-label={t('links.formulaBar.open', { address })}
+            onClick={() => void store.followLink(selection.row, selection.col)}
+          >
+            <Icon name="link" size={14} />
+            <span>{address}</span>
+          </button>
+        ) : (
+          <div className="wbe-cell-link" title={address}>
+            <Icon name="link" size={14} />
+            <span>{address}</span>
+          </div>
+        ))}
       {/* The right-click menu, for touch screens (and anyone who looks for it here). */}
       <button
         className="wbe-cell-menu-btn"

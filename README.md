@@ -60,6 +60,14 @@ back as .xlsx without losing what the editor can't display.
   with the note Excel keeps for each thread for its older versions. A
   protected sheet keeps its notes and comments unless its protection allows
   editing objects, as in Excel, and a schema's read-only cells keep theirs.
+- Hyperlinks, the workbook's own and those of HYPERLINK formulas, are drawn
+  as links (unless the cell's font has a colour of its own), show where they
+  go when pointed at and in the formula bar, and are followed with Ctrl+click
+  or Ctrl+Enter (⌘ on a Mac) or from the cell menu: to a place in the
+  workbook, or to a web page or email in a new tab after asking. The cell
+  menu inserts, edits and removes them, undoably, and saves them as Excel
+  does. Clearing a cell keeps its link, as Excel's Clear Contents does;
+  copying, sorting and moving cells takes their links with them.
 - "What's in this file" lists everything the editor keeps but can't show,
   and the editor asks before any edit would replace a formula with a value.
 - Excel's own data validation is enforced. List rules get a dropdown,
@@ -263,7 +271,7 @@ e2e/angular.spec.ts` tests it.
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
 history, and the author of new notes and comments), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
-`onError`, `workerTimeout`, `createWorker` and `csvExport`. All styles are scoped under `.wbe`,
+`links`, `onLinkClick`, `onError`, `workerTimeout`, `createWorker` and `csvExport`. All styles are scoped under `.wbe`,
 and every class the editor uses starts `wbe-`, so a host's own `.btn`,
 `.modal` or `.active` rules don't reach into it. Cell editors open in an
 element with id `wbe-portal` that the editor adds to the page.
@@ -309,6 +317,21 @@ embedded objects are reported, and `activeContent: 'block'` refuses
 workbooks with them. Links to other workbooks are kept but never fetched.
 The editor is not a file sanitiser: whatever it doesn't remove stays in the
 saved file, as the "What's in this file" panel lists.
+
+Hyperlinks come from the workbook too, so following one is guarded. A link
+to a place in the workbook (a sheet's cells, or a defined name) goes there.
+A link elsewhere is opened only if it is a web page (http or https) or an
+email (mailto), read as the browser reads it, so tabs, line breaks or
+control characters can't hide another scheme: javascript:, data:, file:,
+UNC paths, other workbooks and everything else are refused, saying so.
+Before opening a web page or email the first time, the editor shows its
+full address (international domains in the form that shows lookalike
+letters) and asks; it opens in a new tab with `noopener,noreferrer`, so the
+page can't reach back into the editor. `links: 'off'` shows and edits links
+but never follows them. `onLinkClick(link)` is called with the address
+(`url`), its `kind` (`'web'` or `'email'`), and the `sheet` and `ref` of the
+cell, instead of the editor asking and opening it; return `true` for the
+editor to carry on and do so. Links refused as unsafe never reach it.
 
 Large workbooks: above 200,000 formulas or 2 million cells, live
 recalculation starts off (`recalc: 'auto'`, the default). Formulas then show
@@ -421,9 +444,10 @@ Everything works without a mouse. In the grid, the keys are Excel's: arrows
 and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
 menu key) opens the cell menu with fill down and right; notes and comments;
 rows and columns (insert, delete, height or width, hide and unhide);
-merging; freezing panes; sort and filter. Its submenus open with the right
-arrow, Enter or Space, and close with the left arrow or Escape. Shift+F2
-opens the cell's note or comments. F6 (Ctrl+F6 where the browser keeps F6) moves
+merging; freezing panes; sort and filter; and opening, inserting, editing
+and removing links. Its submenus open with the right arrow, Enter or Space,
+and close with the left arrow or Escape. Shift+F2 opens the cell's note or
+comments, and Ctrl+Enter (⌘Enter on a Mac) follows its link. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4, or a
 name, in the formula bar's name box goes there, and Alt+Down lists the
@@ -833,6 +857,12 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   one; only comments by that name count as the user's own, to edit or
   delete. A new note's box is placed beside its cell, hidden, as Excel adds
   one.
+- Links: a link's place in the workbook ("Sheet2!A10") isn't changed when
+  rows or columns move, as in Excel. Links follow cut cells on their sheet,
+  but not to another sheet. Drag-filling doesn't copy links; copying and
+  pasting does, replacing the links where it pastes. Only a formula that is
+  a HYPERLINK call is a link, not one with HYPERLINK inside it; with live
+  recalculation off, only an address the formula writes as text is known.
 - Validation formulas run in HyperFormula, so a rule using a function it
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
   editor for list sources only.

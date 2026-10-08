@@ -5,6 +5,7 @@ import { invertIndexMap, isSheetOp, nearestVisible, nextSheetName, sheetIndexMap
 import { shiftFormula } from '../core/formula';
 import { formulaReferences } from '../core/formulaAssist';
 import type { NameTarget } from '../core/names';
+import { linkDestination, replaceLinks, resolvePlace, type LinkFields } from '../core/links';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { describeMatch, textMatches } from '../schema/json';
@@ -50,6 +51,7 @@ import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
+import { cellLink, type CellLink, type LinkClick } from './links';
 import type { i18n as I18n } from 'i18next';
 import {
   createI18n,
@@ -254,6 +256,20 @@ export interface StoreOptions {
   onEvent?: (event: EditorEvent) => void;
   /** How the sheet is written when downloaded as CSV: the delimiter, and whether formulas are escaped (they are by default). */
   csvExport?: CsvOptions;
+  /**
+   * Following hyperlinks. 'follow' (the default): Ctrl+click (⌘-click on a
+   * Mac), Ctrl+Enter (⌘Enter) or the cell menu goes to a place in the
+   * workbook, or opens a web page or email in a new tab, asking first the
+   * first time for each address; links to anything else are refused. 'off':
+   * links are shown and can be edited, but never followed.
+   */
+  links?: 'follow' | 'off';
+  /**
+   * Called when the user follows a link to a web page or an email, instead
+   * of the editor opening it; links to anything else are refused before it is
+   * called. Return (or resolve) true to have the editor ask and open it after all.
+   */
+  onLinkClick?: (link: LinkClick) => boolean | void | Promise<boolean | void>;
 }
 
 /**
@@ -471,6 +487,10 @@ export class WorkbookStore {
   nameDialog?: NameDialog;
   /** Excel's Name Manager, while open. */
   nameManagerOpen = false;
+  /** Asking for a link to give the selected cells. */
+  linkDialog = false;
+  /** Addresses the user has agreed to open while this workbook is open. */
+  private readonly trustedLinks = new Set<string>();
   designerOpen = false;
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
@@ -890,6 +910,8 @@ export class WorkbookStore {
       this.date1904 = r.date1904;
       this.properties = r.properties ?? {};
       this.structureLocked = !!r.structureLocked;
+      this.names = r.names ?? [];
+      this.trustedLinks.clear();
       this.timings = r.timings;
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
@@ -1403,6 +1425,7 @@ export class WorkbookStore {
     this.names = r.names;
     this.styles = r.styles;
     this.date1904 = r.date1904;
+    this.names = r.names ?? [];
     this.findings = res.report ? [...r.findings.filter((f) => f.kind !== 'formulaEngine'), ...res.report.findings] : r.findings;
     this.calc = res.report;
     for (const u of res.updates) this.sheets[u.sheet]?.apply(u);
@@ -1743,6 +1766,114 @@ export class WorkbookStore {
     const view = this.view;
     const rects = this.selection.rects;
     return view?.info.merges.filter((m) => rects.some((r) => m.r1 <= r.r2 && m.r2 >= r.r1 && m.c1 <= r.c2 && m.c2 >= r.c1)) ?? [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hyperlinks
+
+  /** Whether links are followed here, rather than only shown. */
+  get followsLinks(): boolean {
+    return this.options.links !== 'off';
+  }
+
+  /** The link on a cell of the active sheet: the sheet's own link there, or a HYPERLINK formula's. */
+  linkAt(row = this.selection.row, col = this.selection.col): CellLink | undefined {
+    const view = this.view;
+    return view ? cellLink(view, row, col) : undefined;
+  }
+
+  /** The selected ranges, or the active cell, as links are given to them. */
+  private linkRects(): Rect[] {
+    const sel = this.selection;
+    return sel.rects.length ? sel.rects : [{ r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col }];
+  }
+
+  /** How many of the sheet's links the selection covers some of. */
+  linksInSelection(): number {
+    const view = this.view;
+    return view ? replaceLinks(view.info.links, this.linkRects()).remove.length : 0;
+  }
+
+  /**
+   * Gives the selected cells a link, replacing any they had, as one undoable
+   * step. `text`, when it differs from what the active cell shows, goes into
+   * that cell first, as Excel's "Text to display" does.
+   */
+  async setLink(link: LinkFields, text?: string): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const change = replaceLinks(view.info.links, this.linkRects(), link);
+    const { row, col } = this.selection;
+    const before: EditOp[] = [];
+    if (text !== undefined && text !== this.shownText(view, row, col)) {
+      // Shown as written: text starting "=" stays text rather than becoming a formula.
+      const typed = text.startsWith('=') ? `'${text}` : text;
+      const prepared = this.schema?.prepareInput(this.active, row, col, typed) ?? { text: typed };
+      if ('reject' in prepared) return this.toast('warn', prepared.reject);
+      before.push({ type: 'input', sheet: this.active, row, col, text: prepared.text });
+    }
+    await this.changeLayout({ kind: 'links', ...change }, msg(change.remove.length ? 'links.history.edit' : 'links.history.insert'), before);
+  }
+
+  /** Takes the links off the selected cells, which keep what they hold, as one undoable step. */
+  async removeLinks(): Promise<void> {
+    const view = this.view;
+    const change = view && replaceLinks(view.info.links, this.linkRects());
+    if (change?.remove.length) await this.changeLayout({ kind: 'links', ...change }, msg('links.history.remove'));
+  }
+
+  /**
+   * Follows the link on a cell: to its place in the workbook, or to a web
+   * page or email in a new tab (with no access back to this page), asking the
+   * first time for each address, since the workbook is untrusted. Links to
+   * anything else are refused, saying why. A host's onLinkClick takes web
+   * pages and emails instead.
+   */
+  async followLink(row = this.selection.row, col = this.selection.col): Promise<void> {
+    const view = this.view;
+    const link = view && cellLink(view, row, col);
+    if (!view || !link) return this.toast('info', msg('links.follow.none'));
+    if (!this.followsLinks) return this.toast('info', msg('links.follow.off'));
+    const to = linkDestination(link);
+    if (!to) return this.toast('warn', msg('links.follow.unknown'));
+    if (to.kind === 'refused') return this.toast('warn', msg('links.follow.refused', { address: to.address }));
+    if (to.kind === 'place') {
+      if (!this.goToPlace(to.location)) this.toast('warn', msg('links.follow.noPlace', { location: to.location }));
+      return;
+    }
+    const host = this.options.onLinkClick;
+    if (host) {
+      try {
+        if ((await host({ url: to.url, kind: to.kind, sheet: view.info.name, ref: toA1(row, col) })) !== true) return;
+      } catch (err) {
+        return this.toast('error', errorText(err));
+      }
+    }
+    if (!this.trustedLinks.has(to.url)) {
+      const email = to.kind === 'email';
+      const ok = await this.confirm({
+        title: msg(email ? 'links.confirm.emailTitle' : 'links.confirm.title'),
+        body: msg(email ? 'links.confirm.emailBody' : 'links.confirm.body'),
+        confirmLabel: msg(email ? 'links.confirm.email' : 'links.confirm.open'),
+        danger: false,
+        details: { header: [msg('links.confirm.address')], rows: [[to.url]] },
+      });
+      if (!ok) return;
+      this.trustedLinks.add(to.url);
+    }
+    globalThis.open(to.url, '_blank', 'noopener,noreferrer');
+  }
+
+  /** Goes to a place in the workbook a link names: false when it isn't there, or is on a sheet that isn't shown. */
+  private goToPlace(location: string): boolean {
+    const place = resolvePlace(location, this.sheets.map((v) => v.info.name), this.names, this.active);
+    const view = place && this.sheets[place.sheet];
+    if (!place || !view || view.info.kind !== 'worksheet' || view.info.state !== 'visible' || place.rect.r2 >= MAX_ROWS || place.rect.c2 >= MAX_COLS) return false;
+    if (place.sheet !== this.active) this.setActive(place.sheet);
+    this.revealFocus = true;
+    this.revealSeq++;
+    this.setSelection({ row: place.rect.r1, col: place.rect.c1, rects: [place.rect] });
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -2812,6 +2943,7 @@ export class WorkbookStore {
       | 'unhideOpen'
       | 'nameDialog'
       | 'nameManagerOpen'
+      | 'linkDialog'
       | 'schemaDraft'
       | 'designerPick',
   >(

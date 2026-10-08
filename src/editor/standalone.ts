@@ -40,6 +40,7 @@ export { de, en, msg, type Localized, type Message, type Text, type Translations
 export type { EditorFeatures, HistoryEntry, SavedWorkbook, SaveResult, StoreOptions as EditorOptions } from '../state/store';
 export type { CellChange } from '../core/types';
 export type { CsvOptions } from '../core/csv';
+export type { LinkClick } from '../state/links';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

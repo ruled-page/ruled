@@ -11,6 +11,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
+import { LinkDialog } from '../ui/LinkDialog';
 import { ShortcutsDialog, SizeDialog } from '../ui/KeyboardDialogs';
 import { NameDialog, NameManager } from '../ui/NameDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
@@ -340,6 +341,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && <CommentPopup store={store} />}
       {ready && <NameManager store={store} />}
       {ready && <NameDialog store={store} />}
+      {ready && <LinkDialog store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

@@ -38,6 +38,7 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
       keys: [
         [t('keys.menu'), t('shortcuts.menu')],
         [t('keys.shiftF2'), t('shortcuts.note')],
+        [mod(t, t('keys.enter')), t('links.shortcut')],
         [m('F'), t('shortcuts.find')],
         [m('G'), t('shortcuts.findNext')],
         [m('S'), t('shortcuts.save')],

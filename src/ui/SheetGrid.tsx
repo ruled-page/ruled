@@ -26,17 +26,21 @@ import {
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
+import { linkAddress } from '../core/links';
 import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { clipboardFormats } from '../state/clipboardFormats';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText } from '../state/format';
+import { cellLink, type CellLink } from '../state/links';
 import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { textCellEditor } from './CellEditor';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
+import { APPLE } from './keys';
+import { LinkTip } from './LinkTip';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
@@ -176,6 +180,7 @@ export function SheetGrid({
   const g = useMemo(() => gridStyles(palette), [palette]);
   const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
+  const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
   const styles = store.styles;
   const date1904 = store.date1904;
   const locale = store.locale;
@@ -242,7 +247,7 @@ export function SheetGrid({
         col = merge.c1;
       }
       const rec = showContent ? view.get(merge ? merge.r1 : row, col) : null;
-      const style = rec ? effectiveStyle(view, styles, merge ? merge.r1 : row, col, rec.style) : styles[0];
+      const style = rec ? effectiveStyle(view, styles, merge ? merge.r1 : row, col, rec.style, palette.link) : styles[0];
       const readOnly = view.readOnlyReason(row, view.visibleCols[gc - 1]);
       const blocked = view.blockedAt(row, view.visibleCols[gc - 1]);
       const locked = blocked !== undefined && blocked.kind !== 'tableHeader';
@@ -260,8 +265,13 @@ export function SheetGrid({
       const spokenNote = issues.length
         ? issues.map((i) => t(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: t.text(i.message) })).join(' ')
         : undefined;
+      // A link is said along with the value, as its colour and underline show it.
+      const link = cellLink(view, row, view.visibleCols[gc - 1]);
+      const address = link && linkAddress(link);
       const asEnum = (cell: EnumCell): EnumCell & SpokenCell => {
-        const spoken = spokenNote ? { ...cell, spokenText: t('grid.spokenCell', { value: cell.displayData || t('grid.empty'), note: spokenNote }) } : cell;
+        let value = cell.displayData || t('grid.empty');
+        if (link) value = address ? t('links.spoken', { value, address }) : t('links.spokenUnknown', { value });
+        const spoken = spokenNote ? { ...cell, spokenText: t('grid.spokenCell', { value, note: spokenNote }) } : link ? { ...cell, spokenText: value } : cell;
         return options ? { ...spoken, enumOptions: options, activationBehaviorOverride: 'second-click' } : spoken;
       };
       if (!rec) {
@@ -313,18 +323,18 @@ export function SheetGrid({
   const overflowCache = useMemo(
     () => new Map<number, Overflow[]>(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, colVersion],
+    [view, dataVersion, styles, date1904, colVersion, palette],
   );
   const overflowsFor = useCallback(
     (row: number) => {
       let list = overflowCache.get(row);
       if (!list) {
-        list = rowOverflows(view, row, (col, rec) => effectiveStyle(view, styles, row, col, rec.style), date1904, g.measure);
+        list = rowOverflows(view, row, (col, rec) => effectiveStyle(view, styles, row, col, rec.style, palette.link), date1904, g.measure);
         overflowCache.set(row, list);
       }
       return list;
     },
-    [overflowCache, view, styles, date1904, g],
+    [overflowCache, view, styles, date1904, g, palette],
   );
 
   /** Pixels from the left edge of sheet column `from` to the left edge of `to`, over visible columns. */
@@ -354,7 +364,7 @@ export function SheetGrid({
 
       // Overflowing text is drawn here in full, in its own cell and in each neighbour it covers.
       const merge = view.mergeAt(row, col);
-      const style = effectiveStyle(view, styles, merge?.r1 ?? row, merge?.c1 ?? col);
+      const style = effectiveStyle(view, styles, merge?.r1 ?? row, merge?.c1 ?? col, undefined, palette.link);
       const overflows = overflowsFor(row);
       const own = overflows.find((o) => o.col === col);
       const through = own ?? overflows.find((o) => col >= o.from && col <= o.to);
@@ -377,6 +387,14 @@ export function SheetGrid({
         ctx.textAlign = 'left';
         const x = rect.x - offsetBetween(through.col, col) + overflowTextX(through, view.colWidth(through.col));
         ctx.fillText(through.text, x, rect.y + rect.height / 2 + getMiddleCenterBias(ctx, font));
+        // Underlined text, such as a link's, keeps its line as it runs on into the next cells.
+        if (through.style.underline || through.style.strike) {
+          const width = g.measure(through.text, through.style);
+          const mid = rect.y + rect.height / 2;
+          const thickness = through.style.bold ? 1.5 : 1;
+          if (through.style.strike) ctx.fillRect(x, mid, width, thickness);
+          if (through.style.underline) ctx.fillRect(x, mid + through.style.fontSizePx * 0.45, width, thickness);
+        }
         ctx.restore();
       }
 
@@ -815,15 +833,46 @@ export function SheetGrid({
   const onItemHovered = useCallback(
     (args: GridMouseEventArgs) => {
       const [gc, gr] = args.location;
-      const note = args.kind === 'cell' && gc > 0 ? view.noteAt(view.visibleRows[gr + rowStart], view.visibleCols[gc - 1]) : undefined;
-      if (!note || args.kind !== 'cell') {
+      if (args.kind !== 'cell' || gc === 0) {
         setHoverNote(null);
+        setHoverLink(null);
         return;
       }
-      const { x, y, width } = args.bounds;
-      setHoverNote((prev) => (prev?.note === note ? prev : { note, x: x + width + 4, y }));
+      const row = view.visibleRows[gr + rowStart];
+      const col = view.visibleCols[gc - 1];
+      const note = view.noteAt(row, col);
+      const link = cellLink(view, row, col);
+      const { x, y, width, height } = args.bounds;
+      setHoverNote((prev) => (!note ? null : prev?.note === note ? prev : { note, x: x + width + 4, y }));
+      // Below the cell, as Excel shows where a link goes, so a note beside it stays clear.
+      setHoverLink(link ? { link, x, y: y + height + 4 } : null);
     },
     [view, rowStart],
+  );
+
+  // Ctrl+Enter (⌘Enter on a Mac) follows the active cell's link, as Ctrl+click does, in place of the grid's own use of it.
+  const onGridKeyDown = useCallback(
+    (e: GridKeyEventArgs) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        e.cancel();
+        e.preventDefault();
+        void store.followLink();
+        return;
+      }
+      onKeyDown?.(e);
+    },
+    [store, onKeyDown],
+  );
+
+  // Ctrl+click (⌘-click on a Mac) follows a cell's link; a plain click only selects it.
+  const onCellClicked = useCallback(
+    ([gc, gr]: Item, e: CellClickedEventArgs) => {
+      if (gc === 0 || !(APPLE ? e.metaKey : e.ctrlKey) || e.shiftKey) return;
+      const row = view.visibleRows[gr + rowStart];
+      const col = view.visibleCols[gc - 1];
+      if (cellLink(view, row, col)) void store.followLink(row, col);
+    },
+    [store, view, rowStart],
   );
 
   const rowHeight = useCallback(
@@ -860,6 +909,7 @@ export function SheetGrid({
         onGridSelectionChange={onSelectionChange}
         onCellEdited={onCellEdited}
         onCellActivated={onCellActivated}
+        onCellClicked={onCellClicked}
         keybindings={{ copy: false, paste: false, cut: false }}
         onCellContextMenu={onCellContextMenu}
         onHeaderContextMenu={onHeaderContextMenu}
@@ -879,7 +929,7 @@ export function SheetGrid({
         rowHeight={rowHeight}
         headerHeight={header ? 24 : 0}
         highlightRegions={highlights}
-        onKeyDown={onKeyDown}
+        onKeyDown={onGridKeyDown}
         smoothScrollX
         smoothScrollY
         cellActivationBehavior="double-click"
@@ -896,6 +946,7 @@ export function SheetGrid({
         onItemHovered={onItemHovered}
       />
       {hoverNote && <NoteTip {...hoverNote} />}
+      {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
       {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
       <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
     </div>

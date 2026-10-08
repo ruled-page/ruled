@@ -85,6 +85,28 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
           { label: t('menu.showComments'), hint: t('keys.shiftF2'), onSelect: openComment('thread') },
           { label: t('menu.deleteThread'), onSelect: deleteComment, disabled: notesLocked, danger: true },
         ];
+  // Links: open the cell's, then give the selection one, or change or take away theirs.
+  const link = menu.kind === 'cell' ? store.linkAt() : undefined;
+  const linked = menu.kind === 'cell' ? store.linksInSelection() : 0;
+  const openDialog = () => store.set('linkDialog', true);
+  const linkItems: MenuItem[] =
+    menu.kind !== 'cell'
+      ? []
+      : [
+          { separator: true },
+          ...(link && store.followsLinks ? [{ label: t('links.menu.open'), hint: mod(t, t('keys.enter')), onSelect: () => void store.followLink() }] : []),
+          ...(linked
+            ? [
+                {
+                  label: t('links.menu.link'),
+                  items: [
+                    { label: t('links.menu.edit'), onSelect: openDialog, disabled: locked },
+                    { label: t('links.menu.remove', { count: linked }), onSelect: () => void store.removeLinks(), disabled: locked },
+                  ],
+                },
+              ]
+            : [{ label: t('links.menu.insert'), onSelect: openDialog, disabled: locked }]),
+        ];
   const filtered = !!view.filter;
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
@@ -113,6 +135,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     ...lineItems,
     { separator: true },
     ...dataItems,
+    ...linkItems,
     { separator: true },
     { label: t('names.menu.define'), onSelect: () => openDefineName(store), disabled: view.info.kind !== 'worksheet' },
     { label: t('names.menu.manager'), onSelect: () => store.set('nameManagerOpen', true) },

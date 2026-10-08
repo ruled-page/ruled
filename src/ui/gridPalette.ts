@@ -38,6 +38,7 @@ export interface GridPalette {
   staleMark: string;
   unsupportedMark: string;
   dropdownArrow: string;
+  link: string;
   font: string;
   headerFont: string;
   headerFontSize: string;
@@ -77,6 +78,7 @@ export const DEFAULT_PALETTE: GridPalette = {
   staleMark: '#e8a33d',
   unsupportedMark: '#8a94a6',
   dropdownArrow: '#5f6368',
+  link: '#0563c1',
   font: "Calibri, Carlito, 'Aptos Narrow', 'Segoe UI', system-ui, sans-serif",
   headerFont: "system-ui, -apple-system, 'Segoe UI', sans-serif",
   headerFontSize: '12px',

@@ -68,6 +68,20 @@ export function linkAddress(link: { target?: string; location?: string }): strin
   return location ? `${target}#${location}` : target;
 }
 
+/**
+ * An address typed in to link to, as it is saved: with "https://" added when
+ * it has no scheme, or "mailto:" when it is an email address, as Excel adds
+ * one; in the form the browser opens. Undefined unless it is a web page or an
+ * email address.
+ */
+export function typedAddress(text: string): string | undefined {
+  const s = text.trim();
+  if (!s) return undefined;
+  const full = /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : /^[^\s@/]+@[^\s@/]+$/.test(s) ? `mailto:${s}` : `https://${s}`;
+  const checked = checkAddress(full);
+  return checked.kind === 'refused' || checked.kind === 'place' ? undefined : checked.url;
+}
+
 /** A sheet and the cells on it that a link's location names, before the sheet's name is looked up. */
 export interface PlaceRef {
   /** The sheet as written, unquoted; unset for the sheet the link is on. */
