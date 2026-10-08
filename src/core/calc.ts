@@ -111,17 +111,6 @@ export interface EngineChange {
   value: EngineValue;
 }
 
-/** A formula to give room for its array: rows × cols cells from its own. */
-export interface EngineFit {
-  sheet: number;
-  row: number;
-  col: number;
-  /** In the engine's form, with "=". */
-  formula: string;
-  rows: number;
-  cols: number;
-}
-
 export function toRaw(content: CellContent): RawCellContent {
   switch (content.kind) {
     case 'empty':
@@ -280,39 +269,6 @@ export class CalcEngine {
     } catch {
       return false;
     }
-  }
-
-  /** Whether the engine holds an array formula whose results start at this cell. */
-  isArrayAnchor(sheet: number, row: number, col: number): boolean {
-    const id = this.ids[sheet];
-    if (id === undefined || id < 0) return false;
-    try {
-      return this.hf.getCellType({ sheet: id, row, col }) === 'ARRAYFORMULA';
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Puts formulas in their cells wrapped in the spill function, so the engine
-   * gives each array exactly the room its result needs. Returns the cells
-   * whose values changed.
-   */
-  fit(fits: EngineFit[]): EngineChange[] {
-    if (!fits.length) return [];
-    return this.cellChanges(
-      this.hf.batch(() => {
-        for (const f of fits) {
-          const id = this.ids[f.sheet];
-          if (id === undefined || id < 0) continue;
-          try {
-            this.hf.setCellContents({ sheet: id, row: f.row, col: f.col }, spillFormula(f.formula, f.rows, f.cols));
-          } catch {
-            // Left as it was.
-          }
-        }
-      }),
-    );
   }
 
   /** The size a fitted formula's result had when the engine last worked it out. */

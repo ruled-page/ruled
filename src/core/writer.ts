@@ -334,12 +334,9 @@ function valueXml(p: string, v: EngineValue): { t: string; v: string } {
 
 /** A formula element with its ref attribute set to `ref`. */
 function withRef(f: string, ref: string): string {
-  if (!f) return f;
-  const end = findTagEnd(f, 0);
-  const selfClosing = f.charCodeAt(end - 1) === 47;
-  const tag = f.slice(0, selfClosing ? end - 1 : end);
-  const next = /\sref="[^"]*"/.test(tag) ? tag.replace(/\sref="[^"]*"/, ` ref="${ref}"`) : `${tag} ref="${ref}"`;
-  return next + f.slice(selfClosing ? end - 1 : end);
+  const end = f ? findTagEnd(f, 0) : 0;
+  const tag = f.slice(0, end);
+  return (/\sref="/.test(tag) ? tag.replace(/\sref="[^"]*"/, ` ref="${ref}"`) : tag.replace(/^<[\w:]+/, (name) => `${name} ref="${ref}"`)) + f.slice(end);
 }
 
 function rawFormulaElement(raw: string, p: string): string {

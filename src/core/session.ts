@@ -15,7 +15,6 @@ import {
   valuesMatch,
   type Unsupported,
   type EngineChange,
-  type EngineFit,
   type EngineSheet,
   type EngineWrite,
 } from './calc';
@@ -1340,14 +1339,15 @@ export class WorkbookSession {
     let fresh = written;
     let changed = changes;
     for (let round = 0; round < 8 && (fresh.length || changed.length); round++) {
-      const fits = new Map<string, EngineFit>();
+      const fits = new Map<string, EngineWrite & ArrayDims>();
       const fit = (p: Pos, size: ArrayDims) => {
-        if (size.rows * size.cols <= MAX_SPILL_CELLS) fits.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col, formula: formulaOf(p), ...size });
+        if (size.rows * size.cols <= MAX_SPILL_CELLS) fits.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col, raw: spillFormula(formulaOf(p), size.rows, size.cols), ...size });
       };
       // Formulas not given room yet, just written or gone to an error, whose results turn out to be arrays.
       const probe = (p: Pos) => {
         if (this.spills[p.sheet].get(cellKey(p.row, p.col))?.rows || !this.canSpill(p.sheet, p.row, p.col)) return;
-        const array = engine.isArrayAnchor(p.sheet, p.row, p.col);
+        // A formula's own cell is part of an array only when the array is its own.
+        const array = engine.isArray(p.sheet, p.row, p.col);
         const v = engine.value(p.sheet, p.row, p.col);
         if (!array && !(v !== null && typeof v === 'object')) return;
         const size = engine.resultSize(formulaOf(p), p.sheet);
@@ -1388,7 +1388,8 @@ export class WorkbookSession {
           this.spills[f.sheet].set(key, { rows: f.rows, cols: f.cols });
         }
       }
-      const fitted = engine.fit([...fits.values()]);
+      // Put in wrapped in the spill function, which gives the engine the size.
+      const fitted = engine.write([...fits.values()]);
       out.push(...fitted);
       changed = fitted;
       fresh = [];
