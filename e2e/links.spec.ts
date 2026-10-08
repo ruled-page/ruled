@@ -47,7 +47,7 @@ test('follows a link to another sheet with the keyboard, and screen readers hear
   await expect(page.locator('.wbe-cell-link')).toHaveText('Other!B3');
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(page.getByRole('tab', { name: 'Other' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('B3');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B3');
   // The grid has the focus, so typing goes on from there.
   await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
   expect(await opened()).toEqual([]);

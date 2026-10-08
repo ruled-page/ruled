@@ -187,3 +187,22 @@ describe('formats', () => {
     expect(store.activeStyle.fill).toBe('#FF0000');
   });
 });
+
+describe('layout changes and inserted rows', () => {
+  it('show again as they were when the insert is undone', async () => {
+    await open();
+    select(rect(0, 1));
+    await store.setColumnWidth(1, 20);
+    select(rect(3, 0));
+    await store.hideLines('rows');
+    await store.freezePanes('topRow');
+    select(rect(1, 0));
+    await store.insertRows('above');
+    expect(store.view!.colWidth(1)).toBe(140);
+    await store.undo();
+    // Back in the workbook from before the insert, which has the edits the file didn't.
+    expect(store.view!.colWidth(1)).toBe(140);
+    expect(store.view!.gridRow(3)).toBe(-1);
+    expect(store.view!.info.frozenRows).toBe(1);
+  });
+});

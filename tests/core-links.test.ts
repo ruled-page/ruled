@@ -186,7 +186,7 @@ describe("Excel's Hyperlink look", () => {
     const grid = saved.model.sheets[0].scan!.grid;
     expect(saved.model.styles.get(grid.styles[0])).toMatchObject({ linkFont: true, underline: true });
     // After the workbook's own fonts, which number two.
-    expect(parts(s.save())['xl/styles.xml']).toMatch(/<fonts [^>]*count="3">.*<\/font><font><u\/><color theme="10"\/><family val="2"\/>.*<\/font><\/fonts>/);
+    expect(parts(s.save())['xl/styles.xml']).toMatch(/<fonts [^>]*count="3">.*<\/font><font><u\/><sz val="11"\/><color theme="10"\/><name val="Calibri"\/><family val="2"\/><scheme val="minor"\/><\/font><\/fonts>/);
     const off = s.apply({ type: 'linkFormat', sheet: 0, rects: [rect(0, 0)], on: false });
     expect(s.model.styles.get(off.redo[0].style).linkFont).toBeUndefined();
   });
