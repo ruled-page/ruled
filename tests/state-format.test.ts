@@ -125,6 +125,7 @@ describe('what the cell editor and formula bar show', () => {
 
   it("shows formulas without the file's function prefixes", () => {
     expect(editText(num(6, { f: 'B2*C2' }), general, false)).toBe('=B2*C2');
+    expect(editText(num(6, { f: '_xlfn.LET(_xlpm.x,2,_xlpm.x*_xlfn._xlws.SORT(A1:A2))' }), general, false)).toBe('=LET(x,2,x*SORT(A1:A2))');
     expect(editText(num(1, { f: '_xlfn.XLOOKUP(A1,B:B,C:C)' }), general, false)).toBe('=XLOOKUP(A1,B:B,C:C)');
     expect(editText(num(1, { f: '_xlfn._xlws.SORT(A1:A3)+_XLWS.FILTER(A1:A3,B1:B3)' }), general, false)).toBe('=SORT(A1:A3)+FILTER(A1:A3,B1:B3)');
     expect(editText(str('', { f: '""' }), general, false)).toBe('=""');

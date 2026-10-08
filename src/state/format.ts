@@ -1,3 +1,4 @@
+import { displayFormula } from '../core/formula';
 import { format, formatColor, isDateFormat } from 'numfmt';
 import { VT, type DisplayStyle } from '../core/types';
 
@@ -112,7 +113,7 @@ export function alignment(rec: CellRecord, style: DisplayStyle): 'left' | 'right
 /** What the cell editor and formula bar show: the formula, or the value as typed. */
 export function editText(rec: CellRecord | null, style: DisplayStyle, date1904: boolean): string {
   if (!rec) return '';
-  if (rec.f !== undefined) return '=' + rec.f.replace(/_xlfn\.(?:_xlws\.)?|_xlws\./gi, '');
+  if (rec.f !== undefined) return displayFormula(rec.f);
   if (rec.t === VT.Number) {
     if (isDate(style.numFmt)) return displayText(rec, style, date1904).text;
     if (isPercent(style.numFmt)) return `${tidy((rec.n ?? 0) * 100)}%`;
