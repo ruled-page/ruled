@@ -2,7 +2,7 @@ import { displayFormula } from '../core/formula';
 import { parseInput } from '../core/input';
 import { localeInfo } from '../core/locale';
 import { format, formatColor, isDateFormat } from 'numfmt';
-import { VT, type DisplayStyle } from '../core/types';
+import { CellFlag, VT, type DisplayStyle, type Rect } from '../core/types';
 
 export interface CellRecord {
   t: number;
@@ -14,6 +14,8 @@ export interface CellRecord {
   flags: number;
   /** For a HYPERLINK formula, the address it links to, once the worker has worked it out. */
   link?: string;
+  /** The range a dynamic array formula's results spill into, on its cell and each cell they spill into. */
+  spill?: Rect;
 }
 
 const dateFormats = new Map<string, boolean>();
@@ -150,7 +152,8 @@ function editableDate(serial: number, date1904: boolean, locale: string): string
  * the cell's own format, so that committing an unchanged date keeps it.
  */
 export function editText(rec: CellRecord | null, style: DisplayStyle, date1904: boolean, locale = 'en-US'): string {
-  if (!rec) return '';
+  // A spilled value belongs to its formula; the cell itself holds nothing.
+  if (!rec || rec.flags & CellFlag.Spilled) return '';
   if (rec.f !== undefined) return displayFormula(rec.f);
   if (rec.t === VT.Number) {
     const n = rec.n ?? 0;

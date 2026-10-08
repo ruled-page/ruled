@@ -170,6 +170,28 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
   return out;
 }
 
+/**
+ * The cell metadata indexes (the cm attribute of a cell, counting from 1)
+ * that mark a formula as a dynamic array: entries pointing at an XLDAPR
+ * block in the metadata part that says the formula is dynamic.
+ */
+export function dynamicArrayMetadata(xml: string | undefined): Set<number> {
+  const out = new Set<number>();
+  if (!xml) return out;
+  const root = parseXml(xml);
+  const type = children(child(root, 'metadataTypes'), 'metadataType').findIndex((t) => attr(t, 'name') === 'XLDAPR') + 1;
+  if (!type) return out;
+  const future = children(root, 'futureMetadata').find((f) => attr(f, 'name') === 'XLDAPR');
+  const dynamic = children(future, 'bk').map((bk) => {
+    const props = descendants(bk, 'dynamicArrayProperties')[0];
+    return ['1', 'true'].includes(attr(props, 'fDynamic') ?? '');
+  });
+  children(child(root, 'cellMetadata'), 'bk').forEach((bk, i) => {
+    if (children(bk, 'rc').some((rc) => Number(attr(rc, 't')) === type && dynamic[Number(attr(rc, 'v'))])) out.add(i + 1);
+  });
+  return out;
+}
+
 /** Excel 4.0 macro sheets, which hold macros that can run when the file is opened. */
 export function isMacroSheet(relType: string | undefined): boolean {
   return relType === 'xlMacrosheet' || relType === 'xlIntlMacrosheet';
@@ -194,6 +216,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const persons = new Map(people.map((p) => [p.id, p.displayName]));
 
   const date1904 = ['1', 'true'].includes(attr(child(wb, 'workbookPr'), 'date1904') ?? '');
+  const dynamic = dynamicArrayMetadata(relOfType('sheetMetadata').map((r) => pkg.text(r.target)).find((x) => x));
   const sst = parseSharedStrings(relOfType('sharedStrings')[0] ? pkg.text(relOfType('sharedStrings')[0].target) : undefined);
   const styles = new StyleBook(
     relOfType('styles')[0] ? pkg.text(relOfType('styles')[0].target) : undefined,
@@ -309,7 +332,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     }
 
     const xml = pkg.text(path) ?? '';
-    const scan = scanSheet(xml, sst.strings, sst.rich, cells);
+    const scan = scanSheet(xml, sst.strings, sst.rich, cells, dynamic);
     info.maxRow = scan.maxRow;
     info.maxCol = scan.maxCol;
 
@@ -398,18 +421,17 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
       });
     }
 
-    const blocked: BlockedRegion[] = [];
-    for (const a of scan.arrayRanges) {
-      blocked.push({ ...a, kind: 'array', reason: msg('core.reason.arrayFormula') });
-    }
-    if (scan.arrayRanges.length) {
+    // Dynamic arrays are locked too until the engine shows it calculates them, when they are let go.
+    const blocked: BlockedRegion[] = scan.arrayRanges.map(({ r1, c1, r2, c2 }) => ({ r1, c1, r2, c2, kind: 'array', reason: msg('core.reason.arrayFormula') }));
+    const legacy = scan.arrayRanges.filter((a) => !a.dynamic);
+    if (legacy.length) {
       findings.push({
         kind: 'arrayFormula',
         severity: 'info',
         title: msg('core.finding.arrayFormulas.title'),
-        detail: msg('core.finding.arrayFormulas.detail', { count: scan.arrayRanges.length }),
+        detail: msg('core.finding.arrayFormulas.detail', { count: legacy.length }),
         sheet: name,
-        where: scan.arrayRanges.slice(0, 5).map(rangeToA1).join(', '),
+        where: legacy.slice(0, 5).map(rangeToA1).join(', '),
       });
     }
 

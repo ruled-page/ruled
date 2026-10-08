@@ -113,6 +113,19 @@ def templates():
     arrays.write("D5", "Hardware lines")
     arrays.write_dynamic_array_formula("E5:E6", '=FILTER(Orders[Item],Orders[Category]="Hardware")', None, "Bolts")
     arrays.write_string(5, 4, "Nuts")
+    # Below the categories, in rows UNIQUE could need for more of them but doesn't.
+    arrays.write("A6", "From the Orders table")
+    # A spill across rows and columns.
+    arrays.write("G1", "Grid", bold)
+    arrays.write_dynamic_array_formula("G2:I3", "=SEQUENCE(2,3)", None, 1)
+    for i in range(1, 6):
+        arrays.write_number(1 + i // 3, 6 + i % 3, i + 1)
+    # An array formula of the older kind, entered with Ctrl+Shift+Enter: it fills its range and doesn't spill.
+    arrays.write("G5", "Doubled prices", bold)
+    doubled = [p * 2 for _, _, _, p in ORDERS[:3]]
+    arrays.write_array_formula("G6:G8", "{=Orders[Price]*2}", money, doubled[0])
+    for i, v in enumerate(doubled[1:], start=6):
+        arrays.write_number(i, 6, v, money)
     wb.close()
 
 

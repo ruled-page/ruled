@@ -156,6 +156,15 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   write('templates.typed.xlsx', t);
   write('templates.row-inserted.xlsx', t.restructure({ type: 'insertRows', sheet: lines, at: 2, count: 1 }));
 
+  // Spills: one of the file's that shrinks, one blocked by a typed value, a new one over rows and columns, and a column inserted through one.
+  const sp = corpus('templates.xlsx');
+  sp.ensureEngine();
+  sp.apply({ type: 'input', sheet: lines, ...at('B3'), text: 'Safety' });
+  sp.apply({ type: 'input', sheet: arrays, ...at('A3'), text: 'x' });
+  sp.apply({ type: 'input', sheet: arrays, ...at('K1'), text: '=SEQUENCE(2,3)*Budget' });
+  write('templates.spills.xlsx', sp);
+  write('templates.spill-column.xlsx', sp.restructure({ type: 'insertCols', sheet: arrays, at: 7, count: 1 }));
+
   // Notes and threaded comments: changed, added to sheets that had none, and removed.
   const note = (s: WorkbookSession, sheet: string, ref: string, change: CommentChange) => s.apply({ type: 'comment', sheet: sheetIndex(s, sheet), ...at(ref), change });
   const c = corpus('comments.xlsx');

@@ -8,6 +8,8 @@ export interface FormulaMeta {
   kind: 'normal' | 'shared-master' | 'shared-follower' | 'array' | 'dataTable';
   si?: number;
   ref?: Rect;
+  /** An array formula the file marks as a dynamic array, whose results spill (Excel 365's kind). */
+  dynamic?: boolean;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface ScanResult {
   /** Shared formula group id → master cell index and follower cell indices. */
   sharedGroups: Map<number, { master: number; members: number[] }>;
   /** Multi-cell array formulas, spill ranges and data tables. */
-  arrayRanges: (Rect & { master: number })[];
+  arrayRanges: (Rect & { master: number; dynamic?: boolean })[];
   /** Offsets of the whole <sheetData> element, or -1 when it is missing. */
   sheetDataStart: number;
   sheetDataEnd: number;
@@ -100,10 +102,10 @@ export function parseSharedStrings(xml: string | undefined): { strings: string[]
   return { strings, rich };
 }
 
-/** Matches the scanning cursor's `{r, s, t}` attributes without allocating. */
-const cellAttrs = { r: '', s: '', t: '' };
+/** Matches the scanning cursor's `{r, s, t, cm}` attributes without allocating. */
+const cellAttrs = { r: '', s: '', t: '', cm: '' };
 function readCellAttrs(s: string): void {
-  cellAttrs.r = cellAttrs.s = cellAttrs.t = '';
+  cellAttrs.r = cellAttrs.s = cellAttrs.t = cellAttrs.cm = '';
   let i = 0;
   const n = s.length;
   while (i < n) {
@@ -119,6 +121,7 @@ function readCellAttrs(s: string): void {
     if (name === 'r') cellAttrs.r = s.slice(q + 1, end);
     else if (name === 's') cellAttrs.s = s.slice(q + 1, end);
     else if (name === 't') cellAttrs.t = s.slice(q + 1, end);
+    else if (name === 'cm') cellAttrs.cm = s.slice(q + 1, end);
     i = end + 1;
   }
 }
@@ -144,7 +147,11 @@ export interface CellBudget {
   max: number;
 }
 
-export function scanSheet(xml: string, sst: string[], richStrings: Set<number> = new Set(), budget?: CellBudget): ScanResult {
+/**
+ * `dynamic` holds the cell metadata indexes (a cell's cm attribute) that the
+ * workbook's metadata part marks as dynamic arrays.
+ */
+export function scanSheet(xml: string, sst: string[], richStrings: Set<number> = new Set(), budget?: CellBudget, dynamic?: ReadonlySet<number>): ScanResult {
   const p = /<(\w+:)?worksheet\b/.exec(xml)?.[1] ?? '';
   const rowsA: number[] = [];
   const colsA: number[] = [];
@@ -306,7 +313,8 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
                   fmeta.set(idx, { kind: 'shared-follower', si });
                 }
               } else if (ft === 'array' || ft === 'dataTable') {
-                fmeta.set(idx, { kind: ft, ref: fa.ref ? parseRange(fa.ref) ?? undefined : undefined });
+                const isDynamic = ft === 'array' && !!cellAttrs.cm && !!dynamic?.has(Number(cellAttrs.cm));
+                fmeta.set(idx, { kind: ft, ref: fa.ref ? parseRange(fa.ref) ?? undefined : undefined, ...(isDynamic && { dynamic: true }) });
                 formulaText.set(idx, text);
               } else {
                 fmeta.set(idx, { kind: 'normal' });
@@ -422,7 +430,7 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
     if ((m.kind !== 'array' && m.kind !== 'dataTable') || !m.ref) continue;
     const single = m.ref.r1 === m.ref.r2 && m.ref.c1 === m.ref.c2;
     if (single && m.kind === 'array') continue;
-    arrayRanges.push({ ...m.ref, master: i });
+    arrayRanges.push({ ...m.ref, master: i, ...(m.dynamic && { dynamic: true }) });
     flags[i] |= CellFlag.Unsupported | CellFlag.ArrayMember;
     for (let r = m.ref.r1; r <= Math.min(m.ref.r2, rowCount - 1); r++) {
       for (let k = rowPtr[r]; k < rowPtr[r + 1]; k++) {

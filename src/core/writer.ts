@@ -6,7 +6,7 @@ import { writeHyperlinks, type SheetLinks } from './hyperlinks';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
-import type { ScanResult } from './sheetScanner';
+import { findCell, type ScanResult } from './sheetScanner';
 import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid } from './types';
 import type { Person } from './comments';
 import { writeComments } from './commentWriter';
@@ -32,6 +32,10 @@ export interface SaveInput {
   properties?: Record<string, string>;
   /** Whether the engine's result for a formula cell is an array, which Excel would spill. */
   isArray?: (sheet: number, row: number, col: number) => boolean;
+  /** Per sheet: where each dynamic array formula's results spill now, by its cell's key; a blocked one covers only its own cell. */
+  spills?: Map<number, Rect>[];
+  /** The value a formula's results spill into a cell (null where none does now), and the cell's format. */
+  spilled?: (sheet: number, row: number, col: number) => { value: EngineValue; style: number };
   /** Whether anything in a sheet's range (the whole sheet when null) differs from the file as opened. */
   changedIn?: (sheet: number, rect: Rect | null) => boolean;
   /** Per sheet: its layout, where it has been edited. */
@@ -47,9 +51,12 @@ export interface SaveInput {
 }
 
 type Patch =
-  | { kind: 'edit'; state: CellState; value?: EngineValue; dynamic?: boolean }
-  | { kind: 'value'; value: EngineValue }
-  | { kind: 'expand'; formula: string; value: EngineValue | undefined };
+  /** `ref`: where a dynamic array formula's results spill. */
+  | { kind: 'edit'; state: CellState; value?: EngineValue; dynamic?: boolean; ref?: Rect }
+  | { kind: 'value'; value: EngineValue; ref?: Rect }
+  | { kind: 'expand'; formula: string; value: EngineValue | undefined }
+  /** A value spilled from a formula in another cell, written without a formula as Excel writes it; null where a spill no longer reaches. */
+  | { kind: 'spilled'; value: EngineValue; style: number };
 
 /** Writes the edited workbook, changing only the parts that must change. */
 export function writeWorkbook(input: SaveInput): Uint8Array {
@@ -155,7 +162,58 @@ function sheetPatches(m: SheetModel, s: number, input: SaveInput): Map<number, P
       patches.set(key, { kind: 'expand', formula, value });
     }
   }
+  if (input.spills && input.spilled) spillPatches(m, s, input, patches);
   return patches;
+}
+
+/**
+ * Dynamic arrays as Excel writes them: the formula's cell with its spill
+ * range as the formula's ref, and the values it spills into the cells of
+ * that range, without formulas. Cells holding saved values of a spill that
+ * no longer reaches them are cleared. Values that are as saved stay as they
+ * were written.
+ */
+function spillPatches(m: SheetModel, s: number, input: SaveInput, patches: Map<number, Patch>): void {
+  const scan = m.scan!;
+  const grid = scan.grid;
+  const covered = new Set<number>();
+  for (const [key, rect] of input.spills![s]) {
+    const row = Math.floor(key / MAX_COLS);
+    const col = key % MAX_COLS;
+    const idx = findCell(grid, row, col);
+    const own = patches.get(key);
+    if (own?.kind === 'edit' || own?.kind === 'value') own.ref = rect;
+    else if (!own && !sameRect(scan.fmeta.get(idx)?.ref, rect)) {
+      const value = input.cachedValue(s, row, col) ?? (idx >= 0 && !(grid.flags[idx] & CellFlag.NoCache) ? gridValueOf(grid, idx) : null);
+      patches.set(key, { kind: 'value', value, ref: rect });
+    }
+    for (let r = rect.r1; r <= rect.r2; r++) {
+      for (let c = rect.c1; c <= rect.c2; c++) {
+        const k = cellKey(r, c);
+        if (k === key) continue;
+        covered.add(k);
+        const spilled = input.spilled!(s, r, c);
+        const i = findCell(grid, r, c);
+        if (!input.edits[s].has(k) && i >= 0 && grid.flags[i] & CellFlag.Spilled && sameValue(gridValueOf(grid, i), spilled.value)) continue;
+        patches.set(k, { kind: 'spilled', ...spilled });
+      }
+    }
+  }
+  for (let row = 0; row < grid.rowCount; row++) {
+    for (let i = grid.rowPtr[row]; i < grid.rowPtr[row + 1]; i++) {
+      const k = cellKey(row, grid.cols[i]);
+      if (grid.flags[i] & CellFlag.Spilled && !covered.has(k) && !patches.has(k)) patches.set(k, { kind: 'spilled', value: null, style: grid.styles[i] });
+    }
+  }
+}
+
+function sameRect(a: Rect | undefined, b: Rect): boolean {
+  return !!a && a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
+}
+
+function sameValue(a: EngineValue, b: EngineValue): boolean {
+  if (a && b && typeof a === 'object' && typeof b === 'object') return a.error === b.error;
+  return a === b;
 }
 
 function keyOf(grid: SheetGrid, idx: number): number {
@@ -274,6 +332,16 @@ function valueXml(p: string, v: EngineValue): { t: string; v: string } {
   return { t: ' t="e"', v: `<${p}v>${escapeXml(v.error)}</${p}v>` };
 }
 
+/** A formula element with its ref attribute set to `ref`. */
+function withRef(f: string, ref: string): string {
+  if (!f) return f;
+  const end = findTagEnd(f, 0);
+  const selfClosing = f.charCodeAt(end - 1) === 47;
+  const tag = f.slice(0, selfClosing ? end - 1 : end);
+  const next = /\sref="[^"]*"/.test(tag) ? tag.replace(/\sref="[^"]*"/, ` ref="${ref}"`) : `${tag} ref="${ref}"`;
+  return next + f.slice(selfClosing ? end - 1 : end);
+}
+
 function rawFormulaElement(raw: string, p: string): string {
   const f = firstElement(raw, 'f');
   return f && f.qname === `${p}f` ? raw.slice(f.start, f.end) : '';
@@ -285,7 +353,15 @@ function patchCell(p: string, row: number, col: number, raw: string | undefined,
     if (!raw) return null;
     const attrs = keptAttrs(raw, ['r', 't']);
     const { t, v } = valueXml(p, patch.value);
-    return `<${p}c r="${r}"${attrs}${t}>${rawFormulaElement(raw, p)}${v}</${p}c>`;
+    const f = rawFormulaElement(raw, p);
+    return `<${p}c r="${r}"${attrs}${t}>${patch.ref ? withRef(f, rangeToA1(patch.ref)) : f}${v}</${p}c>`;
+  }
+  if (patch.kind === 'spilled') {
+    const attrs = keptAttrs(raw, ['r', 's', 't', 'cm', 'vm']);
+    const s = patch.style ? ` s="${patch.style}"` : '';
+    const { t, v } = valueXml(p, patch.value);
+    if (!v) return s || attrs ? `<${p}c r="${r}"${s}${attrs}/>` : null;
+    return `<${p}c r="${r}"${s}${attrs}${t}>${v}</${p}c>`;
   }
   if (patch.kind === 'expand') {
     const attrs = keptAttrs(raw, ['r', 't']);
@@ -316,9 +392,10 @@ function patchCell(p: string, row: number, col: number, raw: string | undefined,
       return `${open} t="e"><${p}v>${escapeXml(content.value)}</${p}v></${p}c>`;
     case 'formula': {
       const { t, v } = valueXml(p, patch.value ?? null);
-      // A dynamic array formula covers just its own cell here; Excel spills it
-      // when it recalculates the workbook on opening.
-      if (patch.dynamic) return `${open} cm="${cm()}"${t}><${p}f t="array" ref="${r}">${escapeXml(content.formula)}</${p}f>${v}</${p}c>`;
+      if (patch.dynamic) {
+        const ref = patch.ref ? rangeToA1(patch.ref) : r;
+        return `${open} cm="${cm()}"${t}><${p}f t="array" ref="${ref}">${escapeXml(content.formula)}</${p}f>${v}</${p}c>`;
+      }
       return `${open}${t}><${p}f>${escapeXml(content.formula)}</${p}f>${v}</${p}c>`;
     }
   }
@@ -329,7 +406,7 @@ function updateDimension(head: string, p: string, scan: ScanResult, patches: Map
   if (!re.test(head)) return head;
   let r: Rect | null = scan.maxRow >= 0 ? { r1: firstRow(scan), c1: minCol(scan.grid), r2: scan.maxRow, c2: scan.maxCol } : null;
   for (const [key, patch] of patches) {
-    if (patch.kind === 'edit' && patch.state.content.kind === 'empty') continue;
+    if ((patch.kind === 'edit' && patch.state.content.kind === 'empty') || (patch.kind === 'spilled' && patch.value === null)) continue;
     const row = Math.floor(key / MAX_COLS);
     const col = key % MAX_COLS;
     r = r

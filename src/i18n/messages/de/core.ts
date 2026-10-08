@@ -49,9 +49,9 @@ export const core: Record<keyof typeof en, string> = {
     'In Excel geschützt: Hier lassen sich nur die nicht gesperrten Zellen bearbeiten, und Zeilen und Spalten lassen sich weder einfügen, löschen noch sortieren.',
   'core.finding.arrayFormulas.title': 'Matrixformeln',
   'core.finding.arrayFormulas.detail_one':
-    '{{count, number}} Matrix- oder Überlaufformel erstreckt sich über mehr als eine Zelle. Sie behält den zuletzt von Excel berechneten Wert, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
+    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformel oder Datentabelle erstreckt sich über mehr als eine Zelle. Sie behält den zuletzt von Excel berechneten Wert, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
   'core.finding.arrayFormulas.detail_other':
-    '{{count, number}} Matrix- oder Überlaufformeln erstrecken sich über mehr als eine Zelle. Sie behalten die zuletzt von Excel berechneten Werte, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
+    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformeln oder Datentabellen erstrecken sich über mehr als eine Zelle. Sie behalten die zuletzt von Excel berechneten Werte, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
   'core.finding.conditionalFormat.title': 'Bedingte Formatierung',
   'core.finding.conditionalFormat.detail_one':
     '{{count, number}} Regel. Wird hier angezeigt und beim Bearbeiten aktualisiert; bleibt für Excel in der Datei erhalten.',
@@ -199,7 +199,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.cellReason.externalLinks': 'Verwendet Verknüpfungen mit anderen Arbeitsmappen, die dieser Editor nicht berechnen kann.',
   'core.cellReason.threeD': 'Verwendet 3D-Bezüge (Tabelle1:Tabelle3!A1), die dieser Editor nicht berechnen kann.',
   'core.cellReason.syntax': 'Verwendet eine Formelsyntax, die dieser Editor nicht lesen kann.',
-  'core.cellReason.array': 'Eine mehrzellige Matrix- oder Überlaufformel, die dieser Editor nicht berechnen kann.',
+  'core.cellReason.array': 'Eine mehrzellige, mit Strg+Umschalt+Eingabe eingegebene Matrixformel, die dieser Editor nicht berechnen kann.',
   'core.cellReason.sharedFormula': 'Teil einer beschädigten gemeinsamen Formel; Excel repariert sie beim Öffnen der Datei.',
   'core.cellReason.tooLarge': 'Verwendet einen Bereich oder eine Matrix, die für diesen Editor zu groß zum Berechnen ist.',
   'core.cellReason.mismatch':
@@ -226,6 +226,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.edit.filledAsValues_other': '{{count, number}} Formeln konnten nicht angepasst werden und wurden als Werte ausgefüllt.',
   'core.edit.sortMerged':
     'Beim Sortieren würde ein Teil der verbundenen Zelle {{range}} verschoben. Heben Sie die Zellverbindung auf, oder sortieren Sie nur außerhalb davon.',
+  'core.edit.sortSpill':
+    'Beim Sortieren würde ein Teil der Ergebnisse verschoben, die in {{range}} überlaufen. Sortieren Sie nur außerhalb davon, oder sortieren Sie mit der Funktion SORTIEREN.',
 
   'core.structure.notWorksheet': 'Nur Tabellenblätter können so geändert werden.',
   'core.structure.moveNotWorksheet': 'Zellen können nur zwischen Tabellenblättern verschoben werden.',

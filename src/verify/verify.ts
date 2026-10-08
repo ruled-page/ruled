@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { strFromU8, unzipSync } from 'fflate';
 import { MAX_ROWS, toA1 } from '../core/refs';
 import { gridValue, WorkbookSession } from '../core/session';
+import type { ScanResult } from '../core/sheetScanner';
 import { CellFlag, VT, type SheetGrid } from '../core/types';
 
 export type CheckStatus = 'pass' | 'fail' | 'skip' | 'info';
@@ -59,7 +60,7 @@ function chooseProbes(s: WorkbookSession): Probe[] {
     let text = 0;
     for (const { row, idx } of cellsOf(grid)) {
       const col = grid.cols[idx];
-      if (grid.flags[idx] & CellFlag.Formula || !free(row, col)) continue;
+      if (grid.flags[idx] & (CellFlag.Formula | CellFlag.Spilled) || !free(row, col)) continue;
       if (grid.types[idx] === VT.Number && numbers < 2 && Number.isInteger(grid.nums[idx])) {
         probes.push({ sheet, row, col, text: String(grid.nums[idx] + 1), expect: grid.nums[idx] + 1 });
         numbers++;
@@ -74,6 +75,16 @@ function chooseProbes(s: WorkbookSession): Probe[] {
     if (below < MAX_ROWS && free(below, 0)) probes.push({ sheet, row: below, col: 0, text: 'verify', expect: 'verify' });
   });
   return probes;
+}
+
+/** The cells holding a dynamic array's spilled values, as "row:col", whose values follow its formula. */
+function spillCells(scan: ScanResult | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const a of scan?.arrayRanges ?? []) {
+    if (!a.dynamic) continue;
+    for (let row = a.r1; row <= a.r2; row++) for (let col = a.c1; col <= a.c2; col++) if (row !== a.r1 || col !== a.c1) out.add(`${row}:${col}`);
+  }
+  return out;
 }
 
 function contentKey(grid: SheetGrid, idx: number): string {
@@ -193,9 +204,11 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     const a = m.scan?.grid;
     const b = reopened.model.sheets[s]?.scan?.grid;
     if (!a || !b) return;
+    // A formula's spilled values may change after an edit, as its saved value may.
+    const spilled = new Set([...spillCells(m.scan), ...spillCells(reopened.model.sheets[s]?.scan)]);
     for (const { row, idx } of cellsOf(a)) {
       const col = a.cols[idx];
-      if (probed.has(`${s}:${row}:${col}`)) continue;
+      if (probed.has(`${s}:${row}:${col}`) || spilled.has(`${row}:${col}`)) continue;
       compared++;
       const j = findIndex(b, row, col);
       const before = contentKey(a, idx);

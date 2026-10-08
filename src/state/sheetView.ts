@@ -252,7 +252,7 @@ export class SheetView {
   }
 
   apply(u: CellUpdate): void {
-    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags, ...(u.link !== undefined && { link: u.link }) });
+    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags, ...(u.link !== undefined && { link: u.link }), ...(u.spill && { spill: u.spill }) });
     if (u.row >= this.rowLimit - 20 || u.col >= this.colLimit - 2) this.extendTo(u.row + 20, u.col + 2);
     this.version++;
   }
@@ -337,6 +337,12 @@ export class SheetView {
 
   blockedAt(row: number, col: number): BlockedRegion | undefined {
     return this.info.blocked.find((b) => inRect(b, row, col));
+  }
+
+  /** Unlocks one of the file's dynamic arrays, which the worker calculates. */
+  unblockArray(rect: Rect): void {
+    this.info.blocked = this.info.blocked.filter((b) => !(b.kind === 'array' && b.r1 === rect.r1 && b.c1 === rect.c1 && b.r2 === rect.r2 && b.c2 === rect.c2));
+    this.version++;
   }
 
   /** The sheet's own link on a cell (not a HYPERLINK formula's): the first that covers it. */

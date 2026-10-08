@@ -5,6 +5,9 @@ import { format as formatNumber, isDateFormat } from 'numfmt';
 import {
   CalcEngine,
   describeValue,
+  isSpillError,
+  MAX_SPILL_CELLS,
+  spillFormula,
   toRaw,
   unsupportedExplanation,
   unsupportedLabel,
@@ -12,9 +15,11 @@ import {
   valuesMatch,
   type Unsupported,
   type EngineChange,
+  type EngineFit,
   type EngineSheet,
   type EngineWrite,
 } from './calc';
+import type { ArrayDims } from './functions/spill';
 import { renameInFormula, sameDefinition } from './definedNames';
 import type { EngineValue } from './engineValue';
 import { evaluateConditionalFormats } from './conditionalFormat';
@@ -127,6 +132,18 @@ interface UntrustedFormula {
   reads: { sheet: number; rect: Rect }[] | null;
 }
 
+/**
+ * A formula whose results spill, as a dynamic array: the room the engine
+ * gives its result, and the cells it covers now.
+ */
+interface Spill {
+  /** The size of its result, as the engine has been given it; 0 until it has been. */
+  rows: number;
+  cols: number;
+  /** The cells it covers now, its own included; none while something is in its way (#SPILL!). */
+  shown?: Rect;
+}
+
 const MERGED = '\u0000merged';
 
 export function rowOfIndex(grid: SheetGrid, idx: number): number {
@@ -157,6 +174,8 @@ export function gridValue(grid: SheetGrid, idx: number): EngineValue {
 }
 
 function gridContent(grid: SheetGrid, idx: number): CellContent {
+  // Excel's saved value for a spill belongs to the formula it spills from.
+  if (grid.flags[idx] & CellFlag.Spilled) return EMPTY;
   const f = grid.formulas.get(idx);
   if (f !== undefined && grid.flags[idx] & CellFlag.Formula) return { kind: 'formula', formula: f };
   const v = gridValue(grid, idx);
@@ -233,6 +252,11 @@ function setValue(u: CellUpdate, v: EngineValue): void {
     u.t = VT.Error;
     u.s = v.error;
   }
+}
+
+/** Calls fn for each cell of rect, row by row. */
+function forEachIn(rect: Rect, fn: (row: number, col: number) => void): void {
+  for (let row = rect.r1; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) fn(row, col);
 }
 
 /** Ranges read by a formula, resolved to sheet indexes; null if not all can be resolved. */
@@ -338,6 +362,10 @@ export class WorkbookSession {
    * last told, so a link that changes while its value doesn't is told too.
    */
   private formulaLinks: Map<number, string | undefined>[] = [];
+  /** Per sheet: formulas whose results spill, by cell key. */
+  private spills: Map<number, Spill>[];
+  /** Per sheet: the cells spills cover now, other than their formulas' own, with the formula's cell key. */
+  private spilled: Map<number, number>[];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
@@ -364,6 +392,8 @@ export class WorkbookSession {
     this.noteBase = Array.from({ length: n }, () => new Map());
     this.people = new Map(model.people.map((p) => [p.id, p]));
     this.fileNames = model.names.map((d) => ({ ...d }));
+    this.spills = Array.from({ length: n }, () => new Map());
+    this.spilled = Array.from({ length: n }, () => new Map());
   }
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
@@ -528,8 +558,11 @@ export class WorkbookSession {
         const now = edits.get(key)!;
         const was = this.original(s, row, col);
         const fmt = (style: number) => this.model.styles.get(style).numFmt;
-        const before = contentText(was.content, fmt(was.style), this.model.date1904);
-        const after = contentText(now.content, fmt(now.style), this.model.date1904);
+        // A spilled value reads as the value it is, before and after.
+        const savedSpill = was.idx >= 0 && this.sheet(s).scan!.grid.flags[was.idx] & CellFlag.Spilled ? gridValue(this.sheet(s).scan!.grid, was.idx) : undefined;
+        const spill = now.content.kind === 'empty' ? this.spilledValue(s, row, col) : undefined;
+        const before = contentText(savedSpill !== undefined ? valueContent(savedSpill) : was.content, fmt(was.style), this.model.date1904);
+        const after = contentText(spill !== undefined ? valueContent(spill) : now.content, fmt(now.style), this.model.date1904);
         out.push({ sheet: name, ref: toA1(row, col), before, after, ...(before === after ? { formatOnly: true } : {}) });
       }
     });
@@ -685,11 +718,18 @@ export class WorkbookSession {
     } else {
       const grid = this.sheet(sheet).scan?.grid;
       const idx = grid ? findCell(grid, row, col) : -1;
-      f = idx >= 0 ? grid!.flags[idx] : 0;
+      // Whether Excel's spill still reaches it is said below.
+      f = idx >= 0 ? grid!.flags[idx] & ~CellFlag.Spilled : 0;
       f |= this.calcFlags[sheet].get(key) ?? 0;
     }
     if (this.stale[sheet].has(key)) f |= CellFlag.Stale;
     if (this.baked.keys[sheet].has(key)) f |= CellFlag.Edited;
+    const anchor = this.spilled[sheet].get(key);
+    if (anchor !== undefined) {
+      f |= CellFlag.Spilled;
+      // Values spilled from a formula that is out of date are too.
+      if (this.stale[sheet].has(anchor)) f |= CellFlag.Stale;
+    }
     return f;
   }
 
@@ -708,9 +748,18 @@ export class WorkbookSession {
   private update(sheet: number, row: number, col: number): CellUpdate {
     const st = this.current(sheet, row, col);
     const u: CellUpdate = { sheet, row, col, t: VT.None, style: st.style, flags: this.flagsFor(sheet, row, col) };
+    const key = cellKey(row, col);
+    const anchor = this.spilled[sheet].get(key);
     if (st.content.kind === 'formula') {
       u.f = st.content.formula;
       setValue(u, this.formulaValue(sheet, row, col));
+      const spill = this.spills[sheet].get(key);
+      const rect = spill && this.spillRange(row, col, spill);
+      if (rect && (rect.r2 > rect.r1 || rect.c2 > rect.c1)) u.spill = rect;
+    } else if (anchor !== undefined) {
+      setValue(u, this.engine?.value(sheet, row, col) ?? null);
+      const spill = this.spills[sheet].get(anchor);
+      if (spill?.shown) u.spill = spill.shown;
     } else if (st.content.kind !== 'empty') {
       setValue(u, st.content.kind === 'error' ? { error: st.content.value } : st.content.value);
     }
@@ -807,7 +856,12 @@ export class WorkbookSession {
         const row = rowOfIndex(grid, idx);
         const col = grid.cols[idx];
         let reason: Unsupported | undefined;
-        if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
+        const spill = this.savedSpill(s, idx, row, col);
+        if (spill) {
+          // A dynamic array is calculated, and spills here, when the engine can calculate its formula.
+          reason = unsupportedReason(this.engineText(formula, s, row, col));
+          this.markFileArray(grid, idx, spill, !reason);
+        } else if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
         else if (flags & CellFlag.Unsupported) reason = { kind: 'sharedFormula' };
         else reason = unsupportedReason(this.engineText(formula, s, row, col));
         if (!reason) continue;
@@ -831,6 +885,16 @@ export class WorkbookSession {
       this.model.date1904,
     );
     this.engine = engine;
+
+    // The file's dynamic arrays went in with the room Excel saved for them, and
+    // those whose results are larger or smaller now get room for those. Formulas
+    // typed before the engine was built get theirs.
+    const typed: Pos[] = [];
+    this.edits.forEach((m, s) => {
+      for (const [key, st] of m) if (st.content.kind === 'formula' && engine.has(s)) typed.push({ sheet: s, row: Math.floor(key / MAX_COLS), col: key % MAX_COLS });
+    });
+    this.fitSpills(typed, this.spillAnchors());
+    this.refreshSpills([...this.spillAnchors(), ...typed]);
 
     // Compare everything else with Excel's saved values. A formula that
     // disagrees only because something it reads disagrees is not at fault,
@@ -872,7 +936,7 @@ export class WorkbookSession {
     for (let round = 0; round < 6 && candidates.length; round++) {
       const differing = candidates.filter((p) => {
         const grid = sheets[p.sheet].scan!.grid;
-        return !valuesMatch(gridValue(grid, findCell(grid, p.row, p.col)), engine.value(p.sheet, p.row, p.col));
+        return !valuesMatch(gridValue(grid, findCell(grid, p.row, p.col)), engine.value(p.sheet, p.row, p.col)) || this.spillDiffers(p);
       });
       if (!differing.length) break;
       const downstream = new Set(engine.dependentsOf(differing).map((p) => `${p.sheet}:${p.row}:${p.col}`));
@@ -896,12 +960,26 @@ export class WorkbookSession {
           excel: describeValue(excel),
           engine: describeValue(ours),
         });
-        pins.push({ ...p, raw: valueRaw(excel) });
+        pins.push({ ...p, raw: valueRaw(excel) }, ...this.keepFileArray(p));
       }
-      engine.write(pins);
+      // Spills may now be in the way of these, or have room taken from them.
+      this.fitSpills([], engine.write(pins));
+      this.refreshSpills(this.spillAnchors());
       const pinned = new Set(roots);
       candidates = differing.filter((p) => !pinned.has(p));
     }
+
+    // The file's dynamic arrays that spill here are no longer locked.
+    const liveArrays: { sheet: number; rect: Rect }[] = [];
+    sheets.forEach((m, s) => {
+      const scan = m.scan;
+      for (const a of scan?.arrayRanges ?? []) {
+        if (!a.dynamic || scan!.grid.flags[a.master] & CellFlag.ArrayMember) continue;
+        const rect = { r1: a.r1, c1: a.c1, r2: a.r2, c2: a.c2 };
+        liveArrays.push({ sheet: s, rect });
+        m.info.blocked = m.info.blocked.filter((b) => !(b.kind === 'array' && b.r1 === a.r1 && b.c1 === a.c1 && b.r2 === a.r2 && b.c2 === a.c2));
+      }
+    });
 
     // The UI only knows the file's own flags; send the engine's verdicts too.
     const sent = new Set<string>();
@@ -916,6 +994,7 @@ export class WorkbookSession {
     this.calcFlags.forEach((m, s) => {
       for (const key of m.keys()) send(s, key);
     });
+    for (const p of this.spillCells()) send(p.sheet, cellKey(p.row, p.col));
     // Where HYPERLINK formulas link to is worked out by the engine.
     sheets.forEach((m, s) => {
       const grid = m.scan?.grid;
@@ -956,8 +1035,29 @@ export class WorkbookSession {
       updates,
       findings,
       cellReasons,
+      ...(liveArrays.length && { liveArrays }),
     };
     return this.report;
+  }
+
+  /**
+   * Every cell a spill covers, the spilling formulas' own, and the cells
+   * holding Excel's saved values for the file's spills, which show what the
+   * spills show now: those whose display the file's grid doesn't give.
+   */
+  private spillCells(): Pos[] {
+    const out = this.spillAnchors();
+    this.spilled.forEach((m, sheet) => {
+      for (const key of m.keys()) out.push({ sheet, row: Math.floor(key / MAX_COLS), col: key % MAX_COLS });
+    });
+    this.model.sheets.forEach((m, sheet) => {
+      const grid = m.scan?.grid;
+      if (!grid) return;
+      for (let row = 0; row < grid.rowCount; row++) {
+        for (let i = grid.rowPtr[row]; i < grid.rowPtr[row + 1]; i++) if (grid.flags[i] & CellFlag.Spilled) out.push({ sheet, row, col: grid.cols[i] });
+      }
+    });
+    return out;
   }
 
   /** Formula cells whose saved value is kept instead of being calculated, per sheet, by grid index. */
@@ -979,11 +1079,19 @@ export class WorkbookSession {
       }
       const row: RawCellContent[] = new Array(grid.cols[end - 1] + 1).fill(null);
       for (let i = start; i < end; i++) {
+        // Excel's saved values for a spill are left out, so the formula can spill there.
+        if (grid.flags[i] & CellFlag.Spilled) continue;
+        const col = grid.cols[i];
         const formula = grid.formulas.get(i);
-        row[grid.cols[i]] =
-          formula !== undefined && grid.flags[i] & CellFlag.Formula && !constant.has(i)
-            ? toRaw({ kind: 'formula', formula: this.engineText(formula, s, r, grid.cols[i]) })
-            : valueRaw(gridValue(grid, i));
+        if (formula === undefined || !(grid.flags[i] & CellFlag.Formula) || constant.has(i)) {
+          row[col] = valueRaw(gridValue(grid, i));
+          continue;
+        }
+        const raw = String(toRaw({ kind: 'formula', formula: this.engineText(formula, s, r, col) }));
+        // A dynamic array starts with the room Excel saved for its results.
+        const saved = this.edits[s].has(cellKey(r, col)) ? undefined : this.savedSpill(s, i, r, col);
+        if (saved) this.spills[s].set(cellKey(r, col), { rows: saved.r2 - saved.r1 + 1, cols: saved.c2 - saved.c1 + 1 });
+        row[col] = saved ? spillFormula(raw, saved.r2 - saved.r1 + 1, saved.c2 - saved.c1 + 1) : raw;
       }
       rows[r] = row;
     }
@@ -1094,6 +1202,8 @@ export class WorkbookSession {
     // Worked out again when the engine is rebuilt.
     this.untrusted = [];
     for (const m of this.calcFlags) m.clear();
+    for (const m of this.spills) m.clear();
+    for (const m of this.spilled) m.clear();
   }
 
   /** How many cells the workbook holds, to size how much undo history it can keep. */
@@ -1162,6 +1272,262 @@ export class WorkbookSession {
   }
 
   // ---------------------------------------------------------------------------
+  // Dynamic arrays
+
+  /**
+   * Whether the formula in a cell spills its results, as Excel 365's
+   * dynamic arrays do: one typed here, or one the file marks as a dynamic
+   * array, that the engine calculates. The file's other formulas came from
+   * an Excel that worked them out to one value, and keep that meaning.
+   */
+  private canSpill(sheet: number, row: number, col: number): boolean {
+    const key = cellKey(row, col);
+    const edit = this.edits[sheet].get(key);
+    if (edit) return edit.content.kind === 'formula' && !this.newFormulaFlags[sheet].has(key);
+    const scan = this.sheet(sheet).scan;
+    const idx = scan ? findCell(scan.grid, row, col) : -1;
+    return idx >= 0 && !!(scan!.grid.flags[idx] & CellFlag.Formula) && !!scan!.fmeta.get(idx)?.dynamic && !this.isUntrustedOriginal(sheet, row, col);
+  }
+
+  /** The range a spill covers, or for one that is blocked, the range its results need. */
+  private spillRange(row: number, col: number, spill: Spill): Rect | undefined {
+    if (spill.shown) return spill.shown;
+    return spill.rows ? { r1: row, c1: col, r2: row + spill.rows - 1, c2: col + spill.cols - 1 } : undefined;
+  }
+
+  /** The value a cell shows because a formula's results spill into it; undefined when none does. */
+  private spilledValue(sheet: number, row: number, col: number): EngineValue | undefined {
+    if (!this.spilled[sheet].has(cellKey(row, col))) return undefined;
+    return this.engine?.value(sheet, row, col) ?? null;
+  }
+
+  /** A cell's content, or for a cell a formula's results spill into, the value it shows: what copying it takes. */
+  private contentOrSpilled(sheet: number, row: number, col: number): CellState {
+    const st = this.current(sheet, row, col);
+    const spilled = st.content.kind === 'empty' ? this.spilledValue(sheet, row, col) : undefined;
+    return spilled === undefined ? st : { content: valueContent(spilled), style: st.style };
+  }
+
+  /** The range of a spill from a formula whose results cover any cell of `rect`, if one does. */
+  private spillIn(sheet: number, rect: Rect): Rect | undefined {
+    for (const spill of this.spills[sheet].values()) {
+      const r = spill.shown;
+      if (r && (r.r2 > r.r1 || r.c2 > r.c1) && r.r1 <= rect.r2 && r.r2 >= rect.r1 && r.c1 <= rect.c2 && r.c2 >= rect.c1) return r;
+    }
+    return undefined;
+  }
+
+  /**
+   * Gives each spilling formula room in the engine for the result it has:
+   * formulas just written whose results are arrays, results that have grown
+   * or shrunk, and blocked formulas whose way may be clear now. The engine
+   * sizes an array before working it out (FILTER as large as what it
+   * filters, SEQUENCE(A1) not at all), and checks a blocked formula's room
+   * only when the formula is put in again, so each is put in at the size its
+   * result really has. Returns the engine's changes.
+   */
+  private fitSpills(written: Pos[], changes: (Pos & { value?: EngineValue })[]): EngineChange[] {
+    const engine = this.engine;
+    if (!engine) return [];
+    for (const p of written) {
+      const spill = this.spills[p.sheet].get(cellKey(p.row, p.col));
+      // Put in again as written: it has no room of its own until it is given some.
+      if (spill) spill.rows = spill.cols = 0;
+    }
+    const formulaOf = (p: Pos) => String(toRaw(this.engineContent(this.current(p.sheet, p.row, p.col).content, p.sheet, p.row, p.col)));
+    const out: EngineChange[] = [];
+    const refitted = new Set<string>();
+    let fresh = written;
+    let changed = changes;
+    for (let round = 0; round < 8 && (fresh.length || changed.length); round++) {
+      const fits = new Map<string, EngineFit>();
+      const fit = (p: Pos, size: ArrayDims) => {
+        if (size.rows * size.cols <= MAX_SPILL_CELLS) fits.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col, formula: formulaOf(p), ...size });
+      };
+      // Formulas not given room yet, just written or gone to an error, whose results turn out to be arrays.
+      const probe = (p: Pos) => {
+        if (this.spills[p.sheet].get(cellKey(p.row, p.col))?.rows || !this.canSpill(p.sheet, p.row, p.col)) return;
+        const array = engine.isArrayAnchor(p.sheet, p.row, p.col);
+        const v = engine.value(p.sheet, p.row, p.col);
+        if (!array && !(v !== null && typeof v === 'object')) return;
+        const size = engine.resultSize(formulaOf(p), p.sheet);
+        if (array || size.rows * size.cols > 1) fit(p, size);
+      };
+      for (const p of fresh) probe(p);
+      for (const p of changed) {
+        const spill = this.spills[p.sheet].get(cellKey(p.row, p.col));
+        if (!spill?.rows) {
+          // A formula whose result is an array the engine had no size for shows an error.
+          if (!('value' in p) || (p.value !== null && typeof p.value === 'object')) probe(p);
+          continue;
+        }
+        // Results that have grown or shrunk since they were given room.
+        const m = engine.measured(p.sheet, p.row, p.col);
+        if (m && (m.rows !== spill.rows || m.cols !== spill.cols)) fit(p, m);
+      }
+      // Blocked formulas, when something in their way changed or they were worked out again.
+      const moved = [...fresh, ...changed];
+      this.spills.forEach((spills, sheet) => {
+        for (const [key, spill] of spills) {
+          const row = Math.floor(key / MAX_COLS);
+          const col = key % MAX_COLS;
+          if (!spill.rows || refitted.has(`${sheet}:${row}:${col}`) || !isSpillError(engine.value(sheet, row, col))) continue;
+          const room = { r1: row, c1: col, r2: row + spill.rows - 1, c2: col + spill.cols - 1 };
+          if (moved.some((p) => p.sheet === sheet && inRect(room, p.row, p.col))) fit({ sheet, row, col }, engine.resultSize(formulaOf({ sheet, row, col }), sheet));
+        }
+      });
+      if (!fits.size) break;
+      for (const [id, f] of fits) {
+        refitted.add(id);
+        const key = cellKey(f.row, f.col);
+        const spill = this.spills[f.sheet].get(key);
+        if (spill) {
+          spill.rows = f.rows;
+          spill.cols = f.cols;
+        } else {
+          this.spills[f.sheet].set(key, { rows: f.rows, cols: f.cols });
+        }
+      }
+      const fitted = engine.fit([...fits.values()]);
+      out.push(...fitted);
+      changed = fitted;
+      fresh = [];
+    }
+    return out;
+  }
+
+  /**
+   * Works out again which cells the spills from formulas among `cells`
+   * cover, and returns every cell whose display that changes: the cells
+   * covered before or after, and the formulas' own.
+   */
+  private refreshSpills(cells: Iterable<Pos>): Pos[] {
+    const out: Pos[] = [];
+    const done = new Set<string>();
+    for (const p of cells) {
+      const key = cellKey(p.row, p.col);
+      const spill = this.spills[p.sheet].get(key);
+      if (!spill || done.has(`${p.sheet}:${key}`)) continue;
+      done.add(`${p.sheet}:${key}`);
+      const was = spill.shown;
+      const live = spill.rows > 0 && this.canSpill(p.sheet, p.row, p.col);
+      const now = live && !isSpillError(this.engine?.value(p.sheet, p.row, p.col) ?? null) ? this.spillRange(p.row, p.col, { rows: spill.rows, cols: spill.cols }) : undefined;
+      if (live) spill.shown = now;
+      else this.spills[p.sheet].delete(key);
+      const members = this.spilled[p.sheet];
+      if (was) {
+        forEachIn(was, (row, col) => {
+          const k = cellKey(row, col);
+          if (members.get(k) === key) members.delete(k);
+          if (k !== key) out.push({ sheet: p.sheet, row, col });
+        });
+      }
+      if (now) {
+        forEachIn(now, (row, col) => {
+          const k = cellKey(row, col);
+          if (k === key) return;
+          members.set(k, key);
+          if (!was || !inRect(was, row, col)) out.push({ sheet: p.sheet, row, col });
+        });
+      }
+      out.push({ sheet: p.sheet, row: p.row, col: p.col });
+    }
+    return out;
+  }
+
+  /** Every spilling formula's cell. */
+  private spillAnchors(): Pos[] {
+    const out: Pos[] = [];
+    this.spills.forEach((m, sheet) => {
+      for (const key of m.keys()) out.push({ sheet, row: Math.floor(key / MAX_COLS), col: key % MAX_COLS });
+    });
+    return out;
+  }
+
+  /**
+   * Marks one of the file's dynamic arrays as calculated here, its other
+   * cells holding only Excel's saved values for it; or as kept as saved,
+   * locked like any array formula this editor can't calculate.
+   */
+  private markFileArray(grid: SheetGrid, idx: number, ref: Rect, live: boolean): void {
+    const multi = ref.r2 > ref.r1 || ref.c2 > ref.c1;
+    if (live) grid.flags[idx] &= ~(CellFlag.Unsupported | CellFlag.ArrayMember);
+    else if (multi) grid.flags[idx] |= CellFlag.Unsupported | CellFlag.ArrayMember;
+    if (!multi) return;
+    for (let row = ref.r1; row <= Math.min(ref.r2, grid.rowCount - 1); row++) {
+      for (let k = grid.rowPtr[row]; k < grid.rowPtr[row + 1]; k++) {
+        if (k === idx || grid.cols[k] < ref.c1 || grid.cols[k] > ref.c2 || grid.flags[k] & CellFlag.Formula) continue;
+        grid.flags[k] = live ? (grid.flags[k] & ~CellFlag.ArrayMember) | CellFlag.Spilled : (grid.flags[k] & ~CellFlag.Spilled) | CellFlag.ArrayMember;
+      }
+    }
+  }
+
+  /** Where the results of one of the file's dynamic array formulas went when Excel saved it. */
+  private savedSpill(sheet: number, idx: number, row: number, col: number): Rect | undefined {
+    const meta = idx >= 0 ? this.sheet(sheet).scan?.fmeta.get(idx) : undefined;
+    return meta?.dynamic ? (meta.ref ?? { r1: row, c1: col, r2: row, c2: col }) : undefined;
+  }
+
+  /** Whether the engine spills one of the file's dynamic array formulas differently from what Excel saved. */
+  private spillDiffers(p: Pos): boolean {
+    const grid = this.sheet(p.sheet).scan!.grid;
+    const saved = this.savedSpill(p.sheet, findCell(grid, p.row, p.col), p.row, p.col);
+    if (!saved) return false;
+    const ours = this.spills[p.sheet].get(cellKey(p.row, p.col))?.shown ?? { r1: p.row, c1: p.col, r2: p.row, c2: p.col };
+    const all = { r1: p.row, c1: p.col, r2: Math.max(saved.r2, ours.r2), c2: Math.max(saved.c2, ours.c2) };
+    let differs = false;
+    forEachIn(all, (row, col) => {
+      if (differs || (row === p.row && col === p.col)) return;
+      const idx = inRect(saved, row, col) ? findCell(grid, row, col) : -1;
+      const excel = idx >= 0 && grid.flags[idx] & CellFlag.Spilled ? gridValue(grid, idx) : null;
+      const engine = inRect(ours, row, col) ? (this.engine?.value(p.sheet, row, col) ?? null) : null;
+      differs = !valuesMatch(excel, engine);
+    });
+    return differs;
+  }
+
+  /**
+   * Keeps one of the file's dynamic arrays as Excel saved it, when the
+   * engine calculates it differently: it no longer spills here, and its
+   * other cells go back to Excel's values. Returns those, for the engine.
+   */
+  private keepFileArray(p: Pos): EngineWrite[] {
+    const grid = this.sheet(p.sheet).scan!.grid;
+    const idx = findCell(grid, p.row, p.col);
+    const saved = this.savedSpill(p.sheet, idx, p.row, p.col);
+    if (!saved) return [];
+    const spill = this.spills[p.sheet].get(cellKey(p.row, p.col));
+    if (spill) {
+      spill.rows = 0;
+      this.refreshSpills([p]);
+    }
+    this.markFileArray(grid, idx, saved, false);
+    const pins: EngineWrite[] = [];
+    forEachIn(saved, (row, col) => {
+      const k = findCell(grid, row, col);
+      if (k >= 0 && k !== idx && grid.flags[k] & CellFlag.ArrayMember) pins.push({ sheet: p.sheet, row, col, raw: valueRaw(gridValue(grid, k)) });
+    });
+    return pins;
+  }
+
+  /**
+   * After the engine's values changed: gives spills the room their results
+   * need, takes the new values of the formulas it calculates, and works out
+   * again where spills reach. `written` are the cells just put in the
+   * engine. Returns the engine's changes, with those the spills made, and
+   * the cells whose spill changed; every cell to redraw is noted in `touched`.
+   */
+  private afterEngineChanges(written: Pos[], changes: EngineChange[], touched: Map<string, Pos>): { changes: EngineChange[]; spills: Pos[] } {
+    const fitted = this.fitSpills(written, changes);
+    // A cell changed more than once ends with its last value.
+    const all = fitted.length ? [...new Map([...changes, ...fitted].map((c) => [`${c.sheet}:${c.row}:${c.col}`, c])).values()] : changes;
+    this.absorb(all, touched);
+    const spills = this.refreshSpills([...written, ...all]);
+    for (const p of spills) touched.set(`${p.sheet}:${p.row}:${p.col}`, p);
+    return { changes: all, spills };
+  }
+
+  // ---------------------------------------------------------------------------
   // Conditional formatting
 
   /** A cell's current value, as formulas and rules see it. */
@@ -1169,7 +1535,7 @@ export class WorkbookSession {
     const { content } = this.current(sheet, row, col);
     switch (content.kind) {
       case 'empty':
-        return null;
+        return this.spilledValue(sheet, row, col) ?? null;
       case 'formula':
         return this.formulaValue(sheet, row, col);
       case 'error':
@@ -1222,7 +1588,8 @@ export class WorkbookSession {
         try {
           return fn();
         } finally {
-          engine.write([{ sheet, row, col, raw: prev }]);
+          // A spill the value was in the way of, or one from this cell, is given its room again.
+          this.fitSpills([{ sheet, row, col }], engine.write([{ sheet, row, col, raw: prev }]));
         }
       },
     };
@@ -1327,11 +1694,14 @@ export class WorkbookSession {
             }
             const r = this.copiedContent(op.srcSheet, sr, sc, row, col);
             if (what === 'values') {
-              const src = this.current(op.srcSheet, sr, sc);
+              const src = this.contentOrSpilled(op.srcSheet, sr, sc);
               const content = src.content.kind === 'formula' ? valueContent(this.formulaValue(op.srcSheet, sr, sc)) : src.content;
               put({ sheet: op.sheet, row, col, content, style: here.style });
               continue;
             }
+            // A spilled value comes as a value, unless its formula comes too and spills it there again.
+            const from = this.spilled[op.srcSheet].get(cellKey(sr, sc));
+            if (from !== undefined && inRect(op.src, Math.floor(from / MAX_COLS), from % MAX_COLS) && !op.transpose) r.content = EMPTY;
             if (r.lost) lost++;
             put({ sheet: op.sheet, row, col, content: r.content, style: what === 'formulas' ? here.style : r.style });
           }
@@ -1354,6 +1724,9 @@ export class WorkbookSession {
         const merged = this.mergesOf(op.sheet).find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
         if (merged) return this.emptyResult(msg('core.edit.sortMerged', { range: rangeToA1(merged) }));
         const top = op.header ? rect.r1 + 1 : rect.r1;
+        // As in Excel, a formula's spilled results can't be moved apart.
+        const spill = this.spillIn(op.sheet, { ...rect, r1: top });
+        if (spill) return this.emptyResult(msg('core.edit.sortSpill', { range: rangeToA1(spill) }));
         const rows = Array.from({ length: Math.max(0, rect.r2 - top + 1) }, (_, i) => top + i);
         const order = rows
           .map((row, i) => ({ row, i, keys: op.keys.map((k) => this.cellValue(op.sheet, row, k.col)) }))
@@ -1549,8 +1922,8 @@ export class WorkbookSession {
     // A cell recalculated by more than one change ends with the last one's value.
     const latest = [...new Map(recalculated.map((c) => [`${c.sheet}:${c.row}:${c.col}`, c])).values()];
     const touched = new Map<string, Pos>();
-    this.absorb(latest, touched);
-    for (const p of this.markStale(latest)) touched.set(`${p.sheet}:${p.row}:${p.col}`, p);
+    const after = this.afterEngineChanges([], latest, touched);
+    for (const p of this.markStale([...after.changes, ...after.spills])) touched.set(`${p.sheet}:${p.row}:${p.col}`, p);
     return {
       ...this.emptyResult(''),
       rejected: undefined,
@@ -1600,7 +1973,7 @@ export class WorkbookSession {
   }
 
   private copiedContent(srcSheet: number, sr: number, sc: number, row: number, col: number): CellState & { lost: boolean } {
-    const src = this.current(srcSheet, sr, sc);
+    const src = this.contentOrSpilled(srcSheet, sr, sc);
     if (src.content.kind !== 'formula') return { ...src, lost: false };
     const flags = this.flagsFor(srcSheet, sr, sc);
     if (flags & CellFlag.ArrayMember) {
@@ -1655,7 +2028,7 @@ export class WorkbookSession {
         return false;
       }
     };
-    const states = srcCells.map((p) => this.current(sheet, p.row, p.col));
+    const states = srcCells.map((p) => this.contentOrSpilled(sheet, p.row, p.col));
     const sources: FillSource[] = states.map((s) => ({ content: s.content, isDate: isDate(s.style) }));
     const plans = planFill(sources, targets.map((t) => t.x), this.model.date1904, lists);
     let lost = 0;
@@ -1692,7 +2065,7 @@ export class WorkbookSession {
       if (series.type === 'autofill') {
         // What the line starts with is continued through the rest of it.
         let k = 0;
-        while (k < length && this.current(sheet, cells[k].row, cells[k].col).content.kind !== 'empty') k++;
+        while (k < length && this.contentOrSpilled(sheet, cells[k].row, cells[k].col).content.kind !== 'empty') k++;
         if (!k) continue;
         started++;
         lost += this.fillLine(sheet, cells.slice(0, k), cells.slice(k).map((c, i) => ({ ...c, x: k + i })), op.lists ?? ENGLISH_LISTS, put);
@@ -1739,6 +2112,8 @@ export class WorkbookSession {
     const reasons = new Map<string, Text>();
     let skipped = 0;
     const applied: Write[] = [];
+    /** Applied writes the engine is given: all but new formats for a spill's cells, which would disturb it. */
+    const content: Write[] = [];
 
     for (const w of writes) {
       const reason = this.blockedReason(w.sheet, w.row, w.col) ?? readOnly?.find((r) => inRect(r, w.row, w.col))?.reason;
@@ -1755,11 +2130,14 @@ export class WorkbookSession {
       if (sameContent(prev.content, w.content) && prev.style === w.style) continue;
       undo.push({ sheet: w.sheet, row: w.row, col: w.col, content: prev.content, style: prev.style });
       redo.push({ sheet: w.sheet, row: w.row, col: w.col, content: w.content, style: w.style });
+      const key = cellKey(w.row, w.col);
+      const formatOnly = sameContent(prev.content, w.content) && (this.spilled[w.sheet].has(key) || this.spills[w.sheet].has(key));
       this.setCurrent(w);
       applied.push(w);
+      if (!formatOnly) content.push(w);
     }
 
-    const engineWrites: EngineWrite[] = applied.map((w) => {
+    const engineWrites: EngineWrite[] = content.map((w) => {
       const untrusted = this.isUntrustedOriginal(w.sheet, w.row, w.col);
       const grid = this.sheet(w.sheet).scan?.grid;
       // A formula over the engine's size limits never reaches it.
@@ -1772,26 +2150,32 @@ export class WorkbookSession {
       };
     });
     for (const w of applied) if (w.content.kind === 'formula') this.ensureSheetsFor(this.engineText(w.content.formula, w.sheet, w.row, w.col), w.sheet);
-    const changes = engine?.write(engineWrites) ?? [];
+    const written = engine?.write(engineWrites) ?? [];
 
     // Formulas typed in this session that the engine can't calculate (all of them, with recalculation off).
     const newUnsupported: Pos[] = [];
+    const calculated: Write[] = [];
     for (const w of applied) {
       if (w.content.kind !== 'formula' || this.isUntrustedOriginal(w.sheet, w.row, w.col)) continue;
-      const key = cellKey(w.row, w.col);
       if (!engine || unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))) {
-        this.newFormulaFlags[w.sheet].set(key, CellFlag.Unsupported);
+        this.newFormulaFlags[w.sheet].set(cellKey(w.row, w.col), CellFlag.Unsupported);
         newUnsupported.push(w);
       } else {
-        this.values[w.sheet].set(key, engine.value(w.sheet, w.row, w.col));
+        calculated.push(w);
       }
     }
 
     const touched = new Map<string, Pos>();
     const touch = (p: Pos) => touched.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col });
     applied.forEach(touch);
-    this.absorb(changes, touched);
-    for (const p of this.markStale([...applied, ...changes], newUnsupported)) touch(p);
+    const { changes, spills } = this.afterEngineChanges(content, written, touched);
+    for (const w of calculated) this.values[w.sheet].set(cellKey(w.row, w.col), engine!.value(w.sheet, w.row, w.col));
+    for (const p of this.markStale([...applied, ...changes, ...spills], newUnsupported)) {
+      touch(p);
+      // What a formula that is out of date spills is too.
+      const spill = this.spills[p.sheet].get(cellKey(p.row, p.col))?.shown;
+      if (spill) forEachIn(spill, (row, col) => touch({ sheet: p.sheet, row, col }));
+    }
     // A HYPERLINK formula whose address changed while its text didn't.
     this.formulaLinks.forEach((m, s) => {
       for (const [key, was] of m) {
@@ -1867,7 +2251,9 @@ export class WorkbookSession {
       recalculated: this.values.map((m, s) =>
         new Set([...m.keys()].filter((k) => !this.edits[s].has(k) && !this.newFormulaFlags[s].has(k))),
       ),
-      isArray: (sheet, row, col) => !!this.engine?.isArray(sheet, row, col),
+      isArray: (sheet, row, col) => this.spills[sheet].has(cellKey(row, col)) || !!this.engine?.isArray(sheet, row, col),
+      spills: this.spills.map((m) => new Map([...m].map(([key, spill]) => [key, spill.shown ?? { r1: Math.floor(key / MAX_COLS), c1: key % MAX_COLS, r2: Math.floor(key / MAX_COLS), c2: key % MAX_COLS }]))),
+      spilled: (sheet, row, col) => ({ value: this.spilledValue(sheet, row, col) ?? null, style: this.current(sheet, row, col).style }),
       layout: this.layouts,
       notes: this.noteEdits,
       people: this.people,
@@ -1898,7 +2284,9 @@ export class WorkbookSession {
     const carried = op.type === 'move' && op.toSheet !== op.sheet ? this.carriedTo(op) : undefined;
     const pkg = this.savedPackage();
     const before = readWorkbook(pkg, this.locale);
-    const { broken } = isSheetOp(op) ? applySheetOp(pkg, before, op) : restructure(pkg, before, op);
+    // Rows and columns can be inserted or deleted through a spill here, which spills again afterwards.
+    const spilling = new Set(this.spillAnchors().map((p) => `${p.sheet}:${p.row}:${p.col}`));
+    const { broken } = isSheetOp(op) ? applySheetOp(pkg, before, op) : restructure(pkg, before, op, spilling);
     const next = new WorkbookSession(pkg, null, this.fileName, readWorkbook(pkg, this.locale), {}, this.locale);
     next.stripMacros = this.stripMacros;
     next.recalcOff = this.recalcOff;
@@ -2014,6 +2402,8 @@ export class WorkbookSession {
       const keys = new Set([...this.edits[s].keys(), ...this.values[s].keys(), ...this.calcFlags[s].keys(), ...this.stale[s], ...this.baked.keys[s]]);
       for (const key of keys) out.push(this.update(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
     });
+    const sent = new Set(out.map((u) => `${u.sheet}:${u.row}:${u.col}`));
+    for (const p of this.spillCells()) if (!sent.has(`${p.sheet}:${p.row}:${p.col}`)) out.push(this.update(p.sheet, p.row, p.col));
     return out;
   }
 

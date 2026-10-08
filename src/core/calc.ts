@@ -5,6 +5,8 @@ import { installEngineLimits, tooLargeToCalculate } from './engineLimits';
 import type { EngineValue } from './engineValue';
 import { registerExcelFunctions } from './excelFunctions';
 import { engineFormula, expandLets, stripFunctionPrefixes } from './formula';
+import { MAX_RESULT_CELLS } from './functions/common';
+import { measuredSizes, SPILL_FUNCTION, type ArrayDims } from './functions/spill';
 import type { CellContent } from './types';
 
 let registered: Set<string> | undefined;
@@ -68,7 +70,7 @@ export function unsupportedReason(fileFormula: string): Unsupported | undefined 
     if (t.type === 'structured') return { kind: 'tableRefs' };
     if (t.type === 'func') {
       const name = stripFunctionPrefixes(t.value).toUpperCase();
-      if (!registered.has(name)) return { kind: 'function', name: name.replace(/^_XLUDF\./, '') };
+      if (!registered.has(name) || name === SPILL_FUNCTION) return { kind: 'function', name: name.replace(/^_XLUDF\./, '') };
     }
     if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
       if (t.value.includes('[')) return { kind: 'externalLinks' };
@@ -107,6 +109,17 @@ export interface EngineChange {
   row: number;
   col: number;
   value: EngineValue;
+}
+
+/** A formula to give room for its array: rows × cols cells from its own. */
+export interface EngineFit {
+  sheet: number;
+  row: number;
+  col: number;
+  /** In the engine's form, with "=". */
+  formula: string;
+  rows: number;
+  cols: number;
 }
 
 export function toRaw(content: CellContent): RawCellContent {
@@ -269,6 +282,52 @@ export class CalcEngine {
     }
   }
 
+  /** Whether the engine holds an array formula whose results start at this cell. */
+  isArrayAnchor(sheet: number, row: number, col: number): boolean {
+    const id = this.ids[sheet];
+    if (id === undefined || id < 0) return false;
+    try {
+      return this.hf.getCellType({ sheet: id, row, col }) === 'ARRAYFORMULA';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Puts formulas in their cells wrapped in the spill function, so the engine
+   * gives each array exactly the room its result needs. Returns the cells
+   * whose values changed.
+   */
+  fit(fits: EngineFit[]): EngineChange[] {
+    if (!fits.length) return [];
+    return this.cellChanges(
+      this.hf.batch(() => {
+        for (const f of fits) {
+          const id = this.ids[f.sheet];
+          if (id === undefined || id < 0) continue;
+          try {
+            this.hf.setCellContents({ sheet: id, row: f.row, col: f.col }, spillFormula(f.formula, f.rows, f.cols));
+          } catch {
+            // Left as it was.
+          }
+        }
+      }),
+    );
+  }
+
+  /** The size a fitted formula's result had when the engine last worked it out. */
+  measured(sheet: number, row: number, col: number): ArrayDims | undefined {
+    const id = this.ids[sheet];
+    if (id === undefined || id < 0) return undefined;
+    return measuredSizes(this.hf.dependencyGraph).get(`${id}:${row}:${col}`);
+  }
+
+  /** The size of a formula's result (in the engine's form, with "="), worked out on its own: 1 × 1 for a single value. */
+  resultSize(formula: string, sheet: number): ArrayDims {
+    const v = this.calculate(formula, sheet);
+    return Array.isArray(v) && v.length && v[0].length ? { rows: v.length, cols: v[0].length } : { rows: 1, cols: 1 };
+  }
+
   /** Applies writes in one batch and returns every cell whose value changed. */
   write(writes: EngineWrite[]): EngineChange[] {
     if (!writes.length) return [];
@@ -376,6 +435,19 @@ export class CalcEngine {
   destroy(): void {
     this.hf.destroy();
   }
+}
+
+/** A formula (in the engine's form, with "=") wrapped so the engine gives its result rows × cols cells. */
+export function spillFormula(formula: string, rows: number, cols: number): string {
+  return `=${SPILL_FUNCTION}(${rows},${cols},${formula.replace(/^=/, '')})`;
+}
+
+/** The most cells one formula's results may spill into here. */
+export const MAX_SPILL_CELLS = MAX_RESULT_CELLS;
+
+/** Whether a value is the #SPILL! error, shown by a formula whose results have no room. */
+export function isSpillError(v: EngineValue): boolean {
+  return v !== null && typeof v === 'object' && v.error === '#SPILL!';
 }
 
 export function valuesMatch(excel: EngineValue, engine: EngineValue): boolean {

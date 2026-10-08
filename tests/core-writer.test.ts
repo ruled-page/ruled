@@ -193,8 +193,9 @@ describe('formulas Excel stores in its own forms', () => {
       ['B5', '=UNIQUE(A1:A3)'],
       ['C1', '=SUM(A1:A3)'],
     ]);
-    expect(cell(xml, 'B1')).toMatch(/^<c r="B1" cm="1"[^>]*><f t="array" ref="B1">_xlfn._xlws.SORT\(A1:A3\)<\/f>/);
-    expect(cell(xml, 'B5')).toMatch(/^<c r="B5" cm="1"[^>]*><f t="array" ref="B5">_xlfn.UNIQUE\(A1:A3\)<\/f>/);
+    // Each with the range its results spill into.
+    expect(cell(xml, 'B1')).toMatch(/^<c r="B1" cm="1"[^>]*><f t="array" ref="B1:B3">_xlfn._xlws.SORT\(A1:A3\)<\/f>/);
+    expect(cell(xml, 'B5')).toMatch(/^<c r="B5" cm="1"[^>]*><f t="array" ref="B5:B7">_xlfn.UNIQUE\(A1:A3\)<\/f>/);
     expect(cell(xml, 'C1')).not.toContain('cm=');
     expect(xml['xl/metadata.xml']).toContain('<metadataType name="XLDAPR"');
     expect(xml['xl/metadata.xml']).toContain('<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata>');

@@ -180,8 +180,9 @@ describe('kitchen-sink.xlsx', () => {
     const header = s.apply({ type: 'input', sheet: sheetIndex(s, 'Data'), ...at('B1'), text: 'Area' });
     expect(header.skipped).toBe(1);
     expect(english.text(header.skippedReasons[0])).toMatch(/table "SalesData"/);
-    const spill = s.apply({ type: 'input', sheet: sheetIndex(s, 'Lookups'), ...at('B10'), text: 'x' });
-    expect(english.text(spill.skippedReasons[0])).toMatch(/array formula/);
+    // B15:D15 holds an array formula entered with Ctrl+Shift+Enter, which isn't calculated here.
+    const array = s.apply({ type: 'input', sheet: sheetIndex(s, 'Lookups'), ...at('C15'), text: 'x' });
+    expect(english.text(array.skippedReasons[0])).toMatch(/array formula/);
     const locked = s.apply({ type: 'input', sheet: sheetIndex(s, 'Reference'), ...at('A2'), text: 'x' });
     expect(english.text(locked.skippedReasons[0])).toMatch(/protected/);
   });

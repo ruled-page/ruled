@@ -187,7 +187,8 @@ function toLite(r: CheckResult): Lite | null {
 }
 
 function contentOf(rec: CellRecord | null): CellContent {
-  if (!rec) return { kind: 'empty' };
+  // A spilled value is its formula's; the cell holds nothing of its own.
+  if (!rec || rec.flags & CellFlag.Spilled) return { kind: 'empty' };
   if (rec.f !== undefined) return { kind: 'formula', formula: rec.f };
   switch (rec.t) {
     case VT.Number:
@@ -494,7 +495,8 @@ export class SchemaController {
   private checkValue(f: FieldSchema | CellSchema, rec: CellRecord | null, value: FieldValue): Lite[] {
     const out: Lite[] = [];
     const err = (key: MessageKey, params?: Record<string, unknown>) => out.push({ severity: 'error', message: msg(key, params) });
-    const isFormula = rec?.f !== undefined;
+    // A value spilled from a formula is a formula's result.
+    const isFormula = rec?.f !== undefined || !!(rec && rec.flags & CellFlag.Spilled);
     if (f.formula === 'require' && !isFormula) {
       err('schema.check.formulaRequired');
       return out;

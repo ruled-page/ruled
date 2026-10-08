@@ -40,6 +40,12 @@ export const CellFlag = {
   NoCache: 32,
   /** Changed by the user in this session. */
   Edited: 64,
+  /**
+   * Shows a value spilled from a dynamic array formula in another cell; the
+   * cell holds nothing of its own. In a file's grid, a cell holding only the
+   * value Excel saved for a spill.
+   */
+  Spilled: 128,
 } as const;
 
 /**
@@ -524,6 +530,8 @@ export interface CalcReport {
   cellReasons: Map<string, Text>;
   /** Live recalculation is off for this workbook; no engine was built. */
   off?: boolean;
+  /** The file's dynamic array formulas that are calculated here: their saved spill ranges, no longer locked. */
+  liveArrays?: { sheet: number; rect: Rect }[];
 }
 
 export interface CellUpdate {
@@ -539,6 +547,12 @@ export interface CellUpdate {
   flags: number;
   /** For a HYPERLINK formula, the address it links to now. */
   link?: string;
+  /**
+   * The range a dynamic array formula's results spill into, from its own
+   * cell: given for the formula's cell and for each cell it spills into.
+   * For a formula showing #SPILL!, the range its results need.
+   */
+  spill?: Rect;
 }
 
 /** A cell that differs from the opened file. Values are as people read them. */

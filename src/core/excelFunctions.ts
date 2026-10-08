@@ -8,6 +8,7 @@ import { InfoFunctions } from './functions/info';
 import { LookupFunctions } from './functions/lookup';
 import { MatrixFunctions } from './functions/matrix';
 import { RegressionFunctions } from './functions/regression';
+import { SpillFunctions } from './functions/spill';
 import { StatisticalFunctions } from './functions/statistics';
 import { TextFunctions } from './functions/text';
 
@@ -140,6 +141,7 @@ const ADDED: FunctionPluginDefinition[] = [
   LookupFunctions,
   MatrixFunctions,
   RegressionFunctions,
+  SpillFunctions,
   StatisticalFunctions,
   TextFunctions,
 ] as never[];

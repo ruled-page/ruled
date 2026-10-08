@@ -1558,6 +1558,7 @@ export class WorkbookStore {
     this.calc = report;
     this.emit({ type: 'calculated', ms: report.buildMs, formulas: report.formulaCells, live: report.liveCells, notCalculated: report.unsupported + report.mismatched });
     this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...report.findings];
+    for (const a of report.liveArrays ?? []) this.sheets[a.sheet]?.unblockArray(a.rect);
     for (const u of report.updates) this.sheets[u.sheet]?.apply(u);
     this.dataVersion++;
     this.schema?.validate();

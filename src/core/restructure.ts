@@ -14,15 +14,19 @@ import type { OoxmlPackage } from './zip';
  * tables, pivot sources, charts, drawings and notes.
  *
  * `model` must be read from `pkg` as it is now. Throws, changing nothing,
- * when the change would split something Excel can't split either. Returns
- * how many cell formulas now show #REF! because cells they used were deleted.
+ * when the change would split something Excel can't split either. Rows and
+ * columns can be inserted or deleted through the dynamic arrays in
+ * `spilling` ("sheet:row:col" of their formulas), which spill again
+ * afterwards; one whose formula is deleted takes its spilled values with it.
+ * Returns how many cell formulas now show #REF! because cells they used were
+ * deleted.
  */
-export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: StructuralOp): { broken: number } {
+export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: StructuralOp, spilling: ReadonlySet<string> = new Set()): { broken: number } {
   if (op.type === 'growTable') {
     growTable(pkg, model, op);
     return { broken: 0 };
   }
-  check(model, op);
+  check(model, op, spilling);
   const map = refMapFor(op);
   const names = model.sheets.map((m) => m.info.name);
   const byName = new Map(names.map((n, i) => [n.toLowerCase(), i]));
@@ -51,7 +55,7 @@ export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: Structu
   }
   model.sheets.forEach((m, s) => {
     if (m.xml === undefined || !m.scan) return;
-    let xml = rewriteCells(m, s, op, map, cellFx, mentions, extra.get(s) ?? [], incoming.get(s) ?? []);
+    let xml = rewriteCells(m, s, op, map, cellFx, mentions, extra.get(s) ?? [], incoming.get(s) ?? [], spilling);
     xml = rewriteSheetMeta(xml, s, op, map, fx);
     if (xml !== m.xml) pkg.setText(m.path, xml);
   });
@@ -120,7 +124,7 @@ function growTable(pkg: OoxmlPackage, model: WorkbookModel, op: Extract<Structur
   );
 }
 
-function check(model: WorkbookModel, op: StructuralOp): void {
+function check(model: WorkbookModel, op: StructuralOp, spilling: ReadonlySet<string>): void {
   const m = model.sheets[op.sheet];
   if (!m || m.info.kind !== 'worksheet') throw new TextError(msg('core.structure.notWorksheet'));
   if (m.info.protected) throw new TextError(msg('core.reason.protected'));
@@ -150,7 +154,8 @@ function check(model: WorkbookModel, op: StructuralOp): void {
     return undefined;
   };
   for (const a of scan?.arrayRanges ?? []) {
-    if (splits(op, a)) throw new TextError(msg('core.structure.splitsArray', { range: rangeToA1(a) }));
+    const spills = op.type !== 'move' && a.dynamic && spilling.has(`${op.sheet}:${a.r1}:${a.c1}`);
+    if (!spills && splits(op, a)) throw new TextError(msg('core.structure.splitsArray', { range: rangeToA1(a) }));
   }
   for (const b of m.info.blocked) {
     if (b.kind === 'pivot' && splits(op, b)) throw new TextError(msg('core.structure.splitsPivot', { range: rangeToA1(b) }));
@@ -272,11 +277,20 @@ function rewriteCells(
   mentions: (f: string) => boolean,
   extra: CellOut[],
   incoming: CellOut[],
+  spilling: ReadonlySet<string>,
 ): string {
   const scan = m.scan!;
   const xml = m.xml!;
   const moves = map.sheets.has(s);
   const g = scan.grid;
+  // The values spilled from a formula that is deleted go with it.
+  const orphans = new Set<number>();
+  for (const a of moves ? scan.arrayRanges : []) {
+    if (!a.dynamic || !spilling.has(`${s}:${a.r1}:${a.c1}`) || map.range(s, { r1: a.r1, c1: a.c1, r2: a.r1, c2: a.c1 })) continue;
+    for (let row = a.r1; row <= Math.min(a.r2, g.rowCount - 1); row++) {
+      for (let i = g.rowPtr[row]; i < g.rowPtr[row + 1]; i++) if (g.cols[i] >= a.c1 && g.cols[i] <= a.c2 && i !== a.master) orphans.add(i);
+    }
+  }
   if (!moves) {
     // Only formulas can change here.
     const rewritten = new Map<number, string>();
@@ -314,6 +328,7 @@ function rewriteCells(
   const out: CellOut[] = [];
   const dst = op.type === 'move' ? { r1: op.row, c1: op.col, r2: op.row + op.src.r2 - op.src.r1, c2: op.col + op.src.c2 - op.src.c1 } : undefined;
   for (const c of cells) {
+    if (orphans.has(c.idx)) continue;
     if (op.type === 'move') {
       const fromSrc = s === op.sheet && inRect(op.src, c.row, c.col);
       // Cells moving to another sheet were collected there; the ones pasted over are replaced.

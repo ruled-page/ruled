@@ -47,9 +47,9 @@ export const core = {
     "Protected in Excel: only the cells it leaves unlocked can be edited here, and its rows and columns can't be inserted, deleted or sorted.",
   'core.finding.arrayFormulas.title': 'Array formulas',
   'core.finding.arrayFormulas.detail_one':
-    "{{count, number}} array or spill formula cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.",
+    "{{count, number}} array formula entered with Ctrl+Shift+Enter, or data table, covers more than one cell. It keeps Excel's last values, Excel recalculates it on open, and its cells can't be edited here.",
   'core.finding.arrayFormulas.detail_other':
-    "{{count, number}} array or spill formulas cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.",
+    "{{count, number}} array formulas entered with Ctrl+Shift+Enter, or data tables, cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.",
   'core.finding.conditionalFormat.title': 'Conditional formatting',
   'core.finding.conditionalFormat.detail_one': '{{count, number}} rule. Shown here and updated as you edit; kept in the file for Excel.',
   'core.finding.conditionalFormat.detail_other': '{{count, number}} rules. Shown here and updated as you edit; kept in the file for Excel.',
@@ -196,7 +196,7 @@ export const core = {
   'core.cellReason.externalLinks': "Uses links to other workbooks, which this editor can't calculate.",
   'core.cellReason.threeD': "Uses 3-D references (Sheet1:Sheet3!A1), which this editor can't calculate.",
   'core.cellReason.syntax': "Uses formula syntax this editor can't read.",
-  'core.cellReason.array': "A multi-cell array or spill formula, which this editor can't calculate.",
+  'core.cellReason.array': "A multi-cell array formula entered with Ctrl+Shift+Enter, which this editor can't calculate.",
   'core.cellReason.sharedFormula': 'Part of a damaged shared formula; Excel will repair it when the file is opened.',
   'core.cellReason.tooLarge': "Uses a range or an array too large for this editor to calculate.",
   /** {{engine}} and {{excel}} are values: a number, "text" in quotes, an error such as #N/A, or core.value.empty. */
@@ -220,6 +220,7 @@ export const core = {
   'core.edit.filledAsValues_one': "{{count, number}} formula couldn't be adjusted and was filled as values.",
   'core.edit.filledAsValues_other': "{{count, number}} formulas couldn't be adjusted and were filled as values.",
   'core.edit.sortMerged': 'Sorting would move part of the merged cell {{range}}. Unmerge it, or sort around it.',
+  'core.edit.sortSpill': 'Sorting would move part of the results that spill into {{range}}. Sort around them, or sort with the SORT function.',
 
   // Inserting and deleting rows and columns, and moving cells.
   'core.structure.notWorksheet': 'Only worksheets can be changed like this.',
