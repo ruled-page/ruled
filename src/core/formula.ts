@@ -14,7 +14,7 @@ import { toA1 } from './refs';
  * prefix (and `_xlfn._xlws.` for a few). Without it Excel shows #NAME? until
  * the cell is re-entered, so formulas typed in the app must gain the prefix.
  */
-const FUTURE_FUNCTIONS = new Set(
+export const FUTURE_FUNCTIONS = new Set(
   (
     'ACOT ACOTH AGGREGATE ARABIC ARRAYTOTEXT BASE BETA.DIST BETA.INV BINOM.DIST BINOM.DIST.RANGE BINOM.INV ' +
     'BITAND BITLSHIFT BITOR BITRSHIFT BITXOR BYCOL BYROW CEILING.MATH CEILING.PRECISE CHISQ.DIST CHISQ.DIST.RT ' +
