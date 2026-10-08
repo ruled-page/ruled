@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:perf": "vitest run tests/perf.test.ts",
+    "test:perf": "vitest run --mode perf tests/perf.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings",
     "samples": "node scripts/gen-samples.mjs",
