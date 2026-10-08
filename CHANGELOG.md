@@ -11,6 +11,15 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   saved as Excel saves them.
 - Array formulas entered with Ctrl+Shift+Enter recalculate live, filling the
   range they were entered in, and show `{=formula}` in the formula bar.
+- LET formulas recalculate live.
+- Whole rows and columns are selected by their numbers and letters, with
+  dragging, Shift and Ctrl, the whole sheet from the corner, and Shift+Space,
+  Ctrl+Space and Ctrl+A.
+- Double-clicking a column's or row's edge fits it to its contents, as does
+  AutoFit in the cell menu. Pressing an edge without dragging no longer
+  changes its size.
+- A banner says when a large workbook opens with live recalculation off,
+  with a button to turn it on.
 
 ## 0.1.0 (2026-10-08)
 
