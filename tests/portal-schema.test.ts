@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createI18n, translator } from '../src/i18n';
-import { ServerWorkbook } from '../src/node';
+import { HeadlessWorkbook } from './headless';
 import { supplierPriceList } from '../src/embedded/schema';
 import type { FieldValue, IssueInput, RecordData, TableData, WorkbookData } from '../src/schema/types';
 import { sample } from './helpers';
@@ -26,7 +26,7 @@ async function settle<T>(work: Promise<T>): Promise<T> {
   return work;
 }
 
-const open = (file = 'supplier-price-list.xlsx') => ServerWorkbook.open(sample(file), { fileName: file, schemas: [supplierPriceList] });
+const open = (file = 'supplier-price-list.xlsx') => HeadlessWorkbook.open(sample(file), { fileName: file, schemas: [supplierPriceList] });
 const SHEET = 'Price list';
 
 const [priceRule, currencyRule] = supplierPriceList.sheets[0].tables![0].rules!;

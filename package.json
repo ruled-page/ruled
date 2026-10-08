@@ -17,7 +17,7 @@
     "deploy:portal": "node scripts/build-sites.mjs portal && wrangler pages deploy --cwd sites/portal --branch main --commit-dirty=true",
     "deploy:angular": "node scripts/build-sites.mjs angular && wrangler pages deploy --cwd sites/angular --branch main --commit-dirty=true",
     "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json",
-    "build:node": "vite build -c vite.node.config.ts",
+    "build:verify": "vite build -c vite.verify.config.ts",
     "validate:saves": "node scripts/validate-saves.mjs",
     "e2e": "playwright test"
   },
@@ -63,21 +63,13 @@
       "import": "./dist-lib/standalone/workbook-editor.js"
     },
     "./style.css": "./dist-lib/react/workbook-editor.css",
-    "./worker": "./dist-lib/react/assets/workbook.worker.js",
-    "./node": {
-      "import": "./dist-node/index.js"
-    }
+    "./worker": "./dist-lib/react/assets/workbook.worker.js"
   },
   "files": [
-    "dist-lib",
-    "dist-node"
+    "dist-lib"
   ],
   "peerDependencies": {
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
-  },
-  "bin": {
-    "workbook-check": "./dist-node/cli.js",
-    "workbook-verify": "./dist-node/verify.js"
   }
 }

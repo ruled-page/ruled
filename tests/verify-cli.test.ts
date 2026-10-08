@@ -6,8 +6,8 @@ import ExcelJS from 'exceljs';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { msg, TextError } from '../src/i18n';
-import { reportMarkdown, verifyWorkbook, type VerifyReport } from '../src/node/verify';
-import { runVerify, VERIFY_USAGE, type VerifyIO } from '../src/node/verifyCli';
+import { reportMarkdown, verifyWorkbook, type VerifyReport } from '../src/verify/verify';
+import { runVerify, VERIFY_USAGE, type VerifyIO } from '../src/verify/cli';
 import { sample } from './helpers';
 
 async function workbook(build: (wb: ExcelJS.Workbook) => void | Promise<void>): Promise<Uint8Array> {

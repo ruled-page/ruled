@@ -6,7 +6,7 @@ dist
 public/samples/big.xlsx
 .wrangler
 dist-lib
-dist-node
+dist-verify
 test-results
 playwright-report
 dist-sites

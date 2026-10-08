@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ServerWorkbook } from '../src/node';
+import { HeadlessWorkbook } from './headless';
 import { CHANGE_THRESHOLD, priceChange, readPriceLines, summarise, type PriceLine } from '../src/embedded/parse';
 import { SHEET, supplierPriceList, TABLE } from '../src/embedded/schema';
 import { approvedPrices, type ApprovedPrice } from '../src/embedded/services';
@@ -128,7 +128,7 @@ describe('summarising a submission', () => {
   it('reads what the portal’s schema produces from the supplier sample', () => {
     // No browser storage here: the approved prices are the seeded ones.
     vi.stubGlobal('localStorage', undefined);
-    const wb = ServerWorkbook.open(sample('supplier-price-list.xlsx'), { schemas: [supplierPriceList] });
+    const wb = HeadlessWorkbook.open(sample('supplier-price-list.xlsx'), { schemas: [supplierPriceList] });
     const lines = readPriceLines({ values: wb.values() }, approvedPrices());
     expect(lines.map((l) => l.sku)).toEqual(['SKU-1001', 'SKU-1002', 'SKU-1003', 'SKU-1004', 'SKU-1005', 'SKU-1006', 'SKU-1007', 'SKU-1008', 'SKU-1099', 'SKU-1010', 'SKU-1011']);
     expect(lines[1]).toMatchObject({ description: 'Steel bracket, large', price: 9.4, minimumOrder: 50, validFrom: '2026-11-01', orderValue: 470, approved: { price: 7.25 } });

@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { forecastSchema, priceListSchema } from '../src/demo/schemas';
-import { schemaFromJSON, schemaToJSON, ServerWorkbook, validateWorkbook, type WorkbookSchema } from '../src/node';
+import { schemaFromJSON, schemaToJSON, HeadlessWorkbook, validateWorkbook, type WorkbookSchema } from './headless';
 import { sample } from './helpers';
 
 afterEach(() => vi.useRealTimers());
@@ -23,7 +23,7 @@ async function settle<T>(work: Promise<T>): Promise<T> {
 describe('opening a workbook on a server', () => {
   it('takes an ArrayBuffer as well as bytes', () => {
     const bytes = sample('orders.xlsx');
-    const wb = ServerWorkbook.open(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    const wb = HeadlessWorkbook.open(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     expect(wb.fileName).toBe('workbook.xlsx');
     expect(wb.sheetNames).toEqual(['Orders', 'Lists']);
   });
@@ -39,7 +39,7 @@ describe('opening a workbook on a server', () => {
     for (const [bytes, options, message] of cases) {
       let thrown: unknown;
       try {
-        ServerWorkbook.open(bytes, options);
+        HeadlessWorkbook.open(bytes, options);
       } catch (e) {
         thrown = e;
       }
@@ -51,14 +51,14 @@ describe('opening a workbook on a server', () => {
   });
 
   it('names the closest schema when none fits, or none when no sheet matched', async () => {
-    const old = ServerWorkbook.open(sample('price-list-old.xlsx'), { schemas: [forecastSchema, priceListSchema] });
+    const old = HeadlessWorkbook.open(sample('price-list-old.xlsx'), { schemas: [forecastSchema, priceListSchema] });
     expect(old.schema).toBeUndefined();
     expect(old.mismatch).toEqual({ schema: 'Price list', problems: ['Prices!C1 should be "Category" (field label) but is "Group".'] });
-    expect(ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [forecastSchema] }).mismatch).toEqual({ problems: ['The workbook has no sheet named "Forecast".'] });
+    expect(HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [forecastSchema] }).mismatch).toEqual({ problems: ['The workbook has no sheet named "Forecast".'] });
   });
 
   it('works without a schema: no issues, no values, nothing to stop a save', async () => {
-    const wb = ServerWorkbook.open(sample('orders.xlsx'));
+    const wb = HeadlessWorkbook.open(sample('orders.xlsx'));
     expect(wb.schema).toBeUndefined();
     expect(wb.mismatch).toBeUndefined();
     expect(await wb.issues()).toEqual([]);
@@ -67,7 +67,7 @@ describe('opening a workbook on a server', () => {
   });
 
   it('says in English what the file holds that the editor only keeps', () => {
-    const findings = ServerWorkbook.open(sample('kitchen-sink.xlsx')).findings;
+    const findings = HeadlessWorkbook.open(sample('kitchen-sink.xlsx')).findings;
     expect(findings).toContainEqual(
       expect.objectContaining({ title: 'Chart "Revenue by region"', detail: 'Column chart. Kept in the file and redrawn by Excel from the edited data when the file is opened. Shown here as a placeholder only.' }),
     );
@@ -77,7 +77,7 @@ describe('opening a workbook on a server', () => {
 
 describe('typing into a workbook on a server', () => {
   it('turns down input the schema refuses, and changes nothing', async () => {
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     const r = await wb.set('Prices', 'D2', '=1+1');
     expect(r).toMatchObject({ rejected: "Formulas aren't allowed in “Unit price”. Type a value instead.", updates: [], skipped: 0 });
     expect(wb.changes()).toEqual([]);
@@ -85,7 +85,7 @@ describe('typing into a workbook on a server', () => {
   });
 
   it('refuses cells the schema locks, saying why', async () => {
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     const r = await wb.set('Prices', 'A1', 'Code');
     const why = 'Column names in this table are set by the “Price list” schema.';
     expect(r).toMatchObject({ rejected: why, skipped: 1, skippedReasons: [why], updates: [] });
@@ -93,7 +93,7 @@ describe('typing into a workbook on a server', () => {
   });
 
   it('finds sheets whatever their case, and throws for a sheet or cell that isn’t there', async () => {
-    const wb = ServerWorkbook.open(sample('orders.xlsx'));
+    const wb = HeadlessWorkbook.open(sample('orders.xlsx'));
     await wb.set('orders', 'Z1', 'note');
     expect(wb.cell('Orders', 'Z1')).toBe('note');
     await expect(wb.set('Nope', 'A1', 'x')).rejects.toThrow('There is no sheet called "Nope".');
@@ -101,7 +101,7 @@ describe('typing into a workbook on a server', () => {
   });
 
   it('refuses references off the sheet rather than writing somewhere else', async () => {
-    const wb = ServerWorkbook.open(sample('orders.xlsx'));
+    const wb = HeadlessWorkbook.open(sample('orders.xlsx'));
     // XFE1 would be column 16,384: one past the last, which is A2 of the next row.
     for (const ref of ['XFE1', 'ZZZ1', 'A0', 'A1048577']) {
       await expect(wb.set('Orders', ref, 'x'), ref).rejects.toThrow(`"${ref}" isn't a cell reference.`);
@@ -114,7 +114,7 @@ describe('typing into a workbook on a server', () => {
   });
 
   it('reports a formula it can’t read, in English', async () => {
-    const wb = ServerWorkbook.open(sample('orders.xlsx'));
+    const wb = HeadlessWorkbook.open(sample('orders.xlsx'));
     expect((await wb.set('Orders', 'Z1', '=SUM(')).rejected).toBe("There's a problem with this formula: Invalid syntax");
     expect(wb.editedCount).toBe(0);
   });
@@ -122,7 +122,7 @@ describe('typing into a workbook on a server', () => {
 
 describe('other edits on a server', () => {
   it('applies a paste, with its warnings in English, and lists the changes', async () => {
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     const notes = wb.sheetNames.indexOf('Notes');
     const r = await wb.edit({ type: 'pasteText', sheet: notes, row: 0, col: 5, values: [['=SUM(', '2']] });
     expect(r.warnings).toEqual(["1 pasted value looked like a formula but wasn't valid, so it was pasted as text."]);
@@ -135,13 +135,13 @@ describe('other edits on a server', () => {
 
   it('runs the schema’s business logic after a paste as after typing', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     await settle(wb.edit({ type: 'pasteText', sheet: 0, row: 15, col: 0, values: [['SKU-2002']] }));
     expect(wb.range('Prices', 'A16:C16')).toEqual([['SKU-2002', 'Label printer', 'Hardware']]);
   });
 
   it('changes nothing for an edit that touches nothing', async () => {
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     const r = await wb.edit({ type: 'clear', sheet: 0, rects: [{ r1: 20, c1: 0, r2: 21, c2: 3 }] });
     expect(r.updates).toEqual([]);
     expect(wb.changes()).toEqual([]);
@@ -152,14 +152,14 @@ describe('the last word before saving', () => {
   it('counts the schema’s errors, in English', async () => {
     // The price list's catalogue check takes 500 ms, and saving waits for it.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const wb = ServerWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
+    const wb = HeadlessWorkbook.open(sample('price-list.xlsx'), { schemas: [priceListSchema] });
     expect(await settle(wb.checkBeforeSave())).toEqual({ ok: false, message: '4 cells break the “Price list” schema.', canOverride: false });
   });
 
   it('gives the schema’s own reason in English, or why its hook failed', async () => {
     const open = (beforeSave: WorkbookSchema['beforeSave'], extra: Partial<WorkbookSchema> = {}) =>
-      ServerWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ beforeSave, ...extra })] });
-    const fixed = async (wb: ServerWorkbook) => (await wb.set('Forecast', 'E3', '5'), wb);
+      HeadlessWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ beforeSave, ...extra })] });
+    const fixed = async (wb: HeadlessWorkbook) => (await wb.set('Forecast', 'E3', '5'), wb);
 
     const reason = await fixed(open(() => ({ en: 'Finance hasn’t signed this off yet.', de: 'Die Finanzabteilung hat noch nicht zugestimmt.' })));
     expect(await reason.checkBeforeSave()).toEqual({ ok: false, message: 'Finance hasn’t signed this off yet.', canOverride: false });
@@ -181,18 +181,18 @@ describe('the last word before saving', () => {
 
 describe('saving on a server', () => {
   it('stamps the schema version unless told not to', async () => {
-    const wb = ServerWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '7' })] });
+    const wb = HeadlessWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '7' })] });
     // An unchanged workbook is saved as it was opened, so change something.
     await wb.set('Forecast', 'E3', '5');
     const next = [plainForecast({ version: '8' })];
-    expect(ServerWorkbook.open(wb.save(), { schemas: next }).note).toMatch(/version 7 .* version 8/);
-    expect(ServerWorkbook.open(wb.save({ stamp: false }), { schemas: next }).note).toBeUndefined();
+    expect(HeadlessWorkbook.open(wb.save(), { schemas: next }).note).toMatch(/version 7 .* version 8/);
+    expect(HeadlessWorkbook.open(wb.save({ stamp: false }), { schemas: next }).note).toBeUndefined();
   });
 });
 
 describe('validateWorkbook', () => {
   it('accepts a clean workbook, naming the schema in English', async () => {
-    const wb = ServerWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '3' })] });
+    const wb = HeadlessWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '3' })] });
     await wb.set('Forecast', 'E3', '5');
     const r = await validateWorkbook(wb.save(), { schemas: [plainForecast({ version: '3' })] });
     expect(r).toMatchObject({ ok: true, schema: { id: 'demo.forecast', name: 'Quarterly forecast', version: '3' }, errors: 0, warnings: 0, issues: [] });
@@ -208,7 +208,7 @@ describe('validateWorkbook', () => {
         { severity: 'warning', message: { en: 'Nobody has signed this off.', de: 'Niemand hat das freigegeben.' } },
       ],
     });
-    const wb = ServerWorkbook.open(sample('forecast.xlsx'), { schemas: [schema] });
+    const wb = HeadlessWorkbook.open(sample('forecast.xlsx'), { schemas: [schema] });
     await wb.set('Forecast', 'E3', '5');
     const r = await validateWorkbook(wb.save(), { schemas: [schema] });
     expect(r).toMatchObject({ ok: true, errors: 0, warnings: 2 });
@@ -225,7 +225,7 @@ describe('validateWorkbook', () => {
   });
 
   it('passes on the note about a file saved under another version', async () => {
-    const wb = ServerWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '1' })] });
+    const wb = HeadlessWorkbook.open(sample('forecast.xlsx'), { schemas: [plainForecast({ version: '1' })] });
     await wb.set('Forecast', 'E3', '5');
     const r = await validateWorkbook(wb.save(), { schemas: [plainForecast({ version: '2' })] });
     expect(r).toMatchObject({ ok: true, schema: { version: '2' } });

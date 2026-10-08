@@ -79,7 +79,7 @@ prices the ones the next list is checked against. Submissions are kept in
 the browser's IndexedDB; nothing is sent anywhere.
 
 `npm test` runs the unit tests (reading, recalculation, editing, saving and
-reopening the samples, schemas, the store, the Node API and translation);
+reopening the samples, schemas, the store and translation);
 `npm run test:coverage` does the same and fails if coverage of the code
 behind the screens drops below 98% of lines (it is at about 99%). The screens
 themselves are covered by the browser tests. `npm run e2e` runs the browser tests with Playwright
@@ -287,8 +287,7 @@ schema (its name and description, field descriptions, rule and hook
 messages) can be given in several languages, `{ en: 'Price', de: 'Preis' }`,
 and hooks are told the editor's language. Messages from the worker reach
 the editor as keys rather than sentences, so changing language changes
-everything on screen. The Node API and the command-line tools answer in
-English.
+everything on screen. The round-trip checker answers in English.
 
 ### Keyboard and screen readers
 
@@ -320,40 +319,13 @@ which the formula bar has), followed by any schema problem the grid marks in
 colour, e.g. "twelve, error: Expected a number."; loading, messages and
 errors are announced. The default and demo themes meet WCAG AA contrast.
 
-## On a server (Node)
-
-The same core runs without a browser, so a server can re-check what users
-save, or a batch job can fill and check workbooks. `npm run build:node` builds
-`dist-node/` (the package's `./node` export and the `workbook-check` command).
-
-```ts
-import { ServerWorkbook, validateWorkbook } from 'fake-spreadsheet/node';
-
-const result = await validateWorkbook(bytes, { schemas }); // { ok, schema, errors, issues, values }
-
-const wb = ServerWorkbook.open(bytes, { fileName: 'prices.xlsx', schemas });
-await wb.set('Prices', 'A16', 'SKU-2001');   // typed as a user would; business logic runs
-const issues = await wb.issues();            // async checks finished
-const out = wb.save();                       // stamped with the schema's version
-```
-
-```
-workbook-check prices.xlsx --schema price-list.schema.json --set 'Prices!D4=12.50' --out fixed.xlsx --json
-```
-
-It prints the issues (or JSON with `--json`, values with `--values`) and exits
-0 when the workbook matches a schema with no errors, 1 when it has errors or
-matches none, and 2 when it can't be read. `examples/schemas/` has the demo
-schemas as JSON. Schemas loaded from JSON have no code hooks; code that
-needs them imports the schemas as modules instead.
-
 ## Checking it on real files
 
-`workbook-verify` (from `npm run build:node`) round-trips workbooks through
+`npm run build:verify` builds a checker that round-trips workbooks through
 the editor and reports what, if anything, was lost:
 
 ```
-node dist-node/verify.js path/to/workbooks --out verify-out --structure
+node dist-verify/verify.js path/to/workbooks --out verify-out --structure
 ```
 
 For each .xlsx/.xlsm it checks that saving without edits gives back the same
@@ -367,7 +339,7 @@ reference still works. `verify-out/` gets the edited copies, `report.md` and
 `report.json`. The report ends with the one step that needs desktop Excel:
 opening the copies there.
 
-`npm run validate:saves` (after `npm run build:node`; needs the .NET SDK)
+`npm run validate:saves` (after `npm run build:verify`; needs the .NET SDK)
 checks that saving never makes a workbook invalid. It saves edited copies of
 the samples and of the workbooks in `tests/corpus` (made by
 `scripts/gen_corpus.py` with XlsxWriter: a protected form with unlocked
@@ -617,8 +589,8 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
 - Cells are parsed into typed arrays and held in memory, so files much past
   a few million cells would need streaming parsing; the engine for live
   recalculation needs several times more memory than the cells themselves.
-- Schema hooks run on the UI thread in the browser, and in Node through
-  `ServerWorkbook`; the browser doesn't call a server itself. Inserting or deleting schema records
+- Schema hooks run on the UI thread in the browser; the editor doesn't call
+  a server itself. Inserting or deleting schema records
   moves cells within the table, so formulas outside the table that point
   into it are not adjusted (inserting rows from the grid's menu does adjust
   them).

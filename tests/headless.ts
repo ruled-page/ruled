@@ -1,29 +1,28 @@
 /**
- * The workbook editor's core without a browser: open a workbook, check it
- * against schemas (async hooks included), read its values, change cells,
- * and save it, with the same rules the editor applies. For servers that
- * re-check what users save, and for batch jobs.
+ * The editor's core without a browser, for tests: open a workbook, check it
+ * against schemas (async hooks included), read its values, change cells and
+ * save it, with the same rules the editor applies.
  *
- *   const wb = ServerWorkbook.open(bytes, { fileName: 'prices.xlsx', schemas });
+ *   const wb = HeadlessWorkbook.open(bytes, { fileName: 'prices.xlsx', schemas });
  *   const issues = await wb.issues();
  *   await wb.set('Prices', 'D4', '12.50');
  *   const out = wb.save();
  */
-import { MAX_COLS, MAX_ROWS, parseA1, toA1 } from '../core/refs';
-import { english, errorText } from '../i18n';
-import { WorkbookSession, type OpenOptions } from '../core/session';
-import type { CellChange, CellUpdate, DisplayStyle, EditOp, EditResult, Finding } from '../core/types';
-import { bindSchema } from '../schema/binding';
-import { SchemaController } from '../schema/controller';
-import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
-import type { FieldValue, SchemaValues, WorkbookSchema } from '../schema/types';
-import { workbookReaders, type WorkbookReaders } from '../state/readers';
-import { SheetView } from '../state/sheetView';
+import { MAX_COLS, MAX_ROWS, parseA1, toA1 } from '../src/core/refs';
+import { english, errorText } from '../src/i18n';
+import { WorkbookSession, type OpenOptions } from '../src/core/session';
+import type { CellChange, CellUpdate, DisplayStyle, EditOp, EditResult, Finding } from '../src/core/types';
+import { bindSchema } from '../src/schema/binding';
+import { SchemaController } from '../src/schema/controller';
+import { stampedFirst, stampFor, versionNote } from '../src/schema/stamp';
+import type { FieldValue, SchemaValues, WorkbookSchema } from '../src/schema/types';
+import { workbookReaders, type WorkbookReaders } from '../src/state/readers';
+import { SheetView } from '../src/state/sheetView';
 
-export type { CellChange, EditOp, EditResult, Finding } from '../core/types';
-export type { JsonValue, SchemaValues, WorkbookSchema } from '../schema/types';
-export { defineSchema } from '../schema/types';
-export { schemaFromJSON, schemaToJSON } from '../schema/json';
+export type { CellChange, EditOp, EditResult, Finding } from '../src/core/types';
+export type { JsonValue, SchemaValues, WorkbookSchema } from '../src/schema/types';
+export { defineSchema } from '../src/schema/types';
+export { schemaFromJSON, schemaToJSON } from '../src/schema/json';
 
 export interface OpenWorkbookOptions extends OpenOptions {
   fileName?: string;
@@ -42,7 +41,7 @@ export interface WorkbookIssue {
   ref?: string;
 }
 
-/** Results in English, as plain text: the server API isn't translated. */
+/** Results in English, as plain text. */
 function inEnglish(r: EditResult): EditResult {
   return {
     ...r,
@@ -52,7 +51,7 @@ function inEnglish(r: EditResult): EditResult {
   };
 }
 
-export class ServerWorkbook implements WorkbookReaders {
+export class HeadlessWorkbook implements WorkbookReaders {
   readonly fileName: string;
   private readonly session: WorkbookSession;
   private readonly views: SheetView[];
@@ -71,7 +70,7 @@ export class ServerWorkbook implements WorkbookReaders {
     try {
       this.session = WorkbookSession.open(bytes, this.fileName, options.locale ?? 'en-US', options);
     } catch (e) {
-      // Files the editor turns away say why in words people read; the server API speaks English.
+      // Files the editor turns away say why in words people read, here in English.
       throw new Error(english.text(errorText(e)));
     }
     const r = this.session.loadResult();
@@ -108,8 +107,8 @@ export class ServerWorkbook implements WorkbookReaders {
   }
 
   /** Opens a workbook from its bytes. Throws for files that aren't workbooks or exceed the limits. */
-  static open(bytes: Uint8Array | ArrayBuffer, options: OpenWorkbookOptions = {}): ServerWorkbook {
-    return new ServerWorkbook(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), options);
+  static open(bytes: Uint8Array | ArrayBuffer, options: OpenWorkbookOptions = {}): HeadlessWorkbook {
+    return new HeadlessWorkbook(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), options);
   }
 
   private apply(updates: CellUpdate[]): void {
@@ -221,7 +220,7 @@ export class ServerWorkbook implements WorkbookReaders {
   }
 }
 
-/** Checks a workbook against schemas and returns everything a server needs to accept or reject it. */
+/** Checks a workbook against schemas and sums up whether it passes. */
 export async function validateWorkbook(
   bytes: Uint8Array | ArrayBuffer,
   options: OpenWorkbookOptions = {},
@@ -235,7 +234,7 @@ export async function validateWorkbook(
   issues: WorkbookIssue[];
   values?: SchemaValues;
 }> {
-  const wb = ServerWorkbook.open(bytes, options);
+  const wb = HeadlessWorkbook.open(bytes, options);
   const issues = await wb.issues();
   const errors = issues.filter((i) => i.severity === 'error').length;
   return {

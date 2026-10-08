@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { runVerify } from './verifyCli';
+import { runVerify } from './cli';
 
 runVerify(process.argv.slice(2), {
   list: async (path) => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { verifyWorkbook } from '../src/node/verify';
-import { runVerify } from '../src/node/verifyCli';
+import { verifyWorkbook } from '../src/verify/verify';
+import { runVerify } from '../src/verify/cli';
 import { sample } from './helpers';
 
 describe('round-trip verification', () => {

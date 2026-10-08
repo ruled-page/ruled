@@ -4,7 +4,7 @@ import { en } from '../src/demo/locales/en';
 import { budgetSchema, DEMO_SCHEMAS, forecastSchema, priceListSchema } from '../src/demo/schemas';
 import { DEMO_THEMES } from '../src/demo/themes';
 import type { EditorTheme } from '../src/editor/theme';
-import { ServerWorkbook } from '../src/node';
+import { HeadlessWorkbook } from './headless';
 import type { FieldValue, WorkbookData, WorkbookSchema } from '../src/schema/types';
 import { sample } from './helpers';
 
@@ -27,7 +27,7 @@ async function settle<T>(work: Promise<T>): Promise<T> {
 }
 
 const open = (file: string, schema: WorkbookSchema) => {
-  const wb = ServerWorkbook.open(sample(file), { fileName: file, schemas: [schema] });
+  const wb = HeadlessWorkbook.open(sample(file), { fileName: file, schemas: [schema] });
   const issuesAt = async (ref: string) => (await settle(wb.issues())).filter((i) => i.ref === ref).map((i) => i.message);
   const set = (sheet: string, ref: string, text: string) => settle(wb.set(sheet, ref, text));
   return { wb, issuesAt, set };
@@ -37,7 +37,7 @@ describe('the demo schemas', () => {
   it('each match their own sample and no other', () => {
     const samples = ['price-list.xlsx', 'forecast.xlsx', 'budget.xlsx'];
     for (const [i, file] of samples.entries()) {
-      expect(ServerWorkbook.open(sample(file), { schemas: DEMO_SCHEMAS }).schema).toBe(DEMO_SCHEMAS[i]);
+      expect(HeadlessWorkbook.open(sample(file), { schemas: DEMO_SCHEMAS }).schema).toBe(DEMO_SCHEMAS[i]);
     }
   });
 });

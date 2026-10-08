@@ -8,7 +8,7 @@
  * no original here). Some samples were generated with
  * libraries that write small schema errors of their own; those don't count.
  *
- * Needs the .NET SDK (10 or later) and `npm run build:node`.
+ * Needs the .NET SDK (10 or later) and `npm run build:verify`.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -25,7 +25,7 @@ const originals = sources.flatMap((dir) => readdirSync(dir).filter((f) => /\.xls
 execFileSync('npx', ['vitest', 'run', 'tests/roundtrip-out.test.ts', 'tests/safety.test.ts'], { cwd: root, stdio: 'inherit', env: { ...process.env, ROUNDTRIP_OUT: out } });
 const verified = join(out, 'verify');
 mkdirSync(verified);
-spawnSync('node', [join(root, 'dist-node', 'verify.js'), ...originals, '--structure', '--no-python', '--out', verified], { cwd: root, stdio: 'ignore' });
+spawnSync('node', [join(root, 'dist-verify', 'verify.js'), ...originals, '--structure', '--no-python', '--out', verified], { cwd: root, stdio: 'ignore' });
 const saved = [
   ...readdirSync(out).filter((f) => f.endsWith('.xlsx')).map((f) => join(out, f)),
   ...readdirSync(verified).filter((f) => /\.xls[xm]$/.test(f)).map((f) => join(verified, f)),
