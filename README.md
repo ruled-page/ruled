@@ -488,8 +488,7 @@ The editor takes a browser shortcut only for the same job: Ctrl+S saves,
 Ctrl+F finds, Ctrl+Z undoes, and Ctrl+G finds the next match while its find
 panel is open. It never repurposes one, so Ctrl+R still reloads the page and
 Ctrl+D still bookmarks it (Excel's fill down and fill right are in the cell
-menu instead, and with one row selected fill down copies the row above, as
-Ctrl+D does), and on a Mac ⌘Y is left to the browser's history (redo is
+menu instead), and on a Mac ⌘Y is left to the browser's history (redo is
 ⇧⌘Z).
 
 On a phone the editor keeps the grid in view: the toolbar's actions scroll

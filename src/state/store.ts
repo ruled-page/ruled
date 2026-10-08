@@ -2712,15 +2712,26 @@ export class WorkbookStore {
       if (run?.direction) rect = across ? { ...rect, c2: rect.c1 + run.values.length } : { ...rect, r2: rect.r1 + run.values.length };
     }
     // The cells a series starts from stay; a trend replaces its numbers, and AutoFill keeps what it continues.
-    const lead = (row: number, col: number) => (across ? col - rect.c1 : row - rect.r1);
-    const keeps = (row: number, col: number) => {
-      if (series.trend && series.type !== 'date' && series.type !== 'autofill') return false;
-      if (series.type !== 'autofill') return lead(row, col) === 0;
-      for (let i = 0; i <= lead(row, col); i++) {
-        const rec = across ? view.get(row, rect.c1 + i) : view.get(rect.r1 + i, col);
-        if (!rec || rec.t === VT.None) return false;
+    const length = across ? rect.c2 - rect.c1 + 1 : rect.r2 - rect.r1 + 1;
+    const runs = new Map<number, number>();
+    /** How many cells the row or column starts with before an empty one. */
+    const run = (line: number) => {
+      let n = runs.get(line);
+      if (n === undefined) {
+        n = 0;
+        while (n < length) {
+          const rec = across ? view.get(line, rect.c1 + n) : view.get(rect.r1 + n, line);
+          if (!rec || rec.t === VT.None) break;
+          n++;
+        }
+        runs.set(line, n);
       }
-      return true;
+      return n;
+    };
+    const keeps = (row: number, col: number) => {
+      const at = across ? col - rect.c1 : row - rect.r1;
+      if (series.type === 'autofill') return at < run(across ? row : col);
+      return at === 0 && !(series.trend && series.type !== 'date');
     };
     if (!(await this.okToReplace(this.formulasLost(view, [rect], keeps)))) return;
     const readOnly = this.schemaReadOnly(rect);

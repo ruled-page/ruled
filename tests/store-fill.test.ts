@@ -163,6 +163,14 @@ describe('the Fill Series dialog', () => {
     expect(cell('F2')?.f).toBe('F1*2');
   });
 
+  it('continues formulas with AutoFill without asking about them', async () => {
+    await open();
+    store.goTo('F1:F4');
+    await store.fillSeries(series({ type: 'autofill' }));
+    expect(store.confirmRequest).toBeUndefined();
+    expect([cell('F3')?.n, cell('F4')?.f]).toEqual([2, 'F3*2']);
+  });
+
   it("leaves a protected sheet's locked cells, as filling by dragging does", async () => {
     await open();
     store.setActive(1);
