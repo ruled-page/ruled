@@ -31,7 +31,7 @@ export interface EditorHandle {
   downloadCsv(options?: CsvOptions): Promise<void>;
   /** The sheet shown as CSV text, as downloadCsv writes it but without the byte order mark; undefined when it isn't a worksheet. */
   getCsv(options?: CsvOptions): Promise<string | undefined>;
-  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it. */
+  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", or the range a defined name refers to, and shows it. */
   goTo(ref: string): void;
   /** Adds or replaces a schema and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void;

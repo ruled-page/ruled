@@ -4,6 +4,7 @@ import type { IconOverrides } from '../ui/icons';
 import { invertIndexMap, isSheetOp, nearestVisible, nextSheetName, sheetIndexMap, sheetOpProblem, type SheetOp, type WorkbookOp } from '../core/sheetRules';
 import { shiftFormula } from '../core/formula';
 import { formulaReferences } from '../core/formulaAssist';
+import type { NameTarget } from '../core/names';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { describeMatch, textMatches } from '../schema/json';
@@ -16,6 +17,7 @@ import {
   CellFlag,
   VT,
   type CalcReport,
+  type DefinedName,
   type DisplayStyle,
   type CellChange,
   type CommentChange,
@@ -29,6 +31,8 @@ import {
   type PastePart,
   type LayoutOp,
   type ListValidation,
+  type NameChange,
+  type NameRef,
   type Rect,
   type RuleValidation,
   type ValidationAlert,
@@ -37,6 +41,7 @@ import type { OpenOptions } from '../core/session';
 import { CSV_FILE, type CsvOptions } from '../core/csv';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
+import { namedRange } from './names';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
@@ -280,6 +285,16 @@ export interface SchemaMismatch {
 
 export type Panel = 'issues' | 'changes' | 'report';
 
+/** The dialog that defines a name, or edits the one `from` identifies, as it opens. */
+export interface NameDialog {
+  from?: NameRef;
+  name: string;
+  localSheet?: number;
+  /** What it refers to, as typed: "=Data!$A$1:$B$3". */
+  refersTo: string;
+  comment: string;
+}
+
 export interface Selection {
   /** Active cell, in sheet coordinates. */
   row: number;
@@ -450,6 +465,12 @@ export class WorkbookStore {
   unhideOpen = false;
   /** The workbook's structure is protected: its sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
   structureLocked = false;
+  /** The workbook's defined names, as they now are. */
+  names: DefinedName[] = [];
+  /** Defining or editing a name, while its dialog is open. */
+  nameDialog?: NameDialog;
+  /** Excel's Name Manager, while open. */
+  nameManagerOpen = false;
   designerOpen = false;
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
@@ -844,6 +865,9 @@ export class WorkbookStore {
       unhideOpen: false,
       history: [],
       changeList: [],
+      names: [],
+      nameDialog: undefined,
+      nameManagerOpen: false,
       draftKey: key,
       draftOps: [],
       commentFor: undefined,
@@ -860,6 +884,7 @@ export class WorkbookStore {
       const r = res.result;
       this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
       for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+      this.names = r.names;
       this.styles = r.styles;
       this.findings = r.findings;
       this.date1904 = r.date1904;
@@ -1185,7 +1210,7 @@ export class WorkbookStore {
         // Schema logic sees each edited cell's value from before the edit.
         const before = record === 'undo' && ctl ? r.redo.map((c) => ({ sheet: c.sheet, row: c.row, col: c.col, before: ctl.valueAt(c.sheet, c.row, c.col) as FieldValue })) : [];
         this.applyResult(r);
-        const changed = r.undo.length > 0 || !!r.layout?.undo.length || !!r.noteUndo?.length;
+        const changed = r.undo.length > 0 || !!r.layout?.undo.length || !!r.noteUndo?.length || !!r.names?.undo.length;
         if (record === 'undo' && changed) {
           this.undoStack.push(r);
           this.redoStack = [];
@@ -1228,7 +1253,8 @@ export class WorkbookStore {
 
   private applyResult(r: EditResult): void {
     this.dataVersion++;
-    if (r.undo.length || r.layout?.applied.length || r.noteUndo?.length) this.changeSeq++;
+    if (r.undo.length || r.layout?.applied.length || r.noteUndo?.length || r.names?.applied.length) this.changeSeq++;
+    if (r.names) this.names = r.names.list;
     for (const c of r.layout?.applied ?? []) {
       this.sheets[c.sheet]?.applyLayout(c.op);
       this.colVersion++;
@@ -1259,7 +1285,7 @@ export class WorkbookStore {
     }
     this.showSheet(entry.undo[0]?.sheet ?? entry.noteUndo?.[0]?.sheet ?? entry.layout?.undo[0]?.sheet);
     const notes = entry.noteUndo?.length ? { notes: entry.noteUndo } : {};
-    await this.edit({ type: 'restore', cells: entry.undo, ...notes, layout: entry.layout?.undo }, 'none', { label: msg('store.history.undo') });
+    await this.edit({ type: 'restore', cells: entry.undo, ...notes, layout: entry.layout?.undo, names: entry.names?.undo }, 'none', { label: msg('store.history.undo') });
     this.redoStack.push(entry);
     this.notify();
   }
@@ -1276,7 +1302,7 @@ export class WorkbookStore {
     }
     this.showSheet(entry.redo[0]?.sheet ?? entry.noteRedo?.[0]?.sheet ?? entry.layout?.applied[0]?.sheet);
     const notes = entry.noteRedo?.length ? { notes: entry.noteRedo } : {};
-    await this.edit({ type: 'restore', cells: entry.redo, ...notes, layout: entry.layout?.applied }, 'none', { label: msg('store.history.redo') });
+    await this.edit({ type: 'restore', cells: entry.redo, ...notes, layout: entry.layout?.applied, names: entry.names?.applied }, 'none', { label: msg('store.history.redo') });
     this.undoStack.push(entry);
     this.notify();
   }
@@ -1374,6 +1400,7 @@ export class WorkbookStore {
     this.structureLocked = !!r.structureLocked;
     this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
     for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+    this.names = r.names;
     this.styles = r.styles;
     this.date1904 = r.date1904;
     this.findings = res.report ? [...r.findings.filter((f) => f.kind !== 'formulaEngine'), ...res.report.findings] : r.findings;
@@ -2002,21 +2029,34 @@ export class WorkbookStore {
 
   /**
    * Goes to a reference typed in the name box, as Excel does: a cell or range,
-   * on another sheet with "Prices!B4". The grid takes the focus, so typing
-   * goes into the cell. False when the text isn't a reference to a sheet here.
+   * on another sheet with "Prices!B4", or the range a defined name refers
+   * to. The grid takes the focus, so typing goes into the cell. False when
+   * the text is neither, or names something other than a range.
    */
   goTo(text: string): boolean {
+    const to = this.referenceTo(text) ?? namedRange(this, text);
+    if (!to) return false;
+    if (to.sheet !== this.active) this.setActive(to.sheet);
+    this.revealFocus = true;
+    this.revealSeq++;
+    this.setSelection({ row: to.rects[0].r1, col: to.rects[0].c1, rects: to.rects });
+    return true;
+  }
+
+  /** The cells a reference such as "B4", "A1:C3" or "Prices!B4" names, if they are on a sheet here. */
+  private referenceTo(text: string): NameTarget | undefined {
     const m = /^(?:(?:'((?:[^']|'')+)'|([^!']+))!)?([^!]+)$/.exec(text.trim());
-    if (!m) return false;
+    if (!m) return undefined;
     const name = m[1]?.replace(/''/g, "'") ?? m[2];
     const sheet = name === undefined ? this.active : this.sheets.findIndex((s) => s.info.name.toLowerCase() === name.toLowerCase());
     const rect = parseRange(m[3].trim());
-    if (sheet < 0 || !rect || rect.r1 < 0 || rect.r2 >= MAX_ROWS || rect.c2 >= MAX_COLS) return false;
-    if (sheet !== this.active) this.setActive(sheet);
-    this.revealFocus = true;
-    this.revealSeq++;
-    this.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
-    return true;
+    if (sheet < 0 || !rect || rect.r1 < 0 || rect.r2 >= MAX_ROWS || rect.c2 >= MAX_COLS) return undefined;
+    return { sheet, rects: [rect] };
+  }
+
+  /** Adds, changes or deletes a defined name, as one step to undo. */
+  changeName(change: NameChange, label: Text): Promise<EditResult | undefined> {
+    return this.edit({ type: 'name', change }, 'undo', { label });
   }
 
   /** The selected cells as they are copied: the text each shows, and a number's exact value. */
@@ -2770,6 +2810,8 @@ export class WorkbookStore {
       | 'sheetMenu'
       | 'renameSheetFor'
       | 'unhideOpen'
+      | 'nameDialog'
+      | 'nameManagerOpen'
       | 'schemaDraft'
       | 'designerPick',
   >(
