@@ -8,7 +8,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ColumnWidthDialog, ShortcutsDialog } from '../ui/KeyboardDialogs';
-import { APPLE, mod, shortcutKey } from '../ui/keys';
+import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { copyTheme, themeStyle } from './theme';
 import { I18nextProvider, Trans } from 'react-i18next';
@@ -276,7 +276,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: WorkbookEditorProps) {
         >
           {ready && (
             <p id={`${hintId}-hint`} className="sr-only">
-              {t('editor.sheetHint', { key: mod(t, '/') })}
+              {t('editor.sheetHint', { key: shortcutsKey(t) })}
             </p>
           )}
           {store.status === 'empty' && (emptyState ? emptyState(openPicker) : <DefaultEmptyState openPicker={openPicker} canOpen={canOpen} />)}

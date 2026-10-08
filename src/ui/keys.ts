@@ -8,6 +8,14 @@ export function mod(t: Translator, key: string): string {
   return APPLE ? `⌘${key}` : t('keys.mod', { key });
 }
 
+/**
+ * The key for the list of shortcuts. On Apple devices ⌃/ as well as ⌘/,
+ * because Safari keeps ⌘/ for itself (Show Status Bar) and never passes it on.
+ */
+export function shortcutsKey(t: Translator): string {
+  return APPLE ? '⌘/, ⌃/' : mod(t, '/');
+}
+
 /** Redo as the platform writes it: ⇧⌘Z on Apple devices (⌘Y is the browser's history there), Ctrl+Y elsewhere. */
 export function redoKey(t: Translator): string {
   return APPLE ? '⇧⌘Z' : mod(t, 'Y');

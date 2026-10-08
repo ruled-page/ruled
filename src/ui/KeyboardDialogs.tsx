@@ -2,7 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { mod, redoKey } from './keys';
+import { mod, redoKey, shortcutsKey } from './keys';
 import { useDialog } from './useDialog';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
@@ -38,7 +38,7 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [m('F'), t('shortcuts.find')],
         [m('G'), t('shortcuts.findNext')],
         [m('S'), t('shortcuts.save')],
-        [m('/'), t('shortcuts.list')],
+        [shortcutsKey(t), t('shortcuts.list')],
       ],
     },
   ];

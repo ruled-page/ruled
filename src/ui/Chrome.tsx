@@ -5,7 +5,7 @@ import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Trans } from 'react-i18next';
 import { Icon } from './icons';
-import { mod } from './keys';
+import { mod, shortcutsKey } from './keys';
 import { useT } from '../i18n/react';
 
 function SchemaChip({ store }: { store: WorkbookStore }) {
@@ -133,7 +133,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             {notable > 0 && <span className="count">{t.number(notable)}</span>}
           </button>
         )}
-        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: mod(t, '/') })} aria-label={t('toolbar.shortcuts')}>
+        <button className="btn icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
           <Icon name="keyboard" />
         </button>
         {extra}
