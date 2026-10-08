@@ -1,7 +1,7 @@
 import { makeShifter } from './formula';
-import { parseRange } from './refs';
+import { MAX_COLS, MAX_ROWS, parseRange } from './refs';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
-import { decodeEntities, decodeOoxmlText, findTagEnd, parseAttrs } from './xml';
+import { damaged, decodeEntities, decodeOoxmlText, elements, findTagEnd, parseAttrs } from './xml';
 
 export interface FormulaMeta {
   kind: 'normal' | 'shared-master' | 'shared-follower' | 'array' | 'dataTable';
@@ -67,13 +67,16 @@ function findElement(xml: string, tag: string, from: number, to: number): Elemen
 }
 
 /** Plain text of a shared or inline string item, ignoring phonetic runs. */
-export function stringItemText(inner: string, p: string): string {
-  let src = inner;
-  if (src.indexOf('rPh') !== -1) src = src.replace(new RegExp(`<${p}rPh\\b[\\s\\S]*?</${p}rPh>`, 'g'), '');
+export function stringItemText(inner: string): string {
   let out = '';
-  const re = new RegExp(`<${p}t(?:\\s[^>]*)?>([\\s\\S]*?)</${p}t>`, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(src))) out += m[1];
+  // Phonetic runs (<rPh>) hold their own <t>, which isn't part of the text.
+  const skip = inner.indexOf('rPh') === -1 ? [] : elements(inner, 'rPh');
+  let k = 0;
+  for (const t of elements(inner, 't')) {
+    while (k < skip.length && skip[k].end <= t.start) k++;
+    if (k < skip.length && skip[k].start < t.start) continue;
+    out += t.inner ?? '';
+  }
   return decodeOoxmlText(decodeEntities(out));
 }
 
@@ -82,12 +85,10 @@ export function parseSharedStrings(xml: string | undefined): { strings: string[]
   const rich = new Set<number>();
   if (!xml) return { strings, rich };
   const p = /<(\w+:)?sst\b/.exec(xml)?.[1] ?? '';
-  const re = new RegExp(`<${p}si>([\\s\\S]*?)</${p}si>|<${p}si/>`, 'g');
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml))) {
-    const inner = m[1] ?? '';
+  for (const si of elements(xml, 'si')) {
+    const inner = si.inner ?? '';
     if (inner.indexOf(`<${p}r>`) !== -1) rich.add(strings.length);
-    strings.push(stringItemText(inner, p));
+    strings.push(stringItemText(inner));
   }
   return { strings, rich };
 }
@@ -161,12 +162,14 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
   if (sdOpen !== -1) {
     sheetDataStart = sdOpen;
     const sdTagEnd = findTagEnd(xml, sdOpen);
+    if (xml.charCodeAt(sdTagEnd) !== 62) throw damaged();
     let limit: number;
     if (xml.charCodeAt(sdTagEnd - 1) === 47) {
       sheetDataEnd = sdTagEnd + 1;
       limit = sdTagEnd;
     } else {
       const close = xml.indexOf(`</${p}sheetData>`, sdTagEnd);
+      if (close === -1) throw damaged();
       limit = close;
       sheetDataEnd = close + `</${p}sheetData>`.length;
     }
@@ -185,9 +188,12 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
       const rs = indexOfTag(xml, rowTag, pos, limit);
       if (rs === -1) break;
       const tagEnd = findTagEnd(xml, rs);
+      if (xml.charCodeAt(tagEnd) !== 62 || tagEnd >= limit) throw damaged();
       const selfClosing = xml.charCodeAt(tagEnd - 1) === 47;
       const ra = parseAttrs(xml.slice(rs + rowTag.length, selfClosing ? tagEnd - 1 : tagEnd));
       const row = ra.r ? parseInt(ra.r, 10) - 1 : lastRow + 1;
+      // Excel's sheets end at row 1,048,576; a larger number would size the grid by it.
+      if (!(row >= 0 && row < MAX_ROWS)) throw damaged();
       lastRow = row;
       if (ra.customFormat === '1' && ra.s) rowStyles.set(row, Number(ra.s));
       if (ra.ht && (ra.customHeight === '1' || ra.customHeight === 'true')) rowHeightsPt.set(row, Number(ra.ht));
@@ -198,6 +204,7 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
         end = tagEnd + 1;
       } else {
         const rc = xml.indexOf(rowClose, tagEnd);
+        if (rc === -1 || rc > limit) throw damaged();
         end = rc + rowClose.length;
         let cpos = tagEnd + 1;
         let lastCol = -1;
@@ -205,10 +212,14 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
           const cs = indexOfTag(xml, cTag, cpos, rc);
           if (cs === -1) break;
           const cTagEnd = findTagEnd(xml, cs);
+          if (xml.charCodeAt(cTagEnd) !== 62 || cTagEnd >= rc) throw damaged();
           const cSelf = xml.charCodeAt(cTagEnd - 1) === 47;
           readCellAttrs(xml.slice(cs + cTag.length, cSelf ? cTagEnd - 1 : cTagEnd));
-          const cellEndPos = cSelf ? cTagEnd + 1 : xml.indexOf(cClose, cTagEnd) + cClose.length;
+          const cClosePos = cSelf ? cTagEnd : xml.indexOf(cClose, cTagEnd);
+          if (cClosePos === -1 || cClosePos > rc) throw damaged();
+          const cellEndPos = cSelf ? cTagEnd + 1 : cClosePos + cClose.length;
           const col = cellAttrs.r ? colOfRef(cellAttrs.r) : lastCol + 1;
+          if (!(col >= 0 && col < MAX_COLS)) throw damaged();
           lastCol = col;
           const idx = rowsA.length;
           const key = row * 16384 + col;
@@ -234,7 +245,7 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
             } else if (t === 'inlineStr') {
               const is = findElement(xml, isTag, cTagEnd + 1, innerEnd);
               type = VT.String;
-              str = is?.inner ? stringItemText(is.inner, p) : '';
+              str = is?.inner ? stringItemText(is.inner) : '';
             } else if (vText !== undefined) {
               if (t === 'str') {
                 type = VT.String;

@@ -1,6 +1,6 @@
 import { strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { msg, TextError } from '../i18n/message';
-import { attr, children, parseXml } from './xml';
+import { attr, checkTerminated, children, parseXml } from './xml';
 
 export interface Relationship {
   id: string;
@@ -12,6 +12,7 @@ export interface Relationship {
 }
 
 const decoder = new TextDecoder('utf-8');
+
 
 /** Limits applied before a package is decompressed, so a hostile file can't exhaust memory. */
 export interface PackageLimits {
@@ -40,6 +41,8 @@ export class OoxmlPackage {
   private readonly files: Map<string, Uint8Array>;
   private readonly order: string[];
   private readonly textCache = new Map<string, string>();
+  /** Parts already checked for tags that never end. */
+  private readonly checked = new Set<string>();
 
   private constructor(files: Map<string, Uint8Array>, order: string[]) {
     this.files = files;
@@ -85,6 +88,16 @@ export class OoxmlPackage {
     return new OoxmlPackage(files, order);
   }
 
+  /** Decodes a part, checking once that an XML part isn't cut off mid-tag. */
+  private decode(path: string, data: Uint8Array): string {
+    const s = decoder.decode(data);
+    if (!this.checked.has(path) && /\.(xml|rels|vml)$/i.test(path)) {
+      checkTerminated(s);
+      this.checked.add(path);
+    }
+    return s;
+  }
+
   has(path: string): boolean {
     return this.files.has(path);
   }
@@ -98,7 +111,7 @@ export class OoxmlPackage {
     if (cached !== undefined) return cached;
     const data = this.files.get(path);
     if (!data) return undefined;
-    const s = decoder.decode(data);
+    const s = this.decode(path, data);
     this.textCache.set(path, s);
     return s;
   }
@@ -107,6 +120,7 @@ export class OoxmlPackage {
     if (!this.files.has(path)) this.order.push(path);
     this.files.set(path, strToU8(text));
     this.textCache.set(path, text);
+    this.checked.add(path);
   }
 
   remove(path: string): void {
@@ -121,7 +135,7 @@ export class OoxmlPackage {
     const cached = this.textCache.get(path);
     if (cached !== undefined) return cached;
     const data = this.files.get(path);
-    return data ? decoder.decode(data) : undefined;
+    return data ? this.decode(path, data) : undefined;
   }
 
   /** Releases decoded text for a part that will not be read again. */

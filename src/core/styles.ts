@@ -1,5 +1,5 @@
 import type { BorderEdge, CellBorders, DiffStyle, DisplayStyle, TableElement, TableLook } from './types';
-import { attr, child, children, descendants, parseXml, type XmlNode } from './xml';
+import { attr, child, children, descendants, elements, firstElement, parseXml, type XmlNode } from './xml';
 
 /** Excel's built-in number formats (en-US). Ids 14 and 22 follow the user's locale. */
 const BUILTIN_NUMFMTS: Record<number, string> = {
@@ -355,12 +355,8 @@ export class StyleBook {
     if (this.display.length === 0) this.display.push(defaultStyle());
 
     // Raw <xf> elements, kept verbatim so derived formats inherit everything else.
-    const block = /<(\w+:)?cellXfs\b[^>]*>([\s\S]*?)<\/(\w+:)?cellXfs>/.exec(stylesXml);
-    if (block) {
-      const re = /<(?:\w+:)?xf\b[^>]*?(?:\/>|>[\s\S]*?<\/(?:\w+:)?xf>)/g;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(block[2]))) this.xfRaw.push(m[0]);
-    }
+    const block = firstElement(stylesXml, 'cellXfs')?.inner;
+    if (block) for (const xf of elements(block, 'xf')) this.xfRaw.push(block.slice(xf.start, xf.end));
     while (this.xfRaw.length < this.display.length) {
       this.xfRaw.push('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
     }

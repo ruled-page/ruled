@@ -8,6 +8,7 @@ export const core = {
   'core.open.unpacksTooBig': 'This file unpacks to more than {{max, number}} MB, which is more than this editor can hold.',
   'core.open.zipBomb': 'Part {{part}} is compressed suspiciously well ({{ratio, number}}:1), so the file was not opened.',
   'core.open.notPackage': 'This file is not a valid Office Open XML package.',
+  'core.open.damaged': "This file is damaged, so it wasn't opened. Excel may be able to repair it.",
   'core.open.noWorkbookPart': 'The workbook part is missing from this file.',
   'core.open.tooManyCells': 'This workbook has {{cells, number}} cells; the most this editor can hold is {{max, number}}.',
   'core.open.macrosBlocked': "This workbook contains macros (VBA), which aren't allowed here. Save it as .xlsx in Excel and open that instead.",
@@ -163,6 +164,7 @@ export const core = {
   'core.unsupported.syntax': 'Formula syntax',
   'core.unsupported.array': 'Multi-cell array formulas',
   'core.unsupported.sharedFormula': 'Shared formula without its master cell',
+  'core.unsupported.tooLarge': 'Ranges or arrays too large to calculate here',
   /** One entry in the list of what isn't calculated: {{reason}} is a core.unsupported message, {{n}} how many formulas. */
   'core.calc.reasonCount': '{{reason}} ({{n, number}})',
   'core.calc.mismatch': 'Calculated differently from Excel',
@@ -175,6 +177,7 @@ export const core = {
   'core.cellReason.syntax': "Uses formula syntax this editor can't read.",
   'core.cellReason.array': "A multi-cell array or spill formula, which this editor can't calculate.",
   'core.cellReason.sharedFormula': 'Part of a damaged shared formula; Excel will repair it when the file is opened.',
+  'core.cellReason.tooLarge': "Uses a range or an array too large for this editor to calculate.",
   /** {{engine}} and {{excel}} are values: a number, "text" in quotes, an error such as #N/A, or core.value.empty. */
   'core.cellReason.mismatch': "This editor calculated {{engine}} but Excel saved {{excel}}, so Excel's value is kept.",
   'core.value.empty': '(empty)',

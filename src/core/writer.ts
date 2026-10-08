@@ -4,7 +4,7 @@ import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { encodeOoxmlText, escapeXml, findTagEnd } from './xml';
+import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement } from './xml';
 import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
 
@@ -209,8 +209,8 @@ function valueXml(p: string, v: EngineValue): { t: string; v: string } {
 }
 
 function rawFormulaElement(raw: string, p: string): string {
-  const m = new RegExp(`<${p}f\\b[^>]*?(?:/>|>[\\s\\S]*?</${p}f>)`).exec(raw);
-  return m ? m[0] : '';
+  const f = firstElement(raw, 'f');
+  return f && f.qname === `${p}f` ? raw.slice(f.start, f.end) : '';
 }
 
 function patchCell(p: string, row: number, col: number, raw: string | undefined, patch: Patch): string | null {
@@ -362,12 +362,12 @@ function appendStyles(xml: string, model: WorkbookModel): string {
 
   const numFmts = adds.filter((a) => a.numFmt).map((a) => `<${p}numFmt numFmtId="${a.numFmt!.id}" formatCode="${escapeXml(a.numFmt!.code)}"/>`);
   if (numFmts.length) {
-    const block = new RegExp(`(<${p}numFmts\\b[^>]*?)(?:count="(\\d+)")?([^>]*>)([\\s\\S]*?)(</${p}numFmts>)`);
-    const m = block.exec(out);
-    if (m) {
-      const count = (m[0].match(new RegExp(`<${p}numFmt\\b`, 'g')) ?? []).length + numFmts.length;
-      const openTag = m[0].slice(0, m[0].indexOf('>') + 1).replace(/\s*count="\d+"/, '').replace(/>$/, ` count="${count}">`);
-      out = out.replace(m[0], () => openTag + m[4] + numFmts.join('') + m[5]);
+    const block = firstElement(out, 'numFmts');
+    if (block) {
+      const body = block.inner ?? '';
+      const count = countElements(body, 'numFmt') + numFmts.length;
+      const openTag = `<${block.qname}${block.attrs.replace(/\s*count="\d+"/, '')} count="${count}">`;
+      out = out.slice(0, block.start) + openTag + body + numFmts.join('') + `</${block.qname}>` + out.slice(block.end);
     } else {
       const root = new RegExp(`<${p}styleSheet\\b[^>]*>`).exec(out)!;
       const at = root.index + root[0].length;

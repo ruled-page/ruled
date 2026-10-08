@@ -1,4 +1,4 @@
-import { attr, children, escapeXml, parseXml } from './xml';
+import { attr, children, elements, escapeXml, parseXml, type ElementSpan } from './xml';
 import type { OoxmlPackage } from './zip';
 
 const REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
@@ -50,15 +50,14 @@ export function setCustomProperties(pkg: OoxmlPackage, props: Record<string, str
     }
   }
   const vt = /xmlns:(\w+)="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/docPropsVTypes"/.exec(xml)?.[1] ?? 'vt';
-  const pids = [...xml.matchAll(/\bpid="(\d+)"/g)].map((m) => Number(m[1]));
-  let pid = Math.max(1, ...pids);
+  let pid = 1;
+  for (const m of xml.matchAll(/\bpid="(\d+)"/g)) pid = Math.max(pid, Number(m[1]));
   for (const [name, value] of entries) {
     const el = (id: number) => `<property fmtid="${FMTID}" pid="${id}" name="${escapeXml(name)}"><${vt}:lpwstr>${escapeXml(value)}</${vt}:lpwstr></property>`;
-    const existing = new RegExp(`<(\\w+:)?property\\b[^>]*\\bname="${escapeXml(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>[\\s\\S]*?</(\\w+:)?property>`);
-    const m = existing.exec(xml);
-    if (m) {
-      const id = Number(/\bpid="(\d+)"/.exec(m[0])?.[1] ?? ++pid);
-      xml = xml.replace(m[0], el(id));
+    const existing: ElementSpan | undefined = elements(xml, 'property').find((p) => p.inner !== null && p.attrs.includes(` name="${escapeXml(name)}"`));
+    if (existing) {
+      const id: number = Number(/\bpid="(\d+)"/.exec(existing.attrs)?.[1] ?? ++pid);
+      xml = xml.slice(0, existing.start) + el(id) + xml.slice(existing.end);
     } else {
       xml = xml.replace(/<\/(\w+:)?Properties>/, (close) => `${el(++pid)}${close}`);
     }

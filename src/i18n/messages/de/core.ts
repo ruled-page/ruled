@@ -9,6 +9,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.open.unpacksTooBig': 'Diese Datei ist entpackt größer als {{max, number}} MB, mehr als dieser Editor aufnehmen kann.',
   'core.open.zipBomb': 'Der Teil {{part}} ist verdächtig stark komprimiert ({{ratio, number}}:1), daher wurde die Datei nicht geöffnet.',
   'core.open.notPackage': 'Diese Datei ist kein gültiges Office Open XML-Paket.',
+  'core.open.damaged': 'Diese Datei ist beschädigt und wurde nicht geöffnet. Excel kann sie möglicherweise reparieren.',
   'core.open.noWorkbookPart': 'In dieser Datei fehlt der Teil mit der Arbeitsmappe.',
   'core.open.tooManyCells': 'Diese Arbeitsmappe hat {{cells, number}} Zellen; dieser Editor kann höchstens {{max, number}} aufnehmen.',
   'core.open.macrosBlocked':
@@ -168,6 +169,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.unsupported.syntax': 'Formelsyntax',
   'core.unsupported.array': 'Mehrzellige Matrixformeln',
   'core.unsupported.sharedFormula': 'Gemeinsame Formel ohne ihre Ausgangszelle',
+  'core.unsupported.tooLarge': 'Bereiche oder Matrizen, die zu groß zum Berechnen sind',
   'core.calc.reasonCount': '{{reason}} ({{n, number}})',
   'core.calc.mismatch': 'Anders berechnet als in Excel',
 
@@ -178,6 +180,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.cellReason.syntax': 'Verwendet eine Formelsyntax, die dieser Editor nicht lesen kann.',
   'core.cellReason.array': 'Eine mehrzellige Matrix- oder Überlaufformel, die dieser Editor nicht berechnen kann.',
   'core.cellReason.sharedFormula': 'Teil einer beschädigten gemeinsamen Formel; Excel repariert sie beim Öffnen der Datei.',
+  'core.cellReason.tooLarge': 'Verwendet einen Bereich oder eine Matrix, die für diesen Editor zu groß zum Berechnen ist.',
   'core.cellReason.mismatch':
     'Dieser Editor hat {{engine}} berechnet, Excel hat aber {{excel}} gespeichert; daher wird der Wert von Excel beibehalten.',
   'core.value.empty': '(leer)',

@@ -1164,11 +1164,13 @@ export class WorkbookSession {
     const engineWrites: EngineWrite[] = applied.map((w) => {
       const untrusted = this.isUntrustedOriginal(w.sheet, w.row, w.col);
       const grid = this.sheet(w.sheet).scan?.grid;
+      // A formula over the engine's size limits never reaches it.
+      const tooLarge = w.content.kind === 'formula' && unsupportedReason(w.content.formula)?.kind === 'tooLarge';
       return {
         sheet: w.sheet,
         row: w.row,
         col: w.col,
-        raw: untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : toRaw(w.content),
+        raw: untrusted && grid ? valueRaw(gridValue(grid, untrusted.idx)) : tooLarge ? null : toRaw(w.content),
       };
     });
     for (const w of applied) if (w.content.kind === 'formula') this.ensureSheetsFor(w.content.formula, w.sheet);

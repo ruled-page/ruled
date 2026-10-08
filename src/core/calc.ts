@@ -1,6 +1,7 @@
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import { DetailedCellError, HyperFormula, type RawCellContent, type SerializedNamedExpression } from 'hyperformula';
 import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
+import { installEngineLimits, tooLargeToCalculate } from './engineLimits';
 import { registerExcelFunctions } from './excelFunctions';
 import { engineFormula, stripFunctionPrefixes } from './formula';
 import type { CellContent } from './types';
@@ -11,7 +12,7 @@ let probe: HyperFormula | undefined;
 /** Why the engine can't calculate a formula. */
 export type Unsupported =
   | { kind: 'function'; name: string }
-  | { kind: 'tableRefs' | 'externalLinks' | 'threeD' | 'syntax' | 'array' | 'sharedFormula' };
+  | { kind: 'tableRefs' | 'externalLinks' | 'threeD' | 'syntax' | 'array' | 'sharedFormula' | 'tooLarge' };
 
 const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
   tableRefs: 'core.unsupported.tableRefs',
@@ -20,6 +21,7 @@ const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
   syntax: 'core.unsupported.syntax',
   array: 'core.unsupported.array',
   sharedFormula: 'core.unsupported.sharedFormula',
+  tooLarge: 'core.unsupported.tooLarge',
 };
 
 const EXPLANATIONS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
@@ -29,6 +31,7 @@ const EXPLANATIONS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey>
   syntax: 'core.cellReason.syntax',
   array: 'core.cellReason.array',
   sharedFormula: 'core.cellReason.sharedFormula',
+  tooLarge: 'core.cellReason.tooLarge',
 };
 
 /** What isn't calculated, as the recalculation report lists it: "LET function". */
@@ -48,6 +51,7 @@ export function unsupportedExplanation(u: Unsupported): Message {
  */
 export function unsupportedReason(fileFormula: string): Unsupported | undefined {
   registerExcelFunctions();
+  installEngineLimits();
   registered ??= new Set(HyperFormula.getRegisteredFunctionNames('enGB'));
   let tokens;
   try {
@@ -55,6 +59,7 @@ export function unsupportedReason(fileFormula: string): Unsupported | undefined 
   } catch {
     return { kind: 'syntax' };
   }
+  if (tooLargeToCalculate(tokens)) return { kind: 'tooLarge' };
   for (const t of tokens) {
     if (t.type === 'structured') return { kind: 'tableRefs' };
     if (t.type === 'func') {
@@ -168,6 +173,7 @@ export class CalcEngine {
     };
 
     registerExcelFunctions();
+    installEngineLimits();
     const data: Record<string, RawCellContent[][]> = {};
     for (const s of sheets) if (s) data[s.name] = s.rows;
 
@@ -180,6 +186,8 @@ export class CalcEngine {
     const valid: SerializedNamedExpression[] = [];
     for (const n of names) {
       if (n.name.startsWith('_xlnm.') || /#REF!/.test(n.formula)) continue;
+      // A name over a huge range would let formulas that use it past the size limits.
+      if (unsupportedReason(n.formula)?.kind === 'tooLarge') continue;
       const scopeName = n.localSheet !== undefined ? sheets[n.localSheet]?.name : undefined;
       if (n.localSheet !== undefined && !scopeName) continue;
       const scope = scopeName !== undefined ? probe.getSheetId(scopeName) : undefined;
@@ -266,6 +274,8 @@ export class CalcEngine {
   calculate(formula: string, sheet: number): EngineValue | EngineValue[][] {
     const id = this.ids[sheet];
     if (id === undefined || id < 0) return { error: '#REF!' };
+    // Only a range or an array function can be too large; most formulas here are neither.
+    if (/:|SEQUENCE|MUNIT|RANDARRAY/i.test(formula) && unsupportedReason(formula.replace(/^=/, ''))?.kind === 'tooLarge') return { error: '#NUM!' };
     try {
       const v = this.hf.calculateFormula(formula, id);
       return Array.isArray(v) ? v.map((row) => row.map(convert)) : convert(v);

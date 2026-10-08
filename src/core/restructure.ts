@@ -3,7 +3,7 @@ import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from './refs'
 import { refMapFor, splits, transformFormula, transformSqref, type FormulaContext, type LineOp, type RefMap, type StructuralOp } from './refTransform';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { decodeEntities, escapeXml, findTagEnd } from './xml';
+import { countElements, decodeEntities, elements, escapeXml, findTagEnd, replaceElements } from './xml';
 import type { OoxmlPackage } from './zip';
 
 /**
@@ -56,10 +56,11 @@ export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: Structu
   if (wb) {
     pkg.setText(
       model.workbookPath,
-      wb.replace(/<((?:\w+:)?definedName)\b([^>]*)>([\s\S]*?)<\/\1>/g, (all, tag: string, attrs: string, text: string) => {
+      replaceElements(wb, 'definedName', ({ qname, attrs, inner }, all) => {
+        if (inner === null) return all;
         const local = /\blocalSheetId="(\d+)"/.exec(attrs);
-        const next = fx(decodeEntities(text), local ? Number(local[1]) : -1);
-        return next === decodeEntities(text) ? all : `<${tag}${attrs}>${escapeXml(next)}</${tag}>`;
+        const next = fx(decodeEntities(inner), local ? Number(local[1]) : -1);
+        return next === decodeEntities(inner) ? all : `<${qname}${attrs}>${escapeXml(next)}</${qname}>`;
       }),
     );
   }
@@ -199,7 +200,7 @@ function relocate(xml: string, p: string, row: number, col: number, formula?: { 
   tag = /\sr="[^"]*"/.test(tag) ? tag.replace(/\sr="[^"]*"/, ` r="${toA1(row, col)}"`) : `${tag} r="${toA1(row, col)}"`;
   let inner = selfClosing ? '' : xml.slice(end + 1, xml.lastIndexOf('<'));
   if (formula) {
-    inner = inner.replace(new RegExp(`<${p}f\\b[^>]*?(?:/>|>[\\s\\S]*?</${p}f>)`), '');
+    inner = replaceElements(inner, 'f', () => '', 1);
     const attrs = formula.arrayRef ? ` t="array" ref="${formula.arrayRef}"` : '';
     inner = `<${p}f${attrs}>${escapeXml(formula.text)}</${p}f>${inner}`;
   }
@@ -377,8 +378,7 @@ function sheetDataSpan(xml: string): [number, number] {
 
 /** Calls fn on each element named `tag` (any prefix); fn returns its replacement, '' to remove it. */
 function eachElement(xml: string, tag: string, fn: (el: string) => string): string {
-  const re = new RegExp(`<((?:\\w+:)?${tag})\\b[^>]*?(?:/>|>[\\s\\S]*?</\\1>)`, 'g');
-  return xml.replace(re, (el) => fn(el));
+  return replaceElements(xml, tag, (_el, text) => fn(text));
 }
 
 /** Rewrites the text of formula elements (<formula>, <formula1>, <xm:f>…), which hold escaped XML text. */
@@ -441,17 +441,12 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
       return next ? el.replace(ref[0], ` ref="${next}"`) : '';
     });
   }
-  tail = tail.replace(/(<(\w+:)?mergeCells\b[^>]*?)\scount="\d+"([^>]*>)([\s\S]*?)(<\/(?:\w+:)?mergeCells>)/, (_a, open: string, _p, rest: string, body: string, close: string) => {
-    const n = (body.match(/<(?:\w+:)?mergeCell\b/g) ?? []).length;
-    return n ? `${open} count="${n}"${rest}${body}${close}` : '';
-  });
-  tail = tail.replace(/<(\w+:)?mergeCells\b[^>]*>\s*<\/(\w+:)?mergeCells>/, '');
   // Containers that lost every item go, and the rest keep their counts right.
-  for (const [box, item] of [['dataValidations', 'dataValidation'], ['hyperlinks', 'hyperlink'], ['protectedRanges', 'protectedRange'], ['ignoredErrors', 'ignoredError']]) {
-    tail = tail.replace(new RegExp(`<((?:\\w+:)?${box})\\b([^>]*)>([\\s\\S]*?)</\\1>`, 'g'), (_all, tag: string, attrs: string, body: string) => {
-      const n = (body.match(new RegExp(`<(?:\\w+:)?${item}\\b`, 'g')) ?? []).length;
+  for (const [box, item] of [['mergeCells', 'mergeCell'], ['dataValidations', 'dataValidation'], ['hyperlinks', 'hyperlink'], ['protectedRanges', 'protectedRange'], ['ignoredErrors', 'ignoredError']]) {
+    tail = replaceElements(tail, box, ({ qname, attrs, inner }) => {
+      const n = inner ? countElements(inner, item) : 0;
       if (!n) return '';
-      return `<${tag}${attrs.replace(/\scount="\d+"/, ` count="${n}"`)}>${body}</${tag}>`;
+      return `<${qname}${attrs.replace(/\scount="\d+"/, ` count="${n}"`)}>${inner}</${qname}>`;
     });
   }
   tail = rewriteRefAttrs(tail, ['autoFilter', 'sortState', 'sortCondition'], s, map);
@@ -501,7 +496,11 @@ function shiftCols(head: string, op: LineOp): string {
 
 /** Page breaks (<brk id> is the 1-based row or column the break follows). */
 function shiftBreaks(tail: string, tag: string, op: LineOp): string {
-  return tail.replace(new RegExp(`(<(?:\\w+:)?${tag}\\b[^>]*>)([\\s\\S]*?)(</(?:\\w+:)?${tag}>)`), (_all, open: string, body: string, close: string) => {
+  return replaceElements(tail, tag, ({ qname, attrs, inner }, all) => {
+    if (inner === null) return all;
+    const open = `<${qname}${attrs}>`;
+    const body = inner;
+    const close = `</${qname}>`;
     const insert = op.type.startsWith('insert');
     const next = body.replace(/<((?:\w+:)?brk)\b([^>]*?)\/>/g, (el, t: string, attrs: string) => {
       const id = Number(/\sid="(\d+)"/.exec(attrs)?.[1]);
@@ -510,9 +509,9 @@ function shiftBreaks(tail: string, tag: string, op: LineOp): string {
       if (id >= op.at && id < op.at + op.count) return '';
       return id >= op.at + op.count ? `<${t}${attrs.replace(/\sid="\d+"/, ` id="${id - op.count}"`)}/>` : el;
     });
-    const n = (next.match(/<(?:\w+:)?brk\b/g) ?? []).length;
+    const n = countElements(next, 'brk');
     return `${open.replace(/\scount="\d+"/, ` count="${n}"`).replace(/\smanualBreakCount="\d+"/, ` manualBreakCount="${n}"`)}${next}${close}`;
-  });
+  }, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -576,11 +575,17 @@ function tableChanges(
 
 /** Removes `remove` table columns at position `at` and inserts `add` there, keeping the count right. */
 function spliceColumns(xml: string, at: number, remove: number, add: string[]): string {
-  return xml.replace(/(<(\w+:)?tableColumns\b[^>]*>)([\s\S]*?)(<\/(?:\w+:)?tableColumns>)/, (_all, open: string, _p, body: string, close: string) => {
-    const cols = body.match(/<(\w+:)?tableColumn\b[^>]*?(?:\/>|>[\s\S]*?<\/(?:\w+:)?tableColumn>)/g) ?? [];
-    cols.splice(at, remove, ...add);
-    return `${open.replace(/\scount="\d+"/, ` count="${cols.length}"`)}${cols.join('')}${close}`;
-  });
+  return replaceElements(
+    xml,
+    'tableColumns',
+    ({ qname, attrs, inner }, all) => {
+      if (inner === null) return all;
+      const cols = elements(inner, 'tableColumn').map((c) => inner.slice(c.start, c.end));
+      cols.splice(at, remove, ...add);
+      return `<${qname}${attrs.replace(/\scount="\d+"/, ` count="${cols.length}"`)}>${cols.join('')}</${qname}>`;
+    },
+    1,
+  );
 }
 
 function pivotSource(xml: string, map: RefMap, ctx: FormulaContext): string {
@@ -614,7 +619,8 @@ function threads(xml: string, s: number, map: RefMap): string {
 
 /** The legacy drawing that positions each note's box. */
 function vmlNotes(xml: string, s: number, map: RefMap): string {
-  return xml.replace(/<v:shape\b[\s\S]*?<\/v:shape>/g, (shape) => {
+  return replaceElements(xml, 'shape', ({ qname }, shape) => {
+    if (qname !== 'v:shape') return shape;
     const row = /<x:Row>(\d+)<\/x:Row>/.exec(shape);
     const col = /<x:Column>(\d+)<\/x:Column>/.exec(shape);
     if (!row || !col) return shape;
@@ -650,5 +656,7 @@ function anchors(xml: string, op: LineOp): string {
     if (i < op.at) return i;
     return i >= op.at + op.count ? i - op.count : op.at;
   };
-  return xml.replace(new RegExp(`(<(?:\\w+:)?(?:from|to)>[\\s\\S]*?<(?:\\w+:)?${tag}>)(\\d+)(</(?:\\w+:)?${tag}>)`, 'g'), (_a, a: string, v: string, b: string) => `${a}${shift(Number(v))}${b}`);
+  const move = (_el: unknown, anchor: string) =>
+    anchor.replace(new RegExp(`(<(?:\\w+:)?${tag}>)(\\d+)(</(?:\\w+:)?${tag}>)`), (_a, a: string, v: string, b: string) => `${a}${shift(Number(v))}${b}`);
+  return replaceElements(replaceElements(xml, 'from', move), 'to', move);
 }
