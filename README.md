@@ -6,12 +6,32 @@ back as .xlsx without losing what the editor can't display.
 - View any .xlsx or .xlsm: every sheet, number formats, fonts, fills, column
   widths, merged cells, hidden rows and columns, frozen rows and columns.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
-  workbook (formulas move their references like Excel), drag to fill (series,
-  dates, months, "Item 1" → "Item 2"), clear, undo and redo. Pasting from
-  Excel or Google Sheets brings the cells' formats too (bold, colours,
-  borders, alignment, number formats). Paste special pastes only the values,
-  the formulas or the formats of cells copied in the workbook, or pastes
-  them transposed.
+  workbook (formulas move their references like Excel), drag to fill, clear,
+  undo and redo. Pasting from Excel or Google Sheets brings the cells'
+  formats too (bold, colours, borders, alignment, number formats). Paste
+  special pastes only the values, the formulas or the formats of cells
+  copied in the workbook, or pastes them transposed.
+- Fill as in Excel. Dragging the fill handle continues numbers, dates,
+  quarters, "Item 1" → "Item 2", and lists: day and month names, short and
+  full, in the editor's language as well as English (Montag, Mo., Januar and
+  Jan. in German), the host's `customLists`, and the user's own. A list
+  continues from any of its entries, whatever its case, in the case the cell
+  is written in (MON → TUE, mon → tue). "Fill series…" in the cell menu is
+  Excel's Fill Series dialog for the selection: in rows or columns (as the
+  selection's shape suggests), Linear, Growth, Date (by day, weekday, month
+  or year) or AutoFill, with a step and stop value read in the user's
+  locale, or a least-squares trend fitted to the numbers each row or column
+  starts with, which replaces them, as Excel's does. Each row or column
+  starts from its first cell, and one that starts with nothing (or, but for
+  AutoFill, with text) is left as it is; a series ends before passing the
+  stop value, leaving the cells after it; with one cell selected it runs on
+  until it gets there; and dates follow the workbook's date system, 1904
+  included. Its "Custom lists…" button adds, changes and deletes the user's
+  lists, which are kept in the browser for each `user` (and last until the
+  page closes where the browser keeps nothing). Fill down and fill right are
+  in the cell menu too. Filling is one step to undo, and leaves a protected
+  sheet's locked cells and a schema's read-only cells as they were, saying
+  how many.
 - Format cells from the format bar: font and size, bold, italic, underline
   and strikethrough, font and fill colours, borders, alignment and wrapping,
   number formats (with more or fewer decimals), and clearing formats. Each
@@ -203,7 +223,7 @@ Every host controls the editor through the same handle (`EditorHandle`):
 - `downloadCopy()`, `getWorkbook()` (the workbook as a save would hand it
   over, without the checks), `downloadCsv()` and `getCsv()` (the sheet shown
   as CSV, see [CSV files](#csv-files)), `goTo(ref)` (a cell, a range or a defined name), `registerSchema`,
-  `removeSchema`, `setTheme`, `setLanguage` and `setUser`.
+  `removeSchema`, `setTheme`, `setLanguage`, `setUser` and `setCustomLists`.
 - `status`, `fileName`, `editedCount` and `unsaved`, with `subscribe(listener)`
   to hear when they change, and `destroy()`.
 
@@ -238,8 +258,8 @@ when one has opened, `change` as the edit count changes, `save` with the
 saved workbook when `save-handler="event"`, and `editorerror` (with a
 message) when the workbook from `src` can't be loaded or opened, or the
 editor stops working. Moving the element elsewhere in the page keeps the
-editor as it is; changing its theme, language, user or schemas through
-`options` applies them without closing the workbook.
+editor as it is; changing its theme, language, user, schemas or custom
+lists through `options` applies them without closing the workbook.
 
 In Angular (see `examples/angular`, a working Angular 22 app), the element
 is used like any custom element: allow it with `CUSTOM_ELEMENTS_SCHEMA`,
@@ -271,7 +291,9 @@ e2e/angular.spec.ts` tests it.
 
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
-history, and the author of new notes and comments), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
+history, and the author of new notes and comments), `customLists` (lists that filling continues,
+such as `[['North', 'East', 'South', 'West']]`, after the built-in day and month names and before
+the user's own), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
 `links`, `onLinkClick`, `onError`, `workerTimeout`, `createWorker` and `csvExport`. All styles are scoped under `.wbe`,
 and every class the editor uses starts `wbe-`, so a host's own `.btn`,
 `.modal` or `.active` rules don't reach into it. Cell editors open in an
@@ -443,7 +465,9 @@ everything on screen. The round-trip checker answers in English.
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows
 and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
-menu key) opens the cell menu with fill down and right; notes and comments;
+menu key) opens the cell menu with fill down and right, and Fill Series
+(whose options are radio buttons and fields, with the Custom Lists dialog
+behind a button); notes and comments;
 rows and columns (insert, delete, height or width, hide and unhide);
 merging; freezing panes; sort and filter; and opening, inserting, editing
 and removing links. Its submenus open with the right arrow, Enter or Space,
@@ -464,7 +488,8 @@ The editor takes a browser shortcut only for the same job: Ctrl+S saves,
 Ctrl+F finds, Ctrl+Z undoes, and Ctrl+G finds the next match while its find
 panel is open. It never repurposes one, so Ctrl+R still reloads the page and
 Ctrl+D still bookmarks it (Excel's fill down and fill right are in the cell
-menu instead), and on a Mac ⌘Y is left to the browser's history (redo is
+menu instead, and with one row selected fill down copies the row above, as
+Ctrl+D does), and on a Mac ⌘Y is left to the browser's history (redo is
 ⇧⌘Z).
 
 On a phone the editor keeps the grid in view: the toolbar's actions scroll
@@ -782,7 +807,10 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   The formula bar shows dates the way the locale writes them, so an unchanged
   date commits unchanged. Pastes from Excel take each number's exact value
   from the clipboard's HTML rather than the rounded text. Filling continues
-  months and quarters as Excel does. Formula references are shifted with
+  months, quarters and lists as Excel does, and `seriesLine` is the Fill
+  Series dialog's arithmetic; the page sends the lists (built from `Intl` in
+  `src/state/fillLists.ts`) with each fill, and a schema's read-only cells
+  for the worker to leave. Formula references are shifted with
   `@borgar/fx`. New functions get the `_xlfn.` prefix Excel needs in the file.
 - **Charts** (`src/core/charts.ts`, `src/state/charts.ts`,
   `src/ui/ChartView.tsx`): the worker reads each chart part (its kind,
