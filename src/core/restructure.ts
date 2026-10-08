@@ -494,6 +494,8 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
   });
 
   if (op.type === 'insertCols' || op.type === 'deleteCols') head = shiftCols(head, op);
+  if (op.type === 'deleteRows') head = lowerOutlineLevel(head, 'outlineLevelRow', 'row', xml.slice(cut[0], cut[1]));
+  if (op.type === 'deleteCols') head = lowerOutlineLevel(head, 'outlineLevelCol', 'col', head);
   if (op.type === 'insertRows' || op.type === 'deleteRows') tail = shiftBreaks(tail, 'rowBreaks', op);
   if (op.type === 'insertCols' || op.type === 'deleteCols') tail = shiftBreaks(tail, 'colBreaks', op);
   return head + xml.slice(cut[0], cut[1]) + tail;
@@ -501,6 +503,13 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
 
 /** An element's outline level, from its attributes. */
 const outlineLevelOf = (attrs: string | undefined) => Number(/\soutlineLevel="(\d+)"/.exec(attrs ?? '')?.[1] ?? 0);
+
+/** <sheetFormatPr>'s deepest outline level, lowered to that of the rows (or columns) left once the deepest are deleted. */
+function lowerOutlineLevel(head: string, name: string, tag: string, lines: string): string {
+  let deepest = 0;
+  for (const m of lines.matchAll(new RegExp(`<(?:\\w+:)?${tag}\\b[^>]*?\\soutlineLevel="(\\d+)"`, 'g'))) deepest = Math.max(deepest, Number(m[1]));
+  return head.replace(new RegExp(`(<(?:\\w+:)?sheetFormatPr\\b[^>]*?\\s${name}=")(\\d+)"`), (all, open: string, v: string) => (Number(v) > deepest ? `${open}${deepest}"` : all));
+}
 
 /** Column widths, formats and outline levels (<cols>) follow inserted and deleted columns. */
 function shiftCols(head: string, op: LineOp): string {

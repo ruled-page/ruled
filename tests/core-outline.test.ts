@@ -150,6 +150,15 @@ describe('outlines and inserted or deleted rows and columns', () => {
     expect(info(next, REPORT).outline!.cols.levels[5]).toBeUndefined();
   });
 
+  it('lower the deepest level <sheetFormatPr> gives once the deepest rows or columns are deleted', () => {
+    const s = open();
+    let next = s.restructure({ type: 'deleteRows', sheet: REPORT, at: 1, count: 5 });
+    next = next.restructure({ type: 'deleteCols', sheet: REPORT, at: 1, count: 7 });
+    expect(info(next, REPORT).outline!.rows.levels).toEqual({ 1: 1 });
+    expect(info(next, REPORT).outline!.cols.levels).toEqual({});
+    expect(sheetXml(next, 1)).toMatch(/<sheetFormatPr defaultRowHeight="15" outlineLevelRow="1" outlineLevelCol="0"\/>/);
+  });
+
   it('carry outline changes made before the rows move, and keep them in the session gone back to', () => {
     const s = open();
     outline(s, REPORT, 'rows', { 9: 1, 10: 1 });
