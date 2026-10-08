@@ -222,6 +222,24 @@ describe('moving cells', () => {
     // References to the cells follow them, qualified with the new sheet.
     expect(xml['xl/workbook.xml']).toContain('<definedName name="Here" localSheetId="0">Empty!$B$2</definedName>');
     expect(xml['xl/threadedComments/threadedComment1.xml']).not.toContain('<threadedComment ');
+    // The comment thread on A5 comes with its cell.
+    expect(file.model.sheets[EMPTY].info.notes.map((n) => [n.row, n.col, n.kind, n.entries[0]?.text])).toEqual([[2, 1, 'thread', 'Check this']]);
+  });
+
+  it('to another sheet takes their notes and links with them, in place of the ones there', async () => {
+    const wb = new ExcelJS.Workbook();
+    const one = wb.addWorksheet('One');
+    one.getCell('A1').value = { text: 'Site', hyperlink: 'https://example.com/' };
+    one.getCell('A1').note = 'A note';
+    one.getCell('A2').value = 'x';
+    wb.addWorksheet('Two').getCell('C3').value = { text: 'Old', hyperlink: 'https://old.example/' };
+    const { next, file } = after({ type: 'move', sheet: 0, src: { r1: 0, c1: 0, r2: 1, c2: 0 }, toSheet: 1, row: 2, col: 2 }, new Uint8Array(await wb.xlsx.writeBuffer()), 'two.xlsx');
+    for (const s of [next, file]) expect(s.noteAt(0, 0, 0)).toBeNull();
+    expect(next.noteAt(1, 2, 2)?.entries[0]?.text).toBe('A note');
+    expect(file.model.sheets[0].info.links).toEqual([]);
+    expect(file.model.sheets[1].info.links.map((l) => [l.rect, l.target])).toEqual([[{ r1: 2, c1: 2, r2: 2, c2: 2 }, 'https://example.com/']]);
+    expect(file.noteAt(1, 2, 2)?.entries[0]?.text).toBe('A note');
+    expect(loadedValue(file, 'Two', 'C3')).toBe('Site');
   });
 
   it('into a sheet written without a <sheetData> element adds one in its proper place', () => {

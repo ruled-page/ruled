@@ -1892,6 +1892,7 @@ export class WorkbookSession {
    * session is left as it was, so undo can return to it.
    */
   restructure(op: WorkbookOp): WorkbookSession {
+    const carried = op.type === 'move' && op.toSheet !== op.sheet ? this.carriedTo(op) : undefined;
     const pkg = this.savedPackage();
     const before = readWorkbook(pkg, this.locale);
     const { broken } = isSheetOp(op) ? applySheetOp(pkg, before, op) : restructure(pkg, before, op);
@@ -1951,12 +1952,31 @@ export class WorkbookSession {
       next.comparedOnly = compared;
     }
     next.baked.structure.push(describeStructure(op, names));
+    if (carried) {
+      next.putNotes(carried.notes);
+      if (carried.links.length) next.linksOf(carried.sheet).apply({ add: carried.links, remove: [] });
+    }
     if (op.type === 'insertRows') next.fillInsertedTableRows(op.sheet, op.at, op.count);
     if (op.type === 'growTable') {
       const t = next.model.sheets[op.sheet].info.tables.find((x) => x.name === op.table);
       if (t) next.fillInsertedTableRows(op.sheet, t.rect.r2 - op.rows + 1, op.rows);
     }
     return next;
+  }
+
+  /**
+   * The notes, comment threads and links of cells moving to another sheet,
+   * placed where the cells land. A sheet's own parts carry them only within
+   * the sheet, so they are put on the destination as edits.
+   */
+  private carriedTo(op: Extract<WorkbookOp, { type: 'move' }>): { sheet: number; notes: NoteSnapshot[]; links: Hyperlink[] } {
+    const dr = op.row - op.src.r1;
+    const dc = op.col - op.src.c1;
+    const dst = { r1: op.row, c1: op.col, r2: op.src.r2 + dr, c2: op.src.c2 + dc };
+    const notes = this.notesOf(op.sheet)
+      .filter((n) => inRect(op.src, n.row, n.col))
+      .map((n) => ({ sheet: op.toSheet, row: n.row + dr, col: n.col + dc, note: { ...n, row: n.row + dr, col: n.col + dc } }));
+    return { sheet: op.toSheet, notes, links: copyLinks(this.linksOf(op.sheet).list, op.src, [], dst).add };
   }
 
   /**

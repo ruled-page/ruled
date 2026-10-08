@@ -142,6 +142,9 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   note(c, 'Plain', 'A1', { action: 'reply', text: 'Each.', author: 'Dee' });
   note(c, 'Objects', 'A1', { action: 'setNote', text: 'Allowed here.' });
   write('comments.edited.xlsx', c);
+  // Cut to another sheet: notes and threads go with their cells.
+  const cm = corpus('comments.xlsx');
+  write('comments.moved.xlsx', cm.restructure({ type: 'move', sheet: sheetIndex(cm, 'Review'), src: range('A1', 'D6'), toSheet: sheetIndex(cm, 'Plain'), ...at('A10') }));
   const k2 = open('kitchen-sink.xlsx');
   note(k2, 'Summary', 'A4', { action: 'delete' });
   note(k2, 'Data', 'B3', { action: 'setNote', text: 'Checked.', author: 'Cara' });
