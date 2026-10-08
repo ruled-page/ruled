@@ -74,6 +74,24 @@ back as .xlsx without losing what the editor can't display.
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
   open.
+- Dynamic arrays, as in Excel 365: a formula whose result is an array
+  (SORT, UNIQUE, FILTER, SEQUENCE, TAKE and the other array functions, or a
+  range such as `=B2:B9*2`) spills its values into the cells below and to
+  the right. Those cells hold nothing of their own: the formula bar shows
+  the formula greyed, and the range is outlined in blue while one of its
+  cells is selected. Results grow and shrink as their inputs change, taking
+  just the room they need. Typing into a spilled cell, or anything else in
+  the way, makes the formula show #SPILL! (the range it needs outlined
+  dashed), and clearing it, or undoing, spills it again. The file's own
+  dynamic arrays calculate the same way, and their cells can be typed over;
+  array formulas entered with Ctrl+Shift+Enter keep Excel's values and stay
+  locked. Spilled cells copy, paste and fill as their values (a whole spill
+  copies as its formula, which spills again where it is pasted), sorting
+  refuses to move part of a spill, as Excel does, rows and columns can be
+  inserted and deleted through one, and the Changes panel, schema checks and
+  a host's readers see spilled values as values. A spill is saved as Excel
+  writes it: the formula with the range it spills into, and the values in
+  the cells it covers.
 - Typing a formula, in the formula bar or in a cell, works as in Excel: the
   functions whose names start with what was typed are offered (arrow keys
   choose, Tab or Enter inserts, Escape closes; those the editor leaves for
@@ -527,9 +545,10 @@ and a second tap edits it; the formula bar edits it too.
 Screen readers hear each cell by its reference and as it is shown (the
 value, not the formula, which the formula bar has), then what the grid only
 marks in colour: a merge, a formula and whether its value is out of date or
-Excel's, a change, a list, a note or comments, where a link goes, and any
-schema problem, e.g. "D3, twelve, changed, error: Expected a number." or
-"A1, Prices, link to https://example.com". Rows and columns are numbered as
+Excel's, the formula a spilled value comes from, a change, a list, a note
+or comments, where a link goes, and any schema problem, e.g. "D3, twelve,
+changed, error: Expected a number.", "B5, 12, spilled from A5" or "A1,
+Prices, link to https://example.com". Rows and columns are numbered as
 the sheet numbers them, past hidden ones and below frozen ones. What an
 action did is said too: undoing and redoing ("Undone: Sort A to Z"),
 inserting and deleting, how many rows a filter hides, opening a file, and
@@ -827,9 +846,15 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   for (`src/core/tableRefs.ts`), while the file keeps them as written.
   The engine has no LET either, so a LET is handed to it written out, each
   name replaced by its value (`expandLets` in `src/core/formula.ts`).
-  Formulas the engine can't parse or calculate (LAMBDA, spills…) are
-  given Excel's value instead, so formulas that depend on them still
-  calculate correctly.
+  Formulas the engine can't parse or calculate (LAMBDA, spill
+  references…) are given Excel's value instead, so formulas that depend on
+  them still calculate correctly. The engine sizes an array before working
+  it out, from the formula alone (FILTER as large as what it filters,
+  SEQUENCE(A1) not at all), so a spilling formula is given to it wrapped in
+  a function of the editor's own (`src/core/functions/spill.ts`) that gives
+  the result exactly the room it needs and notes the size it turns out to
+  have; when that changes, or something in a blocked formula's way is
+  cleared, the formula is put in again.
 - **Editing** (`session.ts`, `fill.ts`, `input.ts`): typed and pasted text is
   parsed the way Excel parses it (numbers, percentages, currencies, dates,
   formulas), in the user's locale (`3/4/2026` is 4 March in the US and 3 April
@@ -856,9 +881,11 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   open; pivot caches whose source data changed are flagged to refresh on
   open. Typed formulas are stored the way Excel stores them: functions added
   since Excel 2007 with `_xlfn.`, LET and LAMBDA parameters with `_xlpm.`,
-  and formulas that can return an array as dynamic array formulas (with the
-  `metadata.xml` entry that marks them), which Excel spills when it
-  recalculates on opening. A workbook with no edits is returned byte for byte.
+  and formulas that can return an array as dynamic array formulas, with the
+  `metadata.xml` entry that marks them, the range they spill into as their
+  `ref`, and their values in the cells they cover; cells a spill no longer
+  reaches are cleared, and one blocked here is saved as #SPILL! in its own
+  cell, as Excel saves it. A workbook with no edits is returned byte for byte.
 
 ## Measured (MacBook, Chrome)
 
@@ -926,7 +953,9 @@ is among them under GPLv3, until a commercial licence for it is in place.
   conditional formatting, links, tables, pivot sources, charts, pictures and
   notes), references to deleted cells become #REF!, and changes that would
   split an array formula, a pivot table or a table's header are refused, as in
-  Excel. Each one rebuilds the calculation engine, which takes a moment on
+  Excel. Rows and columns can be inserted and deleted through a dynamic
+  array's spill, which spills again afterwards; cutting and pasting part of
+  one is refused. Each one rebuilds the calculation engine, which takes a moment on
   large workbooks, and up to 20 can be undone. Cells moved to another sheet
   leave merges and tables behind, so such moves are refused.
 - Outlines: Excel's Auto Outline, outline styles and outline settings (where
@@ -967,6 +996,14 @@ is among them under GPLv3, until a commercial licence for it is in place.
   pasting does, replacing the links where it pastes. Only a formula that is
   a HYPERLINK call is a link, not one with HYPERLINK inside it; with live
   recalculation off, only an address the formula writes as text is known.
+- Dynamic arrays: a reference to a spill (`A2#`, which Excel saves as
+  ANCHORARRAY) isn't calculated, so a formula using one keeps Excel's
+  values, locked, as does a file's spill that the engine works out
+  differently from Excel. Array formulas entered with Ctrl+Shift+Enter keep
+  Excel's values and can't be edited here. Formulas the file doesn't mark as
+  dynamic arrays came from an Excel that worked them out to one value, and
+  don't spill here either. A result of more than a million cells isn't given
+  room of its own.
 - Validation formulas run in HyperFormula, so a rule using a function it
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
   editor for list sources only.
