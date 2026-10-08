@@ -203,7 +203,9 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
       if (!(row >= 0 && row < MAX_ROWS)) throw damaged();
       lastRow = row;
       if (ra.customFormat === '1' && ra.s) rowStyles.set(row, Number(ra.s));
-      if (ra.ht && (ra.customHeight === '1' || ra.customHeight === 'true')) rowHeightsPt.set(row, Number(ra.ht));
+      // Excel saves the height of rows it sized to fit wrapped or large text as well as of rows
+      // sized by hand (customHeight), and draws both at that height.
+      if (ra.ht && Number(ra.ht) > 0) rowHeightsPt.set(row, Number(ra.ht));
       if (ra.hidden === '1' || ra.hidden === 'true') hiddenRows.push(row);
 
       let end: number;

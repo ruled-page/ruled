@@ -79,3 +79,16 @@ describe('reading cells written by other programs', () => {
     expect(cells(xml)).toEqual([[1, 0, VT.Number, 7, undefined]]);
   });
 });
+
+describe('row heights', () => {
+  it('keeps the height of rows Excel sized to fit their text, as well as of rows sized by hand', () => {
+    const { rowHeightsPt } = scanSheet(
+      sheet('<row r="1" ht="45" dyDescent="0.25"><c r="A1"><v>1</v></c></row><row r="2" ht="30" customHeight="1"/><row r="3"><c r="A3"><v>3</v></c></row>'),
+      [],
+    );
+    expect([...rowHeightsPt]).toEqual([
+      [0, 45],
+      [1, 30],
+    ]);
+  });
+});
