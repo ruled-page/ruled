@@ -4,7 +4,8 @@ validate (npm run validate:saves). They cover what templates a host hands
 out tend to use and the samples don't: a protected sheet with unlocked input
 cells, an Excel table with a calculated column, a totals row and structured
 references, dynamic array formulas, LET and LAMBDA, defined names, links,
-hidden and grouped rows, and the 1904 date system.
+hidden and grouped rows, the 1904 date system, and notes and threaded
+comments.
 
 XlsxWriter writes files the way Excel does, but doesn't calculate, so each
 formula is given the value Excel would have saved, worked out here.
@@ -127,7 +128,120 @@ def dates_1904():
     wb.close()
 
 
+PEOPLE = {
+    "Ann Analyst": "{6B1F2D3A-0C4E-4F7B-9A21-3E5D7C8B9A10}",
+    "Bob Reviewer": "{C2D4E6F8-1A3B-4C5D-8E9F-0A1B2C3D4E5F}",
+}
+# Each thread: its cell, whether it is resolved, and its comments (who, when, what), first one first.
+THREADS = [
+    ("C3", False, [
+        ("Ann Analyst", "2026-09-14T09:12:31.52", "{2F4A6C8E-1B3D-4E5F-8A9B-0C1D2E3F4A5B}", "Does this include the Q3 adjustment?"),
+        ("Bob Reviewer", "2026-09-14T11:40:02.17", "{7A8B9C0D-2E3F-4A5B-9C6D-1E2F3A4B5C6D}", "Yes, since Monday."),
+    ]),
+    ("A6", True, [
+        ("Bob Reviewer", "2026-09-15T08:03:44.90", "{9E8D7C6B-5A4F-4E3D-8C2B-1A0F9E8D7C6B}", "Rename this row?"),
+    ]),
+]
+LEGACY = (
+    "[Threaded comment]\n\nYour version of Excel allows you to read this threaded comment; however, any edits to it "
+    "will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924\n\n"
+)
+
+
+def comments():
+    """
+    Notes and threaded comments as Excel writes them. XlsxWriter writes notes
+    only, so each thread's placeholder note (what versions of Excel before
+    threads show) is written as a note, and the threads, the people in them
+    and the links Excel adds are put into the package afterwards.
+    """
+    import re
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    path = OUT / "comments.xlsx"
+    wb = xlsxwriter.Workbook(path)
+    wb.set_properties({"created": dt.datetime(2026, 9, 14, 9, 0, 0)})
+    bold = wb.add_format({"bold": True})
+
+    review = wb.add_worksheet("Review")
+    review.set_column("A:A", 18)
+    review.write_row("A1", ["Line", "Budget", "Actual"], bold)
+    for i, (name, budget, actual) in enumerate([("Salaries", 1200, 1180), ("Travel", 300, 412), ("Training", 150, 90), ("Software", 400, 400)]):
+        review.write_row(i + 1, 0, [name, budget, actual])
+    review.write_comment("B2", "Agreed with finance.\nRevisit in January.", {"author": "Ann Analyst"})
+    for ref, _done, entries in THREADS:
+        text = LEGACY + "Comment:\n    " + entries[0][3] + "".join(f"\nReply:\n    {e[3]}" for e in entries[1:])
+        review.write_comment(ref, text, {"author": f"tc={entries[0][2]}"})
+
+    plain = wb.add_worksheet("Plain")
+    plain.write_row("A1", ["Item", "Qty"], bold)
+    plain.write_row("A2", ["Bolts", 12])
+
+    # Protected with Excel's defaults, which keep notes and comments as they are…
+    locked = wb.add_worksheet("Locked")
+    locked.protect()
+    locked.write("A1", "Locked", bold)
+    locked.write_comment("A1", "Ask before changing.", {"author": "Ann Analyst"})
+    # …and with "Edit objects" allowed, which lets them be changed.
+    edit = wb.add_worksheet("Objects")
+    edit.protect("", {"objects": True})
+    edit.write("A1", "Notes allowed", bold)
+    wb.close()
+
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    ns = 'xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments" xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+    persons = "".join(f'<person displayName="{n}" id="{i}" userId="{n}" providerId="None"/>' for n, i in PEOPLE.items())
+    parts["xl/persons/person.xml"] = f"{head}<personList {ns}>{persons}</personList>".encode()
+    threads = ""
+    for ref, done, entries in THREADS:
+        root = entries[0][2]
+        for k, (who, when, id_, text) in enumerate(entries):
+            parent = f' parentId="{root}"' if k else ""
+            resolved = ' done="1"' if done and not k else ""
+            threads += f'<threadedComment ref="{ref}" dT="{when}" personId="{PEOPLE[who]}" id="{id_}"{parent}{resolved}><text>{escape(text)}</text></threadedComment>'
+    parts["xl/threadedComments/threadedComment1.xml"] = f"{head}<ThreadedComments {ns}>{threads}</ThreadedComments>".encode()
+
+    # Excel marks each placeholder with its thread's id.
+    xml = parts["xl/comments1.xml"].decode()
+    xml = xml.replace(
+        '<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+        '<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="xr" xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision">',
+    )
+    authors = re.findall(r"<author>([^<]*)</author>", xml)
+    for ref, _done, entries in THREADS:
+        author = authors.index(f"tc={entries[0][2]}")
+        xml = xml.replace(f'<comment ref="{ref}" authorId="{author}">', f'<comment ref="{ref}" authorId="{author}" shapeId="0" xr:uid="{entries[0][2]}">')
+    parts["xl/comments1.xml"] = xml.encode()
+
+    rels = parts["xl/worksheets/_rels/sheet1.xml.rels"].decode()
+    rels = rels.replace(
+        "</Relationships>",
+        '<Relationship Id="rId9" Type="http://schemas.microsoft.com/office/2017/10/relationships/threadedComment" Target="../threadedComments/threadedComment1.xml"/></Relationships>',
+    )
+    parts["xl/worksheets/_rels/sheet1.xml.rels"] = rels.encode()
+    rels = parts["xl/_rels/workbook.xml.rels"].decode()
+    rels = rels.replace(
+        "</Relationships>",
+        '<Relationship Id="rId99" Type="http://schemas.microsoft.com/office/2017/10/relationships/person" Target="persons/person.xml"/></Relationships>',
+    )
+    parts["xl/_rels/workbook.xml.rels"] = rels.encode()
+    types = parts["[Content_Types].xml"].decode()
+    types = types.replace(
+        "</Types>",
+        '<Override PartName="/xl/threadedComments/threadedComment1.xml" ContentType="application/vnd.ms-excel.threadedcomments+xml"/>'
+        '<Override PartName="/xl/persons/person.xml" ContentType="application/vnd.ms-excel.person+xml"/></Types>',
+    )
+    parts["[Content_Types].xml"] = types.encode()
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in parts.items():
+            z.writestr(zipfile.ZipInfo(name, (2026, 9, 14, 9, 0, 0)), data, zipfile.ZIP_DEFLATED)
+
+
 OUT.mkdir(parents=True, exist_ok=True)
 templates()
 dates_1904()
-print(f"Wrote {OUT}/templates.xlsx and dates-1904.xlsx")
+comments()
+print(f"Wrote {OUT}/templates.xlsx, dates-1904.xlsx and comments.xlsx")
