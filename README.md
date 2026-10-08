@@ -26,6 +26,14 @@ back as .xlsx without losing what the editor can't display.
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
   open.
+- Typing a formula, in the formula bar or in a cell, works as in Excel: the
+  functions whose names start with what was typed are offered (arrow keys
+  choose, Tab or Enter inserts, Escape closes; those the editor leaves for
+  Excel to calculate are marked), the arguments of the function the caret is
+  in are shown with the current one in bold, each reference is coloured and
+  outlined on the sheet in the same colour, and F4 switches the reference at
+  the caret between A1, $A$1, A$1 and $A1. The list of functions is
+  `src/core/functionCatalog.ts`, checked against the engine by its tests.
 - Save writes only the cells that changed back into the original file.
   Charts, pivot tables, macros, conditional formatting, validation, comments,
   pictures, sparklines and everything else stay byte-for-byte as they were.
@@ -329,6 +337,10 @@ leaves in Excel's automatic colour follow `gridText` and `gridBorderAuto`, so
 they stay readable; on cells the file fills, automatic text uses
 `gridTextOnFill`, which stays dark because the fills are light. Colours the
 workbook sets itself are kept.
+
+References in a formula being typed take `formulaRef1` to `formulaRef7`
+(`--wbe-formula-ref1`…) in turn, as text on the field's background and as
+outlines on the grid; a dark theme sets lighter ones.
 
 Charts take the grid's background, text, lines and font. Their series keep
 the colours the file gives them; series it leaves to Excel get the workbook
