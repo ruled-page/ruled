@@ -122,7 +122,8 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
             </thead>
             <tbody>
               {changes.slice(0, SHOWN).map((c) => (
-                <tr key={`${c.sheet}!${c.ref}`} onClick={() => go(c.sheet, c.ref)}>
+                // A cell's note can change as well as its value.
+                <tr key={`${c.sheet}!${c.ref}${c.comment ? '#note' : ''}`} onClick={() => go(c.sheet, c.ref)}>
                   <td className="wbe-mono">
                     {/* The row is clickable too; the button is the same for keyboards and screen readers. */}
                     <button className="wbe-cell-link" title={t('changes.goTo')} onClick={(e) => {
@@ -137,6 +138,14 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
                     <td colSpan={2} className="wbe-change-note">
                       {t.text(c.note)}
                     </td>
+                  ) : c.comment ? (
+                    <>
+                      <td className="wbe-change-lines">{c.before === '' ? empty : c.before}</td>
+                      <td className="wbe-change-lines">
+                        <span className="wbe-change-note">{t.text(c.comment)}</span>
+                        {c.after !== '' && `\n${c.after}`}
+                      </td>
+                    </>
                   ) : (
                     <>
                       <td>{c.before === '' ? empty : c.before}</td>
@@ -176,7 +185,8 @@ const SHOWN = 500;
 /** "3 cells differ from the file as it was opened, and 1 change to rows, columns or where cells are." */
 function summarize(t: Translator, changes: CellChange[]): string {
   const structural = changes.filter((c) => c.note).length;
-  const cells = changes.length - structural;
+  // A cell whose value and note both changed is one cell.
+  const cells = new Set(changes.filter((c) => !c.note).map((c) => `${c.sheet}!${c.ref}`)).size;
   if (cells && structural) {
     return t('changes.summaryBoth', { cells: t('changes.cells', { count: cells }), structural: t('changes.structural', { count: structural }) });
   }

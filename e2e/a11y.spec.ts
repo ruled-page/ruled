@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { goTo, openFile, openSample, ordersWorkbook, setCell } from './helpers';
 
@@ -116,6 +117,23 @@ for (const theme of ['Default', 'Dark']) {
       await page.keyboard.type('M(B2,', { delay: 20 });
       await expect(page.getByRole('tooltip')).toBeVisible();
       expect(await violations(page)).toEqual([]);
+    });
+
+    test('a note, a comment thread, and both read-only', async ({ page }) => {
+      await openFile(page, 'comments.xlsx', new Uint8Array(readFileSync(new URL('../tests/corpus/comments.xlsx', import.meta.url))));
+      await useTheme(page, theme);
+      for (const [ref, name] of [
+        ['Review!C3', 'Comments on C3'],
+        ['B2', 'Note on B2'],
+        ['Plain!A1', 'New note on A1'],
+        ['Locked!A1', 'Note on A1'],
+      ]) {
+        await goTo(page, ref);
+        await page.keyboard.press('Shift+F2');
+        await expect(page.getByRole('dialog', { name })).toBeVisible();
+        expect(await violations(page)).toEqual([]);
+        await page.keyboard.press('Escape');
+      }
     });
 
     test('the schema designer', async ({ page }) => {

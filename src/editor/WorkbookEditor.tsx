@@ -3,6 +3,7 @@ import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
+import { CommentPopup } from '../ui/CommentPopup';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
@@ -335,6 +336,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && <FilterPicker store={store} />}
       {ready && <SizeDialog store={store} axis="cols" />}
       {ready && <SizeDialog store={store} axis="rows" />}
+      {ready && <CommentPopup store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

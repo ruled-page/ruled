@@ -34,9 +34,10 @@ back as .xlsx without losing what the editor can't display.
   outlined on the sheet in the same colour, and F4 switches the reference at
   the caret between A1, $A$1, A$1 and $A1. The list of functions is
   `src/core/functionCatalog.ts`, checked against the engine by its tests.
-- Save writes only the cells that changed back into the original file.
-  Charts, pivot tables, macros, conditional formatting, validation, comments,
-  pictures, sparklines and everything else stay byte-for-byte as they were.
+- Save writes only the cells, notes and comments that changed back into the
+  original file. Charts, pivot tables, macros, conditional formatting,
+  validation, pictures, sparklines and everything else stay byte-for-byte as
+  they were.
 - Charts are drawn where they sit (and chart sheets fill their sheet) from
   the cells as they are now, so editing their data redraws them: column and
   bar charts (clustered, stacked and 100% stacked), line, area, pie,
@@ -44,7 +45,13 @@ back as .xlsx without losing what the editor can't display.
   two axes if need be. Other kinds show as placeholders. Screen readers
   hear each chart's name and its series and values.
 - Notes and threaded comments are marked in the corner of their cell and
-  shown when you point at the cell or select it. They are read-only.
+  shown when you point at the cell or select it. From the cell menu, or with
+  Shift+F2 as in Excel, you can add, edit and delete a note, and read a
+  comment thread, reply, edit or delete your own comments, resolve or reopen
+  it, delete it or start a new one. They are saved as Excel writes them,
+  with the note Excel keeps for each thread for its older versions. A
+  protected sheet keeps its notes and comments unless its protection allows
+  editing objects, as in Excel, and a schema's read-only cells keep theirs.
 - "What's in this file" lists everything the editor keeps but can't show,
   and the editor asks before any edit would replace a formula with a value.
 - Excel's own data validation is enforced. List rules get a dropdown,
@@ -79,7 +86,8 @@ back as .xlsx without losing what the editor can't display.
   sheet, which saves as .xlsx, and the sheet shown downloads as CSV; see
   [CSV files](#csv-files).
 - A Changes panel lists every cell that differs from the opened file, old and
-  new value, and a timestamped history of actions. Unsaved edits are kept in
+  new value, every note or comment thread changed, and a timestamped history
+  of actions. Unsaved edits are kept in
   the browser and offered back if the same file is reopened after a crash or
   a closed tab.
 
@@ -236,7 +244,7 @@ e2e/angular.spec.ts` tests it.
 
 Options include `schemas`, `numbers`, `onSave`, `saveLabel`, `features` (hide
 the open, save, download or schema buttons when the host provides them), `user` (recorded in the
-history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
+history, and the author of new notes and comments), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
 `onError`, `workerTimeout`, `createWorker` and `csvExport`. All styles are scoped under `.wbe`,
 and every class the editor uses starts `wbe-`, so a host's own `.btn`,
 `.modal` or `.active` rules don't reach into it. Cell editors open in an
@@ -393,10 +401,11 @@ everything on screen. The round-trip checker answers in English.
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows
 and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
-menu key) opens the cell menu with fill down and right; rows and columns
-(insert, delete, height or width, hide and unhide); merging; freezing panes;
-sort and filter. Its submenus open with the right arrow, Enter or Space, and
-close with the left arrow or Escape. F6 (Ctrl+F6 where the browser keeps F6) moves
+menu key) opens the cell menu with fill down and right; notes and comments;
+rows and columns (insert, delete, height or width, hide and unhide);
+merging; freezing panes; sort and filter. Its submenus open with the right
+arrow, Enter or Space, and close with the left arrow or Escape. Shift+F2
+opens the cell's note or comments. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4 in the
 formula bar's name box goes there. The sheet tabs are one stop: the arrow
@@ -775,6 +784,13 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   only when it looks like headings (text over numbers, or bold over plain). Filtering hides rows on screen only; the file
   keeps its own filter, as it was.
 - Sheets can't be added, renamed or deleted.
+- Notes and comments are edited as plain text: a changed note loses any
+  bold, colour or other formatting in its text, and a changed comment its
+  @mentions. New comments are by the `user` option's name, as a person with
+  no account behind it (Excel's provider "None"), or by "Anonymous" without
+  one; only comments by that name count as the user's own, to edit or
+  delete. A new note's box is placed beside its cell, hidden, as Excel adds
+  one.
 - Validation formulas run in HyperFormula, so a rule using a function it
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
   editor for list sources only.

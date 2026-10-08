@@ -1888,6 +1888,100 @@
   color: var(--wbe-text-subtle);
 }
 
+/* A cell's note or comments, to read and change, beside the cell. */
+.wbe .wbe-comment-popup {
+  position: fixed;
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 8px);
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  box-shadow: var(--wbe-shadow);
+  color: var(--wbe-text);
+}
+
+.wbe .wbe-comment-title {
+  margin: 0 0 6px;
+  font-size: var(--wbe-font-size-lg);
+}
+
+.wbe .wbe-comment-meta {
+  margin: 0 0 6px;
+  color: var(--wbe-text-muted);
+  font-size: var(--wbe-font-size-sm);
+}
+
+.wbe .wbe-comment-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wbe .wbe-comment-entry + .wbe-comment-entry {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wbe-border);
+}
+
+.wbe .wbe-comment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wbe .wbe-comment-head .wbe-comment-meta {
+  margin: 0;
+}
+
+.wbe .wbe-comment-who {
+  font-weight: 600;
+}
+
+.wbe .wbe-comment-text {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.wbe .wbe-comment-popup .wbe-field {
+  margin: 8px 0 4px;
+}
+
+.wbe .wbe-comment-input {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 3em;
+  padding: 6px 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+  resize: vertical;
+}
+
+.wbe .wbe-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.wbe .wbe-comment-popup .wbe-modal-actions {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.wbe .wbe-btn.wbe-comment-delete {
+  color: var(--wbe-danger);
+}
+
 .wbe .wbe-swatch.wbe-tri-right::before {
   content: '';
   position: absolute;
@@ -2676,6 +2770,11 @@
 .wbe .wbe-change-note {
   color: var(--wbe-text-muted);
   font-style: italic;
+}
+
+/* A note's or thread's text, a line to each comment. */
+.wbe .wbe-change-lines {
+  white-space: pre-line;
 }
 
 /* Find and replace --------------------------------------------------------------- */

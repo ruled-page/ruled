@@ -4,7 +4,7 @@ import { ContextMenu, type MenuItem } from './ContextMenu';
 import { mod } from './keys';
 import { useT } from '../i18n/react';
 
-/** The grid's right-click menu: clipboard, rows and columns, sorting, filtering and find. */
+/** The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find. */
 export function GridMenu({ store }: { store: WorkbookStore }) {
   const t = useT();
   const menu = store.menu;
@@ -65,6 +65,25 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
             ...(merged ? [{ label: t('menu.unmerge'), onSelect: () => void store.unmergeCells(), disabled: locked }] : []),
             { label: t('menu.freeze'), items: freezeItems },
           ];
+  // The active cell's note or comments; read-only ones can still be read.
+  const note = view.noteAt(sel.row, sel.col);
+  const notesLocked = !!view.commentReadOnlyReason(sel.row, sel.col);
+  const openComment = (start: 'note' | 'thread') => () => store.openComment(sel.row, sel.col, { x: menu.x, y: menu.y }, start);
+  const deleteComment = () => void store.deleteComment(sel.row, sel.col);
+  const noteItems: MenuItem[] = !note
+    ? [
+        { label: t('menu.newNote'), hint: t('keys.shiftF2'), onSelect: openComment('note'), disabled: notesLocked },
+        { label: t('menu.newComment'), onSelect: openComment('thread'), disabled: notesLocked },
+      ]
+    : note.kind === 'note'
+      ? [
+          { label: t(notesLocked ? 'menu.showNote' : 'menu.editNote'), hint: t('keys.shiftF2'), onSelect: openComment('note') },
+          { label: t('menu.deleteNote'), onSelect: deleteComment, disabled: notesLocked, danger: true },
+        ]
+      : [
+          { label: t('menu.showComments'), hint: t('keys.shiftF2'), onSelect: openComment('thread') },
+          { label: t('menu.deleteThread'), onSelect: deleteComment, disabled: notesLocked, danger: true },
+        ];
   const filtered = !!view.filter;
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
@@ -89,6 +108,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
     { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
     { separator: true },
+    ...(menu.kind === 'cell' ? [...noteItems, { separator: true } as const] : []),
     ...lineItems,
     { separator: true },
     ...dataItems,

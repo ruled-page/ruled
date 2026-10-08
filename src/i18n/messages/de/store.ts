@@ -112,7 +112,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.history.editComment': 'Kommentar bearbeiten',
   'store.history.deleteReply': 'Antwort löschen',
   'store.history.deleteThread': 'Kommentarthread löschen',
-  'store.history.resolveThread': 'Kommentarthread als erledigt markieren',
+  'store.history.resolveThread': 'Kommentarthread als gelöst markieren',
   'store.history.reopenThread': 'Kommentarthread erneut öffnen',
   'store.comment.anonymous': 'Anonym',
   'store.history.businessLogic': 'Von der Geschäftslogik ausgefüllt',

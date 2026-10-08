@@ -600,6 +600,14 @@ export function SheetGrid({
         const at = v && ref.current?.getBounds(v.gridCol(sel.col) + 1, v.gridRow(sel.row) - rowStart);
         if (at) store.set('menu', { x: at.x + Math.min(at.width, 24), y: at.y + at.height, kind: 'cell' });
       }
+      // Shift+F2, Excel's key for a cell's note, opens its note or comments beside it.
+      if (e.shiftKey && e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const sel = store.selection;
+        const v = store.view;
+        const at = v && ref.current?.getBounds(v.gridCol(sel.col) + 1, v.gridRow(sel.row) - rowStart);
+        if (at) store.openComment(sel.row, sel.col, { x: at.x + at.width + 4, y: at.y });
+      }
     };
     window.addEventListener('copy', onCopy, true);
     window.addEventListener('cut', onCut, true);

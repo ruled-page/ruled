@@ -182,7 +182,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.comment.noThread': 'Diese Zelle hat keinen Kommentarthread.',
   'core.comment.isThread': 'Diese Zelle hat einen Kommentarthread, keine Notiz.',
   'core.comment.exists': 'Diese Zelle hat bereits eine Notiz oder Kommentare.',
-  'core.comment.resolved': 'Dieser Thread ist erledigt. Öffnen Sie ihn erneut, um zu antworten.',
+  'core.comment.resolved': 'Dieser Thread ist gelöst. Öffnen Sie ihn erneut, um zu antworten.',
   'core.comment.gone': 'Dieser Kommentar ist nicht mehr im Thread.',
   'core.comment.empty': 'Ein Kommentar braucht etwas Text.',
 
@@ -296,7 +296,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.change.commentsEdited_other': '{{count, number}} Kommentare bearbeitet',
   'core.change.repliesDeleted_one': '{{count, number}} Antwort gelöscht',
   'core.change.repliesDeleted_other': '{{count, number}} Antworten gelöscht',
-  'core.change.resolved': 'erledigt',
+  'core.change.resolved': 'gelöst',
   'core.change.reopened': 'wieder geöffnet',
 
   'core.validation.kind.whole': 'Ganze Zahl',

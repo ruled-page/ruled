@@ -211,7 +211,8 @@ export const ui = {
   'shortcuts.complete': 'In a formula, insert the function highlighted in the list of names that match what you typed (arrow keys move through it, Escape closes it)',
   'shortcuts.absolute': 'In a formula, switch the reference at the cursor between relative and absolute: A1, $A$1, A$1, $A1',
   'shortcuts.commands': 'Commands',
-  'shortcuts.menu': 'Cell menu: fill down and right, insert and delete rows and columns, column width, sort, filter',
+  'shortcuts.menu': 'Cell menu: fill down and right, notes and comments, insert and delete rows and columns, column width, sort, filter',
+  'shortcuts.note': "Add or edit the cell's note, or read and reply to its comments",
   'shortcuts.find': 'Find and replace',
   'shortcuts.findNext': 'Next match while finding (with Shift, the previous one)',
   'shortcuts.save': 'Save',
@@ -229,6 +230,7 @@ export const ui = {
   'keys.f4': 'F4',
   'keys.delete': 'Delete, Backspace',
   'keys.menu': 'Shift+F10, Menu key',
+  'keys.shiftF2': 'Shift+F2',
 
   'columnWidth.title': 'Width of column {{column}}',
   'columnWidth.label': 'Width in characters, as Excel measures it (0 to 255)',
@@ -249,6 +251,13 @@ export const ui = {
   'menu.pasteTransposed': 'Transposed',
   'menu.fillDown': 'Fill down',
   'menu.fillRight': 'Fill right',
+  'menu.newNote': 'New note',
+  'menu.editNote': 'Edit note',
+  'menu.showNote': 'Show note',
+  'menu.deleteNote': 'Delete note',
+  'menu.newComment': 'New comment',
+  'menu.showComments': 'Show comments',
+  'menu.deleteThread': 'Delete comment thread',
   'menu.insertRowsAbove_one': 'Insert {{count, number}} row above',
   'menu.insertRowsAbove_other': 'Insert {{count, number}} rows above',
   'menu.insertRowsBelow_one': 'Insert {{count, number}} row below',
@@ -387,6 +396,32 @@ export const ui = {
 
   'note.resolved': 'Resolved',
 
+  // The popup for a cell's note or comment thread. {{cell}} is the cell, such as B4.
+  'comments.noteTitle': 'Note on {{cell}}',
+  'comments.newNoteTitle': 'New note on {{cell}}',
+  'comments.threadTitle': 'Comments on {{cell}}',
+  'comments.newThreadTitle': 'New comment on {{cell}}',
+  'comments.by': 'By {{author}}',
+  /** Who wrote a comment whose author the file doesn't name. */
+  'comments.someone': 'Someone',
+  'comments.noteLabel': 'Note',
+  'comments.commentLabel': 'Comment',
+  'comments.replyLabel': 'Reply',
+  'comments.editLabel': 'Your comment',
+  /** {{key}} is Ctrl+Enter, or ⌘Enter on a Mac. */
+  'comments.sendHint': '{{key}} saves it.',
+  'comments.saveNote': 'Save note',
+  'comments.deleteNote': 'Delete note',
+  'comments.post': 'Post',
+  'comments.reply': 'Reply',
+  'comments.edit': 'Edit',
+  'comments.save': 'Save',
+  'comments.deleteReply': 'Delete',
+  'comments.deleteThread': 'Delete thread',
+  'comments.resolve': 'Resolve thread',
+  'comments.reopen': 'Reopen thread',
+  'comments.close': 'Close',
+
   'objects.chart': 'Chart',
   'objects.picture': 'Picture',
   'objects.shape': 'Shape',
@@ -403,7 +438,7 @@ export const ui = {
 
   'editor.sheetLabel': 'Sheet {{name}}',
   'editor.sheetHint':
-    'Arrow keys and Tab move between cells; type to replace a cell, or press Enter to edit it. Shift+F10 opens the cell menu, F6 moves to the next part of the editor, and {{key}} lists every shortcut.',
+    "Arrow keys and Tab move between cells; type to replace a cell, or press Enter to edit it. Shift+F10 opens the cell menu, Shift+F2 the cell's note or comments, F6 moves to the next part of the editor, and {{key}} lists every shortcut.",
   'editor.chooseWorkbook': '<b>Choose a workbook</b> or drop it here',
   'editor.chooseWorkbookNote': '.xlsx or .xlsm, processed entirely in your browser',
   'editor.chooseWorkbookNoteCsv': '.xlsx, .xlsm or .csv, processed entirely in your browser',
