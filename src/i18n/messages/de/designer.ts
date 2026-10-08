@@ -11,6 +11,8 @@ export const designer: Record<keyof typeof en, string> = {
   'designer.tab.form': 'Formular',
   'designer.tab.json': 'JSON',
   'designer.hooksWarning': 'Dieses Schema enthält Code-Hooks (asynchrone Prüfungen, Geschäftslogik). Sie sind nicht Teil des JSON; wenn Sie es hier anwenden oder exportieren, fehlen sie daher.',
+  'designer.hooksKept':
+    'Dieses Schema enthält Code-Hooks der Anwendung (asynchrone Prüfungen, Geschäftslogik). Wenn Sie es hier anwenden, bleiben sie für die noch vorhandenen Blätter, Tabellen und Felder erhalten; beim Exportieren fehlen sie.',
   'designer.json.label': 'Schema-JSON',
 
   'designer.list.heading': 'Registriert',

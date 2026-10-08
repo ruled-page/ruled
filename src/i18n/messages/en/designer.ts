@@ -9,6 +9,8 @@ export const designer = {
   'designer.tab.form': 'Form',
   'designer.tab.json': 'JSON',
   'designer.hooksWarning': "This schema has code hooks (async checks, business logic). They aren't part of the JSON, so applying or exporting it here leaves them out.",
+  'designer.hooksKept':
+    "This schema has code hooks (async checks, business logic) from the app. Applying it here keeps them for the sheets, tables and fields that are still there; exporting it leaves them out.",
   'designer.json.label': 'Schema JSON',
 
   'designer.list.heading': 'Registered',

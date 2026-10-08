@@ -4,7 +4,8 @@ import type { IconOverrides } from '../ui/icons';
 import type { StructuralOp } from '../core/refTransform';
 import { shiftFormula } from '../core/formula';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
-import { bindSchema, type Binding } from '../schema/binding';
+import { bindSchema, type Binding, type BindResult } from '../schema/binding';
+import { withHooksFrom } from '../schema/hooks';
 import { SchemaController } from '../schema/controller';
 import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
 import {
@@ -376,6 +377,8 @@ export class WorkbookStore {
   private worker?: Worker;
   private seq = 0;
   private pending = new Map<number, Pending>();
+  /** Schemas the host gave, by id, with their code hooks. */
+  private readonly hostSchemas = new Map<string, WorkbookSchema>();
   private listeners = new Set<() => void>();
   private clip?: Clip;
   private queue: Promise<unknown> = Promise.resolve();
@@ -390,6 +393,7 @@ export class WorkbookStore {
   constructor(options: StoreOptions = {}) {
     this.options = options;
     this.schemas = [...(options.schemas ?? [])];
+    for (const s of this.schemas) this.hostSchemas.set(s.id, s);
     this.features = { open: true, save: true, download: true, schemas: true, report: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
@@ -1870,7 +1874,13 @@ export class WorkbookStore {
     let closest: { name: Localized; problems: Text[]; found: number } | undefined;
     // A file stamped with a schema when it was saved tries that schema first.
     for (const s of stampedFirst(this.schemas, this.properties)) {
-      const r = bindSchema(s, this.sheets);
+      let r: BindResult;
+      try {
+        r = bindSchema(s, this.sheets);
+      } catch (e) {
+        // A schema that can't be read against this workbook is passed over, saying why.
+        r = { problems: [errorText(e)], found: 0 };
+      }
       if (r.binding) {
         this.schemaNote = versionNote(s, this.properties, this.t.language);
         this.attachSchema(r.binding);
@@ -1915,9 +1925,27 @@ export class WorkbookStore {
 
   /** Adds a schema, replacing any with the same id, and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void {
+    this.hostSchemas.set(schema.id, schema);
     // Newest first, so a schema just applied takes priority over older ones that also fit.
     this.schemas = [schema, ...this.schemas.filter((s) => s.id !== schema.id)];
     this.bindSchemas();
+  }
+
+  /**
+   * Applies a schema made or imported in the schema designer. A copy of a
+   * schema the host provided keeps the host's code hooks (its async checks,
+   * business logic and last check before saving), which JSON can't carry.
+   */
+  applyDesignedSchema(schema: WorkbookSchema): void {
+    const host = this.hostSchemas.get(schema.id);
+    const applied = host ? withHooksFrom(schema, host) : schema;
+    this.schemas = [applied, ...this.schemas.filter((s) => s.id !== schema.id)];
+    this.bindSchemas();
+  }
+
+  /** Whether the host provided a schema with this id, whose code hooks a designed copy keeps. */
+  isHostSchema(id: string): boolean {
+    return this.hostSchemas.has(id);
   }
 
   removeSchema(id: string): void {

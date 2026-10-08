@@ -167,6 +167,9 @@ export const schema = {
   'schema.json.unknownType': 'The schema file is not valid: field "{{field}}" has unknown type "{{type}}".',
   'schema.json.enumNoValues': 'The schema file is not valid: enum field "{{field}}" lists no values.',
   'schema.json.badPattern': 'The schema file is not valid: field "{{field}}" has an invalid pattern.',
+  'schema.json.unsafePattern':
+    'The pattern for "{{field}}" could take minutes to check on some values: a group that repeats holds something that repeats too, like (a+)+. Simplify it.',
+  'schema.json.fieldNoLabel': 'The schema file is not valid: field "{{field}}" in table "{{table}}" has no label.',
   'schema.json.unknownCheckField': 'The schema file is not valid: a "{{rule}}" check in table "{{table}}" names "{{field}}", which isn\'t one of its fields.',
   'schema.json.cellNoKey': 'The schema file is not valid: a cell on sheet {{sheet, number}} is missing its key or ref.',
   'schema.json.cellUnknownType': 'The schema file is not valid: cell "{{cell}}" has unknown type "{{type}}".',

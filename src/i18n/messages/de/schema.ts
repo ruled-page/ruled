@@ -156,6 +156,9 @@ export const schema: Record<keyof typeof en, string> = {
   'schema.json.unknownType': 'Die Schemadatei ist ungültig: Feld „{{field}}“ hat den unbekannten Typ „{{type}}“.',
   'schema.json.enumNoValues': 'Die Schemadatei ist ungültig: Das enum-Feld „{{field}}“ nennt keine Werte.',
   'schema.json.badPattern': 'Die Schemadatei ist ungültig: Feld „{{field}}“ hat ein ungültiges Muster.',
+  'schema.json.unsafePattern':
+    'Das Muster für „{{field}}“ kann bei manchen Werten minutenlang brauchen: Eine wiederholte Gruppe enthält selbst eine Wiederholung, etwa (a+)+. Vereinfachen Sie es.',
+  'schema.json.fieldNoLabel': 'Die Schemadatei ist ungültig: Feld „{{field}}“ in Tabelle „{{table}}“ hat keine Beschriftung.',
   'schema.json.unknownCheckField': 'Die Schemadatei ist ungültig: Eine „{{rule}}“-Prüfung in Tabelle „{{table}}“ nennt „{{field}}“, das kein Feld dieser Tabelle ist.',
   'schema.json.cellNoKey': 'Die Schemadatei ist ungültig: Bei einer Zelle auf Tabellenblatt {{sheet, number}} fehlt „key“ oder „ref“.',
   'schema.json.cellUnknownType': 'Die Schemadatei ist ungültig: Zelle „{{cell}}“ hat den unbekannten Typ „{{type}}“.',

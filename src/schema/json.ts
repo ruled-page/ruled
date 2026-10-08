@@ -1,5 +1,6 @@
 import { english } from '../i18n';
 import { msg, TextError, type Message, type MessageKey, type MessageParams } from '../i18n/message';
+import { isUnsafePattern } from './patterns';
 import type { FieldType, TextMatch, WorkbookSchema } from './types';
 
 /** Whether `text` satisfies the expectation: plain strings ignore case and surrounding spaces. */
@@ -58,6 +59,15 @@ export function schemaFromJSON(text: string): WorkbookSchema {
     error.message = english.text(error.text);
     throw error;
   };
+  const checkPattern = (pattern: unknown, field: string, flags?: string) => {
+    try {
+      if (typeof pattern !== 'string') throw new Error();
+      new RegExp(pattern, flags);
+    } catch {
+      fail('schema.json.badPattern', { field });
+    }
+    if (isUnsafePattern(pattern as string)) fail('schema.json.unsafePattern', { field });
+  };
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -84,13 +94,8 @@ export function schemaFromJSON(text: string): WorkbookSchema {
         keys.add(f.key);
         if (!FIELD_TYPES.includes(f.type)) fail('schema.json.unknownType', { field: f.key, type: String(f.type) });
         if (f.type === 'enum' && !f.values?.length) fail('schema.json.enumNoValues', { field: f.key });
-        if (f.pattern) {
-          try {
-            new RegExp(f.pattern);
-          } catch {
-            fail('schema.json.badPattern', { field: f.key });
-          }
-        }
+        if (f.label === undefined || f.label === null || f.label === '') fail('schema.json.fieldNoLabel', { table: t.key, field: f.key });
+        if (f.pattern !== undefined) checkPattern(f.pattern, f.key);
       }
       for (const c of t.checks ?? []) {
         const named = [c.field, ...(c.rule === 'compare' ? [c.other] : c.rule === 'requiredIf' ? [c.when] : c.rule === 'uniqueTogether' ? c.fields : [])];
@@ -100,7 +105,16 @@ export function schemaFromJSON(text: string): WorkbookSchema {
     for (const c of sheet.cells ?? []) {
       if (!c.key || !c.ref) fail('schema.json.cellNoKey', { sheet: i + 1 });
       if (!FIELD_TYPES.includes(c.type)) fail('schema.json.cellUnknownType', { cell: c.key, type: String(c.type) });
+      if (c.pattern !== undefined) checkPattern(c.pattern, c.key);
     }
+  });
+  // Names and labels can be patterns too: { pattern, flags }.
+  JSON.stringify(s, (_k, v: unknown) => {
+    if (v && typeof v === 'object' && 'pattern' in v && typeof (v as { pattern: unknown }).pattern === 'string' && !('key' in v)) {
+      const { pattern, flags } = v as { pattern: string; flags?: unknown };
+      checkPattern(pattern, pattern, typeof flags === 'string' ? flags : undefined);
+    }
+    return v;
   });
   return s;
 }

@@ -525,7 +525,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
     if (!file) return;
     try {
       const schema = schemaFromJSON(await file.text());
-      store.registerSchema(schema);
+      store.applyDesignedSchema(schema);
       startFrom(schema);
       const applied = store.schema?.schema.id === schema.id;
       const name = t.localized(schema.name);
@@ -563,7 +563,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
       store.toast('error', errorText(e));
       return;
     }
-    store.registerSchema(d);
+    store.applyDesignedSchema(d);
     setDraft(d);
     setOriginalHadHooks(false);
     const applied = store.schema?.schema.id === d.id;
@@ -669,7 +669,7 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                     <div className="editor-tabs">
                       {tabs}
                       {originalHadHooks && (
-                        <p className="hint warn">{t('designer.hooksWarning')}</p>
+                        <p className="hint warn">{t(store.isHostSchema(draft?.id ?? '') ? 'designer.hooksKept' : 'designer.hooksWarning')}</p>
                       )}
                     </div>
                   )}

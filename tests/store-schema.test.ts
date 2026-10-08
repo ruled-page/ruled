@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VT } from '../src/core/types';
 import { english } from '../src/i18n';
+import { schemaFromJSON, schemaToJSON } from '../src/schema/json';
 import type { WorkbookSchema } from '../src/schema/types';
 import type { StoreOptions, WorkbookStore } from '../src/state/store';
 import { opened, testStore } from './storeHarness';
@@ -220,5 +221,28 @@ describe('a file saved with another version of the schema', () => {
     store.setLanguage('de');
     expect(store.t.language).toBe('de');
     expect(store.t.text(store.schemaNote)).toMatch(/Bestellzeilen/);
+  });
+});
+
+describe('schemas from the designer', () => {
+  it("keep the code hooks of the host's schema they copy, and a schema that can't be read is passed over", async () => {
+    const hooked = schema();
+    const validate = vi.fn(() => 'Checked by the app.');
+    hooked.sheets[0].tables![0].fields[0].validate = validate;
+    await open({ schemas: [hooked] });
+    expect(store.isHostSchema('lines')).toBe(true);
+
+    // An edited copy, as JSON brings it back: no code.
+    const copy = schemaFromJSON(schemaToJSON(hooked));
+    copy.sheets[0].tables![0].fields[1].min = 5;
+    store.applyDesignedSchema(copy);
+    const fields = store.schema!.schema.sheets[0].tables![0].fields;
+    expect(fields[0].validate).toBe(validate);
+    expect(fields[1].min).toBe(5);
+
+    // One that throws while binding doesn't stop the next being tried.
+    const broken = { ...prices, id: 'broken', sheets: [{ name: 'Lines', tables: [{ key: 't', at: 'A1', fields: null }] }] } as unknown as WorkbookSchema;
+    store.applyDesignedSchema(broken);
+    expect(store.schema?.schema.id).toBe('lines');
   });
 });
