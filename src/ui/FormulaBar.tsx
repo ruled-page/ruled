@@ -98,7 +98,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
   const clicked = useRef(false);
   const typed = draft !== null && draft !== name ? draft.trim().toUpperCase() : '';
   const all = nameBoxNames(store);
-  const options = typed ? all.filter((n) => n.toUpperCase().startsWith(typed)) : all;
+  const options = typed ? all.filter((n) => n.name.toUpperCase().startsWith(typed)) : all;
   const shown = open && options.length > 0;
   const close = () => {
     setOpen(false);
@@ -158,7 +158,7 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
             }
           } else if (e.key === 'Enter') {
             e.preventDefault();
-            void go(shown && active >= 0 ? options[active] : (draft ?? name));
+            void go(shown && active >= 0 ? options[active].name : (draft ?? name));
           } else if (e.key === 'Escape') {
             // The first Escape closes the list; the next leaves the box as it was.
             if (shown) {
@@ -185,13 +185,13 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
           else setOpen(true);
         }}
       >
-        <span aria-hidden="true">▾</span>
+        <Icon name="chevronDown" size={14} />
       </button>
       <ul id={`${id}-names`} className="wbe-name-box-list" role="listbox" aria-label={t('names.box.list')} hidden={!shown}>
         {shown &&
           options.map((o, i) => (
             <li
-              key={o}
+              key={o.name}
               id={`${id}-${i}`}
               role="option"
               aria-selected={i === active}
@@ -199,10 +199,12 @@ function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => {
                 e.preventDefault();
-                void go(o);
+                void go(o.name);
               }}
             >
-              {o}
+              <span className="wbe-name-box-name">{o.name}</span>{' '}
+              {/* What it refers to, as the Name Manager shows it, so a name on another sheet says where it goes. */}
+              <span className="wbe-name-box-ref">{o.refersTo}</span>
             </li>
           ))}
       </ul>

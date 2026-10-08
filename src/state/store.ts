@@ -722,7 +722,14 @@ export class WorkbookStore {
 
   setSelection(sel: Selection): void {
     this.selections.set(this.active, sel);
+    // A cell gone to beyond the rows and columns shown so far brings them with it.
+    this.view?.extendTo(sel.row, sel.col);
     this.notify();
+  }
+
+  /** Shows more rows and columns once the grid is scrolled near the last of those shown. */
+  scrolledTo(view: SheetView, row: number, col: number): void {
+    if (view.extendTo(row, col)) this.notify();
   }
 
   /**
@@ -2091,8 +2098,7 @@ export class WorkbookStore {
   /** Goes to a place in the workbook a link names: false when it isn't there, or is on a sheet that isn't shown. */
   private goToPlace(location: string): boolean {
     const place = resolvePlace(location, this.sheets.map((v) => v.info.name), this.names, this.active);
-    const view = place && this.sheets[place.sheet];
-    if (!place || !view || view.info.kind !== 'worksheet' || view.info.state !== 'visible' || place.rect.r2 >= MAX_ROWS || place.rect.c2 >= MAX_COLS) return false;
+    if (!place || !this.shows(place.sheet) || place.rect.r2 >= MAX_ROWS || place.rect.c2 >= MAX_COLS) return false;
     if (place.sheet !== this.active) this.setActive(place.sheet);
     this.revealFocus = true;
     this.revealSeq++;
@@ -2436,13 +2442,25 @@ export class WorkbookStore {
    * the text is neither, or names something other than a range.
    */
   goTo(text: string): boolean {
-    const to = this.referenceTo(text) ?? namedRange(this, text);
-    if (!to) return false;
+    const to = this.placeOf(text);
+    // As in Excel, a hidden sheet's cells can't be gone to until the sheet is shown.
+    if (!to || !this.shows(to.sheet)) return false;
     if (to.sheet !== this.active) this.setActive(to.sheet);
     this.revealFocus = true;
     this.revealSeq++;
     this.setSelection({ row: to.rects[0].r1, col: to.rects[0].c1, rects: to.rects });
     return true;
+  }
+
+  /** The cells text typed in the name box names: a reference such as "B4" or "Prices!B4", or a defined name for a range. */
+  placeOf(text: string): NameTarget | undefined {
+    return this.referenceTo(text) ?? namedRange(this, text);
+  }
+
+  /** Whether a sheet is a worksheet shown in the tabs, whose cells can be gone to. */
+  shows(sheet: number): boolean {
+    const info = this.sheets[sheet]?.info;
+    return !!info && info.kind === 'worksheet' && info.state === 'visible';
   }
 
   /** The cells a reference such as "B4", "A1:C3" or "Prices!B4" names, if they are on a sheet here. */

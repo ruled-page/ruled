@@ -116,9 +116,12 @@ describe('the names a workbook has', () => {
 
   it('that refer to cells are offered by the name box, a sheet’s own name hiding the workbook’s', async () => {
     await open();
-    expect(nameBoxNames(store)).toEqual(['here', 'Labels', 'Pair', 'Values']);
+    const names = () => nameBoxNames(store).map((n) => n.name);
+    expect(names()).toEqual(['here', 'Labels', 'Pair', 'Values']);
     store.setActive(CALC);
-    expect(nameBoxNames(store)).toEqual(['Here', 'Labels', 'Pair', 'Values']);
+    expect(names()).toEqual(['Here', 'Labels', 'Pair', 'Values']);
+    // Each with what it refers to, as the Name Manager shows it: here the sheet's own Here.
+    expect(nameBoxNames(store)[0]).toEqual({ name: 'Here', refersTo: 'Calc!$C$1' });
   });
 
   it('are previewed as Excel’s Name Manager does, and those with errors are known', async () => {

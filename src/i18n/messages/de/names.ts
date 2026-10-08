@@ -32,6 +32,8 @@ export const names: Record<keyof typeof en, string> = {
   'names.goTo.notRange': '{{name}} bezieht sich auf {{formula}}, keinen Zellbereich, und kann daher nicht markiert werden.',
   'names.goTo.unknown': '„{{text}}“ ist weder eine Zelle noch ein Bereich oder Name in dieser Arbeitsmappe.',
   'names.goTo.notWorksheet': 'Nur Zellen auf einem Arbeitsblatt können benannt werden.',
+  'names.goTo.hiddenSheet': '„{{sheet}}“ ist ein ausgeblendetes Blatt. Blenden Sie es ein, um dorthin zu gelangen.',
+  'names.goTo.veryHiddenSheet': '„{{sheet}}“ ist so ausgeblendet, dass nur der Visual-Basic-Editor von Excel es wieder einblenden kann; seine Zellen sind daher nicht erreichbar.',
 
   'names.delete.title': 'Den Namen {{name}} löschen?',
   'names.delete.body': 'Formeln, die ihn verwenden, zeigen #NAME?, bis er wieder definiert wird.',

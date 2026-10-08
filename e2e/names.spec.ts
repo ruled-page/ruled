@@ -49,7 +49,8 @@ test('names the selection from the name box, goes to the name, uses it in a form
   await expect(nameBox(page)).toBeFocused();
   await page.keyboard.type('tot');
   const list = page.getByRole('listbox', { name: 'Names' });
-  await expect(list.getByRole('option')).toHaveText(['Totals']);
+  // Each with what it refers to.
+  await expect(list.getByRole('option')).toHaveText(['Totals Lines!$D$2:$D$3']);
   await expect(nameBox(page)).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('ArrowDown');
   await expect(list.getByRole('option', { name: 'Totals' })).toHaveAttribute('aria-selected', 'true');
@@ -131,7 +132,7 @@ test('the name dialog says what is wrong with a name, on the field, and undo tak
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.press('Backspace');
   await page.keyboard.press('Alt+ArrowDown');
-  await expect(page.getByRole('listbox', { name: 'Names' }).getByRole('option')).toHaveText(['Quantities']);
+  await expect(page.getByRole('listbox', { name: 'Names' }).getByRole('option')).toHaveText(['Quantities Lines!$B$2:$B$3']);
   await page.keyboard.press('Escape');
   await expect(nameBox(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(nameBox(page)).toBeFocused();

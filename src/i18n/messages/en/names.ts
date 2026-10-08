@@ -33,6 +33,8 @@ export const names = {
   'names.goTo.notRange': "{{name}} refers to {{formula}}, which isn't a range of cells, so it can't be selected.",
   'names.goTo.unknown': '"{{text}}" isn\'t a cell, a range or a name in this workbook.',
   'names.goTo.notWorksheet': 'Only cells on a worksheet can be named.',
+  'names.goTo.hiddenSheet': '“{{sheet}}” is a hidden sheet. Unhide it to go there.',
+  'names.goTo.veryHiddenSheet': "“{{sheet}}” is hidden so that only Excel's Visual Basic editor can show it, so its cells can't be gone to.",
 
   'names.delete.title': 'Delete the name {{name}}?',
   'names.delete.body': 'Formulas that use it will show #NAME? until it is defined again.',

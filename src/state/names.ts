@@ -77,14 +77,14 @@ export function selectionName(store: WorkbookStore): string | undefined {
  * that refer to cells, the workbook's and the sheet's own (which hides the
  * workbook's of the same name), alphabetically.
  */
-export function nameBoxNames(store: WorkbookStore): string[] {
+export function nameBoxNames(store: WorkbookStore): { name: string; refersTo: string }[] {
   const out = new Map<string, DefinedName>();
   for (const { name } of targets(store)) {
     if (name.localSheet !== undefined && name.localSheet !== store.active) continue;
     const key = name.name.toUpperCase();
     if (!out.has(key) || name.localSheet !== undefined) out.set(key, name);
   }
-  return [...out.values()].sort(byName).map((n) => n.name);
+  return [...out.values()].sort(byName).map((n) => ({ name: n.name, refersTo: displayFormula(n.formula).replace(/^=/, '') }));
 }
 
 /** Why `name` can't name something in a scope (replacing the name `from`): Excel's rules, or a name already there. */
@@ -142,6 +142,12 @@ export async function deleteName(store: WorkbookStore, n: DefinedName): Promise<
 export async function nameBoxEnter(store: WorkbookStore, text: string): Promise<boolean> {
   const typed = text.trim();
   if (store.goTo(typed)) return true;
+  const place = store.placeOf(typed);
+  const sheet = place && store.sheets[place.sheet].info;
+  if (sheet && sheet.state !== 'visible') {
+    store.toast('warn', msg(sheet.state === 'veryHidden' ? 'names.goTo.veryHiddenSheet' : 'names.goTo.hiddenSheet', { sheet: sheet.name }));
+    return false;
+  }
   const named = nameFor(store, typed);
   const view = store.view;
   let problem: Text | undefined;

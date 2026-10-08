@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { MAX_COLS, MAX_ROWS } from '../src/core/refs';
 import { english } from '../src/i18n';
+import { nameBoxEnter, nameBoxNames } from '../src/state/names';
 import type { WorkbookStore } from '../src/state/store';
 import { opened, testStore } from './storeHarness';
 
@@ -53,6 +55,36 @@ describe('going to a reference from the name box', () => {
     const store = await open();
     for (const bad of ['', 'Nowhere!A1', 'hello', 'A0', 'XFE1', 'A1048577', 'A1:B2:C3']) expect(store.goTo(bad), bad).toBe(false);
     expect(store.selection.row).toBe(0);
+    store.dispose();
+  });
+
+  it("reaches Excel's last row and column, the sheet growing to them, as it grows when scrolled near its end", async () => {
+    const store = await open();
+    const view = store.view!;
+    // A few columns past the last one used, as Excel shows A to Z or so of an empty sheet.
+    expect(view.colCount).toBe(26);
+    store.scrolledTo(view, 20, 30);
+    expect([view.rowCount, view.colCount]).toEqual([500, 41]);
+    expect(store.goTo('XFD1048576')).toBe(true);
+    expect([view.rowCount, view.colCount]).toEqual([MAX_ROWS, MAX_COLS]);
+    store.dispose();
+  });
+
+  it("doesn't go to a hidden sheet, and says why", async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Summary').addRow(['Tax', { formula: 'TaxRate', result: 0.2 }]);
+    const settings = wb.addWorksheet('Settings');
+    settings.addRow(['Tax rate', 0.2]);
+    settings.state = 'hidden';
+    wb.definedNames.add('Settings!$B$1', 'TaxRate');
+    const store = await testStore();
+    await opened(store, new Uint8Array(await wb.xlsx.writeBuffer()), 'tax.xlsx');
+    // The name box lists the name with where it goes.
+    expect(nameBoxNames(store)).toEqual([{ name: 'TaxRate', refersTo: 'Settings!$B$1' }]);
+    expect([store.goTo('TaxRate'), store.goTo('Settings!B1')]).toEqual([false, false]);
+    expect(await nameBoxEnter(store, 'TaxRate')).toBe(false);
+    expect(store.active).toBe(0);
+    expect(store.toasts.map((t) => english.text(t.text))).toEqual(['“Settings” is a hidden sheet. Unhide it to go there.']);
     store.dispose();
   });
 });

@@ -146,7 +146,11 @@ export class SheetView {
     this.version++;
   }
 
-  /** Makes sure the given cell is inside the scrollable area. */
+  /**
+   * Makes sure the given cell is inside the scrollable area, with room
+   * beyond it: as Excel's, the sheet goes on to its last row and column as
+   * it is scrolled or moved through. True when the area grew.
+   */
   extendTo(row: number, col: number): boolean {
     const rows = Math.min(MAX_ROWS, Math.max(row + 1 + EXTRA_ROWS, 500, this.rowLimit));
     const cols = Math.min(MAX_COLS, Math.max(col + 1 + EXTRA_COLS, 26, this.colLimit));

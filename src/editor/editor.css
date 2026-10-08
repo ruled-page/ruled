@@ -643,7 +643,9 @@
 }
 
 .wbe .wbe-name-box-toggle {
-  width: 18px;
+  display: grid;
+  place-items: center;
+  width: 22px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -663,7 +665,7 @@
   inset-inline-start: 0;
   z-index: 60;
   min-width: 100%;
-  max-width: 320px;
+  max-width: 360px;
   max-height: 240px;
   overflow-y: auto;
   margin: 0;
@@ -680,12 +682,26 @@
 }
 
 .wbe .wbe-name-box-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   padding: 5px 10px;
   cursor: pointer;
   white-space: nowrap;
+  color: var(--wbe-text);
+}
+
+.wbe .wbe-name-box-name,
+.wbe .wbe-name-box-ref {
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--wbe-text);
+}
+
+.wbe .wbe-name-box-ref {
+  color: var(--wbe-text-subtle);
+  font-size: var(--wbe-font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .wbe .wbe-name-box-list li.wbe-active {

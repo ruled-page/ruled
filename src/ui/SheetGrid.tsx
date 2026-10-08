@@ -1199,6 +1199,10 @@ export function SheetGrid({
           visible.current = { x: r.x, y: r.y, width: r.width, height: r.height };
           setRegion((n) => n + 1);
           onRegion?.(r);
+          // Near the last row or column shown, more follow, as far as Excel's sheet goes.
+          const lastRow = Math.min(rowStart + r.y + r.height, view.rowCount - 1);
+          const lastCol = Math.min(r.x + r.width - 1, view.colCount) - 1;
+          if (lastRow + 50 >= view.rowCount || lastCol + 3 >= view.colCount) store.scrolledTo(view, view.visibleRows[lastRow] ?? 0, view.visibleCols[lastCol] ?? 0);
         }}
         onItemHovered={onItemHovered}
         experimental={experimental}
