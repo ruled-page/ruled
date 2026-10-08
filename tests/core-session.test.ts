@@ -144,6 +144,19 @@ describe('recalculation', () => {
     expect(report.updates.find((u) => u.row === 1 && u.col === 9)!.flags & CellFlag.Unsupported).toBe(CellFlag.Unsupported);
     expect(s.enableRecalc()).toBe(report);
   });
+
+  it("follows a sheet whose name has an apostrophe, which formulas write doubled ('Bob''s'!A1)", async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet("Bob's").getCell('A1').value = 5;
+    const main = wb.addWorksheet('Main');
+    main.getCell('A1').value = { formula: "'Bob''s'!A1*2", result: 10 };
+    main.getCell('A2').value = { formula: "SUM('Bob''s'!A1:A2)", result: 5 };
+    const s = WorkbookSession.open(new Uint8Array(await wb.xlsx.writeBuffer()), 'bob.xlsx');
+    const r = s.apply({ type: 'input', sheet: 0, row: 0, col: 0, text: '7' });
+    const at = (row: number) => r.updates.find((u) => u.sheet === 1 && u.row === row && u.col === 0)!;
+    expect([at(0).n, at(1).n]).toEqual([14, 7]);
+    expect(at(0).flags & (CellFlag.Stale | CellFlag.Mismatch)).toBe(0);
+  });
 });
 
 describe('the change list', () => {

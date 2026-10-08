@@ -1005,7 +1005,8 @@ export class WorkbookSession {
    */
   private sheetsFormulasUse(): Set<number> {
     const sheets = this.model.sheets;
-    const names = sheets.map((m) => m.info.name.toLowerCase());
+    // As formulas write them: an apostrophe in a sheet's name is doubled inside its quotes ('Bob''s'!A1).
+    const names = sheets.map((m) => m.info.name.toLowerCase().replace(/'/g, "''"));
     const needed = new Set<number>();
     const mention = (text: string) => {
       if (needed.size === sheets.length) return;
