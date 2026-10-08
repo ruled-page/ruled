@@ -83,9 +83,11 @@ back as .xlsx without losing what the editor can't display.
   just the room they need. Typing into a spilled cell, or anything else in
   the way, makes the formula show #SPILL! (the range it needs outlined
   dashed), and clearing it, or undoing, spills it again. The file's own
-  dynamic arrays calculate the same way, and their cells can be typed over;
-  array formulas entered with Ctrl+Shift+Enter keep Excel's values and stay
-  locked. Spilled cells copy, paste and fill as their values (a whole spill
+  dynamic arrays calculate the same way, and their cells can be typed over.
+  Array formulas entered with Ctrl+Shift+Enter calculate too, filling the
+  range they were entered in as Excel does (a single row or column repeated
+  across it, #N/A past the result), show `{=formula}` in each of their cells
+  and stay locked, as Excel won't change part of one. Spilled cells copy, paste and fill as their values (a whole spill
   copies as its formula, which spills again where it is pasted), sorting
   refuses to move part of a spill, as Excel does, rows and columns can be
   inserted and deleted through one, and the Changes panel, schema checks and
@@ -999,8 +1001,9 @@ is among them under GPLv3, until a commercial licence for it is in place.
 - Dynamic arrays: a reference to a spill (`A2#`, which Excel saves as
   ANCHORARRAY) isn't calculated, so a formula using one keeps Excel's
   values, locked, as does a file's spill that the engine works out
-  differently from Excel. Array formulas entered with Ctrl+Shift+Enter keep
-  Excel's values and can't be edited here. Formulas the file doesn't mark as
+  differently from Excel. Array formulas entered with Ctrl+Shift+Enter
+  can't be entered, changed or cleared here, and data tables keep Excel's
+  values. Formulas the file doesn't mark as
   dynamic arrays came from an Excel that worked them out to one value, and
   don't spill here either. A result of more than a million cells isn't given
   room of its own.

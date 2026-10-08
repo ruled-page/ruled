@@ -77,11 +77,11 @@ function chooseProbes(s: WorkbookSession): Probe[] {
   return probes;
 }
 
-/** The cells holding a dynamic array's spilled values, as "row:col", whose values follow its formula. */
+/** The cells holding an array formula's values other than its own cell, dynamic or entered with Ctrl+Shift+Enter, as "row:col": their values follow its formula. */
 function spillCells(scan: ScanResult | undefined): Set<string> {
   const out = new Set<string>();
   for (const a of scan?.arrayRanges ?? []) {
-    if (!a.dynamic) continue;
+    if (scan!.fmeta.get(a.master)?.kind !== 'array') continue;
     for (let row = a.r1; row <= a.r2; row++) for (let col = a.c1; col <= a.c2; col++) if (row !== a.r1 || col !== a.c1) out.add(`${row}:${col}`);
   }
   return out;
@@ -204,7 +204,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     const a = m.scan?.grid;
     const b = reopened.model.sheets[s]?.scan?.grid;
     if (!a || !b) return;
-    // A formula's spilled values may change after an edit, as its saved value may.
+    // An array formula's values may change after an edit, as its saved value may.
     const spilled = new Set([...spillCells(m.scan), ...spillCells(reopened.model.sheets[s]?.scan)]);
     for (const { row, idx } of cellsOf(a)) {
       const col = a.cols[idx];

@@ -393,9 +393,13 @@ export class CalcEngine {
   }
 }
 
-/** A formula (in the engine's form, with "=") wrapped so the engine gives its result rows × cols cells. */
-export function spillFormula(formula: string, rows: number, cols: number): string {
-  return `=${SPILL_FUNCTION}(${rows},${cols},${formula.replace(/^=/, '')})`;
+/**
+ * A formula (in the engine's form, with "=") wrapped so the engine gives its
+ * result rows × cols cells; `fixed` fills them as an array formula entered
+ * with Ctrl+Shift+Enter does.
+ */
+export function spillFormula(formula: string, rows: number, cols: number, fixed = false): string {
+  return `=${SPILL_FUNCTION}(${rows},${cols},${formula.replace(/^=/, '')}${fixed ? ',1' : ''})`;
 }
 
 /** The most cells one formula's results may spill into here. */

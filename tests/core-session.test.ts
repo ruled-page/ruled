@@ -54,7 +54,7 @@ describe('cells that cannot be edited', () => {
   it('copy array formula cells as their values, and say so', () => {
     const s = WorkbookSession.open(sample('kitchen-sink.xlsx'), 'k.xlsx');
     const lookups = sheetIndex(s, 'Lookups');
-    // B15:D15 holds an array formula entered with Ctrl+Shift+Enter, which isn't calculated here.
+    // B15:D15 holds an array formula entered with Ctrl+Shift+Enter, which changes only as a whole.
     const r = s.apply({ type: 'copy', srcSheet: lookups, src: { r1: 14, c1: 1, r2: 14, c2: 1 }, sheet: lookups, dst: { r1: 29, c1: 7, r2: 29, c2: 7 } });
     expect(said(r).warnings).toEqual(["1 formula couldn't be adjusted for the new position and was pasted as values."]);
     expect(s.current(lookups, 29, 7).content).toEqual({ kind: 'number', value: 25 });

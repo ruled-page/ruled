@@ -252,7 +252,7 @@ export class SheetView {
   }
 
   apply(u: CellUpdate): void {
-    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags, ...(u.link !== undefined && { link: u.link }), ...(u.spill && { spill: u.spill }) });
+    this.overlay.set(cellKey(u.row, u.col), { t: u.t, n: u.n, s: u.s, style: u.style, f: u.f, flags: u.flags, ...(u.link !== undefined && { link: u.link }), ...(u.spill && { spill: u.spill }), ...(u.array && { array: u.array }) });
     if (u.row >= this.rowLimit - 20 || u.col >= this.colLimit - 2) this.extendTo(u.row + 20, u.col + 2);
     this.version++;
   }

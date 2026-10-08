@@ -16,6 +16,8 @@ export interface CellRecord {
   link?: string;
   /** The range a dynamic array formula's results spill into, on its cell and each cell they spill into. */
   spill?: Rect;
+  /** The range an array formula entered with Ctrl+Shift+Enter fills, on each of its cells. */
+  array?: Rect;
 }
 
 const dateFormats = new Map<string, boolean>();

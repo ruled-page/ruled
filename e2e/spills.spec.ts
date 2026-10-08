@@ -79,7 +79,7 @@ test.describe('a formula whose result is an array', () => {
   });
 });
 
-test("a file's own dynamic arrays spill here, and can be typed over, while older array formulas stay locked", async ({ page }) => {
+test("a file's own dynamic arrays spill here, and can be typed over, while older array formulas recalculate but stay locked", async ({ page }) => {
   await openFile(page, 'templates.xlsx', templates());
   await goTo(page, 'Arrays!A3');
   await expect(shown(page, 'A3')).toHaveAttribute('aria-label', 'A3, Hardware, spilled from A2');
@@ -89,5 +89,11 @@ test("a file's own dynamic arrays spill here, and can be typed over, while older
   await expect(shown(page, 'A2')).toHaveText('#SPILL!');
   await goTo(page, 'G7');
   await expect(formulaBar(page)).toHaveAttribute('readonly', '');
+  // Each cell of an array formula entered with Ctrl+Shift+Enter shows it in braces, as in Excel.
+  await expect(formulaBar(page)).toHaveValue('{=Orders[Price]*2}');
   await expect(page.locator('.wbe-cell-note')).toContainText('array formula');
+  // G6:G8 doubles the order prices; Nuts' is on Lines!D3.
+  await setCell(page, 'Lines!D3', '5');
+  await goTo(page, 'Arrays!G7');
+  await expect(shown(page, 'G7')).toHaveText('10.00');
 });

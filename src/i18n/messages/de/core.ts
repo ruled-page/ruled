@@ -49,9 +49,9 @@ export const core: Record<keyof typeof en, string> = {
     'In Excel geschützt: Hier lassen sich nur die nicht gesperrten Zellen bearbeiten, und Zeilen und Spalten lassen sich weder einfügen, löschen noch sortieren.',
   'core.finding.arrayFormulas.title': 'Matrixformeln',
   'core.finding.arrayFormulas.detail_one':
-    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformel oder Datentabelle erstreckt sich über mehr als eine Zelle. Sie behält den zuletzt von Excel berechneten Wert, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
+    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformel oder Datentabelle erstreckt sich über mehr als eine Zelle, und ihre Zellen können hier nicht bearbeitet werden. Eine Matrixformel wird hier neu berechnet, wenn ihre Formel berechnet werden kann; eine Datentabelle behält die zuletzt von Excel berechneten Werte, bis Excel sie beim Öffnen neu berechnet.',
   'core.finding.arrayFormulas.detail_other':
-    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformeln oder Datentabellen erstrecken sich über mehr als eine Zelle. Sie behalten die zuletzt von Excel berechneten Werte, Excel berechnet sie beim Öffnen neu, und ihre Zellen können hier nicht bearbeitet werden.',
+    '{{count, number}} mit Strg+Umschalt+Eingabe eingegebene Matrixformeln oder Datentabellen erstrecken sich über mehr als eine Zelle, und ihre Zellen können hier nicht bearbeitet werden. Matrixformeln werden hier neu berechnet, wenn ihre Formeln berechnet werden können; Datentabellen behalten die zuletzt von Excel berechneten Werte, bis Excel sie beim Öffnen neu berechnet.',
   'core.finding.conditionalFormat.title': 'Bedingte Formatierung',
   'core.finding.conditionalFormat.detail_one':
     '{{count, number}} Regel. Wird hier angezeigt und beim Bearbeiten aktualisiert; bleibt für Excel in der Datei erhalten.',
@@ -188,7 +188,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.unsupported.externalLinks': 'Verknüpfungen mit anderen Arbeitsmappen',
   'core.unsupported.threeD': '3D-Bezüge (Tabelle1:Tabelle3!A1)',
   'core.unsupported.syntax': 'Formelsyntax',
-  'core.unsupported.array': 'Mehrzellige Matrixformeln',
+  'core.unsupported.array': 'Datentabellen',
   'core.unsupported.sharedFormula': 'Gemeinsame Formel ohne ihre Ausgangszelle',
   'core.unsupported.tooLarge': 'Bereiche oder Matrizen, die zu groß zum Berechnen sind',
   'core.calc.reasonCount': '{{reason}} ({{n, number}})',
@@ -199,7 +199,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.cellReason.externalLinks': 'Verwendet Verknüpfungen mit anderen Arbeitsmappen, die dieser Editor nicht berechnen kann.',
   'core.cellReason.threeD': 'Verwendet 3D-Bezüge (Tabelle1:Tabelle3!A1), die dieser Editor nicht berechnen kann.',
   'core.cellReason.syntax': 'Verwendet eine Formelsyntax, die dieser Editor nicht lesen kann.',
-  'core.cellReason.array': 'Eine mehrzellige, mit Strg+Umschalt+Eingabe eingegebene Matrixformel, die dieser Editor nicht berechnen kann.',
+  'core.cellReason.array': 'Teil einer Datentabelle (Was-wäre-wenn-Analyse), die dieser Editor nicht berechnen kann.',
   'core.cellReason.sharedFormula': 'Teil einer beschädigten gemeinsamen Formel; Excel repariert sie beim Öffnen der Datei.',
   'core.cellReason.tooLarge': 'Verwendet einen Bereich oder eine Matrix, die für diesen Editor zu groß zum Berechnen ist.',
   'core.cellReason.mismatch':

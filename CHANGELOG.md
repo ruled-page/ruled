@@ -9,6 +9,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are
   saved as Excel saves them.
+- Array formulas entered with Ctrl+Shift+Enter recalculate live, filling the
+  range they were entered in, and show `{=formula}` in the formula bar.
 
 ## 0.1.0 (2026-10-08)
 

@@ -214,9 +214,16 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const t = useT();
   const rec = view.get(selection.row, selection.col);
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
+  // Each cell of an array formula entered with Ctrl+Shift+Enter shows the formula in braces, as in Excel.
+  const array = rec?.array ? view.get(rec.array.r1, rec.array.c1) : null;
+  const formulaStyle = array ? (store.styles[array.style] ?? store.styles[0]) : style;
   // A protected sheet can hide a cell's formula from the formula bar, as Excel does; its value still shows.
-  const hidden = !!rec && rec.f !== undefined && view.info.protected && !!style.formulaHidden;
-  const value = hidden ? displayText(rec, style, store.date1904, false, store.locale).text : editText(rec, style, store.date1904, store.locale);
+  const hidden = !!rec && (rec.f !== undefined || !!array) && view.info.protected && !!formulaStyle.formulaHidden;
+  const value = hidden
+    ? displayText(rec, style, store.date1904, false, store.locale).text
+    : array?.f !== undefined
+      ? `{${displayFormula(array.f)}}`
+      : editText(rec, style, store.date1904, store.locale);
   // A cell a formula's results spill into holds nothing itself; the formula shows greyed, as in Excel.
   const spiller = rec?.spill && rec.flags & CellFlag.Spilled ? view.get(rec.spill.r1, rec.spill.c1) : null;
   const ghostStyle = store.styles[spiller?.style ?? 0] ?? store.styles[0];

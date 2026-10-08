@@ -180,7 +180,7 @@ describe('kitchen-sink.xlsx', () => {
     const header = s.apply({ type: 'input', sheet: sheetIndex(s, 'Data'), ...at('B1'), text: 'Area' });
     expect(header.skipped).toBe(1);
     expect(english.text(header.skippedReasons[0])).toMatch(/table "SalesData"/);
-    // B15:D15 holds an array formula entered with Ctrl+Shift+Enter, which isn't calculated here.
+    // B15:D15 holds an array formula entered with Ctrl+Shift+Enter, which changes only as a whole.
     const array = s.apply({ type: 'input', sheet: sheetIndex(s, 'Lookups'), ...at('C15'), text: 'x' });
     expect(english.text(array.skippedReasons[0])).toMatch(/array formula/);
     const locked = s.apply({ type: 'input', sheet: sheetIndex(s, 'Reference'), ...at('A2'), text: 'x' });
@@ -265,12 +265,22 @@ describe('editing operations', () => {
 
 describe('engine verdicts reach the UI', () => {
   it('sends flags for formulas the engine cannot calculate', () => {
+    const s = WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'templates.xlsx'))), 'templates.xlsx', 'en-US', { recalc: 'on' });
+    const report = s.ensureEngine();
+    // A LAMBDA called where it is written.
+    const e4 = updateAt(report.updates, s, 'Arrays', 'E4');
+    expect(has(e4?.flags, CellFlag.Unsupported)).toBe(true);
+    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Arrays')}:3:4`))).toMatch(/LAMBDA/);
+  });
+
+  it('calculates array formulas entered with Ctrl+Shift+Enter, filling the range they were entered in', () => {
     const s = open('kitchen-sink.xlsx');
     const report = s.ensureEngine();
-    // An array formula entered with Ctrl+Shift+Enter over B15:D15.
-    const b15 = updateAt(report.updates, s, 'Lookups', 'B15');
-    expect(has(b15?.flags, CellFlag.Unsupported)).toBe(true);
-    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Lookups')}:14:1`))).toMatch(/array/);
+    expect(report.unsupported).toBe(0);
+    const lookups = sheetIndex(s, 'Lookups');
+    // B15:D15 is {=TRANSPOSE(G4:G6*2)}.
+    const r = s.apply({ type: 'input', sheet: lookups, ...at('G5'), text: '100' });
+    expect(valueOf(updateAt(r.updates, s, 'Lookups', 'C15'))).toBe(200);
   });
 });
 

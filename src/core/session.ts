@@ -141,6 +141,8 @@ interface Spill {
   cols: number;
   /** The cells it covers now, its own included; none while something is in its way (#SPILL!). */
   shown?: Rect;
+  /** An array formula entered with Ctrl+Shift+Enter: it fills the range it was entered in, whatever its result's size. */
+  fixed?: boolean;
 }
 
 const MERGED = '\u0000merged';
@@ -754,11 +756,11 @@ export class WorkbookSession {
       setValue(u, this.formulaValue(sheet, row, col));
       const spill = this.spills[sheet].get(key);
       const rect = spill && this.spillRange(row, col, spill);
-      if (rect && (rect.r2 > rect.r1 || rect.c2 > rect.c1)) u.spill = rect;
+      if (rect && (rect.r2 > rect.r1 || rect.c2 > rect.c1)) u[spill.fixed ? 'array' : 'spill'] = rect;
     } else if (anchor !== undefined) {
       setValue(u, this.engine?.value(sheet, row, col) ?? null);
       const spill = this.spills[sheet].get(anchor);
-      if (spill?.shown) u.spill = spill.shown;
+      if (spill?.shown) u[spill.fixed ? 'array' : 'spill'] = spill.shown;
     } else if (st.content.kind !== 'empty') {
       setValue(u, st.content.kind === 'error' ? { error: st.content.value } : st.content.value);
     }
@@ -857,7 +859,7 @@ export class WorkbookSession {
         let reason: Unsupported | undefined;
         const spill = this.savedSpill(s, idx, row, col);
         if (spill) {
-          // A dynamic array is calculated, and spills here, when the engine can calculate its formula.
+          // An array formula, dynamic or entered with Ctrl+Shift+Enter, is calculated here when the engine can calculate its formula.
           reason = unsupportedReason(this.engineText(formula, s, row, col));
           this.markFileArray(grid, idx, spill, !reason);
         } else if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
@@ -1087,10 +1089,11 @@ export class WorkbookSession {
           continue;
         }
         const raw = String(toRaw({ kind: 'formula', formula: this.engineText(formula, s, r, col) }));
-        // A dynamic array starts with the room Excel saved for its results.
+        // A dynamic array starts with the room Excel saved for its results; an older array formula keeps the range it was entered in.
         const saved = this.edits[s].has(cellKey(r, col)) ? undefined : this.savedSpill(s, i, r, col);
-        if (saved) this.spills[s].set(cellKey(r, col), { rows: saved.r2 - saved.r1 + 1, cols: saved.c2 - saved.c1 + 1 });
-        row[col] = saved ? spillFormula(raw, saved.r2 - saved.r1 + 1, saved.c2 - saved.c1 + 1) : raw;
+        const fixed = !!saved && !m.scan!.fmeta.get(i)?.dynamic;
+        if (saved) this.spills[s].set(cellKey(r, col), { rows: saved.r2 - saved.r1 + 1, cols: saved.c2 - saved.c1 + 1, ...(fixed && { fixed }) });
+        row[col] = saved ? spillFormula(raw, saved.r2 - saved.r1 + 1, saved.c2 - saved.c1 + 1, fixed) : raw;
       }
       rows[r] = row;
     }
@@ -1262,10 +1265,35 @@ export class WorkbookSession {
       }
       if (!roots.length) break;
       const next: Pos[] = [];
-      for (const r of roots) if (!extraRoots.includes(r) && mark(r)) next.push(r);
-      for (const d of this.engine?.dependentsOf(roots) ?? []) if (mark(d)) next.push(d);
-      frontier = next;
+      const kept: Pos[] = [];
+      for (const r of roots) {
+        if (extraRoots.includes(r) || !mark(r)) continue;
+        next.push(r);
+        // The other cells of an array formula kept as Excel saved it are as out of date as its own.
+        for (const m of this.arrayCells(r)) {
+          if (this.stale[m.sheet].has(cellKey(m.row, m.col))) continue;
+          this.stale[m.sheet].add(cellKey(m.row, m.col));
+          out.push(m);
+          kept.push(m);
+        }
+      }
+      for (const d of this.engine?.dependentsOf([...roots, ...kept]) ?? []) if (mark(d)) next.push(d);
+      frontier = [...next, ...kept];
       roots = [];
+    }
+    return out;
+  }
+
+  /** The cells of the file's multi-cell array formula or data table whose formula is in `p`, other than that one. */
+  private arrayCells(p: Pos): Pos[] {
+    const scan = this.sheet(p.sheet).scan;
+    const idx = scan ? findCell(scan.grid, p.row, p.col) : -1;
+    const a = idx >= 0 ? scan!.arrayRanges.find((x) => x.master === idx) : undefined;
+    const out: Pos[] = [];
+    if (a) {
+      forEachIn(a, (row, col) => {
+        if (row !== p.row || col !== p.col) out.push({ sheet: p.sheet, row, col });
+      });
     }
     return out;
   }
@@ -1276,8 +1304,10 @@ export class WorkbookSession {
   /**
    * Whether the formula in a cell spills its results, as Excel 365's
    * dynamic arrays do: one typed here, or one the file marks as a dynamic
-   * array, that the engine calculates. The file's other formulas came from
-   * an Excel that worked them out to one value, and keep that meaning.
+   * array, that the engine calculates; or fills the range it was entered in,
+   * as one of the file's array formulas entered with Ctrl+Shift+Enter. The
+   * file's other formulas came from an Excel that worked them out to one
+   * value, and keep that meaning.
    */
   private canSpill(sheet: number, row: number, col: number): boolean {
     const key = cellKey(row, col);
@@ -1285,7 +1315,7 @@ export class WorkbookSession {
     if (edit) return edit.content.kind === 'formula' && !this.newFormulaFlags[sheet].has(key);
     const scan = this.sheet(sheet).scan;
     const idx = scan ? findCell(scan.grid, row, col) : -1;
-    return idx >= 0 && !!(scan!.grid.flags[idx] & CellFlag.Formula) && !!scan!.fmeta.get(idx)?.dynamic && !this.isUntrustedOriginal(sheet, row, col);
+    return idx >= 0 && !!(scan!.grid.flags[idx] & CellFlag.Formula) && !!this.savedSpill(sheet, idx, row, col) && !this.isUntrustedOriginal(sheet, row, col);
   }
 
   /** The range a spill covers, or for one that is blocked, the range its results need. */
@@ -1341,6 +1371,7 @@ export class WorkbookSession {
     for (let round = 0; round < 8 && (fresh.length || changed.length); round++) {
       const fits = new Map<string, EngineWrite & ArrayDims>();
       const fit = (p: Pos, size: ArrayDims) => {
+        if (this.spills[p.sheet].get(cellKey(p.row, p.col))?.fixed) return;
         if (size.rows * size.cols <= MAX_SPILL_CELLS) fits.set(`${p.sheet}:${p.row}:${p.col}`, { sheet: p.sheet, row: p.row, col: p.col, raw: spillFormula(formulaOf(p), size.rows, size.cols), ...size });
       };
       // Formulas not given room yet, just written or gone to an error, whose results turn out to be arrays.
@@ -1446,7 +1477,7 @@ export class WorkbookSession {
   }
 
   /**
-   * Marks one of the file's dynamic arrays as calculated here, its other
+   * Marks one of the file's array formulas as calculated here, its other
    * cells holding only Excel's saved values for it; or as kept as saved,
    * locked like any array formula this editor can't calculate.
    */
@@ -1463,13 +1494,19 @@ export class WorkbookSession {
     }
   }
 
-  /** Where the results of one of the file's dynamic array formulas went when Excel saved it. */
+  /**
+   * Where the results of one of the file's array formulas went when Excel
+   * saved it: a dynamic array's spill, or the range an array formula entered
+   * with Ctrl+Shift+Enter fills, when that is more than its own cell.
+   */
   private savedSpill(sheet: number, idx: number, row: number, col: number): Rect | undefined {
     const meta = idx >= 0 ? this.sheet(sheet).scan?.fmeta.get(idx) : undefined;
-    return meta?.dynamic ? (meta.ref ?? { r1: row, c1: col, r2: row, c2: col }) : undefined;
+    if (meta?.dynamic) return meta.ref ?? { r1: row, c1: col, r2: row, c2: col };
+    const ref = meta?.kind === 'array' ? meta.ref : undefined;
+    return ref && (ref.r2 > ref.r1 || ref.c2 > ref.c1) ? ref : undefined;
   }
 
-  /** Whether the engine spills one of the file's dynamic array formulas differently from what Excel saved. */
+  /** Whether the engine spills one of the file's array formulas differently from what Excel saved. */
   private spillDiffers(p: Pos): boolean {
     const grid = this.sheet(p.sheet).scan!.grid;
     const saved = this.savedSpill(p.sheet, findCell(grid, p.row, p.col), p.row, p.col);
@@ -1488,7 +1525,7 @@ export class WorkbookSession {
   }
 
   /**
-   * Keeps one of the file's dynamic arrays as Excel saved it, when the
+   * Keeps one of the file's array formulas as Excel saved it, when the
    * engine calculates it differently: it no longer spills here, and its
    * other cells go back to Excel's values. Returns those, for the engine.
    */
@@ -1702,7 +1739,8 @@ export class WorkbookSession {
             }
             // A spilled value comes as a value, unless its formula comes too and spills it there again.
             const from = this.spilled[op.srcSheet].get(cellKey(sr, sc));
-            if (from !== undefined && inRect(op.src, Math.floor(from / MAX_COLS), from % MAX_COLS) && !op.transpose) r.content = EMPTY;
+            const respills = from !== undefined && !this.spills[op.srcSheet].get(from)?.fixed;
+            if (respills && inRect(op.src, Math.floor(from / MAX_COLS), from % MAX_COLS) && !op.transpose) r.content = EMPTY;
             if (r.lost) lost++;
             put({ sheet: op.sheet, row, col, content: r.content, style: what === 'formulas' ? here.style : r.style });
           }
@@ -1977,7 +2015,8 @@ export class WorkbookSession {
     const src = this.contentOrSpilled(srcSheet, sr, sc);
     if (src.content.kind !== 'formula') return { ...src, lost: false };
     const flags = this.flagsFor(srcSheet, sr, sc);
-    if (flags & CellFlag.ArrayMember) {
+    // An array formula entered with Ctrl+Shift+Enter goes as the value its cell shows.
+    if (flags & CellFlag.ArrayMember || this.spills[srcSheet].get(cellKey(sr, sc))?.fixed) {
       return { content: valueContent(this.formulaValue(srcSheet, sr, sc)), style: src.style, lost: true };
     }
     try {

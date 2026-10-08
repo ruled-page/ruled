@@ -47,9 +47,9 @@ export const core = {
     "Protected in Excel: only the cells it leaves unlocked can be edited here, and its rows and columns can't be inserted, deleted or sorted.",
   'core.finding.arrayFormulas.title': 'Array formulas',
   'core.finding.arrayFormulas.detail_one':
-    "{{count, number}} array formula entered with Ctrl+Shift+Enter, or data table, covers more than one cell. It keeps Excel's last values, Excel recalculates it on open, and its cells can't be edited here.",
+    "{{count, number}} array formula entered with Ctrl+Shift+Enter, or data table, covers more than one cell, and its cells can't be edited here. An array formula is recalculated here when its formula can be; a data table keeps Excel's last values until Excel recalculates it on open.",
   'core.finding.arrayFormulas.detail_other':
-    "{{count, number}} array formulas entered with Ctrl+Shift+Enter, or data tables, cover more than one cell. They keep Excel's last values, Excel recalculates them on open, and their cells can't be edited here.",
+    "{{count, number}} array formulas entered with Ctrl+Shift+Enter, or data tables, cover more than one cell, and their cells can't be edited here. Array formulas are recalculated here when their formulas can be; data tables keep Excel's last values until Excel recalculates them on open.",
   'core.finding.conditionalFormat.title': 'Conditional formatting',
   'core.finding.conditionalFormat.detail_one': '{{count, number}} rule. Shown here and updated as you edit; kept in the file for Excel.',
   'core.finding.conditionalFormat.detail_other': '{{count, number}} rules. Shown here and updated as you edit; kept in the file for Excel.',
@@ -183,7 +183,7 @@ export const core = {
   'core.unsupported.externalLinks': 'Links to other workbooks',
   'core.unsupported.threeD': '3-D references (Sheet1:Sheet3!A1)',
   'core.unsupported.syntax': 'Formula syntax',
-  'core.unsupported.array': 'Multi-cell array formulas',
+  'core.unsupported.array': 'Data tables',
   'core.unsupported.sharedFormula': 'Shared formula without its master cell',
   'core.unsupported.tooLarge': 'Ranges or arrays too large to calculate here',
   /** One entry in the list of what isn't calculated: {{reason}} is a core.unsupported message, {{n}} how many formulas. */
@@ -196,7 +196,7 @@ export const core = {
   'core.cellReason.externalLinks': "Uses links to other workbooks, which this editor can't calculate.",
   'core.cellReason.threeD': "Uses 3-D references (Sheet1:Sheet3!A1), which this editor can't calculate.",
   'core.cellReason.syntax': "Uses formula syntax this editor can't read.",
-  'core.cellReason.array': "A multi-cell array formula entered with Ctrl+Shift+Enter, which this editor can't calculate.",
+  'core.cellReason.array': "Part of a data table (What-If Analysis), which this editor can't calculate.",
   'core.cellReason.sharedFormula': 'Part of a damaged shared formula; Excel will repair it when the file is opened.',
   'core.cellReason.tooLarge': "Uses a range or an array too large for this editor to calculate.",
   /** {{engine}} and {{excel}} are values: a number, "text" in quotes, an error such as #N/A, or core.value.empty. */

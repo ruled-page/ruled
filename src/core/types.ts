@@ -553,6 +553,12 @@ export interface CellUpdate {
    * For a formula showing #SPILL!, the range its results need.
    */
   spill?: Rect;
+  /**
+   * The range an array formula entered with Ctrl+Shift+Enter fills, which
+   * keeps its size and is changed only as a whole: given for each of its
+   * cells, the formula being in the first.
+   */
+  array?: Rect;
 }
 
 /** A cell that differs from the opened file. Values are as people read them. */
