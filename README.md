@@ -196,6 +196,12 @@ the open, save, download or schema buttons when the host provides them), `user` 
 history), `drafts`, `warnOnUnload`, `locale`, `limits`, `macros`, `recalc`,
 `onError`, `workerTimeout` and `createWorker`. All styles are scoped under `.wbe`.
 
+`onEvent` hears what the editor does, for a host's logging or analytics:
+`opened` (with how long it took), `openFailed`, `calculated` (how many
+formulas stay up to date), `saved` (what came of it, and how long it took)
+and `error` (each error shown to the user, which also stays on screen until
+dismissed). Messages are in English whatever the editor's language.
+
 If the worker can't load, crashes, runs out of memory or spends longer than
 `workerTimeout` (default two minutes) on one task, the editor stops it, calls
 `onError` (the element fires `editorerror`) and offers to reopen the file,

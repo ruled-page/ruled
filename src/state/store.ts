@@ -35,6 +35,7 @@ import { SheetView } from './sheetView';
 import type { i18n as I18n } from 'i18next';
 import {
   createI18n,
+  english,
   errorText,
   msg,
   TextError,
@@ -214,7 +215,22 @@ export interface StoreOptions {
    * taken to have stopped. Default 120,000; 0 waits for ever.
    */
   workerTimeout?: number;
+  /** Hears what the editor does and how long it took, for the host's logging or analytics. */
+  onEvent?: (event: EditorEvent) => void;
 }
+
+/**
+ * What the editor tells onEvent. Messages are in English, whatever the
+ * editor's language, so logs read the same.
+ */
+export type EditorEvent =
+  | { type: 'opened'; fileName: string; ms: number; sheets: number }
+  | { type: 'openFailed'; fileName: string; reason: string }
+  /** The calculation engine is built (or live recalculation is off): how many formulas it keeps up to date. */
+  | { type: 'calculated'; ms: number; formulas: number; live: number; notCalculated: number }
+  | { type: 'saved'; result: SaveResult; ms: number; editedCount: number }
+  /** An error the editor showed the user. */
+  | { type: 'error'; message: string };
 
 /** Default for StoreOptions.workerTimeout. */
 const WORKER_TIMEOUT = 120_000;
@@ -709,6 +725,7 @@ export class WorkbookStore {
   /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed. */
   private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc']): Promise<OpenResult> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
+    const started = performance.now();
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
     this.stopWorker(new Error('Superseded'));
     // A fresh worker per file releases the previous workbook's memory.
@@ -767,7 +784,12 @@ export class WorkbookStore {
       }
     }
     this.notify();
-    if (this.status !== 'ready') return { opened: false, error: this.error ?? msg('store.noWorkbook') };
+    if (this.status !== 'ready') {
+      const error = this.error ?? msg('store.noWorkbook');
+      this.emit({ type: 'openFailed', fileName, reason: english.text(error) });
+      return { opened: false, error };
+    }
+    this.emit({ type: 'opened', fileName, ms: Math.round(performance.now() - started), sheets: this.sheets.length });
     if (key) await this.offerDraft(key);
     return { opened: true };
   }
@@ -869,6 +891,13 @@ export class WorkbookStore {
    * editor has already told the user.
    */
   async save(): Promise<SaveResult> {
+    const started = performance.now();
+    const result = await this.saveSteps();
+    this.emit({ type: 'saved', result, ms: Math.round(performance.now() - started), editedCount: this.editedCount });
+    return result;
+  }
+
+  private async saveSteps(): Promise<SaveResult> {
     if (this.schema) {
       this.busy = true;
       this.notify();
@@ -1215,6 +1244,7 @@ export class WorkbookStore {
 
   private applyCalc(report: CalcReport): void {
     this.calc = report;
+    this.emit({ type: 'calculated', ms: report.buildMs, formulas: report.formulaCells, live: report.liveCells, notCalculated: report.unsupported + report.mismatched });
     this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...report.findings];
     for (const u of report.updates) this.sheets[u.sheet]?.apply(u);
     this.dataVersion++;
@@ -2041,7 +2071,17 @@ export class WorkbookStore {
     const id = ++this.toastSeq;
     this.toasts = [...this.toasts.slice(-3), { id, kind, text }];
     this.notify();
-    setTimeout(() => this.dismissToast(id), kind === 'error' ? 8000 : 5000);
+    // Errors stay until dismissed, so they can be read at any pace.
+    if (kind === 'error') this.emit({ type: 'error', message: english.text(text) });
+    else setTimeout(() => this.dismissToast(id), 5000);
+  }
+
+  private emit(event: EditorEvent): void {
+    try {
+      this.options.onEvent?.(event);
+    } catch {
+      // The host's logging mustn't break the editor.
+    }
   }
 
   dismissToast(id: number): void {

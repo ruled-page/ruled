@@ -41,7 +41,7 @@ describe('toasts', () => {
     expect(store.toasts.map((t) => t.text)).toEqual(['Message 3', 'Message 4', 'Message 5', 'Message 6']);
   });
 
-  it('can be dismissed, and go by themselves: errors after eight seconds, others after five', () => {
+  it('can be dismissed; others go by themselves after five seconds, but errors stay until dismissed', () => {
     vi.useFakeTimers();
     store = new WorkbookStore({ drafts: false });
     store.toast('info', 'Saved');
@@ -51,7 +51,9 @@ describe('toasts', () => {
     expect(store.toasts.map((t) => t.text)).toEqual(['Saved', 'Failed']);
     vi.advanceTimersByTime(5000);
     expect(store.toasts.map((t) => t.text)).toEqual(['Failed']);
-    vi.advanceTimersByTime(3000);
+    vi.advanceTimersByTime(60_000);
+    expect(store.toasts.map((t) => t.text)).toEqual(['Failed']);
+    store.dismissToast(store.toasts[0].id);
     expect(store.toasts).toEqual([]);
   });
 });
