@@ -5,6 +5,7 @@ import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrom
 import { ChartSlot } from '../ui/ChartSlot';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
+import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
@@ -29,7 +30,7 @@ function isTextField(el: EventTarget | null): boolean {
 }
 
 /** The editor's parts, in the order F6 visits them. */
-const REGIONS = ['.wbe-toolbar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
+const REGIONS = ['.wbe-toolbar', '.wbe-format-bar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
 /** While the schema designer waits for cells to be picked, F6 goes between the sheet and its bar. */
 const PICKING = ['.wbe-pick-bar', '.wbe-sheet-area'];
 
@@ -270,6 +271,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       )}
       {ready && <SchemaBanner store={store} />}
       {ready && <Banner store={store} />}
+      {ready && store.features.format && <FormatBar store={store} />}
       {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}
       <div className="wbe-workspace">
         {/* A labelled region, not <main>: the host page has its own. */}

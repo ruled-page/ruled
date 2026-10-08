@@ -69,7 +69,8 @@ function gridStyles(p: GridPalette) {
   const cache = new Map<string, Partial<Theme>>();
   /** A cell's theme override: its fill (or the edited or locked fill), text colour and font. */
   const cellTheme = (style: DisplayStyle, color: string | undefined, edited: boolean, locked = false): Partial<Theme> | undefined => {
-    const fill = edited ? p.editedFill : (style.fill ?? (locked ? p.lockedFill : undefined));
+    // A changed cell shows its own fill, if it has one, and is marked in its corner instead.
+    const fill = edited && !style.fill ? p.editedFill : (style.fill ?? (locked ? p.lockedFill : undefined));
     // Text with no colour of its own on a fill from the file is drawn as Excel draws it, whatever the theme's text colour.
     const textColor = color ?? style.color ?? (style.fill && !edited ? p.textOnFill : undefined);
     const plain = !fill && !textColor && !style.bold && !style.italic && Math.abs(style.fontSizePx - 14.7) < 0.2 && /^Calibri$/i.test(style.fontFamily);
@@ -405,6 +406,18 @@ export function SheetGrid({
         ctx.restore();
       }
       const rec = view.get(row, col);
+      if (rec && store.highlightEdits && rec.flags & CellFlag.Edited && styles[rec.style]?.fill) {
+        const bottom = rect.y + rect.height - 1;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(rect.x + 1, bottom);
+        ctx.lineTo(rect.x + 7, bottom);
+        ctx.lineTo(rect.x + 1, bottom - 6);
+        ctx.closePath();
+        ctx.fillStyle = palette.editedMark;
+        ctx.fill();
+        ctx.restore();
+      }
       if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch | CellFlag.Stale)) {
         ctx.save();
         ctx.beginPath();

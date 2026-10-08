@@ -150,17 +150,6 @@ export function rowAttributes(layout: SheetLayout): Map<number, Record<string, s
   return out;
 }
 
-/** A start tag with attributes set, or removed where the value is null. Names are this module's own. */
-export function setAttributes(tag: string, attrs: Record<string, string | null>): string {
-  const selfClosing = tag.endsWith('/>');
-  let body = tag.slice(0, selfClosing ? -2 : -1);
-  for (const [name, value] of Object.entries(attrs)) {
-    body = body.replace(new RegExp(`\\s${name}="[^"]*"`, 'g'), '');
-    if (value !== null) body += ` ${name}="${escapeXml(value)}"`;
-  }
-  return body + (selfClosing ? '/>' : '>');
-}
-
 /** The worksheet with its <cols>, frozen pane and <mergeCells> as the layout has them. */
 export function writeLayout(xml: string, p: string, layout: SheetLayout): string {
   if (layout.colWidths.size || layout.hiddenCols.size) xml = writeCols(xml, p, layout);

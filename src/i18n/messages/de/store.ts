@@ -69,6 +69,8 @@ export const store: Record<keyof typeof en, string> = {
   'store.history.restore': 'Rückgängig oder Wiederholen',
   'store.history.sort': 'Sortieren',
   'store.history.layout': 'Layout',
+  'store.history.format': 'Zellen formatieren',
+  'store.history.clearFormats': 'Formate löschen',
   'store.history.columnWidth_one': 'Spaltenbreite',
   'store.history.columnWidth_other': 'Breite von {{count, number}} Spalten',
   'store.history.rowHeight_one': 'Zeilenhöhe',

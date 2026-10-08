@@ -1,13 +1,13 @@
 import type { EngineValue } from './engineValue';
 import { parseA1Ref } from '@borgar/fx';
 import { isDynamicArrayFormula } from './formula';
-import { rowAttributes, setAttributes, writeLayout, type SheetLayout } from './layout';
+import { rowAttributes, writeLayout, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
 import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements } from './xml';
+import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, setAttributes } from './xml';
 import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
 
@@ -80,7 +80,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
   if (input.properties) setCustomProperties(pkg, input.properties);
 
-  if (model.styles.additions.length) {
+  if (model.styles.additions.length || Object.values(model.styles.addedParts).some((a) => a.length)) {
     const stylesRel = pkg.rels(model.workbookPath).find((r) => r.type === 'styles');
     const xml = stylesRel ? pkg.text(stylesRel.target) : undefined;
     if (stylesRel && xml) pkg.setText(stylesRel.target, appendStyles(xml, model));
@@ -552,6 +552,17 @@ function appendStyles(xml: string, model: WorkbookModel): string {
       const at = root.index + root[0].length;
       out = out.slice(0, at) + `<${p}numFmts count="${numFmts.length}">${numFmts.join('')}</${p}numFmts>` + out.slice(at);
     }
+  }
+
+  // Fonts, fills and borders new formats use, after the file's, whose ids they follow on from.
+  for (const kind of ['font', 'fill', 'border'] as const) {
+    const added = model.styles.addedParts[kind];
+    if (!added.length) continue;
+    const block = firstElement(out, `${kind}s`);
+    if (block?.inner == null) continue;
+    const count = countElements(block.inner, kind) + added.length;
+    const openTag = `<${block.qname}${block.attrs.replace(/\s*count="\d+"/, '')} count="${count}">`;
+    out = out.slice(0, block.start) + openTag + block.inner + added.join('') + `</${block.qname}>` + out.slice(block.end);
   }
 
   const xfs = adds.map((a) => a.xfRaw);

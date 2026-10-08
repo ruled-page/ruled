@@ -39,7 +39,10 @@ import {
   type EditOp,
   type CfResult,
   type EditResult,
+  type BorderEdge,
+  type BorderPlacement,
   type Finding,
+  type FormatChange,
   type LayoutChange,
   type ListSource,
   type LoadResult,
@@ -1127,6 +1130,40 @@ export class WorkbookSession {
         for (const c of op.cells) put({ ...c });
         break;
       }
+      case 'format': {
+        const info = this.sheet(op.sheet).info;
+        let maxRow = info.maxRow;
+        let maxCol = info.maxCol;
+        for (const key of this.edits[op.sheet].keys()) {
+          maxRow = Math.max(maxRow, Math.floor(key / MAX_COLS));
+          maxCol = Math.max(maxCol, key % MAX_COLS);
+        }
+        // Whole rows and columns are formatted as far as the sheet's cells go.
+        const rects = op.rects.map((r) => ({
+          ...r,
+          r2: r.r2 >= MAX_ROWS - 1 ? Math.max(r.r1, maxRow) : r.r2,
+          c2: r.c2 >= MAX_COLS - 1 ? Math.max(r.c1, maxCol) : r.c2,
+        }));
+        if (rects.reduce((n, r) => n + (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1), 0) > MAX_FORMAT_CELLS) {
+          return this.emptyResult(msg('core.format.tooLarge', { max: MAX_FORMAT_CELLS }));
+        }
+        for (const rect of rects) {
+          for (let row = rect.r1; row <= rect.r2; row++) {
+            for (let col = rect.c1; col <= rect.c2; col++) {
+              const cur = this.current(op.sheet, row, col);
+              const change = op.borders ? { ...op.change, border: placedBorder(op.borders, rect, row, col) } : op.change;
+              let style = op.clear ? 0 : cur.style;
+              if (Object.keys(change).length) {
+                const r = this.model.styles.withFormat(style, change);
+                if (r.created) newStyles.push({ index: r.index, style: this.model.styles.get(r.index) });
+                style = r.index;
+              }
+              put({ sheet: op.sheet, row, col, content: cur.content, style });
+            }
+          }
+        }
+        break;
+      }
       case 'inputs': {
         for (const c of op.cells) {
           const cur = this.current(op.sheet, c.row, c.col);
@@ -1254,7 +1291,9 @@ export class WorkbookSession {
 
     for (const w of writes) {
       const reason = this.blockedReason(w.sheet, w.row, w.col);
-      if (reason && !(restoring && reason === MERGED)) {
+      // The cells a merge covers take formats, as Excel gives them the merge's borders; and earlier states are put back whole.
+      const styleOnly = w.content.kind === 'empty' && this.current(w.sheet, w.row, w.col).content.kind === 'empty';
+      if (reason && !(reason === MERGED && (restoring || styleOnly))) {
         if (reason !== MERGED) {
           skipped++;
           reasons.set(JSON.stringify(reason), reason);
@@ -1497,6 +1536,32 @@ export function compareForSort(a: EngineValue, b: EngineValue, descending: boole
 }
 
 /** A structural change in words, for the change list. */
+/** Cells formatted in one step at most. */
+const MAX_FORMAT_CELLS = 1_000_000;
+
+/** The edges a border placed on a range gives the cell at row, col: unset edges stay as they were. */
+function placedBorder(b: { where: BorderPlacement; edge?: BorderEdge }, rect: Rect, row: number, col: number): NonNullable<FormatChange['border']> {
+  const e = b.where === 'none' ? null : (b.edge ?? { width: 1, pattern: 'solid' });
+  const on = (side: boolean) => (side ? e : undefined);
+  switch (b.where) {
+    case 'all':
+    case 'none':
+      return { left: e, right: e, top: e, bottom: e };
+    case 'outside':
+      return { top: on(row === rect.r1), bottom: on(row === rect.r2), left: on(col === rect.c1), right: on(col === rect.c2) };
+    case 'inside':
+      return { top: on(row > rect.r1), bottom: on(row < rect.r2), left: on(col > rect.c1), right: on(col < rect.c2) };
+    case 'top':
+      return { top: on(row === rect.r1) };
+    case 'bottom':
+      return { bottom: on(row === rect.r2) };
+    case 'left':
+      return { left: on(col === rect.c1) };
+    case 'right':
+      return { right: on(col === rect.c2) };
+  }
+}
+
 function describeStructure(op: StructuralOp, names: string[]): CellChange {
   if (op.type === 'growTable') {
     return { sheet: names[op.sheet], ref: op.table, before: '', after: '', note: msg('core.change.tableGrew', { table: op.table, count: op.rows }) };

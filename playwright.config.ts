@@ -24,6 +24,8 @@ export default defineConfig({
   testDir: 'e2e',
   testIgnore,
   fullyParallel: true,
+  // Every test builds a workbook in a worker; with the whole suite running at once, a busy machine needs longer.
+  expect: { timeout: 10_000 },
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : 'list',

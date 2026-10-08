@@ -28,6 +28,7 @@ export interface GridPalette {
   cutFill: string;
   onSelection: string;
   editedFill: string;
+  editedMark: string;
   lockedFill: string;
   labelFill: string;
   errorMark: string;
@@ -66,6 +67,7 @@ export const DEFAULT_PALETTE: GridPalette = {
   cutFill: 'rgba(30, 113, 69, 0.06)',
   onSelection: '#ffffff',
   editedFill: '#fff4ce',
+  editedMark: '#b8860b',
   lockedFill: '#f2f4f7',
   labelFill: '#eaf2ec',
   errorMark: '#d92d20',

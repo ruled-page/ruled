@@ -234,6 +234,7 @@ export const core = {
 
   // The change list's description of a structural change.
   'core.change.movedTo': 'Moved to {{where}}',
+  'core.format.tooLarge': 'Formats can be changed on up to {{max, number}} cells at once.',
   'core.layout.mergeTable': "Cells in an Excel table can't be merged ({{table}}).",
   'core.change.columnWidths_one': 'Changed the width of {{count, number}} column',
   'core.change.columnWidths_other': 'Changed the width of {{count, number}} columns',

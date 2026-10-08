@@ -1,5 +1,5 @@
-import type { BorderEdge, CellBorders, DiffStyle, DisplayStyle, TableElement, TableLook } from './types';
-import { attr, child, children, descendants, elements, firstElement, parseXml, type XmlNode } from './xml';
+import type { BorderEdge, CellBorders, DiffStyle, DisplayStyle, FormatChange, TableElement, TableLook } from './types';
+import { attr, child, children, descendants, elements, escapeXml, findTagEnd, firstElement, parseAttrs, parseXml, setAttributes, type XmlNode } from './xml';
 
 /** Excel's built-in number formats (en-US). Ids 14 and 22 follow the user's locale. */
 const BUILTIN_NUMFMTS: Record<number, string> = {
@@ -272,8 +272,17 @@ export class StyleBook {
   readonly theme: string[];
   private readonly indexed: string[] = [...INDEXED_COLORS];
   private nextNumFmtId = 164;
+  /** The file's fonts, fills and borders as written, which derived formats copy and change. */
+  private readonly parts: Record<PartKind, string[]> = { font: [], fill: [], border: [] };
+  /** Fonts, fills and borders added during the session, to append to the file's. */
+  readonly addedParts: Record<PartKind, string[]> = { font: [], fill: [], border: [] };
+  private readonly partIds = new Map<string, number>();
 
-  constructor(stylesXml: string | undefined, themeXml: string | undefined, locale: string) {
+  constructor(
+    stylesXml: string | undefined,
+    themeXml: string | undefined,
+    private readonly locale: string,
+  ) {
     const theme = parseThemeColors(themeXml);
     this.theme = theme;
     if (!stylesXml) {
@@ -360,6 +369,10 @@ export class StyleBook {
     // Raw <xf> elements, kept verbatim so derived formats inherit everything else.
     const block = firstElement(stylesXml, 'cellXfs')?.inner;
     if (block) for (const xf of elements(block, 'xf')) this.xfRaw.push(block.slice(xf.start, xf.end));
+    for (const kind of ['font', 'fill', 'border'] as const) {
+      const list = firstElement(stylesXml, `${kind}s`)?.inner;
+      if (list) for (const e of elements(list, kind)) this.parts[kind].push(list.slice(e.start, e.end));
+    }
     while (this.xfRaw.length < this.display.length) {
       this.xfRaw.push('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
     }
@@ -388,37 +401,190 @@ export class StyleBook {
    * (and the number format) if the workbook does not have one yet.
    */
   withNumFmt(base: number, code: string): { index: number; created: boolean } {
-    if (this.get(base).numFmt === code) return { index: base, created: false };
-    const key = `${base}|${code}`;
+    return this.withFormat(base, { numFmt: code });
+  }
+
+  /**
+   * The format index for `base` changed as `change` says, creating it, and
+   * any font, fill, border or number format it needs, if the workbook does
+   * not have it yet. Everything else about the base format is kept.
+   */
+  withFormat(base: number, change: FormatChange): { index: number; created: boolean } {
+    const key = `${base}|${JSON.stringify(change)}`;
     const existing = this.derived.get(key);
     if (existing !== undefined) return { index: existing, created: false };
+    const shown = this.get(base);
+    const next = changedStyle(shown, change);
+    if (JSON.stringify(next) === JSON.stringify(shown)) return { index: base, created: false };
 
-    let id = builtinIdFor(code);
+    const raw = this.xfRaw[base] ?? this.xfRaw[0];
+    const p = /^<(\w+:)?xf\b/.exec(raw)?.[1] ?? '';
+    const tagEnd = findTagEnd(raw, 0);
+    const open = raw.slice(0, tagEnd + 1);
+    const attrs = parseAttrs(open.slice(open.indexOf(' ') + 1, open.endsWith('/>') ? -2 : -1));
+    let inner = open.endsWith('/>') ? '' : raw.slice(tagEnd + 1, raw.lastIndexOf('</'));
+    const set: Record<string, string | null> = {};
     let numFmt: StyleAddition['numFmt'];
-    if (id === undefined) {
-      for (const [cid, c] of this.customNumFmts) if (c === code) id = cid;
+
+    if (change.numFmt !== undefined && change.numFmt !== shown.numFmt) {
+      // The short date and date-time formats show in the user's locale's order, as Excel's built-in ones do.
+      let id = [14, 22].find((n) => builtinNumFmt(n, this.locale) === change.numFmt) ?? builtinIdFor(change.numFmt);
+      if (id === undefined) for (const [cid, c] of this.customNumFmts) if (c === change.numFmt) id = cid;
+      if (id === undefined) {
+        id = this.nextNumFmtId++;
+        this.customNumFmts.set(id, change.numFmt);
+        numFmt = { id, code: change.numFmt };
+      }
+      Object.assign(set, { numFmtId: String(id), applyNumberFormat: '1' });
     }
-    if (id === undefined) {
-      id = this.nextNumFmtId++;
-      this.customNumFmts.set(id, code);
-      numFmt = { id, code };
+    const font = this.partXml('font', Number(attrs.fontId ?? 0)) ?? this.parts.font[0];
+    if (FONT_KEYS.some((k) => change[k] !== undefined)) {
+      Object.assign(set, { fontId: String(this.part('font', changedFont(font ?? `<${p}font><${p}sz val="11"/><${p}name val="Calibri"/></${p}font>`, change, p))), applyFont: '1' });
+    }
+    if (change.fill !== undefined) {
+      const fill = change.fill && `<${p}fill><${p}patternFill patternType="solid"><${p}fgColor rgb="${argb(change.fill)}"/><${p}bgColor indexed="64"/></${p}patternFill></${p}fill>`;
+      Object.assign(set, { fillId: fill ? String(this.part('fill', fill)) : '0', applyFill: '1' });
+    }
+    if (change.border) {
+      const border = this.partXml('border', Number(attrs.borderId ?? 0)) ?? `<${p}border/>`;
+      Object.assign(set, { borderId: String(this.part('border', changedBorder(border, change.border, p))), applyBorder: '1' });
+    }
+    if (change.hAlign !== undefined || change.vAlign !== undefined || change.wrap !== undefined || change.indent !== undefined) {
+      inner = changedAlignment(inner, change, p);
+      set.applyAlignment = '1';
     }
 
-    let raw = this.xfRaw[base] ?? this.xfRaw[0];
-    raw = /\bnumFmtId="\d+"/.test(raw)
-      ? raw.replace(/\bnumFmtId="\d+"/, `numFmtId="${id}"`)
-      : raw.replace(/^<((?:\w+:)?xf)\b/, `<$1 numFmtId="${id}"`);
-    raw = /\bapplyNumberFormat="[^"]*"/.test(raw)
-      ? raw.replace(/\bapplyNumberFormat="[^"]*"/, 'applyNumberFormat="1"')
-      : raw.replace(/^<((?:\w+:)?xf)\b/, '<$1 applyNumberFormat="1"');
-
+    const xf = inner ? setAttributes(open.endsWith('/>') ? open.slice(0, -2) + '>' : open, set) + inner + `</${p}xf>` : setAttributes(open.endsWith('/>') ? open : open.slice(0, -1) + '/>', set);
     const index = this.display.length;
-    this.display.push({ ...this.get(base), numFmt: code });
-    this.xfRaw.push(raw);
-    this.additions.push({ xfRaw: raw, numFmt });
+    this.display.push(next);
+    this.xfRaw.push(xf);
+    this.additions.push({ xfRaw: xf, numFmt });
     this.derived.set(key, index);
     return { index, created: true };
   }
+
+  /** A font, fill or border by id, the file's or one added since. */
+  private partXml(kind: PartKind, id: number): string | undefined {
+    const own = this.parts[kind];
+    return id < own.length ? own[id] : this.addedParts[kind][id - own.length];
+  }
+
+  /** The id of a font, fill or border written this way, adding it after the file's when it is new. */
+  private part(kind: PartKind, xml: string): number {
+    const key = `${kind}|${xml}`;
+    let id = this.partIds.get(key);
+    if (id === undefined) {
+      id = this.parts[kind].length + this.addedParts[kind].length;
+      this.addedParts[kind].push(xml);
+      this.partIds.set(key, id);
+    }
+    return id;
+  }
+}
+
+type PartKind = 'font' | 'fill' | 'border';
+
+const FONT_KEYS = ['bold', 'italic', 'underline', 'strike', 'fontFamily', 'fontSizePt', 'color'] as const;
+/** A font's children in the order Excel writes them. */
+const FONT_ORDER = ['b', 'i', 'strike', 'condense', 'extend', 'outline', 'shadow', 'u', 'vertAlign', 'sz', 'color', 'name', 'family', 'charset', 'scheme'];
+const BORDER_SIDES = ['left', 'right', 'top', 'bottom', 'diagonal', 'vertical', 'horizontal'] as const;
+const BORDER_NAMES: Record<string, string> = { '1solid': 'thin', '2solid': 'medium', '3solid': 'thick', '1dashed': 'dashed', '2dashed': 'mediumDashed', '1dotted': 'dotted', '2dotted': 'dotted', '3double': 'double' };
+
+const argb = (hex: string) => 'FF' + hex.replace('#', '').toUpperCase();
+
+/** An element's children, by local name, as written. */
+function childrenByName(inner: string, names: readonly string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const name of names) {
+    const e = firstElement(inner, name);
+    if (e) out.set(name, inner.slice(e.start, e.end));
+  }
+  return out;
+}
+
+function innerOf(raw: string): string {
+  const end = findTagEnd(raw, 0);
+  return raw.charCodeAt(end - 1) === 47 ? '' : raw.slice(end + 1, raw.lastIndexOf('</'));
+}
+
+function changedFont(raw: string, c: FormatChange, p: string): string {
+  const parts = childrenByName(innerOf(raw), FONT_ORDER);
+  const toggle = (name: string, on: boolean | undefined) => {
+    if (on === true) parts.set(name, `<${p}${name}/>`);
+    else if (on === false) parts.delete(name);
+  };
+  toggle('b', c.bold);
+  toggle('i', c.italic);
+  toggle('strike', c.strike);
+  toggle('u', c.underline);
+  if (c.fontSizePt !== undefined) parts.set('sz', `<${p}sz val="${c.fontSizePt}"/>`);
+  if (c.color === null) parts.delete('color');
+  else if (c.color !== undefined) parts.set('color', `<${p}color rgb="${argb(c.color)}"/>`);
+  if (c.fontFamily !== undefined) {
+    parts.set('name', `<${p}name val="${escapeXml(c.fontFamily)}"/>`);
+    // A scheme ties the font to the theme's, whatever its name says.
+    for (const n of ['family', 'charset', 'scheme']) parts.delete(n);
+  }
+  return `<${p}font>${FONT_ORDER.map((n) => parts.get(n) ?? '').join('')}</${p}font>`;
+}
+
+function changedBorder(raw: string, edges: NonNullable<FormatChange['border']>, p: string): string {
+  const inner = innerOf(raw);
+  const parts = childrenByName(inner, BORDER_SIDES);
+  // Excel 2010 and later may write start and end for left and right.
+  for (const [from, to] of [['start', 'left'], ['end', 'right']] as const) {
+    const e = !parts.has(to) ? firstElement(inner, from) : undefined;
+    if (e) parts.set(to, inner.slice(e.start, e.end).replace(new RegExp(`(</?${p.replace(':', '\\:')})${from}\\b`, 'g'), `$1${to}`));
+  }
+  for (const [side, edge] of Object.entries(edges)) {
+    if (edge === undefined) continue;
+    const name = edge && BORDER_NAMES[`${edge.width}${edge.pattern}`];
+    const color = edge?.color ? `<${p}color rgb="${argb(edge.color)}"/>` : `<${p}color indexed="64"/>`;
+    parts.set(side, name ? `<${p}${side} style="${name}">${color}</${p}${side}>` : `<${p}${side}/>`);
+  }
+  for (const side of ['left', 'right', 'top', 'bottom', 'diagonal']) if (!parts.has(side)) parts.set(side, `<${p}${side}/>`);
+  const end = findTagEnd(raw, 0);
+  const open = raw.charCodeAt(end - 1) === 47 ? raw.slice(0, end - 1) + '>' : raw.slice(0, end + 1);
+  return open + BORDER_SIDES.map((s) => parts.get(s) ?? '').join('') + `</${p}border>`;
+}
+
+function changedAlignment(inner: string, c: FormatChange, p: string): string {
+  const el = firstElement(inner, 'alignment');
+  const tag = el ? `<${el.qname}${el.attrs}/>` : `<${p}alignment/>`;
+  const set: Record<string, string | null> = {};
+  if (c.hAlign !== undefined) set.horizontal = c.hAlign;
+  if (c.vAlign !== undefined) set.vertical = c.vAlign === 'bottom' ? null : c.vAlign;
+  if (c.wrap !== undefined) set.wrapText = c.wrap ? '1' : null;
+  if (c.indent !== undefined) set.indent = c.indent > 0 ? String(c.indent) : null;
+  const next = setAttributes(tag, set);
+  const keep = /\s\w+="/.test(next) ? next : '';
+  // <alignment> comes first among an xf's children.
+  return el ? inner.slice(0, el.start) + keep + inner.slice(el.end) : keep + inner;
+}
+
+/** A format as shown once `c` has changed it. */
+function changedStyle(s: DisplayStyle, c: FormatChange): DisplayStyle {
+  const next: DisplayStyle = { ...s };
+  if (c.numFmt !== undefined) next.numFmt = c.numFmt;
+  for (const k of ['bold', 'italic', 'underline', 'strike', 'wrap'] as const) if (c[k] !== undefined) next[k] = c[k];
+  if (c.fontSizePt !== undefined) next.fontSizePx = Math.round(((c.fontSizePt * 4) / 3) * 10) / 10;
+  if (c.fontFamily !== undefined) next.fontFamily = c.fontFamily;
+  if (c.color !== undefined) next.color = c.color && c.color.toUpperCase() !== '#000000' ? c.color.toUpperCase() : undefined;
+  if (c.fill !== undefined) next.fill = c.fill?.toUpperCase() ?? undefined;
+  if (c.hAlign !== undefined) next.hAlign = c.hAlign ?? undefined;
+  if (c.vAlign !== undefined) next.vAlign = c.vAlign === 'bottom' ? undefined : (c.vAlign ?? undefined);
+  if (c.indent !== undefined) next.indent = c.indent;
+  if (c.border) {
+    const b: CellBorders = { ...s.border };
+    for (const [side, edge] of Object.entries(c.border) as [keyof CellBorders, BorderEdge | null | undefined][]) {
+      if (edge === undefined) continue;
+      if (edge) b[side] = edge;
+      else delete b[side];
+    }
+    next.border = Object.keys(b).length ? b : undefined;
+  }
+  for (const k of Object.keys(next) as (keyof DisplayStyle)[]) if (next[k] === undefined) delete next[k];
+  return next;
 }
 
 function defaultStyle(): DisplayStyle {

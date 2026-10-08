@@ -107,6 +107,7 @@ export const DEMO_THEMES: { id: string; label: DemoKey; theme?: EditorTheme }[] 
       gridSelectionFill: 'rgba(63, 178, 127, 0.18)',
       gridCutFill: 'rgba(63, 178, 127, 0.1)',
       gridEditedFill: '#4a3f1c',
+      gridEditedMark: '#e0b84a',
       gridLockedFill: '#262b31',
       gridLabelFill: '#1f3328',
       gridErrorMark: '#ff6b5f',

@@ -25,7 +25,21 @@ const PATHS = {
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   note: 'M4 5h16v11H9l-5 4z',
   keyboard: 'M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10',
-  more: 'M5 12h.01M12 12h.01M19 12h.01'
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  bold: 'M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z',
+  italic: 'M10 4h8M6 20h8M14 4l-4 16',
+  underline: 'M7 4v7a5 5 0 0 0 10 0V4M5 21h14',
+  strike: 'M16.5 7A4.5 4.5 0 0 0 12 4h-.5A3.5 3.5 0 0 0 9 10M4 12h16M8 17a4 4 0 0 0 4 3h.5A3.5 3.5 0 0 0 15 14',
+  textColor: 'M6 17 12 4l6 13M8.3 12h7.4',
+  fillColor: 'M5 11l6-6 7 7-6 6zM11 5 8 2M5 11h13M20 15s2 2.4 2 3.6a2 2 0 0 1-4 0c0-1.2 2-3.6 2-3.6',
+  borders: 'M4 4h16v16H4zM4 12h16M12 4v16',
+  alignLeft: 'M4 6h16M4 10h10M4 14h16M4 18h10',
+  alignCenter: 'M4 6h16M7 10h10M4 14h16M7 18h10',
+  alignRight: 'M4 6h16M10 10h10M4 14h16M10 18h10',
+  wrap: 'M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h5',
+  decimalsMore: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 20V8M15 11l3-3 3 3',
+  decimalsFewer: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 8v12M15 17l3 3 3-3',
+  clearFormat: 'M4 7V4h13v3M10.5 4v16M8 20h5M15 15l5 5M20 15l-5 5'
 } satisfies Record<string, string>;
 
 export type IconName = keyof typeof PATHS;

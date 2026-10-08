@@ -39,6 +39,10 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
       layout({ kind: 'hidden', axis: 'cols', lines: { 3: true } });
       layout({ kind: 'freeze', rows: 1, cols: 1 });
       layout({ kind: 'merges', add: [{ r1: 30, c1: 0, r2: 31, c2: 1 }], remove: [] });
+      const rects = [{ r1: 0, c1: 0, r2: 4, c2: 3 }];
+      l.apply({ type: 'format', sheet: s, rects, change: { bold: true, fill: '#FFF2CC', hAlign: 'center', wrap: true, numFmt: '#,##0.00' } });
+      l.apply({ type: 'format', sheet: s, rects, change: { fontFamily: 'Georgia', fontSizePt: 13, color: '#1F4E79' }, borders: { where: 'outside', edge: { width: 2, pattern: 'dashed' } } });
+      l.apply({ type: 'format', sheet: s, rects: [{ r1: 5, c1: 0, r2: 6, c2: 1 }], change: {}, clear: true });
     }
     write(name.replace('.xlsx', '.layout.xlsx'), l);
   }

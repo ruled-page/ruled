@@ -40,6 +40,8 @@ for (const theme of ['Default', 'Dark']) {
     });
 
     test('menus, popups and dialogs', async ({ page }) => {
+      // Scans a dozen menus, popups and dialogs, one after another.
+      test.slow();
       await openSample(page, 'Price list');
       await useTheme(page, theme);
       await goTo(page, 'B3');
@@ -59,6 +61,11 @@ for (const theme of ['Default', 'Dark']) {
 
       await page.keyboard.press('Control+f');
       await expect(page.getByRole('search')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.keyboard.press('Escape');
+
+      await page.getByRole('button', { name: 'Fill colour' }).click();
+      await expect(page.getByRole('dialog', { name: 'Fill colour' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.keyboard.press('Escape');
 

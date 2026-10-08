@@ -456,6 +456,12 @@ export type EditOp =
   | { type: 'sort'; sheet: number; rect: Rect; keys: { col: number; descending: boolean }[]; header: boolean }
   /** Changes how a sheet is laid out, rather than what its cells hold. */
   | { type: 'layout'; sheet: number; op: LayoutOp }
+  /**
+   * Changes the cells' formats, keeping what they hold: `borders` puts the
+   * edge on the given sides of the range's cells; `clear` returns them to
+   * the workbook's default format.
+   */
+  | { type: 'format'; sheet: number; rects: Rect[]; change: FormatChange; borders?: { where: BorderPlacement; edge?: BorderEdge }; clear?: boolean }
   /** Several operations applied in order and undone as one. */
   | { type: 'batch'; ops: EditOp[] };
 
@@ -471,6 +477,31 @@ export type LayoutOp =
   /** Rows above and columns left of the panes that scroll; 0 and 0 unfreezes. */
   | { kind: 'freeze'; rows: number; cols: number }
   | { kind: 'merges'; add: Rect[]; remove: Rect[] };
+
+/**
+ * A change to cells' formats; what it leaves out stays as it was. Colours
+ * are "#RRGGBB"; null is the automatic font colour, no fill, the general
+ * alignment, or no border on that edge.
+ */
+export interface FormatChange {
+  numFmt?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  fontFamily?: string;
+  fontSizePt?: number;
+  color?: string | null;
+  fill?: string | null;
+  hAlign?: 'left' | 'center' | 'right' | 'justify' | null;
+  vAlign?: 'top' | 'center' | 'bottom' | null;
+  wrap?: boolean;
+  indent?: number;
+  border?: Partial<Record<'left' | 'right' | 'top' | 'bottom', BorderEdge | null>>;
+}
+
+/** Which edges of a range's cells a border goes on. */
+export type BorderPlacement = 'all' | 'outside' | 'inside' | 'top' | 'bottom' | 'left' | 'right' | 'none';
 
 export interface LayoutChange {
   sheet: number;

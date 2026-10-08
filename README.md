@@ -8,6 +8,12 @@ back as .xlsx without losing what the editor can't display.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill (series,
   dates, months, "Item 1" → "Item 2"), clear, undo and redo.
+- Format cells from the format bar: font and size, bold, italic, underline
+  and strikethrough, font and fill colours, borders, alignment and wrapping,
+  number formats (with more or fewer decimals), and clearing formats. Each
+  change makes only the formats it needs, keeping everything else about the
+  cell's format, and is undone in one step. Hosts can turn the bar off with
+  `features.format`.
 - Change the layout and save it: column widths and row heights (drag a
   column's or row's edge, or set them from the menu), hide and unhide rows
   and columns, freeze panes, merge and unmerge cells. Merging asks first when
@@ -229,6 +235,7 @@ element with id `wbe-portal` that the editor adds to the page.
 | `schemas` | The schema designer's button |
 | `report` | "What's in this file" and the banner that sums it up |
 | `charts` | Charts drawn from the workbook's current values. Off, they show as placeholders with their title, and the chart library (Chart.js, about 70 kB gzipped) is never loaded; on, it loads only when a workbook has a chart to draw |
+| `format` | The format bar, for fonts, colours, borders, alignment and number formats; hosts whose users only fill in values can leave it out |
 
 `onEvent` hears what the editor does, for a host's logging or analytics:
 `opened` (with how long it took), `openFailed`, `calculated` (how many
@@ -367,7 +374,7 @@ menu key) opens the cell menu with fill down and right; rows and columns
 (insert, delete, height or width, hide and unhide); merging; freezing panes;
 sort and filter. Its submenus open with the right arrow, Enter or Space, and
 close with the left arrow or Escape. F6 (Ctrl+F6 where the browser keeps F6) moves
-between the toolbar, formula bar, sheet, side panel and sheet tabs, since Tab
+between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4 in the
 formula bar's name box goes there. The sheet tabs are one stop: the arrow
 keys, Home and End move between them, and Enter shows a sheet. Ctrl+/ (⌘/ on

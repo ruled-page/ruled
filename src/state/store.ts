@@ -7,6 +7,7 @@ import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { withHooksFrom } from '../schema/hooks';
 import { SchemaController } from '../schema/controller';
+import { stepDecimals } from './numberFormats';
 import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
 import {
   CellFlag,
@@ -16,7 +17,10 @@ import {
   type CellChange,
   type EditOp,
   type EditResult,
+  type BorderEdge,
+  type BorderPlacement,
   type Finding,
+  type FormatChange,
   type LayoutOp,
   type ListValidation,
   type Rect,
@@ -159,6 +163,11 @@ export interface EditorFeatures {
    * with their title. Default true.
    */
   charts: boolean;
+  /**
+   * The format bar: fonts, colours, borders, alignment and number formats.
+   * Hosts whose users only fill in values can turn it off. Default true.
+   */
+  format: boolean;
 }
 
 export interface StoreOptions {
@@ -282,6 +291,9 @@ type Pending = { resolve: (r: WorkerResponse) => void; reject: (e: Error) => voi
 
 const rectCells = (r: Rect) => (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1);
 
+/** Excel's default cell format, until a workbook is open. */
+const DEFAULT_STYLE: DisplayStyle = { numFmt: 'General', bold: false, italic: false, underline: false, strike: false, fontSizePx: 14.7, fontFamily: 'Calibri', wrap: false, indent: 0 };
+
 /**
  * Application state. The workbook itself lives in a Web Worker; this keeps
  * a view of each sheet for rendering, the undo history, and the UI state
@@ -337,6 +349,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   restore: 'store.history.restore',
   sort: 'store.history.sort',
   layout: 'store.history.layout',
+  format: 'store.history.format',
 };
 
 const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
@@ -433,7 +446,7 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }
@@ -1437,6 +1450,34 @@ export class WorkbookStore {
   async unmergeCells(): Promise<void> {
     const remove = this.mergesInSelection();
     if (remove.length) await this.changeLayout({ kind: 'merges', add: [], remove }, msg('store.history.unmerge'));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Formatting
+
+  /** The active cell's format, which the format bar shows. */
+  get activeStyle(): DisplayStyle {
+    const view = this.view;
+    const { row, col } = this.selection;
+    return this.styles[view ? view.styleAt(row, col) : 0] ?? this.styles[0] ?? DEFAULT_STYLE;
+  }
+
+  /** Changes the selected cells' formats, as one undoable step. */
+  async formatCells(change: FormatChange, opts: { borders?: { where: BorderPlacement; edge?: BorderEdge }; clear?: boolean } = {}): Promise<void> {
+    if (!this.view) return;
+    const rects = this.selection.rects.length ? this.selection.rects : [{ r1: this.selection.row, c1: this.selection.col, r2: this.selection.row, c2: this.selection.col }];
+    const label = msg(opts.clear ? 'store.history.clearFormats' : 'store.history.format');
+    await this.edit({ type: 'format', sheet: this.active, rects, change, ...opts }, 'undo', { label });
+  }
+
+  /** Turns bold, italic, underline or strikethrough on for the selection, or off when the active cell has it, as Excel does. */
+  toggleFormat(key: 'bold' | 'italic' | 'underline' | 'strike'): Promise<void> {
+    return this.formatCells({ [key]: !this.activeStyle[key] });
+  }
+
+  /** One more or one fewer decimal place in the active cell's number format, for the whole selection. */
+  stepDecimals(delta: 1 | -1): Promise<void> {
+    return this.formatCells({ numFmt: stepDecimals(this.activeStyle.numFmt, delta) });
   }
 
   /** Merged cells the selection covers some of. */

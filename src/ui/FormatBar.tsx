@@ -1,0 +1,238 @@
+import { useEffect, useId, useRef, useState } from 'react';
+import type { BorderPlacement } from '../core/types';
+import { useT } from '../i18n/react';
+import { NUMBER_FORMAT_KINDS, numberFormatCode, numberFormatKind, type NumberFormatKind } from '../state/numberFormats';
+import type { WorkbookStore } from '../state/store';
+import { ContextMenu } from './ContextMenu';
+import { Icon } from './icons';
+import { useDialog } from './useDialog';
+
+const FONTS = ['Aptos', 'Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Segoe UI', 'Tahoma', 'Times New Roman', 'Verdana'];
+const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+/** Excel's standard colours, then a row of its default theme's. */
+const COLORS = {
+  darkRed: '#C00000',
+  red: '#FF0000',
+  orange: '#FFC000',
+  yellow: '#FFFF00',
+  lightGreen: '#92D050',
+  green: '#00B050',
+  lightBlue: '#00B0F0',
+  blue: '#0070C0',
+  darkBlue: '#002060',
+  purple: '#7030A0',
+  white: '#FFFFFF',
+  black: '#000000',
+  lightGray: '#E7E6E6',
+  blueGray: '#44546A',
+  accentBlue: '#4472C4',
+  accentOrange: '#ED7D31',
+  gray: '#A5A5A5',
+  gold: '#FFC000',
+  skyBlue: '#5B9BD5',
+  accentGreen: '#70AD47',
+} as const;
+const BORDERS: BorderPlacement[] = ['all', 'outside', 'inside', 'top', 'bottom', 'left', 'right', 'none'];
+
+/** Fonts, colours, borders, alignment and number formats for the selected cells, as Excel's Home tab has them. */
+export function FormatBar({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const view = store.view;
+  const disabled = store.status !== 'ready' || view?.info.kind !== 'worksheet' || store.busy;
+  const s = store.activeStyle;
+  const sizePt = Math.round(((s.fontSizePx * 3) / 4) * 2) / 2;
+  const kind = numberFormatKind(s.numFmt, store.locale);
+  const [borders, setBorders] = useState<{ x: number; y: number } | null>(null);
+  const toggle = (key: 'bold' | 'italic' | 'underline' | 'strike', icon: Parameters<typeof Icon>[0]['name']) => (
+    <button className="wbe-btn wbe-icon" aria-pressed={s[key]} disabled={disabled} onClick={() => void store.toggleFormat(key)} title={t(`format.${key}`)} aria-label={t(`format.${key}`)}>
+      <Icon name={icon} />
+    </button>
+  );
+  const align = (value: 'left' | 'center' | 'right', icon: Parameters<typeof Icon>[0]['name']) => (
+    <button
+      className="wbe-btn wbe-icon"
+      aria-pressed={s.hAlign === value}
+      disabled={disabled}
+      onClick={() => void store.formatCells({ hAlign: s.hAlign === value ? null : value })}
+      title={t(`format.align.${value}`)}
+      aria-label={t(`format.align.${value}`)}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+  return (
+    <div className="wbe-format-bar" role="group" aria-label={t('format.label')}>
+      <select
+        className="wbe-format-font"
+        value={s.fontFamily}
+        disabled={disabled}
+        onChange={(e) => void store.formatCells({ fontFamily: e.target.value })}
+        aria-label={t('format.font')}
+        title={t('format.font')}
+      >
+        {(FONTS.includes(s.fontFamily) ? FONTS : [s.fontFamily, ...FONTS]).map((f) => (
+          <option key={f} value={f}>
+            {f}
+          </option>
+        ))}
+      </select>
+      <select
+        className="wbe-format-size"
+        value={String(sizePt)}
+        disabled={disabled}
+        onChange={(e) => void store.formatCells({ fontSizePt: Number(e.target.value) })}
+        aria-label={t('format.size')}
+        title={t('format.size')}
+      >
+        {(SIZES.includes(sizePt) ? SIZES : [...SIZES, sizePt].sort((a, b) => a - b)).map((n) => (
+          <option key={n} value={String(n)}>
+            {t.number(n)}
+          </option>
+        ))}
+      </select>
+      <div className="wbe-btn-group">
+        {toggle('bold', 'bold')}
+        {toggle('italic', 'italic')}
+        {toggle('underline', 'underline')}
+        {toggle('strike', 'strike')}
+      </div>
+      <ColorPicker store={store} which="color" disabled={disabled} />
+      <ColorPicker store={store} which="fill" disabled={disabled} />
+      <button
+        className="wbe-btn wbe-icon"
+        aria-haspopup="menu"
+        aria-expanded={!!borders}
+        disabled={disabled}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setBorders({ x: r.left, y: r.bottom + 2 });
+        }}
+        title={t('format.borders')}
+        aria-label={t('format.borders')}
+      >
+        <Icon name="borders" />
+      </button>
+      {borders && (
+        <ContextMenu
+          x={borders.x}
+          y={borders.y}
+          label={t('format.borders')}
+          onClose={() => setBorders(null)}
+          items={BORDERS.map((where) => ({ label: t(`format.border.${where}`), onSelect: () => void store.formatCells({}, { borders: { where } }) }))}
+        />
+      )}
+      <div className="wbe-btn-group">
+        {align('left', 'alignLeft')}
+        {align('center', 'alignCenter')}
+        {align('right', 'alignRight')}
+      </div>
+      <button className="wbe-btn wbe-icon" aria-pressed={s.wrap} disabled={disabled} onClick={() => void store.formatCells({ wrap: !s.wrap })} title={t('format.wrap')} aria-label={t('format.wrap')}>
+        <Icon name="wrap" />
+      </button>
+      <select
+        className="wbe-format-number"
+        value={kind ?? 'custom'}
+        disabled={disabled}
+        onChange={(e) => void store.formatCells({ numFmt: numberFormatCode(e.target.value as NumberFormatKind, store.locale) })}
+        aria-label={t('format.numberFormat')}
+        title={t('format.numberFormat')}
+      >
+        {!kind && (
+          <option value="custom" disabled>
+            {t('format.number.custom')}
+          </option>
+        )}
+        {NUMBER_FORMAT_KINDS.map((k) => (
+          <option key={k} value={k}>
+            {t(`format.number.${k}`)}
+          </option>
+        ))}
+      </select>
+      <div className="wbe-btn-group">
+        <button className="wbe-btn wbe-icon" disabled={disabled} onClick={() => void store.stepDecimals(1)} title={t('format.decimalsMore')} aria-label={t('format.decimalsMore')}>
+          <Icon name="decimalsMore" />
+        </button>
+        <button className="wbe-btn wbe-icon" disabled={disabled} onClick={() => void store.stepDecimals(-1)} title={t('format.decimalsFewer')} aria-label={t('format.decimalsFewer')}>
+          <Icon name="decimalsFewer" />
+        </button>
+      </div>
+      <button className="wbe-btn wbe-icon" disabled={disabled} onClick={() => void store.formatCells({}, { clear: true })} title={t('format.clear')} aria-label={t('format.clear')}>
+        <Icon name="clearFormat" />
+      </button>
+    </div>
+  );
+}
+
+/** A font or fill colour: the colour shown under its button, and a palette that opens from it. */
+function ColorPicker({ store, which, disabled }: { store: WorkbookStore; which: 'color' | 'fill'; disabled: boolean }) {
+  const t = useT();
+  /** Where the palette shows, under its button; outside the bar, which scrolls sideways and would cut it off. */
+  const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const close = () => setOpen(null);
+  useDialog(panel, !!open, close);
+  const current = store.activeStyle[which];
+  const label = t(which === 'color' ? 'format.textColor' : 'format.fillColor');
+  const pick = (value: string | null) => {
+    close();
+    void store.formatCells(which === 'color' ? { color: value } : { fill: value });
+  };
+  // The browser's own picker reports each colour passed over; only the one chosen counts.
+  const more = useRef<HTMLInputElement>(null);
+  const pickRef = useRef(pick);
+  pickRef.current = pick;
+  useEffect(() => {
+    const input = more.current;
+    if (!open || !input) return;
+    const chosen = () => pickRef.current(input.value.toUpperCase());
+    input.addEventListener('change', chosen);
+    return () => input.removeEventListener('change', chosen);
+  }, [open]);
+  return (
+    <div className="wbe-color-picker">
+      <button
+        ref={button}
+        className="wbe-btn wbe-icon"
+        aria-haspopup="dialog"
+        aria-expanded={!!open}
+        aria-controls={open ? id : undefined}
+        disabled={disabled}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setOpen((o) => (o ? null : { left: Math.max(4, Math.min(r.left, window.innerWidth - 300)), top: r.bottom + 4 }));
+        }}
+        title={label}
+        aria-label={label}
+      >
+        <Icon name={which === 'color' ? 'textColor' : 'fillColor'} />
+        <span className="wbe-color-bar" style={{ background: current ?? (which === 'color' ? 'var(--wbe-text)' : 'transparent') }} />
+      </button>
+      {open && (
+        <div ref={panel} id={id} className="wbe-color-panel" role="dialog" aria-label={label} style={open}>
+          <button className="wbe-btn wbe-small" onClick={() => pick(null)}>
+            {t(which === 'color' ? 'format.automatic' : 'format.noFill')}
+          </button>
+          <div className="wbe-color-swatches">
+            {Object.entries(COLORS).map(([name, hex]) => (
+              <button
+                key={name}
+                className="wbe-color-swatch"
+                style={{ background: hex }}
+                aria-label={t(`format.colors.${name as keyof typeof COLORS}`)}
+                title={t(`format.colors.${name as keyof typeof COLORS}`)}
+                aria-pressed={current?.toUpperCase() === hex}
+                onClick={() => pick(hex)}
+              />
+            ))}
+          </div>
+          <label className="wbe-field wbe-small">
+            <span>{t('format.moreColors')}</span>
+            <input ref={more} type="color" defaultValue={current ?? '#000000'} />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}

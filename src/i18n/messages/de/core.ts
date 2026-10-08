@@ -241,6 +241,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.structure.nothingToRedo': 'Es gibt nichts zu wiederholen.',
 
   'core.change.movedTo': 'Verschoben nach {{where}}',
+  'core.format.tooLarge': 'Formate lassen sich in bis zu {{max, number}} Zellen auf einmal ändern.',
   'core.layout.mergeTable': 'Zellen in einer Excel-Tabelle können nicht verbunden werden ({{table}}).',
   'core.change.columnWidths_one': 'Breite von {{count, number}} Spalte geändert',
   'core.change.columnWidths_other': 'Breite von {{count, number}} Spalten geändert',

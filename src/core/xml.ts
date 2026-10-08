@@ -301,3 +301,14 @@ export function textOf(node: XmlNode | undefined): string {
     .map((t) => t.text)
     .join('');
 }
+
+/** A start tag with attributes set, or removed where the value is null. Names are the caller's own, not from a file. */
+export function setAttributes(tag: string, attrs: Record<string, string | null>): string {
+  const selfClosing = tag.endsWith('/>');
+  let body = tag.slice(0, selfClosing ? -2 : -1);
+  for (const [name, value] of Object.entries(attrs)) {
+    body = body.replace(new RegExp(`\\s${name}="[^"]*"`, 'g'), '');
+    if (value !== null) body += ` ${name}="${escapeXml(value)}"`;
+  }
+  return body + (selfClosing ? '/>' : '>');
+}

@@ -164,3 +164,26 @@ describe('merged cells', () => {
     expect(store.undoStack).toEqual([]);
   });
 });
+
+describe('formats', () => {
+  it('toggle as the active cell has them, step decimals, and clear', async () => {
+    await open();
+    select(rect(0, 0, 1, 1));
+    expect(store.activeStyle.bold).toBe(false);
+    await store.toggleFormat('bold');
+    expect(store.activeStyle.bold).toBe(true);
+    expect(store.styles[store.view!.styleAt(1, 1)].bold).toBe(true);
+    await store.toggleFormat('bold');
+    expect(store.activeStyle.bold).toBe(false);
+    await store.stepDecimals(1);
+    expect(store.activeStyle.numFmt).toBe('0.0');
+    await store.formatCells({ fill: '#FF0000' }, { borders: { where: 'outside' } });
+    expect(store.activeStyle).toMatchObject({ fill: '#FF0000', border: { left: {}, top: {} } });
+    await store.formatCells({}, { clear: true });
+    expect(store.activeStyle).toMatchObject({ bold: false, numFmt: 'General' });
+    expect(store.activeStyle.fill).toBeUndefined();
+    expect(actions()).toEqual(['Format cells', 'Format cells', 'Format cells', 'Format cells', 'Clear formats']);
+    await store.undo();
+    expect(store.activeStyle.fill).toBe('#FF0000');
+  });
+});

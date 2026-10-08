@@ -18,6 +18,8 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('F6');
     await expect(page.locator('.wbe-toolbar :focus')).toHaveCount(1);
     await page.keyboard.press('F6');
+    await expect(page.getByRole('combobox', { name: 'Font', exact: true })).toBeFocused();
+    await page.keyboard.press('F6');
     await expect(nameBox(page)).toBeFocused();
     await page.keyboard.press('F6');
     await expect(grid(page)).toHaveCount(1);
