@@ -1541,6 +1541,135 @@
   margin-inline-end: auto;
 }
 
+/* Fill Series: how the series runs, and the lists filling continues. */
+.wbe .wbe-series-dialog {
+  width: 520px;
+}
+
+.wbe .wbe-series-dialog,
+.wbe .wbe-lists-dialog {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.wbe .wbe-series-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.wbe .wbe-series-group {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.wbe .wbe-series-group legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.wbe .wbe-series-group label,
+.wbe .wbe-series-trend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wbe .wbe-series-group:disabled {
+  color: var(--wbe-text-subtle);
+}
+
+.wbe .wbe-series-group input,
+.wbe .wbe-series-trend input {
+  accent-color: var(--wbe-accent);
+}
+
+.wbe .wbe-series-trend {
+  margin: 14px 0 4px;
+}
+
+.wbe .wbe-series-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.wbe .wbe-series-values .wbe-field input:disabled {
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text-subtle);
+}
+
+.wbe .wbe-series-error {
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-danger-soft);
+  color: var(--wbe-danger);
+  font-size: var(--wbe-font-size-sm);
+}
+
+.wbe .wbe-series-lists {
+  margin-inline-end: auto;
+}
+
+.wbe .wbe-lists-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wbe .wbe-lists-body select,
+.wbe .wbe-lists-body textarea {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+  min-width: 0;
+}
+
+.wbe .wbe-lists-body textarea {
+  resize: vertical;
+}
+
+.wbe .wbe-lists-body textarea[readonly] {
+  background: var(--wbe-surface-alt);
+  color: var(--wbe-text-muted);
+}
+
+.wbe .wbe-lists-body [aria-invalid='true'] {
+  border-color: var(--wbe-danger);
+}
+
+.wbe .wbe-lists-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wbe .wbe-lists-status {
+  color: var(--wbe-text-muted);
+  font-size: var(--wbe-font-size-sm);
+}
+
+@media (max-width: 560px) {
+  .wbe .wbe-series-groups,
+  .wbe .wbe-lists-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .wbe .wbe-report .wbe-tab-panel {
   display: flex;
   flex-direction: column;

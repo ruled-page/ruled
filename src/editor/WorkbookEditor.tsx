@@ -34,6 +34,7 @@ const designer = lazyModule(() => import('../ui/SchemaDesigner'));
 const comments = lazyModule(() => import('../ui/CommentPopup'));
 const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
 const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
+const fillDialogs = lazyModule(() => import('../ui/FillDialogs'));
 
 /** The editor's parts, in the order F6 visits them. */
 const REGIONS = ['.wbe-toolbar', '.wbe-format-bar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
@@ -246,6 +247,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Comments = comments.useModule(!!store.commentFor);
   const Names = nameDialogs.useModule(!!store.nameDialog || store.nameManagerOpen);
   const Links = linkDialog.useModule(store.linkDialog);
+  const Fill = fillDialogs.useModule(store.seriesDialog || store.customListsOpen);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
   // A file chosen from the empty state takes its button away; the focus goes on to the sheet.
@@ -256,7 +258,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [designer, comments, nameDialogs, linkDialog]) m.preload();
+      for (const m of [designer, comments, nameDialogs, linkDialog, fillDialogs]) m.preload();
     });
   }, [opened]);
 
@@ -362,6 +364,8 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.nameManagerOpen && Names && <Names.NameManager store={store} />}
       {ready && store.nameDialog && Names && <Names.NameDialog store={store} />}
       {ready && store.linkDialog && Links && <Links.LinkDialog store={store} />}
+      {ready && store.seriesDialog && Fill && <Fill.SeriesDialog store={store} />}
+      {ready && store.customListsOpen && Fill && <Fill.CustomListsDialog store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

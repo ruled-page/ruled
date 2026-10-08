@@ -130,6 +130,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     },
     { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
     { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
+    { label: t('fill.menu.series'), onSelect: () => store.set('seriesDialog', true), disabled: cellsLocked },
     { separator: true },
     ...(menu.kind === 'cell' ? [...noteItems, { separator: true } as const] : []),
     ...lineItems,
