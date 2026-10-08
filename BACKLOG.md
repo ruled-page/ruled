@@ -28,6 +28,9 @@ editor is a client-side proof of concept; nothing here should add a server.
 - **Refreshing pivot tables, and slicers.** Pivot tables are kept and shown,
   and Excel refreshes them on opening when their source data changed.
   Refreshing them in the editor would need a pivot engine.
+- **Pictures and shapes.** Kept in the file and moved with their cells, and
+  shown as placeholder boxes where they sit. Charts are drawn, and a host can
+  turn that off (`features.charts`).
 - **Sparklines.** Kept in the file and moved with their cells; not drawn.
 - **.xls, .xlsb and .ods files.** Refused with a message. A converter such
   as SheetJS could open them as .xlsx, losing charts and pivot tables.
