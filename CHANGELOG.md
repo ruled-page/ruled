@@ -5,6 +5,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Dynamic array formulas, typed or from the file, spill their values into
+  the cells around them and recalculate live. A spill is outlined while one
+  of its cells is selected, a blocked one shows #SPILL!, and spills are
+  saved as Excel saves them.
+
 ## 0.1.0 (2026-10-08)
 
 The first release: an Excel workbook editor for the browser that saves
