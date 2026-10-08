@@ -25,7 +25,7 @@ execFileSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: app, stdio: '
 
 const packed = mkdtempSync(join(tmpdir(), 'workbook-editor-pack-'));
 const [{ filename }] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', packed], { cwd: root, encoding: 'utf8' }));
-const installed = join(app, 'node_modules', 'fake-spreadsheet');
+const installed = join(app, 'node_modules', 'workbook-editor');
 rmSync(installed, { recursive: true, force: true });
 mkdirSync(installed, { recursive: true });
 execFileSync('tar', ['xzf', join(packed, filename), '-C', installed, '--strip-components=1']);

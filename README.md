@@ -218,8 +218,8 @@ The editor is a component; the demo app in `src/demo` is one consumer of it.
 React:
 
 ```tsx
-import { createWorkbookEditor, WorkbookEditor } from 'fake-spreadsheet';
-import 'fake-spreadsheet/style.css';
+import { createWorkbookEditor, WorkbookEditor } from 'workbook-editor';
+import 'workbook-editor/style.css';
 
 const editor = createWorkbookEditor({ schemas, onSave: (file) => upload(file.bytes) });
 <WorkbookEditor editor={editor} />;
@@ -244,7 +244,7 @@ Every host controls the editor through the same handle (`EditorHandle`):
 The workbook lives in a web worker, which the component starts with
 `new Worker(new URL('./assets/workbook.worker.js', import.meta.url))`. Vite,
 webpack 5 and Parcel see that and bundle the worker with the host app. With
-a bundler that doesn't, serve `fake-spreadsheet/worker` (the file
+a bundler that doesn't, serve `workbook-editor/worker` (the file
 `dist-lib/react/assets/workbook.worker.js`) yourself and pass
 `createWorker: () => new Worker(url, { type: 'module' })`.
 `E2E_HOST_APP=1 npx playwright test e2e/package.spec.ts` (after `npm run
@@ -254,7 +254,7 @@ build:lib`) installs the packed library into a fresh Vite React app under
 Any other host:
 
 ```ts
-import { mountWorkbookEditor } from 'fake-spreadsheet/standalone';
+import { mountWorkbookEditor } from 'workbook-editor/standalone';
 
 const editor = mountWorkbookEditor(element, { schemas, features: { open: false } });
 await editor.open(bytes, 'report.xlsx');
@@ -283,7 +283,7 @@ keeps options Angular set before it loaded. The standalone build has type
 declarations, including `WorkbookEditorElement` for the element itself.
 
 ```ts
-const editorLoaded = import('fake-spreadsheet/standalone');
+const editorLoaded = import('workbook-editor/standalone');
 
 @Component({
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -686,8 +686,10 @@ npm run deploy:angular
 anything (`node scripts/build-sites.mjs portal` builds one). The sites link to
 each other at `https://<project>.pages.dev/`; if Cloudflare gives a project
 another address, or you use custom domains, set `DEMO_URL`, `PORTAL_URL` or
-`ANGULAR_URL` when building. Angular's CLI needs Node 22.22.3 or later, so use
-it for the Angular site (with fnm, `fnm use 22.23`).
+`ANGULAR_URL` when building. Angular's CLI needs Node 22.22.3 or later, so
+switch to it before deploying the Angular site or all three (with fnm,
+`fnm use 22.23`); with an older Node, `npm run deploy` stops after the demo
+and the portal.
 
 To check a site locally the way Pages serves it, build it, then:
 
@@ -855,6 +857,31 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
 | 100,000 rows × 12 columns, 300,000 formulas | 1.2 s | 4.4 s | 0.2–0.3 s | 1.5 s |
 
 The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
+
+## Releases
+
+Versions follow semantic versioning, starting at 0.1.0; before 1.0.0, a
+minor version may change the API. `CHANGELOG.md` says what changed in each:
+add notes under "Unreleased" as you go. Then, from a clean working tree:
+
+```bash
+npm run release -- patch
+```
+
+(or `minor`, `major`, or a version such as `0.2.0`). It runs the checks CI
+runs short of the browser tests, sets the version, moves the Unreleased
+notes under it, writes `THIRD-PARTY-NOTICES.md` again, commits, tags
+`vX.Y.Z` and packs the package into `releases/`. Nothing is pushed or
+published: push the tag and share or publish the tarball yourself. The
+package is marked private, so `npm publish` refuses it rather than putting
+it on the public registry by mistake.
+
+## Licence
+
+Proprietary; see `LICENSE`. The library builds include open-source
+packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
+`npm run notices` writes from the builds and the package ships. HyperFormula
+is among them under GPLv3, until a commercial licence for it is in place.
 
 ## Known limits
 

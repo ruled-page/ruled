@@ -10,10 +10,6 @@ editor is a client-side proof of concept; nothing here should add a server.
   buy its commercial licence and pass the key in through an option, or
   replace the engine. The key is set in `src/core/calc.ts` and
   `src/core/engineLimits.ts`.
-- **The package's name and licence.** It is still called `fake-spreadsheet`,
-  is marked private, and has no LICENSE file or changelog. Choose the name it
-  will be published under and its licence, then add both, a changelog and
-  versioned releases.
 
 ## Needs a person
 
@@ -65,6 +61,11 @@ value without saying so.
   was opened, not what it has now.
 - **Deleting the rows that hold a sheet's last notes** leaves its comments
   part with no comments in it. It is valid, but Excel removes the part.
+- **The package lists the code it bundles as dependencies.** Everything but
+  React is bundled into the library builds, yet `dependencies` names
+  HyperFormula, Glide and the rest, so a host app installs them for nothing.
+  They can become devDependencies once the type declarations stop importing
+  from them, for example by bundling the declarations into one file.
 - **German short month names** come out as numfmt writes them ("März")
   where German Excel writes "Mrz".
 - **A long list in a cell's dropdown** scrolls in a region that axe, in

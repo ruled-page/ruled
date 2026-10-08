@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
     publicDir: false,
     // Paths relative to the library, wherever the host serves it from.
     base: './',
-    // A fixed name, which the package exports as fake-spreadsheet/worker.
+    // A fixed name, which the package exports as workbook-editor/worker.
     worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js' } } },
     plugins: standalone ? [glidePatches()] : [glidePatches(), plainWorkerUrl()],
     resolve: {

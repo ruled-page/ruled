@@ -1,7 +1,7 @@
 {
-  "name": "fake-spreadsheet",
+  "name": "workbook-editor",
   "version": "1.0.0",
-  "description": "Proof of concept: edit .xlsx workbooks in the browser and save them back without losing charts, pivots or formulas",
+  "description": "Edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -22,10 +22,12 @@
     "build:verify": "vite build -c vite.verify.config.ts",
     "check:bundle": "node scripts/check-bundle.mjs",
     "validate:saves": "node scripts/validate-saves.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "notices": "node scripts/notices.mjs",
+    "release": "node scripts/release.mjs"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Anthony Gubler",
+  "license": "UNLICENSED",
   "dependencies": {
     "@borgar/fx": "^5.1.3",
     "@glideapps/glide-data-grid": "^6.0.3",
@@ -71,7 +73,9 @@
     "./worker": "./dist-lib/react/assets/workbook.worker.js"
   },
   "files": [
-    "dist-lib"
+    "dist-lib",
+    "CHANGELOG.md",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

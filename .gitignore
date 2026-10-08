@@ -19,3 +19,6 @@ e2e/host-app/dist
 # Built by npm run validate:saves.
 tools/ooxml-validate/bin
 tools/ooxml-validate/obj
+
+# Packed by npm run release.
+releases
