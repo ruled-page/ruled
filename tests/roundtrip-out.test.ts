@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { strToU8 } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1, quoteSheetName } from '../src/core/refs';
@@ -69,6 +69,34 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   const rect = { ...table.rect, r2: table.rect.r2 - table.totalsRows };
   tf.apply({ type: 'layout', sheet: orders.info.index, op: { kind: 'filter', filter: { rect, columns: { [rect.c1]: ['Nuts'] }, table: 'Orders' }, rows: [rect.r1 + 1] } });
   write('templates.filtered.xlsx', tf);
+
+  // Outlines: rows and columns grouped and ungrouped, and groups collapsed and expanded, on sheets that had
+  // groups, on a protected one that allows them, on one that had none, and on one without <sheetFormatPr>.
+  const outline = (s: WorkbookSession, sheet: number, axis: 'rows' | 'cols', levels: Record<number, number>, collapsed: Record<number, boolean> = {}) =>
+    s.apply({ type: 'layout', sheet, op: { kind: 'outline', axis, levels, collapsed } });
+  const hide = (s: WorkbookSession, sheet: number, axis: 'rows' | 'cols', lines: Record<number, boolean>) => s.apply({ type: 'layout', sheet, op: { kind: 'hidden', axis, lines } });
+  const ol = corpus('outline.xlsx');
+  outline(ol, 0, 'rows', { 9: 1, 10: 2, 11: 1 }, { 6: false });
+  hide(ol, 0, 'rows', { 4: false, 5: false });
+  outline(ol, 0, 'cols', { 1: 0, 2: 0, 3: 0, 12: 1, 13: 1 }, { 14: true });
+  hide(ol, 0, 'cols', { 12: true, 13: true });
+  outline(ol, 1, 'rows', { 2: 0, 3: 0, 4: 0 });
+  outline(ol, 2, 'rows', { 5: 1, 6: 1 }, { 7: true });
+  hide(ol, 2, 'rows', { 5: true, 6: true });
+  write('outline.edited.xlsx', ol);
+  write('outline.row-inserted.xlsx', corpus('outline.xlsx').restructure({ type: 'insertRows', sheet: 0, at: 2, count: 2 }));
+  write('outline.column-inserted.xlsx', corpus('outline.xlsx').restructure({ type: 'insertCols', sheet: 0, at: 2, count: 1 }));
+  const files = unzipSync(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'outline.xlsx'))));
+  files['xl/worksheets/sheet2.xml'] = strToU8(strFromU8(files['xl/worksheets/sheet2.xml']).replace(/<sheetFormatPr[^>]*\/>/, '').replace(/ outlineLevel="1"/g, ''));
+  const bare = WorkbookSession.open(zipSync(files), 'outline.xlsx', 'en-US');
+  outline(bare, 1, 'rows', { 6: 1, 7: 1 });
+  outline(bare, 1, 'cols', { 4: 2 });
+  write('outline.format-added.xlsx', bare);
+  const og = open('orders.xlsx');
+  outline(og, 0, 'rows', { 1: 1, 2: 1 }, { 3: true });
+  hide(og, 0, 'rows', { 1: true, 2: true });
+  outline(og, 0, 'cols', { 1: 1, 2: 1 });
+  write('orders.outline.xlsx', og);
 
   // Defined names: one changed, one deleted, one renamed where formulas use it, and new ones for the workbook and for a sheet.
   const n = open('orders.xlsx');
