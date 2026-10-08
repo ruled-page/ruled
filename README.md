@@ -63,6 +63,14 @@ back as .xlsx without losing what the editor can't display.
   cells. Failures raise the rule's stop, warning or information alert, and
   the formula bar shows the rule or its input message. Pasted values and
   formulas aren't checked, as in Excel.
+- Add, rename, delete, move, hide and unhide sheets from each sheet tab's
+  menu (right-click, or Shift+F10 on the tab), the + after the tabs, or by
+  dragging a tab, with Excel's rules for names and the same refusals (the
+  last visible sheet stays; a protected workbook structure changes nothing).
+  Formulas on every sheet, names, charts, validation, conditional formatting,
+  table formulas, pivot sources and links within the workbook follow a
+  renamed sheet; references to a deleted one become #REF!, and its drawings,
+  charts, notes, tables and pivot tables go with it. Each change can be undone.
 - Right-click a cell or heading to cut, copy and paste, insert or delete rows
   and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F),
   with Excel's wildcards: * for any run of characters, ? for any one, and ~
@@ -411,7 +419,10 @@ opens the cell's note or comments. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4 in the
 formula bar's name box goes there. The sheet tabs are one stop: the arrow
-keys, Home and End move between them, and Enter shows a sheet. Ctrl+/ (⌘/ on
+keys, Home and End move between them, and Enter shows a sheet; on a tab,
+Alt+Shift+Left and Right move its sheet, F2 renames it, and Shift+F10 (or
+the menu key) opens its menu. The + after the tabs adds a sheet, and the
+"N hidden" note after it offers the hidden ones back. Ctrl+/ (⌘/ on
 a Mac) lists every shortcut. Dialogs keep the focus inside, close with Escape
 and hand the focus back, in Safari too, which doesn't focus a clicked button.
 
@@ -672,6 +683,13 @@ export const priceListSchema = defineSchema({
   document property, `WorkbookSchema = id@version`). A stamped file tries
   that schema first when opened, and says so if it was saved under another
   version.
+- **Sheet names**: a schema finds its sheets by name, so while one applies,
+  a sheet it checks can only be renamed to a name it still matches (a
+  pattern such as `/^Prices/` allows "Prices 2026"), and a sheet it needs
+  (not `optional`) can't be deleted; the editor says why. Moving and hiding
+  such sheets, and adding others, leave the schema applying. The binding
+  never silently switches to another sheet or drops off mid-session, and a
+  saved file opens again under the same schema.
 - **Business logic**: `onChange` runs after each edit and can write other cells;
   its writes are part of the same undo step. `beforeSave` can stop a save.
   Saving with errors is blocked, or asks first with `saveWithErrors: 'confirm'`.
@@ -787,7 +805,18 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   Excel saves it, with the rows it hides; in a table it is the table's
   filter. A file's own filter by values can be changed and cleared; one by
   condition, top ten or colour is kept as the file has it.
-- Sheets can't be added, renamed or deleted.
+- Adding, renaming, deleting, moving, hiding and unhiding a sheet rebuild
+  the workbook as inserting rows does. A new sheet is named "Sheet" (or
+  "Tabelle" in German, following the editor's language) and numbered one
+  past the highest such name. Renaming follows the sheet everywhere a name
+  can be followed; Excel itself leaves links (hyperlinks) to a renamed sheet
+  broken, while here they follow it. References in text, such as
+  `INDIRECT("Data!A1")`, are left as written, as in Excel. A deleted sheet's
+  names (print areas and titles among them) go, and names pointing at it
+  become #REF!; a pivot table whose source sheet was deleted keeps its data
+  and isn't refreshed. A sheet with slicers or timelines, or with pivot
+  tables or tables they use, can't be deleted. Sheets hidden as "very
+  hidden" are never offered for unhiding.
 - Notes and comments are edited as plain text: a changed note loses any
   bold, colour or other formatting in its text, and a changed comment its
   @mentions. New comments are by the `user` option's name, as a person with

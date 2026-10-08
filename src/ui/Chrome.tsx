@@ -1,10 +1,11 @@
-import type { KeyboardEvent, ReactNode } from 'react';
-import { useMemo, useRef } from 'react';
+import type { DragEvent, KeyboardEvent, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { RichText } from './RichText';
+import { RenameSheetDialog, SheetMenu, sheetNamed, sheetSteps, UnhideSheetDialog, type AfterSheetChange } from './SheetDialogs';
 import { mod, shortcutsKey } from './keys';
 import { useT } from '../i18n/react';
 
@@ -254,52 +255,138 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
   const bound = new Set(store.schema?.binding.sheets.map((s) => s.sheet) ?? []);
   const schemaName = t.localized(store.schema?.schema.name);
   const tabs = useRef(new Map<number, HTMLButtonElement>());
-  const visible = store.sheets.flatMap((s, i) => (s.info.state === 'visible' ? [i] : []));
+  const { visible, left, right } = sheetSteps(store);
   // The sheet shown is the one tab stop, so many sheets aren't a long run of Tab presses.
   const stop = visible.includes(store.active) ? store.active : visible[0];
+
+  // After a change to the sheets, the focus goes to the tab it concerns, which may now be elsewhere.
+  const [focusTo, setFocusTo] = useState<number | null>(null);
+  useEffect(() => {
+    if (focusTo === null) return;
+    tabs.current.get(focusTo)?.focus();
+    setFocusTo(null);
+  }, [focusTo]);
+  const after: AfterSheetChange = (change, focus) => void change.then((made) => setFocusTo(focus(made)));
+
+  const openMenu = (sheet: number, x: number, y: number) => store.set('sheetMenu', { sheet, x, y });
   // The arrow keys, Home and End move between sheets; Enter or Space shows the one with the focus.
+  // Alt+Shift+arrows move the sheet, F2 renames it, and Shift+F10 or the menu key opens its menu.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = visible.findIndex((i) => tabs.current.get(i) === document.activeElement);
-    const step = (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0) * (getComputedStyle(e.currentTarget).direction === 'rtl' ? -1 : 1);
-    const to = e.key === 'Home' ? 0 : e.key === 'End' ? visible.length - 1 : step ? (at + step + visible.length) % visible.length : -1;
-    if (at < 0 || to < 0) return;
+    if (at < 0) return;
+    const sheet = visible[at];
+    const name = store.sheets[sheet].info.name;
+    const arrow = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? left : 0;
+    if (arrow && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      after(store.moveSheetBy(sheet, arrow), sheetNamed(store, name));
+      return;
+    }
+    if (e.key === 'F2') {
+      e.preventDefault();
+      store.set('renameSheetFor', sheet);
+      return;
+    }
+    if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+      e.preventDefault();
+      const r = tabs.current.get(sheet)!.getBoundingClientRect();
+      openMenu(sheet, r.left, r.bottom);
+      return;
+    }
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? visible.length - 1 : arrow ? (at + arrow + visible.length) % visible.length : -1;
+    if (to < 0) return;
     e.preventDefault();
     tabs.current.get(visible[to])?.focus();
   };
+
+  // Dragging a tab moves its sheet: the drop goes before the sheet at `before`, in workbook order.
+  const [drag, setDrag] = useState<{ from: number; before?: number } | null>(null);
+  const dragOver = (e: DragEvent<HTMLButtonElement>, i: number) => {
+    if (!drag) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = e.currentTarget.getBoundingClientRect();
+    const later = (e.clientX > r.left + r.width / 2) === (right > 0);
+    const before = later ? i + 1 : i;
+    if (before !== drag.before) setDrag({ from: drag.from, before });
+  };
+  const drop = (e: DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    // Not a file to open, which dropping on the editor otherwise is.
+    e.stopPropagation();
+    if (drag?.before !== undefined) after(store.dropSheet(drag.from, drag.before), sheetNamed(store, store.sheets[drag.from].info.name));
+    setDrag(null);
+  };
+  // Where the drop would go: at the start of the tab it goes before or, past the last tab or before a hidden sheet, the end of the tab before.
+  const marker = (i: number) => {
+    if (drag?.before === undefined || drag.before === drag.from || drag.before === drag.from + 1) return '';
+    if (drag.before === i) return 'wbe-drop-start';
+    const next = visible.find((v) => v > i);
+    return drag.before > i && (next === undefined || drag.before < next) ? 'wbe-drop-end' : '';
+  };
+
   return (
-    <nav className="wbe-sheet-tabs" aria-label={t('tabs.label')}>
-      <div className="wbe-sheet-tablist" role="tablist" aria-label={t('tabs.label')} onKeyDown={onKeyDown}>
-        {visible.map((i) => {
-          const s = store.sheets[i];
-          return (
-            <button
-              key={i}
-              ref={(el) => {
-                if (el) tabs.current.set(i, el);
-                else tabs.current.delete(i);
-              }}
-              role="tab"
-              aria-selected={i === store.active}
-              tabIndex={i === stop ? 0 : -1}
-              className={`wbe-tab ${i === store.active ? 'wbe-active' : ''}`}
-              style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
-              onClick={() => store.setActive(i)}
-              title={bound.has(i) ? t('tabs.checkedBy', { name: schemaName }) : undefined}
-            >
-              {s.info.kind === 'chartsheet' && <Icon name="chart" size={13} />}
-              {s.info.protected && <Icon name="lock" size={12} />}
-              {bound.has(i) && <Icon name="schema" size={12} />}
-              {s.info.name}
+    <>
+      <nav className="wbe-sheet-tabs" aria-label={t('tabs.label')}>
+        <div className="wbe-sheet-tablist" role="tablist" aria-label={t('tabs.label')} onKeyDown={onKeyDown}>
+          {visible.map((i) => {
+            const s = store.sheets[i];
+            return (
+              <button
+                key={i}
+                ref={(el) => {
+                  if (el) tabs.current.set(i, el);
+                  else tabs.current.delete(i);
+                }}
+                role="tab"
+                aria-selected={i === store.active}
+                tabIndex={i === stop ? 0 : -1}
+                className={`wbe-tab ${i === store.active ? 'wbe-active' : ''} ${marker(i)}`}
+                style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
+                onClick={() => store.setActive(i)}
+                onDoubleClick={() => store.set('renameSheetFor', i)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  openMenu(i, e.clientX, e.clientY);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', s.info.name);
+                  setDrag({ from: i });
+                }}
+                onDragOver={(e) => dragOver(e, i)}
+                onDrop={drop}
+                onDragEnd={() => setDrag(null)}
+                title={bound.has(i) ? t('tabs.checkedBy', { name: schemaName }) : undefined}
+              >
+                {s.info.kind === 'chartsheet' && <Icon name="chart" size={13} />}
+                {s.info.protected && <Icon name="lock" size={12} />}
+                {bound.has(i) && <Icon name="schema" size={12} />}
+                {s.info.name}
+              </button>
+            );
+          })}
+        </div>
+        <button className="wbe-btn wbe-icon wbe-ghost wbe-tab-add" onClick={() => after(store.addSheet(), () => store.active)} title={t('sheets.addTitle')} aria-label={t('sheets.add')}>
+          <Icon name="plus" size={14} />
+        </button>
+        {hidden > 0 &&
+          (store.hiddenSheets.length ? (
+            <button className="wbe-link wbe-tabs-note" aria-haspopup="dialog" onClick={() => store.set('unhideOpen', true)} title={t('sheets.unhideButtonTitle')}>
+              {t('tabs.hidden', { count: hidden })}
             </button>
-          );
-        })}
-      </div>
-      {hidden > 0 && (
-        <span className="wbe-tabs-note" title={t('tabs.hiddenTitle')}>
-          {t('tabs.hidden', { count: hidden })}
-        </span>
-      )}
-    </nav>
+          ) : (
+            <span className="wbe-tabs-note" title={t('tabs.hiddenTitle')}>
+              {t('tabs.hidden', { count: hidden })}
+            </span>
+          ))}
+      </nav>
+      <SheetMenu store={store} after={after} />
+      <RenameSheetDialog store={store} after={after} />
+      <UnhideSheetDialog store={store} after={after} />
+    </>
   );
 }
 

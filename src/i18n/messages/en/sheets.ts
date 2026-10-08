@@ -41,7 +41,7 @@ export const sheets = {
   'sheets.delete.confirm': 'Delete sheet',
 
   'sheets.add': 'New sheet',
-  'sheets.addTitle': 'Add a sheet after this one',
+  'sheets.addTitle': 'Add a sheet after the one shown',
   'sheets.unhideButtonTitle': 'Show a hidden sheet again',
   'sheets.menu.label': 'Sheet “{{sheet}}”',
   'sheets.menu.insert': 'Insert sheet',

@@ -2,7 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { colToLetters } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { mod, redoKey, shortcutsKey } from './keys';
+import { APPLE, mod, redoKey, shortcutsKey } from './keys';
 import { useDialog } from './useDialog';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
@@ -42,6 +42,14 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [m('G'), t('shortcuts.findNext')],
         [m('S'), t('shortcuts.save')],
         [shortcutsKey(t), t('shortcuts.list')],
+      ],
+    },
+    {
+      group: t('sheets.shortcuts.group'),
+      keys: [
+        [t('keys.menu'), t('sheets.shortcuts.menu')],
+        [APPLE ? '⌥⇧←, ⌥⇧→' : t('sheets.keys.move'), t('sheets.shortcuts.move')],
+        [t('sheets.keys.rename'), t('sheets.shortcuts.rename')],
       ],
     },
   ];

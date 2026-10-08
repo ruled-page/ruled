@@ -154,7 +154,8 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Control+/');
     const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('Shift+F10, Menu key')).toBeVisible();
+    // On the grid and on the sheet tabs.
+    await expect(dialog.getByText('Shift+F10, Menu key')).toHaveCount(2);
     // Tab stays inside the dialog.
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');

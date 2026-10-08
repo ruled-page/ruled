@@ -101,6 +101,8 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
   const go = (sheetName: string, ref: string) => {
     const sheet = store.sheets.findIndex((s) => s.info.name === sheetName);
     const pos = parseA1(ref);
+    // A change to a whole sheet shows the sheet, if it can be shown.
+    if (sheet >= 0 && ref === '' && store.sheets[sheet].info.state === 'visible') store.setActive(sheet);
     if (sheet < 0 || !pos) return;
     store.reveal(sheet, pos.row, pos.col);
     if (store.narrow) store.set('panel', null);
@@ -121,17 +123,16 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
               </tr>
             </thead>
             <tbody>
-              {changes.slice(0, SHOWN).map((c) => (
-                // A cell's note can change as well as its value.
-                <tr key={`${c.sheet}!${c.ref}${c.comment ? '#note' : ''}`} onClick={() => go(c.sheet, c.ref)}>
+              {changes.slice(0, SHOWN).map((c, i) => (
+                // Keyed by position: a cell's note can change as well as its value, and a sheet can change more than once.
+                <tr key={`${i}:${c.sheet}!${c.ref}${c.comment ? '#note' : ''}`} onClick={() => go(c.sheet, c.ref)}>
                   <td className="wbe-mono">
                     {/* The row is clickable too; the button is the same for keyboards and screen readers. */}
                     <button className="wbe-cell-link" title={t('changes.goTo')} onClick={(e) => {
                       e.stopPropagation();
                       go(c.sheet, c.ref);
                     }}>
-                      {store.sheets.length > 1 ? `${c.sheet}!` : ''}
-                      {c.ref}
+                      {c.ref === '' ? c.sheet : store.sheets.length > 1 ? `${c.sheet}!${c.ref}` : c.ref}
                     </button>
                   </td>
                   {c.note ? (
