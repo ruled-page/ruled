@@ -43,10 +43,13 @@ function isBoundary(code: number): boolean {
 }
 
 function indexOfTag(xml: string, tag: string, from: number, limit: number): number {
+  // Searching a prefix that ends at `limit` (a view, not a copy) stops there: a tag that a
+  // cell doesn't have, such as <f> in a sheet without formulas, isn't looked for to the sheet's end.
+  const within = limit < xml.length ? xml.slice(0, limit) : xml;
   let i = from;
   for (;;) {
-    i = xml.indexOf(tag, i);
-    if (i === -1 || i >= limit) return -1;
+    i = within.indexOf(tag, i);
+    if (i === -1) return -1;
     if (isBoundary(xml.charCodeAt(i + tag.length))) return i;
     i++;
   }

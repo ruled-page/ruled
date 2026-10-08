@@ -78,6 +78,14 @@ describe('reading cells written by other programs', () => {
     const xml = sheet('<rowx r="1"/><row r="2"><cx/><c r="A2"><v>7</v></c></row>');
     expect(cells(xml)).toEqual([[1, 0, VT.Number, 7, undefined]]);
   });
+
+  it('reads a large sheet without formulas in time proportional to its size', () => {
+    const row = (r: number) => `<row r="${r}">${['A', 'B', 'C', 'D', 'E'].map((c) => `<c r="${c}${r}"><v>${r}</v></c>`).join('')}</row>`;
+    const xml = sheet(Array.from({ length: 40_000 }, (_, i) => row(i + 1)).join(''));
+    const t0 = performance.now();
+    expect(scanSheet(xml, []).grid.cols.length).toBe(200_000);
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
 });
 
 describe('row heights', () => {
