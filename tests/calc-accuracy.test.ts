@@ -165,6 +165,9 @@ const CASES: [string, Expected][] = [
   ['TYPE({1,2;3,4})', 64],
   ['ERROR.TYPE(1/0)', 2],
   ['ERROR.TYPE(NA())', 7],
+  ['LENB("abc")', 3],
+  ['MIDB("abcde",2,3)', 'bcd'],
+  ['PERCENTOF({1,2,3},{1,2,3,4})', 0.6],
   // Array results, written out by ARRAYTOTEXT to fit one cell.
   ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},2),1)', '{1,2,3;4,5,6}'],
   ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},,2),1)', '{1,2;4,5;7,8}'],

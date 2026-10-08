@@ -176,6 +176,11 @@ export abstract class ExcelPlugin extends FunctionPlugin {
     return (this.config as unknown as { translationPackage: { getErrorTranslation(type: string): string } }).translationPackage.getErrorTranslation(e.type);
   }
 
+  /** What another function gives for the same arguments: one Excel keeps under a second name. */
+  protected delegate(ast: Call, state: State, name: string): unknown {
+    return this.evaluate({ type: 'FUNCTION_CALL', procedureName: name, args: ast.args }, state);
+  }
+
   /** A value converted to a number the way arithmetic does: "12" is 12, "a" an error. */
   protected toNumber(v: Value): number | CellError {
     return plain(this.coerceScalarToNumberOrError(v as never)) as number | CellError;

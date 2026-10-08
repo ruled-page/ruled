@@ -22,6 +22,17 @@ import {
 /** The longest text a cell can hold. */
 const MAX_TEXT = 32767;
 
+/** The byte-counting text functions and the character-counting ones they match. */
+const BYTES: Record<string, string> = {
+  LEFTB: 'LEFT',
+  RIGHTB: 'RIGHT',
+  MIDB: 'MID',
+  LENB: 'LEN',
+  FINDB: 'FIND',
+  SEARCHB: 'SEARCH',
+  REPLACEB: 'REPLACE',
+};
+
 const matchesAt = (text: string, i: number, d: string, insensitive: boolean) => {
   const piece = text.slice(i, i + d.length);
   return insensitive ? piece.toLowerCase() === d.toLowerCase() : piece === d;
@@ -156,7 +167,21 @@ export class TextFunctions extends ExcelPlugin {
         { argumentType: FunctionArgumentType.BOOLEAN, defaultValue: false, emptyAsDefault: true },
       ],
     },
+    ...Object.fromEntries(Object.keys(BYTES).map((id) => [id, { method: 'bytes', sizeOfResultArrayMethod: 'bytesSize', parameters: [{ argumentType: FunctionArgumentType.ANY }], repeatLastArgs: 1 }])),
   };
+
+  /**
+   * LEFTB, LENB and the like count bytes rather than characters only where a
+   * double-byte language such as Japanese is the default for editing;
+   * elsewhere they are the same as LEFT and LEN, which they are here.
+   */
+  bytes(ast: Call, state: State) {
+    return this.delegate(ast, state, BYTES[ast.procedureName!]);
+  }
+
+  bytesSize(ast: Call, state: State) {
+    return this.arraySizeForAst({ ...ast, procedureName: BYTES[ast.procedureName!] } as never, state);
+  }
 
   concat(ast: Call, state: State) {
     return this.run(ast, state, 'CONCAT', (...values: Value[]) => {

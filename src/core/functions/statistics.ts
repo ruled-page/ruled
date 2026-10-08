@@ -91,6 +91,7 @@ export class StatisticalFunctions extends ExcelPlugin {
     GESTEP: { method: 'gestep', parameters: [{ argumentType: FunctionArgumentType.NUMBER }, { argumentType: FunctionArgumentType.NUMBER, defaultValue: 0 }] },
     'ERF.PRECISE': { method: 'erfprecise', parameters: [{ argumentType: FunctionArgumentType.NUMBER }] },
     'ERFC.PRECISE': { method: 'erfcprecise', parameters: [{ argumentType: FunctionArgumentType.NUMBER }] },
+    PERCENTOF: { method: 'percentof', repeatLastArgs: 1, parameters: [{ argumentType: FunctionArgumentType.ANY }] },
     'BINOM.DIST.RANGE': {
       method: 'binomdistrange',
       parameters: [
@@ -273,18 +274,22 @@ export class StatisticalFunctions extends ExcelPlugin {
     return this.run(ast, state, 'GESTEP', (n: number, step: number) => (n >= step ? 1 : 0));
   }
 
+  // The engine's ERF and ERFC, which also take two arguments where these take one.
   erfprecise(ast: Call, state: State) {
-    return this.delegate(ast, state, 'ERF');
+    return ast.args.length === 1 ? this.delegate(ast, state, 'ERF') : error(ErrorType.NA);
   }
 
   erfcprecise(ast: Call, state: State) {
-    return this.delegate(ast, state, 'ERFC');
+    return ast.args.length === 1 ? this.delegate(ast, state, 'ERFC') : error(ErrorType.NA);
   }
 
-  /** The engine's own function under its older name, which takes one argument here. */
-  private delegate(ast: Call, state: State, name: string) {
-    if (ast.args.length !== 1) return error(ErrorType.NA);
-    return this.evaluate({ type: 'FUNCTION_CALL', procedureName: name, args: ast.args }, state);
+  percentof(ast: Call, state: State) {
+    if (ast.args.length !== 2) return error(ErrorType.NA);
+    const [part, all] = ast.args.map((a) => this.numbers([a], state));
+    if (part instanceof CellError) return part;
+    if (all instanceof CellError) return all;
+    const total = all.reduce((s, v) => s + v, 0);
+    return total ? part.reduce((s, v) => s + v, 0) / total : error(ErrorType.DIV_BY_ZERO);
   }
 
   binomdistrange(ast: Call, state: State) {

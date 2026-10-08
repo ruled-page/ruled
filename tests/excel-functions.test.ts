@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CalcEngine, type EngineValue } from '../src/core/calc';
+import { toFileFormula } from '../src/core/formula';
 
 /**
  * The functions added to the engine, case by case: Excel's documented
@@ -363,6 +364,21 @@ describe('text functions', () => {
     ]);
   });
 
+  it('the byte-counting functions match their character-counting ones', () => {
+    check([
+      ['LENB("abc")', 3],
+      ['LEFTB("abc",2)', 'ab'],
+      ['RIGHTB("abc",1)', 'c'],
+      ['MIDB("abcde",2,3)', 'bcd'],
+      ['FINDB("c","abc")', 3],
+      ['SEARCHB("C","abc")', 3],
+      ['REPLACEB("abc",2,1,"X")', 'aXc'],
+      ['LENB(B1:B2)', [[3], [6]]],
+      ['LEFTB()', NA],
+    ]);
+    expect(spill('=LENB({"a","bb"})').values[0]).toEqual([1, 2, null, null]);
+  });
+
   it('FIXED rounds and formats a number as text', () => {
     check([
       ['FIXED(1234.567,1)', '1,234.6'],
@@ -654,6 +670,20 @@ describe('statistical functions', () => {
       ['PERCENTRANK.INC({"a"},1)', NUM],
       ['PERCENTRANK.INC(D1:D5,1)', DIV0],
     ]);
+  });
+
+  it('PERCENTOF gives a subset sum as a share of the whole', () => {
+    check([
+      ['PERCENTOF({1,2,3},{1,2,3,4})', 0.6],
+      ['PERCENTOF(A1:A2,A1:A5)', (4.14 + 4.19) / 25.66],
+      ['PERCENTOF(10,100)', 0.1],
+      ['PERCENTOF(D1:D4,{1,1})', 0.5],
+      ['PERCENTOF(1,{0})', DIV0],
+      ['PERCENTOF(D5,1)', DIV0],
+      ['PERCENTOF(1,NA())', NA],
+      ['PERCENTOF(1)', NA],
+    ]);
+    expect(toFileFormula('PERCENTOF(A1:A2,A1:A9)')).toBe('_xlfn.PERCENTOF(A1:A2,A1:A9)');
   });
 
   it('PROB, BINOM.DIST.RANGE, ERF.PRECISE and ERFC.PRECISE', () => {
