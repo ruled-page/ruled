@@ -1,0 +1,68 @@
+/**
+ * English messages about outlines: grouping rows and columns, and showing
+ * or hiding the detail in their groups.
+ */
+export const outline = {
+  'outline.change.groupedRows_one': 'Grouped {{count, number}} row',
+  'outline.change.groupedRows_other': 'Grouped {{count, number}} rows',
+  'outline.change.groupedColumns_one': 'Grouped {{count, number}} column',
+  'outline.change.groupedColumns_other': 'Grouped {{count, number}} columns',
+  'outline.change.ungroupedRows_one': 'Ungrouped {{count, number}} row',
+  'outline.change.ungroupedRows_other': 'Ungrouped {{count, number}} rows',
+  'outline.change.ungroupedColumns_one': 'Ungrouped {{count, number}} column',
+  'outline.change.ungroupedColumns_other': 'Ungrouped {{count, number}} columns',
+  'outline.change.collapsed_one': 'Collapsed {{count, number}} group',
+  'outline.change.collapsed_other': 'Collapsed {{count, number}} groups',
+  'outline.change.expanded_one': 'Expanded {{count, number}} group',
+  'outline.change.expanded_other': 'Expanded {{count, number}} groups',
+
+  'outline.refuse.tooDeep': 'Groups can go at most 7 levels deep, as in Excel.',
+  'outline.refuse.notGroupedRows': "The selected rows aren't in a group.",
+  'outline.refuse.notGroupedColumns': "The selected columns aren't in a group.",
+
+  'outline.history.groupRows_one': 'Group row',
+  'outline.history.groupRows_other': 'Group {{count, number}} rows',
+  'outline.history.groupColumns_one': 'Group column',
+  'outline.history.groupColumns_other': 'Group {{count, number}} columns',
+  'outline.history.ungroupRows_one': 'Ungroup row',
+  'outline.history.ungroupRows_other': 'Ungroup {{count, number}} rows',
+  'outline.history.ungroupColumns_one': 'Ungroup column',
+  'outline.history.ungroupColumns_other': 'Ungroup {{count, number}} columns',
+  'outline.history.hideDetail': 'Hide detail',
+  'outline.history.showDetail': 'Show detail',
+  'outline.history.level': 'Show outline level {{level, number}}',
+  'outline.history.clear': 'Clear outline',
+
+  'outline.menu.groupRows': 'Group rows',
+  'outline.menu.groupColumns': 'Group columns',
+  'outline.menu.ungroupRows': 'Ungroup rows',
+  'outline.menu.ungroupColumns': 'Ungroup columns',
+  'outline.menu.hideDetail': 'Hide detail',
+  'outline.menu.showDetail': 'Show detail',
+  'outline.menu.showLevel': 'Show level {{level, number}}',
+  'outline.menu.clearRows': 'Clear row outline',
+  'outline.menu.clearColumns': 'Clear column outline',
+
+  'outline.keys.group': 'Alt+Shift+Right',
+  'outline.keys.ungroup': 'Alt+Shift+Left',
+  'outline.shortcuts.group': 'Group the selected rows or columns',
+  'outline.shortcuts.ungroup': 'Ungroup the selected rows or columns',
+
+  'outline.ask.groupTitle': 'Group',
+  'outline.ask.groupBody': 'Group the selected rows, or the selected columns?',
+  'outline.ask.ungroupTitle': 'Ungroup',
+  'outline.ask.ungroupBody': 'Ungroup the selected rows, or the selected columns?',
+  'outline.ask.rows': 'Rows',
+  'outline.ask.columns': 'Columns',
+
+  'outline.bar.rows': 'Row outline',
+  'outline.bar.columns': 'Column outline',
+  'outline.bar.rowLevel': 'Show row level {{level, number}}',
+  'outline.bar.columnLevel': 'Show column level {{level, number}}',
+  'outline.bar.collapse': 'Collapse {{lines}}',
+  'outline.bar.expand': 'Expand {{lines}}',
+  'outline.bar.rowRange': 'rows {{from}} to {{to}}',
+  'outline.bar.row': 'row {{row}}',
+  'outline.bar.columnRange': 'columns {{from}} to {{to}}',
+  'outline.bar.column': 'column {{column}}',
+};

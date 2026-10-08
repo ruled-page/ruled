@@ -338,6 +338,11 @@ function rewriteCells(
       rowsOut.set(row, attrs);
     }
   }
+  // Rows inserted inside a group join it, as Excel's do.
+  if (op.type === 'insertRows') {
+    const join = Math.min(outlineLevelOf(rows.get(op.at - 1)), outlineLevelOf(rows.get(op.at)));
+    for (let row = op.at; join && row < op.at + op.count; row++) rowsOut.set(row, ` outlineLevel="${join}"`);
+  }
 
   const byRow = new Map<number, CellOut[]>();
   for (const c of cellsOut) {
@@ -494,12 +499,25 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
   return head + xml.slice(cut[0], cut[1]) + tail;
 }
 
-/** Column widths and formats (<cols>) follow inserted and deleted columns. */
+/** An element's outline level, from its attributes. */
+const outlineLevelOf = (attrs: string | undefined) => Number(/\soutlineLevel="(\d+)"/.exec(attrs ?? '')?.[1] ?? 0);
+
+/** Column widths, formats and outline levels (<cols>) follow inserted and deleted columns. */
 function shiftCols(head: string, op: LineOp): string {
-  return head.replace(/<((?:\w+:)?col)\b([^>]*?)\/>/g, (all, tag: string, attrs: string) => {
-    const min = Number(/\smin="(\d+)"/.exec(attrs)?.[1]) - 1;
-    const max = Number(/\smax="(\d+)"/.exec(attrs)?.[1]) - 1;
+  const COL = /<((?:\w+:)?col)\b([^>]*?)\/>/g;
+  const span = (attrs: string) => [Number(/\smin="(\d+)"/.exec(attrs)?.[1]) - 1, Number(/\smax="(\d+)"/.exec(attrs)?.[1]) - 1];
+  // Columns inserted inside a group join it, as Excel's do: a <col> spanning where they go
+  // takes them in; between two that end and start there, they need one of their own.
+  let join = 0;
+  if (op.type === 'insertCols') {
+    const cols = [...head.matchAll(COL)].map((m) => ({ span: span(m[2]), level: outlineLevelOf(m[2]) }));
+    const levelAt = (c: number) => cols.find((x) => x.span[0] <= c && c <= x.span[1])?.level ?? 0;
+    if (!cols.some((x) => x.span[0] < op.at && op.at <= x.span[1])) join = Math.min(levelAt(op.at - 1), levelAt(op.at));
+  }
+  return head.replace(COL, (all, tag: string, attrs: string) => {
+    const [min, max] = span(attrs);
     if (Number.isNaN(min) || Number.isNaN(max)) return all;
+    if (join && max === op.at - 1) return `${all}<${tag} min="${op.at + 1}" max="${op.at + op.count}" outlineLevel="${join}"/>`;
     let a = min;
     let b = max;
     if (op.type === 'insertCols') {

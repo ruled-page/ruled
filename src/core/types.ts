@@ -362,6 +362,16 @@ export interface Hyperlink {
   id?: number;
 }
 
+/** One direction of a sheet's outline: how deep in groups each row (or column) is. */
+export interface OutlineAxis {
+  /** Row (or column) → its outline level, 1 to 7, for those in a group. */
+  levels: Record<number, number>;
+  /** Rows (or columns) marked as the summary of a collapsed group. */
+  collapsed: number[];
+  /** A group's summary row is below it (Excel's default), or its summary column right of it; false when above or left. */
+  summaryAfter: boolean;
+}
+
 export interface SheetInfo {
   index: number;
   name: string;
@@ -392,6 +402,8 @@ export interface SheetInfo {
   tables: TableInfo[];
   conditionalFormats: CfRule[];
   links: Hyperlink[];
+  /** How its rows and columns are grouped, when they are or the file says where groups' summaries go. */
+  outline?: Record<'rows' | 'cols', OutlineAxis>;
   /** The range of the sheet's own filter (autoFilter), if it has one. */
   autoFilter?: Rect;
   /** The filter that hides rows, the sheet's or a table's, when it picks values the editor can show and change. */
@@ -399,6 +411,8 @@ export interface SheetInfo {
   protected: boolean;
   /** Its protection keeps objects as they are (Excel's "Edit objects" left unticked), notes and comments included. */
   objectsLocked?: boolean;
+  /** Its protection still lets rows, or columns, be formatted (Excel's "Format rows" and "Format columns"): hidden, shown and grouped. */
+  formatAllowed?: { rows: boolean; cols: boolean };
   showGridLines: boolean;
   tabColor?: string;
 }
@@ -612,6 +626,8 @@ export type LayoutOp =
   /** A filter, or none, and the rows it hides. */
   | { kind: 'filter'; filter: FilterState | null; rows: number[] }
   | { kind: 'merges'; add: Rect[]; remove: Rect[] }
+  /** Rows' or columns' outline levels (0: in no group), and whether each is marked as a collapsed group's summary. */
+  | { kind: 'outline'; axis: 'rows' | 'cols'; levels: Record<number, number>; collapsed: Record<number, boolean> }
   /** Hyperlinks added and removed; the same change the other way round undoes it. */
   | { kind: 'links'; add: Hyperlink[]; remove: Hyperlink[] };
 

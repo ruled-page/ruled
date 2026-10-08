@@ -1449,8 +1449,11 @@ export class WorkbookSession {
     for (const { sheet, op } of changes) {
       const info = this.sheet(sheet).info;
       if (info.kind !== 'worksheet') return this.emptyResult(msg('core.reason.notWorksheet'));
-      // Excel's protection allows freezing panes, which only changes the view.
-      if (info.protected && op.kind !== 'freeze') return this.emptyResult(msg('core.reason.protected'));
+      // Excel's protection allows freezing panes, which only changes the view, and hiding,
+      // showing and grouping rows or columns where it lets them be formatted.
+      const allowed = op.kind === 'freeze' || ((op.kind === 'hidden' || op.kind === 'outline') && info.formatAllowed?.[op.axis]);
+      if (info.protected && !allowed) return this.emptyResult(msg('core.reason.protected'));
+      if (op.kind === 'outline' && Object.values(op.levels).some((v) => !(v >= 0 && v <= 7))) return this.emptyResult(msg('outline.refuse.tooDeep'));
       if (op.kind === 'merges') {
         const table = info.tables.find((t) => op.add.some((r) => r.r1 <= t.rect.r2 && r.r2 >= t.rect.r1 && r.c1 <= t.rect.c2 && r.c2 >= t.rect.c1));
         if (table) return this.emptyResult(msg('core.layout.mergeTable', { table: table.name }));

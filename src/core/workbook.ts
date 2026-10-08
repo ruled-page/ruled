@@ -325,17 +325,33 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
 
     const colStyles = info.colStyles;
     const colLimit = Math.max(info.maxCol, 25) + COLUMN_PADDING;
+    const colLevels: Record<number, number> = {};
+    const collapsedCols: number[] = [];
+    const yes = (v: string | undefined) => v === '1' || v === 'true';
     for (const c of children(child(meta, 'cols'), 'col')) {
       const min = Number(attr(c, 'min')) - 1;
       const max = Number(attr(c, 'max')) - 1;
       const width = attr(c, 'width');
-      const hidden = attr(c, 'hidden') === '1' || attr(c, 'hidden') === 'true';
+      const hidden = yes(attr(c, 'hidden'));
       const style = Number(attr(c, 'style') ?? 0);
+      const level = Math.min(7, Number(attr(c, 'outlineLevel') ?? 0));
+      const collapsed = yes(attr(c, 'collapsed'));
       if (style) colStyles.push({ min, max, style });
       for (let col = min; col <= Math.min(max, colLimit); col++) {
         if (width !== undefined) info.colWidths[col] = colWidthPx(Number(width));
         if (hidden) info.hiddenCols.push(col);
+        if (level > 0) colLevels[col] = level;
+        if (collapsed) collapsedCols.push(col);
       }
+    }
+    // Groups' summaries are below and right of them unless <outlinePr> says otherwise.
+    const outlinePr = child(child(meta, 'sheetPr'), 'outlinePr');
+    const after = (name: string) => !['0', 'false'].includes(attr(outlinePr, name) ?? '');
+    if (outlinePr || scan.rowLevels.size || scan.collapsedRows.length || collapsedCols.length || Object.keys(colLevels).length) {
+      info.outline = {
+        rows: { levels: Object.fromEntries(scan.rowLevels), collapsed: scan.collapsedRows, summaryAfter: after('summaryBelow') },
+        cols: { levels: colLevels, collapsed: collapsedCols, summaryAfter: after('summaryRight') },
+      };
     }
 
     const view = child(child(meta, 'sheetViews'), 'sheetView');
@@ -370,6 +386,9 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     if (protection && ['1', 'true'].includes(attr(protection, 'sheet') ?? '')) {
       info.protected = true;
       info.objectsLocked = ['1', 'true'].includes(attr(protection, 'objects') ?? '');
+      // These say what the protection locks, so "0" is what allows it.
+      const allows = (name: string) => ['0', 'false'].includes(attr(protection, name) ?? '');
+      info.formatAllowed = { rows: allows('formatRows'), cols: allows('formatColumns') };
       findings.push({
         kind: 'protection',
         severity: 'info',

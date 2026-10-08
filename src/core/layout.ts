@@ -1,7 +1,9 @@
 import { msg, type Text } from '../i18n/message';
 import { colToLetters, MAX_COLS, rangeToA1, toA1 } from './refs';
-import type { CellChange, FilterState, LayoutOp, Rect, SheetInfo } from './types';
-import { elements, escapeXml, firstElement, parseAttrs } from './xml';
+import type { CellChange, FilterState, LayoutOp, OutlineAxis, Rect, SheetInfo } from './types';
+import { elements, escapeXml, findTagEnd, firstElement, parseAttrs, setAttributes } from './xml';
+
+type Axis = 'rows' | 'cols';
 
 const sameRect = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
 
@@ -31,8 +33,11 @@ export class SheetLayout {
   /** The filter once changed (null: none), and the rows it hides. */
   filter?: FilterState | null;
   filtered?: Set<number>;
+  /** Outline levels, and marks on collapsed groups' summaries, set for each row and column changed. */
+  readonly levels: Record<Axis, Map<number, number>> = { rows: new Map(), cols: new Map() };
+  readonly collapsed: Record<Axis, Map<number, boolean>> = { rows: new Map(), cols: new Map() };
   /** The file's layout, copied, as what changes are measured against. */
-  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter'>;
+  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'>;
   private readonly fileHidden: Record<'rows' | 'cols', Set<number>>;
   /** The rows the file's filter hides, which are hidden by it rather than by hand. */
   private readonly fileFiltered: Set<number>;
@@ -46,6 +51,7 @@ export class SheetLayout {
       merges: [...info.merges],
       filter: info.filter,
       autoFilter: info.autoFilter,
+      outline: info.outline,
     };
     this.fileHidden = { rows: new Set(info.hiddenRows), cols: new Set(info.hiddenCols) };
     this.fileFiltered = new Set();
@@ -61,7 +67,41 @@ export class SheetLayout {
   }
 
   get changed(): boolean {
-    return this.colWidths.size + this.rowHeights.size + this.hiddenCols.size + this.hiddenRows.size > 0 || !!this.frozen || !!this.merges || this.filter !== undefined;
+    return this.colWidths.size + this.rowHeights.size + this.hiddenCols.size + this.hiddenRows.size > 0 || !!this.frozen || !!this.merges || this.filter !== undefined || this.outlined;
+  }
+
+  private get outlined(): boolean {
+    return this.levels.rows.size + this.levels.cols.size + this.collapsed.rows.size + this.collapsed.cols.size > 0;
+  }
+
+  level(axis: Axis, line: number): number {
+    const m = this.levels[axis];
+    return m.has(line) ? m.get(line)! : (this.file.outline?.[axis].levels[line] ?? 0);
+  }
+
+  isCollapsed(axis: Axis, line: number): boolean {
+    const m = this.collapsed[axis];
+    return m.has(line) ? m.get(line)! : !!this.file.outline?.[axis].collapsed.includes(line);
+  }
+
+  /** The outline as it now is. */
+  get outline(): SheetInfo['outline'] {
+    const file = this.file.outline;
+    if (!file && !this.outlined) return undefined;
+    const axis = (a: Axis): OutlineAxis => {
+      const levels = { ...file?.[a].levels };
+      for (const [line, v] of this.levels[a]) {
+        if (v) levels[line] = v;
+        else delete levels[line];
+      }
+      const collapsed = new Set(file?.[a].collapsed);
+      for (const [line, c] of this.collapsed[a]) {
+        if (c) collapsed.add(line);
+        else collapsed.delete(line);
+      }
+      return { levels, collapsed: [...collapsed].sort((x, y) => x - y), summaryAfter: file?.[a].summaryAfter ?? true };
+    };
+    return { rows: axis('rows'), cols: axis('cols') };
   }
 
   get currentFilter(): FilterState | null {
@@ -109,7 +149,7 @@ export class SheetLayout {
   }
 
   /** The sizes, hidden rows and columns, panes, merges and filter of `info` as they now are. */
-  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter'> {
+  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'outline'> {
     const sizes = (file: Record<number, number>, edits: Map<number, number | null>) => {
       const out = { ...file };
       for (const [line, px] of edits) {
@@ -130,6 +170,7 @@ export class SheetLayout {
       frozenCols: f.cols,
       merges: this.mergeList,
       filter: this.currentFilter ?? undefined,
+      outline: this.outline,
     };
   }
 
@@ -162,6 +203,12 @@ export class SheetLayout {
         const added = op.add.filter((a) => !kept.some((m) => sameRect(m, a)));
         this.merges = [...kept, ...added];
         return { kind: 'merges', add: removed, remove: added };
+      }
+      case 'outline': {
+        const { axis } = op;
+        const levels = setEach(op.levels, (l) => this.level(axis, l), (l, v) => this.levels[axis].set(l, v));
+        const collapsed = setEach(op.collapsed, (l) => this.isCollapsed(axis, l), (l, c) => this.collapsed[axis].set(l, c));
+        return { kind: 'outline', axis, levels, collapsed };
       }
     }
   }
@@ -200,6 +247,23 @@ export class SheetLayout {
       for (const m of this.merges) if (!this.file.merges.some((x) => sameRect(x, m))) note(rangeToA1(m), msg('core.change.merged'));
       for (const m of this.file.merges) if (!this.merges.some((x) => sameRect(x, m))) note(rangeToA1(m), msg('core.change.unmerged'));
     }
+    for (const axis of ['rows', 'cols'] as const) {
+      const file = this.file.outline?.[axis];
+      const deeper: number[] = [];
+      const shallower: number[] = [];
+      for (const [line, v] of this.levels[axis]) {
+        const was = file?.levels[line] ?? 0;
+        if (v !== was) (v > was ? deeper : shallower).push(line);
+      }
+      const rows = axis === 'rows';
+      if (deeper.length) note(lineRefs(deeper, axis), msg(rows ? 'outline.change.groupedRows' : 'outline.change.groupedColumns', { count: deeper.length }));
+      if (shallower.length) note(lineRefs(shallower, axis), msg(rows ? 'outline.change.ungroupedRows' : 'outline.change.ungroupedColumns', { count: shallower.length }));
+      const folded: number[] = [];
+      const opened: number[] = [];
+      for (const [line, c] of this.collapsed[axis]) if (c !== !!file?.collapsed.includes(line)) (c ? folded : opened).push(line);
+      if (folded.length) note(lineRefs(folded, axis), msg('outline.change.collapsed', { count: folded.length }));
+      if (opened.length) note(lineRefs(opened, axis), msg('outline.change.expanded', { count: opened.length }));
+    }
     return out;
   }
 }
@@ -226,11 +290,13 @@ const points = (px: number) => Math.round(px * 75) / 100;
 /** Characters of the default font, as column widths are stored, from pixels; in 256ths, as Excel writes them. */
 const characters = (px: number) => Math.round((px / 7) * 256) / 256;
 
-/** The <row> attributes to set (null: remove) for each row whose height or visibility changed. */
+/** The <row> attributes to set (null: remove) for each row whose height, visibility or outline changed. */
 export function rowAttributes(layout: SheetLayout): Map<number, Record<string, string | null>> {
   const out = new Map<number, Record<string, string | null>>();
   const set = (row: number, attrs: Record<string, string | null>) => out.set(row, { ...out.get(row), ...attrs });
   for (const [row, px] of layout.rowHeights) set(row, px === null ? { ht: null, customHeight: null } : { ht: String(points(px)), customHeight: '1' });
+  for (const [row, v] of layout.levels.rows) set(row, { outlineLevel: v ? String(v) : null });
+  for (const [row, c] of layout.collapsed.rows) set(row, { collapsed: c ? '1' : null });
   // Rows whose visibility changed, by hand or by the filter, are hidden in the file either way.
   const rows = new Set(layout.hiddenRows.keys());
   if (layout.filtered) for (const row of new Set([...layout.filtered, ...layout.fileFilteredRows])) rows.add(row);
@@ -240,7 +306,8 @@ export function rowAttributes(layout: SheetLayout): Map<number, Record<string, s
 
 /** The worksheet with its <cols>, frozen pane and <mergeCells> as the layout has them. */
 export function writeLayout(xml: string, p: string, layout: SheetLayout): string {
-  if (layout.colWidths.size || layout.hiddenCols.size) xml = writeCols(xml, p, layout);
+  if (layout.colWidths.size || layout.hiddenCols.size || layout.levels.cols.size || layout.collapsed.cols.size) xml = writeCols(xml, p, layout);
+  if (layout.levels.rows.size || layout.levels.cols.size) xml = writeOutlineLevels(xml, p, layout);
   if (layout.frozen) xml = writePane(xml, p, layout.frozen);
   // A table's filter is in the table's part (see writeTableFilter); the sheet's own is here.
   if (layout.filter !== undefined) {
@@ -311,10 +378,14 @@ function writeCols(xml: string, p: string, layout: SheetLayout): string {
     for (let i = a; i <= b; i++) at[i] = rest;
     last = b;
   }
-  const changed = new Set([...layout.colWidths.keys(), ...layout.hiddenCols.keys()]);
+  const changed = new Set([...layout.colWidths.keys(), ...layout.hiddenCols.keys(), ...layout.levels.cols.keys(), ...layout.collapsed.cols.keys()]);
   for (const col of changed) {
     if (col < 0 || col >= MAX_COLS) continue;
     const attrs = { ...at[col] };
+    const put = (name: string, value: string | false) => {
+      delete attrs[name];
+      if (value) attrs[name] = value;
+    };
     if (layout.colWidths.has(col)) {
       const px = layout.colWidths.get(col)!;
       delete attrs.width;
@@ -322,10 +393,9 @@ function writeCols(xml: string, p: string, layout: SheetLayout): string {
       delete attrs.bestFit;
       if (px !== null) Object.assign(attrs, { width: String(characters(px)), customWidth: '1' });
     }
-    if (layout.hiddenCols.has(col)) {
-      delete attrs.hidden;
-      if (layout.hiddenCols.get(col)) attrs.hidden = '1';
-    }
+    if (layout.hiddenCols.has(col)) put('hidden', layout.hiddenCols.get(col)! && '1');
+    if (layout.levels.cols.has(col)) put('outlineLevel', !!layout.levels.cols.get(col) && String(layout.levels.cols.get(col)));
+    if (layout.collapsed.cols.has(col)) put('collapsed', layout.collapsed.cols.get(col)! && '1');
     at[col] = attrs;
   }
   // Back into runs of columns with the same attributes.
@@ -344,6 +414,32 @@ function writeCols(xml: string, p: string, layout: SheetLayout): string {
   const el = out.length ? `<${p}cols>${out.join('')}</${p}cols>` : '';
   if (cols) return xml.slice(0, cols.start) + el + xml.slice(cols.end);
   return xml.slice(0, data.start) + el + xml.slice(data.start);
+}
+
+/**
+ * The sheet's <sheetFormatPr> with the deepest row and column outline
+ * levels, which Excel sizes its outline bars by, for the directions whose
+ * outline changed.
+ */
+function writeOutlineLevels(xml: string, p: string, layout: SheetLayout): string {
+  const data = firstElement(xml, 'sheetData');
+  const outline = layout.outline;
+  if (!data || !outline) return xml;
+  const attrs: Record<string, string | null> = {};
+  for (const [axis, name] of [['rows', 'outlineLevelRow'], ['cols', 'outlineLevelCol']] as const) {
+    if (!layout.levels[axis].size) continue;
+    const deepest = Object.values(outline[axis].levels).reduce((a, b) => Math.max(a, b), 0);
+    attrs[name] = deepest ? String(deepest) : null;
+  }
+  const fmt = firstElement(xml, 'sheetFormatPr', 0, data.start);
+  if (fmt) {
+    const end = findTagEnd(xml, fmt.start) + 1;
+    return xml.slice(0, fmt.start) + setAttributes(xml.slice(fmt.start, end), attrs) + xml.slice(end);
+  }
+  if (!Object.values(attrs).some((v) => v)) return xml;
+  // Before <cols> and <sheetData>, which follow it; 15pt is Excel's own default height.
+  const at = firstElement(xml, 'cols', 0, data.start)?.start ?? data.start;
+  return xml.slice(0, at) + setAttributes(`<${p}sheetFormatPr defaultRowHeight="15"/>`, attrs) + xml.slice(at);
 }
 
 function writePane(xml: string, p: string, { rows, cols }: { rows: number; cols: number }): string {

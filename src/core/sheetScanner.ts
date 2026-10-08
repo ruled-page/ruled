@@ -33,6 +33,9 @@ export interface ScanResult {
   rowStyles: Map<number, number>;
   rowHeightsPt: Map<number, number>;
   hiddenRows: number[];
+  /** Row → its outline level, for rows in a group; and the rows marked as a collapsed group's summary. */
+  rowLevels: Map<number, number>;
+  collapsedRows: number[];
   maxRow: number;
   maxCol: number;
   richTextCells: number;
@@ -161,6 +164,8 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
   const rowStyles = new Map<number, number>();
   const rowHeightsPt = new Map<number, number>();
   const hiddenRows: number[] = [];
+  const rowLevels = new Map<number, number>();
+  const collapsedRows: number[] = [];
   let richTextCells = 0;
 
   const sdOpen = indexOfTag(xml, `<${p}sheetData`, 0, xml.length);
@@ -210,6 +215,9 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
       // sized by hand (customHeight), and draws both at that height.
       if (ra.ht && Number(ra.ht) > 0) rowHeightsPt.set(row, Number(ra.ht));
       if (ra.hidden === '1' || ra.hidden === 'true') hiddenRows.push(row);
+      // Excel's outlines go seven levels deep.
+      if (Number(ra.outlineLevel) > 0) rowLevels.set(row, Math.min(7, Number(ra.outlineLevel)));
+      if (ra.collapsed === '1' || ra.collapsed === 'true') collapsedRows.push(row);
 
       let end: number;
       if (selfClosing) {
@@ -442,6 +450,8 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
     rowStyles,
     rowHeightsPt,
     hiddenRows,
+    rowLevels,
+    collapsedRows,
     maxRow,
     maxCol,
     richTextCells,
