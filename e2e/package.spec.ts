@@ -13,6 +13,8 @@ test('the packaged React component opens, recalculates and edits a workbook in a
     if (r.status() >= 400) failed.push(`${r.status()} ${r.url()}`);
   });
   await page.goto('http://localhost:4176/app/');
+  // The app's own React, not this repository's.
+  await expect(page.locator('html')).toHaveAttribute('data-react', /^18\./);
   await page.locator('input[type="file"][accept*=".xlsx"]').setInputFiles({ name: 'orders.xlsx', mimeType: XLSX, buffer: Buffer.from(await ordersWorkbook()) });
   await expect(page.getByRole('navigation', { name: 'Sheets' })).toBeVisible();
   await expect(shown(page, 'D2')).toHaveText('6');

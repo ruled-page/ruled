@@ -128,7 +128,7 @@ interface Props {
   rowCount?: number;
   /** Whether this pane shows the column letters. */
   header?: boolean;
-  gridRef?: RefObject<DataEditorRef>;
+  gridRef?: RefObject<DataEditorRef | null>;
   onKeyDown?: (e: GridKeyEventArgs) => void;
   className?: string;
   style?: React.CSSProperties;

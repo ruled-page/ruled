@@ -2,5 +2,9 @@
   "name": "workbook-editor-host-app",
   "private": true,
   "type": "module",
-  "description": "A React app that installs the packed library, as a host would, for e2e/package.spec.ts"
+  "description": "A React 18 app that installs the packed library, as a host would, for e2e/package.spec.ts",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
 }

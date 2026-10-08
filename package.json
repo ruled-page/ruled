@@ -33,8 +33,6 @@
     "lodash": "^4.18.1",
     "marked": "^4.3.0",
     "numfmt": "^3.2.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "react-i18next": "^17.0.16",
     "react-responsive-carousel": "^3.2.23"
   },
@@ -43,10 +41,12 @@
     "@babel/parser": "^7.29.9",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
-    "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^5.0.3",
     "exceljs": "^4.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
     "vitest": "^5.0.3",
@@ -70,7 +70,13 @@
     "dist-lib"
   ],
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "overrides": {
+    "@glideapps/glide-data-grid": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }

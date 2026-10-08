@@ -108,7 +108,8 @@ if you need to rebuild them.
 The editor is a component; the demo app in `src/demo` is one consumer of it.
 `npm run build:lib` builds two library flavours into `dist-lib/`:
 
-- `dist-lib/react`: the React component, with React as a peer dependency.
+- `dist-lib/react`: the React component, with React 18 or 19 as a peer
+  dependency.
 - `dist-lib/standalone`: React, the worker and the styles bundled, plus a
   `<workbook-editor>` custom element, for hosts without React.
 
