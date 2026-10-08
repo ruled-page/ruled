@@ -1,11 +1,12 @@
 import { mergeEditResults } from '../core/editResult';
 import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
-import type { StructuralOp } from '../core/refTransform';
+import { invertIndexMap, isSheetOp, nearestVisible, nextSheetName, sheetIndexMap, sheetOpProblem, type SheetOp, type WorkbookOp } from '../core/sheetRules';
 import { shiftFormula } from '../core/formula';
 import { formulaReferences } from '../core/formulaAssist';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
+import { describeMatch, textMatches } from '../schema/json';
 import { withHooksFrom } from '../schema/hooks';
 import { SchemaController } from '../schema/controller';
 import { hasWildcards, matchesWhole, matchSpan, parsePattern, searchIn } from '../core/wildcard';
@@ -295,9 +296,19 @@ interface Clip {
   cut?: boolean;
 }
 
+/**
+ * A change to the sheets, as undo and redo need it: where each sheet went
+ * (by its position before), and the sheet shown before and after.
+ */
+interface SheetMove {
+  map: (number | null)[];
+  before: number;
+  after: number;
+}
+
 /** An undoable step: cell edits, undone by restoring cells, or a structural change, undone in the worker. */
-export type UndoEntry = EditResult | { structure: Text };
-const isStructure = (e: UndoEntry): e is { structure: Text } => 'structure' in e;
+export type UndoEntry = EditResult | { structure: Text; sheets?: SheetMove };
+const isStructure = (e: UndoEntry): e is { structure: Text; sheets?: SheetMove } => 'structure' in e;
 
 /** What the schema returns for a record change: the edit to make, or why it can't be made. */
 const isEditOp = (x: EditOp | Text): x is EditOp => typeof x === 'object' && typeof (x as { type?: unknown }).type === 'string';
@@ -330,9 +341,20 @@ export interface FindQuery {
   scope: 'sheet' | 'workbook';
 }
 
-/** A structural change in words, for the history and undo. */
-function describeStructure(op: StructuralOp, sheets: SheetView[]): Text {
+/** A structural change in words, for the history and undo, from the sheets as they were before it. */
+function describeStructure(op: WorkbookOp, sheets: SheetView[]): Text {
+  const sheet = 'sheet' in op ? sheets[op.sheet]?.info.name : undefined;
   switch (op.type) {
+    case 'addSheet':
+      return msg('sheets.history.added', { sheet: op.name });
+    case 'renameSheet':
+      return msg('sheets.history.renamed', { from: sheet, to: op.name });
+    case 'deleteSheet':
+      return msg('sheets.history.deleted', { sheet });
+    case 'moveSheet':
+      return msg('sheets.history.moved', { sheet });
+    case 'hideSheet':
+      return msg(op.hidden ? 'sheets.history.hidden' : 'sheets.history.unhidden', { sheet });
     case 'insertRows':
       return msg('store.history.insertedRows', { count: op.count });
     case 'deleteRows':
@@ -418,6 +440,14 @@ export class WorkbookStore {
    * to show them; `start` is what to add when the cell has neither.
    */
   commentFor?: { sheet: number; row: number; col: number; x: number; y: number; start: 'note' | 'thread' };
+  /** A sheet tab's menu, while open: which sheet, and where. */
+  sheetMenu?: { sheet: number; x: number; y: number };
+  /** The sheet being renamed, while its dialog is open. */
+  renameSheetFor?: number;
+  /** Choosing a hidden sheet to show again. */
+  unhideOpen = false;
+  /** The workbook's structure is protected: its sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
+  structureLocked = false;
   designerOpen = false;
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
@@ -807,6 +837,9 @@ export class WorkbookStore {
       clip: undefined,
       schema: undefined,
       schemaMismatch: undefined,
+      sheetMenu: undefined,
+      renameSheetFor: undefined,
+      unhideOpen: false,
       history: [],
       changeList: [],
       draftKey: key,
@@ -829,6 +862,7 @@ export class WorkbookStore {
       this.findings = r.findings;
       this.date1904 = r.date1904;
       this.properties = r.properties ?? {};
+      this.structureLocked = !!r.structureLocked;
       this.timings = r.timings;
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
@@ -1215,7 +1249,8 @@ export class WorkbookStore {
     const entry = this.undoStack.pop();
     if (!entry) return;
     if (isStructure(entry)) {
-      if (await this.swapStructure('undoStructure', msg('store.history.undoStep', { action: entry.structure }))) this.redoStack.push(entry);
+      const sheets = entry.sheets && { map: invertIndexMap(entry.sheets.map, this.sheets.length), active: entry.sheets.before };
+      if (await this.swapStructure('undoStructure', msg('store.history.undoStep', { action: entry.structure }), sheets)) this.redoStack.push(entry);
       else this.undoStack = [];
       this.notify();
       return;
@@ -1232,7 +1267,8 @@ export class WorkbookStore {
     const entry = this.redoStack.pop();
     if (!entry) return;
     if (isStructure(entry)) {
-      if (await this.swapStructure('redoStructure', msg('store.history.redoStep', { action: entry.structure }))) this.undoStack.push(entry);
+      const sheets = entry.sheets && { map: entry.sheets.map, active: entry.sheets.after };
+      if (await this.swapStructure('redoStructure', msg('store.history.redoStep', { action: entry.structure }), sheets)) this.undoStack.push(entry);
       this.notify();
       return;
     }
@@ -1244,24 +1280,34 @@ export class WorkbookStore {
   }
 
   // ---------------------------------------------------------------------------
-  // Structural changes: inserting and deleting rows and columns, moving cells
+  // Structural changes: inserting and deleting rows and columns, moving cells,
+  // and adding, renaming, deleting, moving, hiding and unhiding sheets
 
   /**
-   * Inserts or deletes rows or columns, or moves cells, with every reference
-   * to the cells that move following them. The worker rebuilds the workbook,
-   * so all the sheets are reloaded here. Resolves false if it was refused.
+   * Inserts or deletes rows or columns, moves cells, or changes the sheets,
+   * with every reference to what changed following it. The worker rebuilds
+   * the workbook, so all the sheets are reloaded here. Resolves false if it
+   * was refused.
    */
-  restructure(op: StructuralOp, opts: { replay?: boolean } = {}): Promise<boolean> {
+  restructure(op: WorkbookOp, opts: { replay?: boolean } = {}): Promise<boolean> {
     const run = async () => {
       if (this.status !== 'ready') return false;
       this.busy = true;
       this.notify();
       try {
+        const label = describeStructure(op, this.sheets);
+        const before = this.active;
         const res = await this.request({ type: 'structure', op } as Omit<WorkerRequest, 'id'>);
         if (res.type !== 'restructured') return false;
-        this.adoptWorkbook(res);
-        const label = describeStructure(op, this.sheets);
-        this.undoStack.push({ structure: label });
+        let sheets: SheetMove | undefined;
+        if (isSheetOp(op)) {
+          const map = sheetIndexMap(op, this.sheets.length);
+          sheets = { map, before, after: this.activeAfter(op, map, res.result.sheets) };
+          this.adoptWorkbook(res, { map, active: sheets.after });
+        } else {
+          this.adoptWorkbook(res);
+        }
+        this.undoStack.push({ structure: label, sheets });
         this.redoStack = [];
         this.history.push({ at: Date.now(), user: this.options.user, action: label, cells: 0, refs: [] });
         this.draftOps.push({ type: 'structure', op });
@@ -1283,13 +1329,23 @@ export class WorkbookStore {
     return p;
   }
 
-  private async swapStructure(type: 'undoStructure' | 'redoStructure', label: Text): Promise<boolean> {
+  /** The sheet shown after a change to the sheets, as Excel shows it. */
+  private activeAfter(op: SheetOp, map: (number | null)[], sheets: { state: SheetView['info']['state'] }[]): number {
+    if (op.type === 'addSheet') return op.at;
+    if (op.type === 'hideSheet' && !op.hidden) return op.sheet;
+    const now = map[this.active];
+    // The sheet deleted or hidden was the one shown: the next one along is.
+    if (now === null || sheets[now]?.state !== 'visible') return nearestVisible(sheets, now ?? op.sheet);
+    return now;
+  }
+
+  private async swapStructure(type: 'undoStructure' | 'redoStructure', label: Text, sheets?: { map: (number | null)[]; active: number }): Promise<boolean> {
     try {
       this.busy = true;
       this.notify();
       const res = await this.request({ type } as Omit<WorkerRequest, 'id'>);
       if (res.type !== 'restructured') return false;
-      this.adoptWorkbook(res);
+      this.adoptWorkbook(res, sheets);
       this.history.push({ at: Date.now(), user: this.options.user, action: label, cells: 0, refs: [] });
       if (this.panel === 'changes') void this.refreshChanges();
       return true;
@@ -1301,9 +1357,19 @@ export class WorkbookStore {
     }
   }
 
-  /** Replaces every sheet's view with the worker's rebuilt workbook, keeping the active sheet and selections. */
-  private adoptWorkbook(res: Extract<WorkerResponse, { type: 'restructured' }>): void {
+  /**
+   * Replaces every sheet's view with the worker's rebuilt workbook, keeping
+   * the active sheet and selections; after a change to the sheets, `sheets`
+   * says where each went and which to show.
+   */
+  private adoptWorkbook(res: Extract<WorkerResponse, { type: 'restructured' }>, sheets?: { map: (number | null)[]; active: number }): void {
     const r = res.result;
+    if (sheets) {
+      const selections = [...this.selections].flatMap(([i, sel]) => (sheets.map[i] == null ? [] : [[sheets.map[i], sel] as const]));
+      this.selections = new Map(selections);
+      this.active = sheets.active;
+    }
+    this.structureLocked = !!r.structureLocked;
     this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
     for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
     this.styles = r.styles;
@@ -1356,9 +1422,9 @@ export class WorkbookStore {
   }
 
   /** Selects what a structural change made or left, as Excel does. */
-  private selectAfter(op: StructuralOp): void {
-    // A table growing under the cell being typed into leaves the selection where it is.
-    if (op.type === 'growTable') return;
+  private selectAfter(op: WorkbookOp): void {
+    // A table growing under the cell being typed into leaves the selection where it is; a sheet keeps its own.
+    if (op.type === 'growTable' || isSheetOp(op)) return;
     const view = this.sheets[op.type === 'move' ? op.toSheet : op.sheet];
     if (!view) return;
     const lastCol = Math.max(view.info.maxCol, 0);
@@ -1400,6 +1466,98 @@ export class WorkbookStore {
   deleteCols(): Promise<boolean> {
     const r = this.selection.rects[0] ?? { r1: 0, r2: 0, c1: this.selection.col, c2: this.selection.col };
     return this.restructure({ type: 'deleteCols', sheet: this.active, at: r.c1, count: r.c2 - r.c1 + 1 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sheets
+
+  /** What a new sheet is called: "Sheet" in the editor's language, numbered as Excel numbers it. */
+  get newSheetName(): string {
+    return nextSheetName(this.t('sheets.defaultName'), this.sheets.map((s) => s.info.name));
+  }
+
+  /** Hidden sheets that can be shown again: not those hidden so only Excel's Visual Basic editor can show them. */
+  get hiddenSheets(): number[] {
+    return this.sheets.flatMap((s, i) => (s.info.state === 'hidden' ? [i] : []));
+  }
+
+  /**
+   * Why Excel would refuse a change to the sheets, or the schema that
+   * applies would: it finds its sheets by name, so a sheet it checks keeps a
+   * name it matches, and one it needs can't be deleted.
+   */
+  sheetProblem(op: SheetOp): Text | undefined {
+    const excel = sheetOpProblem(op, this.sheets.map((s) => s.info), this.structureLocked);
+    if (excel) return excel;
+    const ctl = this.schema;
+    const bound = ctl && 'sheet' in op ? ctl.binding.sheets.find((b) => b.sheet === op.sheet) : undefined;
+    if (!ctl || !bound) return undefined;
+    if (op.type === 'renameSheet' && !textMatches(bound.schema.name, op.name)) {
+      return msg('sheets.refuse.schemaRename', { schema: ctl.schema.name, expected: describeMatch(bound.schema.name) });
+    }
+    if (op.type === 'deleteSheet' && !bound.schema.optional) return msg('sheets.refuse.schemaDelete', { schema: ctl.schema.name });
+    return undefined;
+  }
+
+  /** Makes a change to the sheets, or shows why it can't be made. */
+  private changeSheets(op: SheetOp): Promise<boolean> {
+    const problem = this.sheetProblem(op);
+    if (!problem) return this.restructure(op);
+    this.toast('error', problem);
+    return Promise.resolve(false);
+  }
+
+  /** Adds an empty sheet at `at`, after the active one unless told otherwise, and shows it. */
+  addSheet(at = this.active + 1): Promise<boolean> {
+    return this.changeSheets({ type: 'addSheet', at, name: this.newSheetName });
+  }
+
+  renameSheet(sheet: number, name: string): Promise<boolean> {
+    if (name === this.sheets[sheet]?.info.name) return Promise.resolve(true);
+    return this.changeSheets({ type: 'renameSheet', sheet, name });
+  }
+
+  /** Deletes a sheet, asking first unless it is empty, as Excel does. */
+  async deleteSheet(sheet: number): Promise<boolean> {
+    const op: SheetOp = { type: 'deleteSheet', sheet };
+    const problem = this.sheetProblem(op);
+    if (problem) {
+      this.toast('error', problem);
+      return false;
+    }
+    const view = this.sheets[sheet];
+    const empty = view.info.kind === 'worksheet' && view.extent().maxRow < 0 && !view.info.objects.length;
+    if (!empty && !(await this.confirm({ title: msg('sheets.delete.title', { sheet: view.info.name }), body: msg('sheets.delete.body'), confirmLabel: msg('sheets.delete.confirm') }))) {
+      return false;
+    }
+    return this.restructure(op);
+  }
+
+  /** Moves a sheet so it ends up at position `to`. */
+  moveSheet(sheet: number, to: number): Promise<boolean> {
+    if (to === sheet) return Promise.resolve(false);
+    return this.changeSheets({ type: 'moveSheet', sheet, to });
+  }
+
+  /** Moves a sheet past the next visible sheet to its left (-1) or right (1). */
+  moveSheetBy(sheet: number, step: -1 | 1): Promise<boolean> {
+    const visible = this.sheets.flatMap((s, i) => (s.info.state === 'visible' ? [i] : []));
+    const other = visible[visible.indexOf(sheet) + step];
+    return other === undefined ? Promise.resolve(false) : this.moveSheet(sheet, other);
+  }
+
+  /** Moves a sheet to just before the sheet now at `before` (the number of sheets for the end), as dropping its tab there does. */
+  dropSheet(sheet: number, before: number): Promise<boolean> {
+    return this.moveSheet(sheet, before > sheet ? before - 1 : before);
+  }
+
+  hideSheet(sheet: number): Promise<boolean> {
+    return this.changeSheets({ type: 'hideSheet', sheet, hidden: true });
+  }
+
+  /** Shows a hidden sheet again, and makes it the active one. */
+  unhideSheet(sheet: number): Promise<boolean> {
+    return this.changeSheets({ type: 'hideSheet', sheet, hidden: false });
   }
 
   // ---------------------------------------------------------------------------
@@ -2607,6 +2765,9 @@ export class WorkbookStore {
       | 'columnWidthFor'
       | 'rowHeightFor'
       | 'commentFor'
+      | 'sheetMenu'
+      | 'renameSheetFor'
+      | 'unhideOpen'
       | 'schemaDraft'
       | 'designerPick',
   >(

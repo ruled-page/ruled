@@ -1,8 +1,8 @@
-import type { StructuralOp } from '../core/refTransform';
+import type { WorkbookOp } from '../core/sheetRules';
 import type { EditOp } from '../core/types';
 
-/** One step of a draft: a cell edit, or a structural change. */
-export type DraftOp = EditOp | { type: 'structure'; op: StructuralOp };
+/** One step of a draft: a cell edit, or a structural change (to where cells are, or to the sheets). */
+export type DraftOp = EditOp | { type: 'structure'; op: WorkbookOp };
 
 /**
  * Unsaved edits kept in IndexedDB so they survive a closed tab or a crash.
