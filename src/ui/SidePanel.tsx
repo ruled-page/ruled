@@ -58,7 +58,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
       )}
       <ul className="wbe-findings">
         {issues.map((i, n) => (
-          <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'wbe-error' : 'wbe-warn'}`}>
+          <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
             <button className="wbe-finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
               <span className="wbe-finding-title">{t.text(i.message)}</span>
               {i.sheetName && (
