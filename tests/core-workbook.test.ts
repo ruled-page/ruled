@@ -136,7 +136,7 @@ describe('reading a workbook', () => {
       {
         kind: 'pivot',
         title: 'Pivot table "Sales"',
-        detail: "Built from an external source. Kept in the file and set to refresh when the file is opened in Excel, so it picks up your edits. Its cells can't be edited here.",
+        detail: "Built from an external source. Kept in the file; when its data is edited here, Excel refreshes it as the file opens. Its cells can't be edited here.",
         sheet: 'S',
         where: 'H1:I4',
       },

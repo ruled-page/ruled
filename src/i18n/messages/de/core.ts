@@ -74,7 +74,7 @@ export const core: Record<keyof typeof en, string> = {
     '{{count, number}} Sparklinegruppen. Bleiben in der Datei erhalten und werden von Excel neu gezeichnet; werden hier nicht angezeigt.',
   'core.finding.filter.title': 'Filter',
   'core.finding.filter.detail':
-    'Bleibt in der Datei erhalten. Zeilen, die er ausblendet, bleiben hier ausgeblendet. Filtern in diesem Editor ändert nur die Ansicht; der Filter der Datei wird unverändert gespeichert.',
+    'Bleibt in der Datei erhalten und kann hier geändert werden: Zeilen, die er ausblendet, bleiben ausgeblendet, und Änderungen am Filter werden wie in Excel gespeichert.',
   'core.finding.richText.title': 'Gemischte Formatierung in Zellen',
   'core.finding.richText.detail_one':
     '{{count, number}} Zelle verwendet mehr als einen Schriftschnitt in ihrem Text. Der Text wird ohne diese Formatierung angezeigt; wird eine solche Zelle bearbeitet, bleibt ihr Text erhalten, die gemischte Formatierung aber nicht.',
@@ -82,16 +82,16 @@ export const core: Record<keyof typeof en, string> = {
     '{{count, number}} Zellen verwenden mehr als einen Schriftschnitt in ihrem Text. Der Text wird ohne diese Formatierung angezeigt; wird eine solche Zelle bearbeitet, bleibt ihr Text erhalten, die gemischte Formatierung aber nicht.',
   'core.finding.pivot.title': 'PivotTable „{{name}}“',
   'core.finding.pivot.detail':
-    'Erstellt aus {{source}}. Bleibt in der Datei erhalten und wird beim Öffnen in Excel aktualisiert, sodass Ihre Änderungen übernommen werden. Ihre Zellen können hier nicht bearbeitet werden.',
+    'Erstellt aus {{source}}. Bleibt in der Datei erhalten; werden ihre Daten hier bearbeitet, aktualisiert Excel sie beim Öffnen der Datei. Ihre Zellen können hier nicht bearbeitet werden.',
   'core.finding.table.title': 'Tabelle „{{name}}“',
   'core.finding.table.detail':
-    'Bleibt in der Datei erhalten. Ihre Spaltennamen (Überschriftenzeile) können hier nicht bearbeitet werden, und direkt darunter eingegebene Zeilen werden der Tabelle nicht hinzugefügt.',
+    'Bleibt in der Datei erhalten. Ihre Spaltennamen (Überschriftenzeile) können hier nicht bearbeitet werden. Direkt darunter eingegebene Zeilen werden wie in Excel in die Tabelle aufgenommen.',
   'core.finding.slicers.title': 'Datenschnitte',
   'core.finding.timelines.title': 'Zeitachsen',
   'core.finding.slicers.detail': 'Bleiben in der Datei erhalten; werden in diesem Editor nicht angezeigt.',
   'core.finding.comments.title': 'Notizen und Kommentare',
   'core.finding.comments.detail':
-    '{{what}}. In der Ecke ihrer Zellen markiert und angezeigt, wenn Sie auf die Zelle zeigen oder sie auswählen. Bleiben in der Datei erhalten; sie können hier nicht hinzugefügt oder geändert werden.',
+    '{{what}}. In der Ecke ihrer Zellen markiert und angezeigt, wenn Sie auf die Zelle zeigen oder sie auswählen. Über das Zellmenü oder mit Umschalt+F2 hinzufügen, ändern oder löschen.',
   'core.finding.comments.notes_one': '{{count, number}} Notiz',
   'core.finding.comments.notes_other': '{{count, number}} Notizen',
   'core.finding.comments.threads_one': '{{count, number}} Kommentarthread',
@@ -133,7 +133,7 @@ export const core: Record<keyof typeof en, string> = {
     'Einige Zellen enthalten Bilder oder verknüpfte Datentypen. Bleiben in der Datei erhalten; hier wird ihr Ersatzwert angezeigt.',
   'core.finding.workbookProtection.title': 'Die Arbeitsmappenstruktur ist geschützt',
   'core.finding.workbookProtection.detail':
-    'Bleibt in der Datei erhalten. Dieser Editor fügt ohnehin keine Blätter hinzu, entfernt sie nicht und benennt sie nicht um.',
+    'Bleibt in der Datei erhalten. Wie in Excel können keine Blätter hinzugefügt, gelöscht, umbenannt, verschoben, aus- oder wieder eingeblendet werden.',
   'core.finding.notRecalculated.title': 'Formeln, die hier nicht neu berechnet werden',
   'core.finding.notRecalculated.detail':
     '{{unsupported, number}} von {{total, number}} Formeln enthalten Elemente, die dieser Editor nicht berechnen kann: {{reasons}}. Sie zeigen den zuletzt von Excel berechneten Wert und sind mit einer grauen Ecke markiert; ändern sich ihre Eingaben, werden sie orange. Excel berechnet sie beim Öffnen der Datei neu.',

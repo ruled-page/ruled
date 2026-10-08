@@ -67,7 +67,7 @@ export const core = {
   'core.finding.sparklines.detail_other': '{{count, number}} sparkline groups. Kept in the file and redrawn by Excel; not shown here.',
   'core.finding.filter.title': 'Filter',
   'core.finding.filter.detail':
-    "Kept in the file. Rows it hides stay hidden here. Filtering in this editor only changes what you see; the file's filter is saved as it was.",
+    'Kept in the file and open to change here: rows it hides stay hidden, and changes to it are saved as Excel saves them.',
   'core.finding.richText.title': 'Mixed formatting inside cells',
   'core.finding.richText.detail_one':
     '{{count, number}} cell use more than one font style within their text. The text is shown plainly; editing one of those cells keeps its text but not the mixed formatting.',
@@ -76,17 +76,17 @@ export const core = {
   'core.finding.pivot.title': 'Pivot table "{{name}}"',
   /** {{source}} is a range such as Data!A1:D20, or core.pivot.externalSource or core.pivot.otherRange. */
   'core.finding.pivot.detail':
-    "Built from {{source}}. Kept in the file and set to refresh when the file is opened in Excel, so it picks up your edits. Its cells can't be edited here.",
+    "Built from {{source}}. Kept in the file; when its data is edited here, Excel refreshes it as the file opens. Its cells can't be edited here.",
   'core.finding.table.title': 'Table "{{name}}"',
   'core.finding.table.detail':
-    'Kept in the file. Its column names (header row) can’t be edited here, and rows typed directly below it are not added to the table.',
+    'Kept in the file. Its column names (header row) can’t be edited here. Rows typed directly below it join the table, as in Excel.',
   'core.finding.slicers.title': 'Slicers',
   'core.finding.timelines.title': 'Timelines',
   'core.finding.slicers.detail': 'Kept in the file; not shown in this editor.',
   'core.finding.comments.title': 'Notes and comments',
   /** {{what}} is comments.notes, comments.threads or comments.notesAndThreads. */
   'core.finding.comments.detail':
-    "{{what}}. Marked in the corner of their cells and shown when you point at the cell or select it. Kept in the file; they can't be added or changed here.",
+    '{{what}}. Marked in the corner of their cells and shown when you point at the cell or select it. Add, change or delete them from the cell menu, or with Shift+F2.',
   'core.finding.comments.notes_one': '{{count, number}} note',
   'core.finding.comments.notes_other': '{{count, number}} notes',
   'core.finding.comments.threads_one': '{{count, number}} comment thread',
@@ -124,7 +124,7 @@ export const core = {
   'core.finding.cellImages.title': 'Pictures or data types in cells',
   'core.finding.cellImages.detail': 'Some cells hold pictures or linked data types. Kept in the file; shown as their fallback value here.',
   'core.finding.workbookProtection.title': 'Workbook structure is protected',
-  'core.finding.workbookProtection.detail': 'Kept in the file. This editor does not add, remove or rename sheets anyway.',
+  'core.finding.workbookProtection.detail': "Kept in the file. As in Excel, sheets can't be added, deleted, renamed, moved, hidden or shown again.",
   'core.finding.notRecalculated.title': 'Formulas not recalculated here',
   /** {{reasons}} lists core.calc.reasonCount messages, such as "LET function (3), Formula syntax (1)". */
   'core.finding.notRecalculated.detail':
