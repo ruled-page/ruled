@@ -475,8 +475,9 @@ there opens the cell menu, as there is no right-click. A tap selects a cell
 and a second tap edits it; the formula bar edits it too.
 
 Screen readers hear each cell as it is shown (the value, not the formula,
-which the formula bar has), followed by any schema problem the grid marks in
-colour, e.g. "twelve, error: Expected a number."; loading, messages and
+which the formula bar has), with where its link goes if it has one, followed
+by any schema problem the grid marks in colour, e.g. "twelve, error:
+Expected a number." or "Prices, link to https://example.com"; loading, messages and
 errors are announced. The default and demo themes meet WCAG AA contrast.
 
 ## CSV files
