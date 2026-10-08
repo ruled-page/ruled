@@ -15,7 +15,7 @@ async function useTheme(page: Page, name: string): Promise<void> {
   await page.getByRole('combobox', { name: 'Theme' }).selectOption(name);
 }
 
-for (const theme of ['Default', 'Dark']) {
+for (const theme of ['Default', 'Indigo', 'Paper', 'Dark', 'High contrast']) {
   test.describe(`accessibility, ${theme} theme`, () => {
     test('start screen', async ({ page }) => {
       await page.goto('/');

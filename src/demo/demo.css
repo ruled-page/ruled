@@ -66,13 +66,14 @@ body,
   text-align: left;
   padding: 12px 14px;
   border: 1px solid var(--wbe-border);
-  border-radius: 8px;
+  border-radius: var(--wbe-radius-lg);
   background: var(--wbe-surface);
+  color: var(--wbe-text);
   cursor: pointer;
 }
 
 .samples-list button:hover {
-  border-color: #a9c7b6;
+  border-color: var(--wbe-accent-border);
 }
 
 .samples-list svg {

@@ -8,8 +8,10 @@ export const en = {
   'picker.theme': 'Theme',
   'picker.language': 'Language',
   'theme.default': 'Default',
-  'theme.ocean': 'Ocean',
+  'theme.indigo': 'Indigo',
+  'theme.paper': 'Paper',
   'theme.dark': 'Dark',
+  'theme.contrast': 'High contrast',
 
   'welcome.heading': 'Edit an Excel workbook in the browser',
   'welcome.examples': 'Other examples:',

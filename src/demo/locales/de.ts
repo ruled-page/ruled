@@ -7,8 +7,10 @@ export const de: Record<keyof typeof en, string> = {
   'picker.theme': 'Design',
   'picker.language': 'Sprache',
   'theme.default': 'Standard',
-  'theme.ocean': 'Ozean',
+  'theme.indigo': 'Indigo',
+  'theme.paper': 'Papier',
   'theme.dark': 'Dunkel',
+  'theme.contrast': 'Hoher Kontrast',
 
   'welcome.heading': 'Eine Excel-Arbeitsmappe im Browser bearbeiten',
   'welcome.examples': 'Weitere Beispiele:',
