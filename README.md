@@ -357,8 +357,10 @@ menu key) opens the cell menu with fill down and right, insert, delete,
 column width, sort and filter. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4 in the
-formula bar's name box goes there. Ctrl+/ (⌘/ on a Mac) lists every shortcut.
-Dialogs keep the focus inside, close with Escape and hand the focus back.
+formula bar's name box goes there. The sheet tabs are one stop: the arrow
+keys, Home and End move between them, and Enter shows a sheet. Ctrl+/ (⌘/ on
+a Mac) lists every shortcut. Dialogs keep the focus inside, close with Escape
+and hand the focus back, in Safari too, which doesn't focus a clicked button.
 
 The editor takes a browser shortcut only for the same job: Ctrl+S saves,
 Ctrl+F finds, Ctrl+Z undoes, and Ctrl+G finds the next match while its find

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
+import { useMemo, useRef } from 'react';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
@@ -242,25 +242,47 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
   const hidden = store.sheets.filter((s) => s.info.state !== 'visible').length;
   const bound = new Set(store.schema?.binding.sheets.map((s) => s.sheet) ?? []);
   const schemaName = t.localized(store.schema?.schema.name);
+  const tabs = useRef(new Map<number, HTMLButtonElement>());
+  const visible = store.sheets.flatMap((s, i) => (s.info.state === 'visible' ? [i] : []));
+  // The sheet shown is the one tab stop, so many sheets aren't a long run of Tab presses.
+  const stop = visible.includes(store.active) ? store.active : visible[0];
+  // The arrow keys, Home and End move between sheets; Enter or Space shows the one with the focus.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const at = visible.findIndex((i) => tabs.current.get(i) === document.activeElement);
+    const step = (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0) * (getComputedStyle(e.currentTarget).direction === 'rtl' ? -1 : 1);
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? visible.length - 1 : step ? (at + step + visible.length) % visible.length : -1;
+    if (at < 0 || to < 0) return;
+    e.preventDefault();
+    tabs.current.get(visible[to])?.focus();
+  };
   return (
     <nav className="wbe-sheet-tabs" aria-label={t('tabs.label')}>
-      {store.sheets.map((s, i) =>
-        s.info.state !== 'visible' ? null : (
-          <button
-            key={i}
-            className={`wbe-tab ${i === store.active ? 'wbe-active' : ''}`}
-            aria-current={i === store.active ? 'true' : undefined}
-            style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
-            onClick={() => store.setActive(i)}
-            title={bound.has(i) ? t('tabs.checkedBy', { name: schemaName }) : undefined}
-          >
-            {s.info.kind === 'chartsheet' && <Icon name="chart" size={13} />}
-            {s.info.protected && <Icon name="lock" size={12} />}
-            {bound.has(i) && <Icon name="schema" size={12} />}
-            {s.info.name}
-          </button>
-        ),
-      )}
+      <div className="wbe-sheet-tablist" role="tablist" aria-label={t('tabs.label')} onKeyDown={onKeyDown}>
+        {visible.map((i) => {
+          const s = store.sheets[i];
+          return (
+            <button
+              key={i}
+              ref={(el) => {
+                if (el) tabs.current.set(i, el);
+                else tabs.current.delete(i);
+              }}
+              role="tab"
+              aria-selected={i === store.active}
+              tabIndex={i === stop ? 0 : -1}
+              className={`wbe-tab ${i === store.active ? 'wbe-active' : ''}`}
+              style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
+              onClick={() => store.setActive(i)}
+              title={bound.has(i) ? t('tabs.checkedBy', { name: schemaName }) : undefined}
+            >
+              {s.info.kind === 'chartsheet' && <Icon name="chart" size={13} />}
+              {s.info.protected && <Icon name="lock" size={12} />}
+              {bound.has(i) && <Icon name="schema" size={12} />}
+              {s.info.name}
+            </button>
+          );
+        })}
+      </div>
       {hidden > 0 && (
         <span className="wbe-tabs-note" title={t('tabs.hiddenTitle')}>
           {t('tabs.hidden', { count: hidden })}

@@ -14,7 +14,7 @@ test.describe('with only a keyboard', () => {
 
   test('F6 moves between the parts of the editor and back to the sheet', async ({ page }) => {
     await page.keyboard.press('F6');
-    await expect(page.getByRole('navigation', { name: 'Sheets' }).getByRole('button', { name: 'Lines' })).toBeFocused();
+    await expect(page.getByRole('tab', { name: 'Lines' })).toBeFocused();
     await page.keyboard.press('F6');
     await expect(page.locator('.wbe-toolbar :focus')).toHaveCount(1);
     await page.keyboard.press('F6');
@@ -147,12 +147,19 @@ test.describe('with only a keyboard', () => {
     await expect(grid(page)).toHaveCount(1);
   });
 
-  test('switches sheets from the sheet tabs', async ({ page }) => {
+  test('switches sheets from the sheet tabs with the arrow keys', async ({ page }) => {
     await page.keyboard.press('F6');
-    await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: 'Summary' })).toBeFocused();
+    await expect(page.getByRole('tab', { name: 'Lines' })).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Summary' })).toBeFocused();
+    // Moving the focus doesn't switch sheet; Enter does.
+    await expect(page.getByRole('tab', { name: 'Lines' })).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Lines' })).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tab', { name: 'Summary' })).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Summary' })).toHaveAttribute('aria-current', 'true');
+    await expect(page.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 

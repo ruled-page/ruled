@@ -18,6 +18,17 @@ export function firstFocusable(el: ParentNode): HTMLElement | null {
 const open: HTMLElement[] = [];
 
 /**
+ * The control last pressed with a mouse, pen or finger, until a key is
+ * pressed. Safari doesn't focus a button that is clicked, so a dialog it
+ * opens can't tell its opener from the focus.
+ */
+let pressed: HTMLElement | null = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', (e) => (pressed = e.target instanceof Element ? e.target.closest<HTMLElement>(FOCUSABLE) : null), true);
+  document.addEventListener('keydown', () => (pressed = null), true);
+}
+
+/**
  * Keyboard behaviour for a dialog or popup, while `isOpen`. When it opens, the focus moves
  * into it (to `initial`, else its first control); Escape calls `onClose`; in a
  * modal one, Tab and Shift+Tab go round its controls without leaving it; and
@@ -37,7 +48,7 @@ export function useDialog(
   const wasOpen = useRef(false);
   if (isOpen !== wasOpen.current) {
     wasOpen.current = isOpen;
-    if (isOpen) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (isOpen) opener.current = pressed?.isConnected ? pressed : document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }
 
   useEffect(() => {

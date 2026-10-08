@@ -773,6 +773,12 @@
   overflow-x: auto;
 }
 
+.wbe .wbe-sheet-tablist {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
 .wbe .wbe-tab {
   display: inline-flex;
   align-items: center;

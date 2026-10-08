@@ -35,7 +35,7 @@ export function Tabs<T extends string>({
       role="tablist"
       aria-label={label}
       onKeyDown={(e) => {
-        const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        const step = (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0) * (getComputedStyle(e.currentTarget).direction === 'rtl' ? -1 : 1);
         const to = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : step ? (at + step + tabs.length) % tabs.length : -1;
         if (to < 0) return;
         e.preventDefault();

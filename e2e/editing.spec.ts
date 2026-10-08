@@ -12,8 +12,8 @@ test.describe('editing a workbook', () => {
     await setCell(page, 'B2', '5');
     await expect(shown(page, 'D2')).toHaveText('15');
 
-    await page.getByRole('navigation', { name: 'Sheets' }).getByRole('button', { name: 'Summary' }).click();
-    await expect(page.getByRole('button', { name: 'Summary' })).toHaveAttribute('aria-current', 'true');
+    await page.getByRole('tab', { name: 'Summary' }).click();
+    await expect(page.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
     await expect(shown(page, 'B1')).toHaveText('17');
   });
 
@@ -88,8 +88,20 @@ test.describe('editing a workbook', () => {
 
   test('goes to a cell on another sheet from the name box', async ({ page }) => {
     await goTo(page, 'Summary!B1');
-    await expect(page.getByRole('button', { name: 'Summary' })).toHaveAttribute('aria-current', 'true');
+    await expect(page.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('=SUM(Lines!D2:D3)');
+  });
+
+  test('scrolls a far cell into view, on this sheet or another, and back to it after scrolling away', async ({ page }) => {
+    await goTo(page, 'Z300');
+    await expect(shown(page, 'Z300')).toHaveCount(1);
+    await page.mouse.move(600, 400);
+    await page.mouse.wheel(0, -4000);
+    await expect(shown(page, 'Z300')).toHaveCount(0);
+    await goTo(page, 'Z300');
+    await expect(shown(page, 'Z300')).toHaveCount(1);
+    await goTo(page, 'Summary!Y250');
+    await expect(shown(page, 'Y250')).toHaveCount(1);
   });
 
   test('says when the name box holds something that is not a reference', async ({ page }) => {
@@ -121,14 +133,14 @@ test('switching theme restyles the editor and keeps the workbook open', async ({
   await page.getByRole('combobox', { name: 'Theme' }).selectOption('Dark');
   await expect(root).toHaveCSS('color-scheme', 'dark');
   expect(await root.evaluate((el) => getComputedStyle(el).getPropertyValue('--wbe-grid-bg').trim())).toBe('#1b1f23');
-  await expect(page.getByRole('button', { name: 'Borders & text' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Borders & text' })).toBeVisible();
   await page.getByRole('combobox', { name: 'Theme' }).selectOption('Default');
   await expect(root).toHaveCSS('color-scheme', 'light');
 });
 
 test('a protected form takes input in its unlocked cells only, and hides its protected formulas', async ({ page }) => {
   await openFile(page, 'templates.xlsx', new Uint8Array(await readFile('tests/corpus/templates.xlsx')));
-  await expect(page.getByRole('button', { name: 'Request' })).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByRole('tab', { name: 'Request' })).toHaveAttribute('aria-selected', 'true');
   await setCell(page, 'B3', 'Ana');
   await expect(shown(page, 'B3')).toHaveText('Ana');
   await goTo(page, 'A3');

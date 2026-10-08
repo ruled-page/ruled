@@ -37,7 +37,7 @@ test('draws charts from the cells, and redraws them as the cells change', async 
   await expect(page.getByRole('img', { name: 'Pie chart “Share of revenue”' })).toHaveAccessibleDescription(/^1 series\. Share: Nord 0\.0%, South 35\.1%/);
 
   // A chart sheet's chart fills the sheet.
-  await page.getByRole('navigation', { name: 'Sheets' }).getByRole('button', { name: 'Monthly Chart' }).click();
+  await page.getByRole('tab', { name: 'Monthly Chart' }).click();
   const line = page.getByRole('img', { name: 'Line chart “Monthly revenue 2026”' });
   await expect(line).toBeVisible();
   await expect.poll(() => inked(line)).toBeGreaterThan(1000);
@@ -58,7 +58,7 @@ test('shows placeholders, and never loads the chart library, when the host turns
     editor.setAttribute('src', '/samples/kitchen-sink.xlsx');
     document.getElementById('editor')!.replaceWith(editor);
   });
-  await expect(page.getByRole('button', { name: 'Monthly Chart' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Monthly Chart' })).toBeVisible();
 
   const placeholder = page.locator('.wbe-object-chart').filter({ hasText: 'Share of revenue' });
   await expect(placeholder).toBeVisible();
@@ -66,7 +66,7 @@ test('shows placeholders, and never loads the chart library, when the host turns
   await expect(page.locator('.wbe-objects-overlay canvas')).toHaveCount(0);
   await expect(page.getByRole('img', { name: /chart/ })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Monthly Chart' }).click();
+  await page.getByRole('tab', { name: 'Monthly Chart' }).click();
   await expect(page.getByText('Line chart “Monthly revenue 2026” fills this whole sheet.')).toBeVisible();
   expect(chartCode).toEqual([]);
 });

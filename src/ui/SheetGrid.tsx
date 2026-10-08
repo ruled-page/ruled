@@ -579,22 +579,47 @@ export function SheetGrid({
     };
   }, [store, ref, rowStart]);
 
-  // Scroll to cells that find or the change list point at.
+  // Scroll to cells that find, the name box or the change list point at.
+  // Glide itself scrolls a grid that is showing to a cell selected from
+  // outside it, so this only scrolls when Glide won't: to the cell already
+  // selected, or in a grid that has just appeared for another sheet, once it
+  // has a size. Scrolling as well as Glide would scroll twice as far.
   const reveal = store.revealSeq;
+  const shown = useRef<{ sheet: number; cell: string }>(undefined);
   useEffect(() => {
     if (!reveal) return;
     const gr = view.gridRow(selection.row) - rowStart;
     const gc = view.gridCol(selection.col) + 1;
     if (gr >= 0 && gr < rows && gc > 0) {
-      ref.current?.scrollTo(gc, gr, 'both', 40, 40);
+      const prev = shown.current;
+      if (prev?.sheet !== view.info.index || prev.cell === `${gc}:${gr}`) {
+        let tries = 20;
+        const scroll = () => {
+          const b = ref.current?.getBounds(gc, gr);
+          if (b?.width && b.height) ref.current?.scrollTo(gc, gr, 'both', 40, 40);
+          else if (--tries > 0) requestAnimationFrame(scroll);
+        };
+        scroll();
+      }
       if (store.revealFocus) {
         store.revealFocus = false;
-        // Once React has handed the grid its new active cell.
-        setTimeout(() => ref.current?.focus(), 0);
+        // Once React has handed the grid its new active cell. A grid that has
+        // just appeared, on another sheet, may not take the focus at first in
+        // Safari, so it is tried again for a few frames.
+        let tries = 10;
+        const focus = () => {
+          ref.current?.focus();
+          if (!host.current?.contains(document.activeElement) && --tries > 0) requestAnimationFrame(focus);
+        };
+        setTimeout(focus, 0);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
+  // After the effect above, so that it sees the cell selected before.
+  useEffect(() => {
+    shown.current = { sheet: view.info.index, cell: `${view.gridCol(selection.col) + 1}:${view.gridRow(selection.row) - rowStart}` };
+  }, [view, selection, rowStart]);
 
   const onCellContextMenu = useCallback(
     ([gc, gr]: Item, e: CellClickedEventArgs) => {
