@@ -1,5 +1,6 @@
 import { CellError, ErrorType, FunctionArgumentType, FunctionPlugin, HyperFormula, SimpleRangeValue, type FunctionPluginDefinition } from 'hyperformula';
 import { format } from 'numfmt';
+import { ArrayFunctions } from './functions/arrays';
 import { excelRound } from './functions/common';
 import { InfoFunctions } from './functions/info';
 import { LookupFunctions } from './functions/lookup';
@@ -126,7 +127,7 @@ const rank = {
 };
 
 /** Functions HyperFormula lacks, each plugin with the functions it implements. */
-const ADDED: FunctionPluginDefinition[] = [InfoFunctions, LookupFunctions, TextFunctions] as never[];
+const ADDED: FunctionPluginDefinition[] = [ArrayFunctions, InfoFunctions, LookupFunctions, TextFunctions] as never[];
 
 let registered = false;
 

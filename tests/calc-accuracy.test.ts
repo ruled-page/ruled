@@ -165,6 +165,33 @@ const CASES: [string, Expected][] = [
   ['TYPE({1,2;3,4})', 64],
   ['ERROR.TYPE(1/0)', 2],
   ['ERROR.TYPE(NA())', 7],
+  // Array results, written out by ARRAYTOTEXT to fit one cell.
+  ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},2),1)', '{1,2,3;4,5,6}'],
+  ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},,2),1)', '{1,2;4,5;7,8}'],
+  ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},-2),1)', '{4,5,6;7,8,9}'],
+  ['ARRAYTOTEXT(TAKE({1,2,3;4,5,6;7,8,9},2,2),1)', '{1,2;4,5}'],
+  ['ARRAYTOTEXT(DROP({1,2,3;4,5,6;7,8,9},2),1)', '{7,8,9}'],
+  ['ARRAYTOTEXT(DROP({1,2,3;4,5,6;7,8,9},,2),1)', '{3;6;9}'],
+  ['ARRAYTOTEXT(DROP({1,2,3;4,5,6;7,8,9},-2),1)', '{1,2,3}'],
+  ['DROP({1,2,3;4,5,6;7,8,9},2,2)', 9],
+  ['ARRAYTOTEXT(CHOOSEROWS({1,2;3,4;5,6;7,8;9,10;11,12},1,3,5,1),1)', '{1,2;5,6;9,10;1,2}'],
+  ['ARRAYTOTEXT(CHOOSEROWS({1,2;3,4;5,6;7,8;9,10;11,12},{1,3},5,1),1)', '{1,2;5,6;9,10;1,2}'],
+  ['ARRAYTOTEXT(CHOOSEROWS({1,2;3,4;5,6;7,8;9,10;11,12},-1,-2),1)', '{11,12;9,10}'],
+  ['ARRAYTOTEXT(CHOOSECOLS({1,2,3,4,5;6,7,8,9,10},1,3,5,1),1)', '{1,3,5,1;6,8,10,6}'],
+  ['ARRAYTOTEXT(CHOOSECOLS({1,2,3,4,5;6,7,8,9,10},3,-2),1)', '{3,4;8,9}'],
+  [
+    'ARRAYTOTEXT(TOROW({"Ben","Peter","Mary","Sam";"John","Hillary","Jenny","James";"Agnes","Harry","Felicity","Joe"},,TRUE),1)',
+    '{"Ben","John","Agnes","Peter","Hillary","Harry","Mary","Jenny","Felicity","Sam","James","Joe"}',
+  ],
+  ['ARRAYTOTEXT(TOCOL({"Ben","Peter";"John","Hillary"}),1)', '{"Ben";"Peter";"John";"Hillary"}'],
+  ['ARRAYTOTEXT(WRAPROWS({"A","B","C","D","E","F","G"},3),1)', '{"A","B","C";"D","E","F";"G",#N/A,#N/A}'],
+  ['ARRAYTOTEXT(WRAPROWS({"A","B","C","D","E","F","G"},3,"x"),1)', '{"A","B","C";"D","E","F";"G","x","x"}'],
+  ['ARRAYTOTEXT(WRAPCOLS({"A","B","C","D","E","F","G"},3),1)', '{"A","D","G";"B","E",#N/A;"C","F",#N/A}'],
+  ['ARRAYTOTEXT(EXPAND({1,2;3,4},3,3),1)', '{1,2,#N/A;3,4,#N/A;#N/A,#N/A,#N/A}'],
+  ['ARRAYTOTEXT(EXPAND({1,2;3,4},3,3,"-"),1)', '{1,2,"-";3,4,"-";"-","-","-"}'],
+  ['ARRAYTOTEXT(SORTBY({"Tom";"Fred";"Amy";"Sal";"Fritz";"Xio"},{52;65;22;73;19;39}),1)', '{"Fritz";"Amy";"Xio";"Tom";"Fred";"Sal"}'],
+  ['ARRAYTOTEXT(VSTACK({1,2},{3}),1)', '{1,2;3,#N/A}'],
+  ['ARRAYTOTEXT(HSTACK({1;2},3),1)', '{1,3;2,#N/A}'],
 ];
 
 /**

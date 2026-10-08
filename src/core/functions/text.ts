@@ -220,7 +220,7 @@ export class TextFunctions extends ExcelPlugin {
 
   textsplitSize(ast: Call, state: State) {
     const [text, col, row, ignore, mode] = ast.args;
-    const size = text && !omitted(text) ? this.sizeOf(text, state) : undefined;
+    const size = this.sizeOf(text, state);
     if (!size) return ArraySize.error();
     if (size.width * size.height > 1) return arraySize(size.width, size.height);
     const t = literalText(text);

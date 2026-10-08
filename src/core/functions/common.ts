@@ -84,15 +84,14 @@ export function compareText(a: string, b: string): number {
   return collator.compare(a, b);
 }
 
-/** Where a value sorts by type: numbers, text, logicals, errors, then empty cells. */
+/** Where a value sorts by type: numbers, text, logicals, then errors. */
 function typeRank(v: Value): number {
   if (typeof v === 'number') return 0;
   if (typeof v === 'string') return 1;
-  if (typeof v === 'boolean') return 2;
-  return v instanceof CellError ? 3 : 4;
+  return typeof v === 'boolean' ? 2 : 3;
 }
 
-/** Excel's ascending order across types; errors are all equal. */
+/** Excel's ascending order across types, for anything but empty cells; errors are all equal. */
 export function compareValues(a: Value, b: Value): number {
   const ta = typeRank(a);
   const tb = typeRank(b);
@@ -107,14 +106,17 @@ export function sameValue(a: Value, b: Value): boolean {
   return a === b;
 }
 
-/** The number an argument is written as, when it is a literal: 3, -2, "4", TRUE. */
+/**
+ * The number an argument is written as, when it is a literal: 3, -2, "4",
+ * TRUE. NaN for literal text that isn't a number, which will be an error.
+ */
 export function literalNumber(node: Node): number | undefined {
   switch (node.type) {
     case 'NUMBER':
       return node.value as number;
     case 'STRING': {
-      const s = (node.value as string).trim();
-      return s && Number.isFinite(Number(s)) ? Number(s) : undefined;
+      const n = Number(node.value as string);
+      return Number.isFinite(n) ? n : NaN;
     }
     case 'MINUS_UNARY_OP':
     case 'PLUS_UNARY_OP': {
@@ -168,10 +170,11 @@ export abstract class ExcelPlugin extends FunctionPlugin {
    * size that depends on values (SEQUENCE(A1)), since a result predicted
    * smaller than it turns out would break the engine.
    */
-  protected sizeOf(node: Node, state: State): { width: number; height: number } | undefined {
-    while (node.type === 'PARENTHESES') node = node.expression!;
-    if (REFERENCES.has(node.type)) return this.arraySizeForAst(node as never, state);
-    if (this.unknownSize(node, state)) return undefined;
+  protected sizeOf(node: Node | undefined, state: State): { width: number; height: number } | undefined {
+    if (omitted(node)) return undefined;
+    while (node!.type === 'PARENTHESES') node = node!.expression!;
+    if (REFERENCES.has(node!.type)) return this.arraySizeForAst(node as never, state);
+    if (this.unknownSize(node!, state)) return undefined;
     const s = this.arraySizeForAst(node as never, state);
     return { width: s.width, height: s.height };
   }
