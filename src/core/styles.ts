@@ -483,19 +483,19 @@ export class StyleBook {
     if (existing !== undefined) return { index: existing, created: false };
 
     const raw = this.xfRaw[base] ?? this.xfRaw[0];
-    const p = /^<(\w+:)?xf\b/.exec(raw)?.[1] ?? '';
     const tagEnd = findTagEnd(raw, 0);
     const open = raw.slice(0, tagEnd + 1);
     const attrs = parseAttrs(open.slice(open.indexOf(' ') + 1, open.endsWith('/>') ? -2 : -1));
     const from = this.partXml('font', Number(attrs.fontId ?? 0)) ?? this.parts.font[0];
+    const { open: fontOpen, close, p: fp } = elementShell(from);
     const parts = childrenByName(innerOf(from), FONT_ORDER);
     parts.delete('u');
     parts.delete('color');
     if (on) {
-      parts.set('u', `<${p}u/>`);
-      parts.set('color', `<${p}color theme="10"/>`);
+      parts.set('u', `<${fp}u/>`);
+      parts.set('color', `<${fp}color theme="10"/>`);
     }
-    const fontId = this.part('font', `<${p}font>${FONT_ORDER.map((n) => parts.get(n) ?? '').join('')}</${p}font>`);
+    const fontId = this.part('font', fontOpen + FONT_ORDER.map((n) => parts.get(n) ?? '').join('') + close);
     const xf = setAttributes(open, { fontId: String(fontId), applyFont: '1' }) + raw.slice(tagEnd + 1);
 
     const index = this.display.length;
@@ -551,7 +551,18 @@ function innerOf(raw: string): string {
   return raw.charCodeAt(end - 1) === 47 ? '' : raw.slice(end + 1, raw.lastIndexOf('</'));
 }
 
-function changedFont(raw: string, c: FormatChange, p: string): string {
+/** An element's start tag (never self-closing), end tag and prefix, for writing it again with other children. */
+function elementShell(raw: string): { open: string; close: string; p: string } {
+  const end = findTagEnd(raw, 0);
+  const qname = raw.slice(1, raw.slice(1).search(/[\s/>]/) + 1);
+  const open = raw.charCodeAt(end - 1) === 47 ? raw.slice(0, end - 1).trimEnd() + '>' : raw.slice(0, end + 1);
+  return { open, close: `</${qname}>`, p: qname.includes(':') ? qname.slice(0, qname.indexOf(':') + 1) : '' };
+}
+
+function changedFont(raw: string, c: FormatChange, xfPrefix: string): string {
+  const { open, close, p: own } = elementShell(raw);
+  // The font's own prefix where it has one, else the styles part's.
+  const p = own || xfPrefix;
   const parts = childrenByName(innerOf(raw), FONT_ORDER);
   const toggle = (name: string, on: boolean | undefined) => {
     if (on === true) parts.set(name, `<${p}${name}/>`);
@@ -569,7 +580,7 @@ function changedFont(raw: string, c: FormatChange, p: string): string {
     // A scheme ties the font to the theme's, whatever its name says.
     for (const n of ['family', 'charset', 'scheme']) parts.delete(n);
   }
-  return `<${p}font>${FONT_ORDER.map((n) => parts.get(n) ?? '').join('')}</${p}font>`;
+  return open + FONT_ORDER.map((n) => parts.get(n) ?? '').join('') + close;
 }
 
 function changedBorder(raw: string, edges: NonNullable<FormatChange['border']>, p: string): string {

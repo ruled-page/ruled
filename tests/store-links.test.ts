@@ -200,6 +200,18 @@ describe('editing links', () => {
     expect(store.linkAt(2, 1)?.target).toBe('https://example.com/new');
   });
 
+  it('come back with the rows they were on when inserting rows is undone', async () => {
+    await open();
+    select(rect(1, 1));
+    await store.setLink({ target: 'https://example.com/new' });
+    await store.insertRows('above');
+    expect(store.linkAt(2, 1)?.target).toBe('https://example.com/new');
+    await store.undo();
+    expect(store.linkAt(1, 1)?.target).toBe('https://example.com/new');
+    await store.undo();
+    expect(store.linkAt(1, 1)).toBeUndefined();
+  });
+
   it("keeps a cell's link when its contents are cleared", async () => {
     await open();
     await store.clear([rect(0, 0)]);

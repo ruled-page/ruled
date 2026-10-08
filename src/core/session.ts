@@ -60,6 +60,7 @@ import {
   type NameChange,
   type Rect,
   type SheetGrid,
+  type SheetInfo,
 } from './types';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
@@ -407,7 +408,8 @@ export class WorkbookSession {
   loadResult(): LoadResult {
     return {
       fileName: this.fileName,
-      sheets: this.model.sheets.map((s, i) => (this.noteEdits[i].size ? { ...s.info, notes: this.notesOf(i) } : s.info)),
+      // As they now are: a session gone back to after a change of rows or columns has edits the file it was built from doesn't.
+      sheets: this.model.sheets.map((_s, i) => this.infoNow(i)),
       names: this.nameList(),
       grids: this.model.sheets.map((s) => s.scan?.grid ?? null),
       styles: this.model.styles.display,
@@ -456,6 +458,17 @@ export class WorkbookSession {
   /** The names as they now are, copied. */
   private nameList(): DefinedName[] {
     return this.model.names.map((d) => ({ ...d }));
+  }
+
+  /** A sheet's info with its notes, links and layout as they now are, not as the file had them. */
+  private infoNow(i: number): SheetInfo {
+    let info = this.model.sheets[i].info;
+    if (this.noteEdits[i].size) info = { ...info, notes: this.notesOf(i) };
+    const links = this.links[i];
+    if (links) info = { ...info, links: [...links.list] };
+    const layout = this.layouts[i];
+    if (layout?.changed) info = { ...info, ...layout.infoNow(info) };
+    return info;
   }
 
   private layoutOf(sheet: number): SheetLayout {

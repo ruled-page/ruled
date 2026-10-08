@@ -94,9 +94,10 @@ function siblings(xml: string, from: number): Sibling[] {
     const lt = xml.indexOf('<', pos);
     if (lt < 0 || xml.charCodeAt(lt + 1) === 47) break;
     if (xml.startsWith('<!--', lt) || xml.startsWith('<?', lt)) {
-      const close = xml.indexOf(xml.startsWith('<!--', lt) ? '-->' : '?>', lt + 2);
+      const end = xml.startsWith('<!--', lt) ? '-->' : '?>';
+      const close = xml.indexOf(end, lt + 2);
       if (close < 0) break;
-      pos = close + 2;
+      pos = close + end.length;
       continue;
     }
     const gt = findTagEnd(xml, lt);
@@ -168,7 +169,8 @@ export function writeHyperlinks(pkg: OoxmlPackage, path: string, xml: string, p:
   const data = firstElement(xml, 'sheetData');
   if (!data) return xml;
   const after = siblings(xml, data.end);
-  const box = after.find((e) => e.name === 'hyperlinks');
+  // Found the long way too, should the elements before it not have been followed.
+  const box: { start: number; end: number } | undefined = after.find((e) => e.name === 'hyperlinks') ?? firstElement(xml, 'hyperlinks', data.end);
   const boxXml = box ? xml.slice(box.start, box.end) : '';
   const inner = box ? (elements(boxXml, 'hyperlinks', 0, boxXml.length, 1)[0]?.inner ?? '') : '';
   const originals = elements(inner, 'hyperlink');

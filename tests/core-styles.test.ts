@@ -35,21 +35,23 @@ describe("Excel's Hyperlink look", () => {
     const on = b.withLinkFont(0, true);
     expect(on.created).toBe(true);
     expect(b.get(on.index)).toMatchObject({ bold: true, underline: true, color: '#0563C1', linkFont: true });
-    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf applyFont="1" numFmtId="0" fontId="2"/>', font: '<font><b/><u/><sz val="11"/><color theme="10"/><name val="Calibri"/></font>' });
+    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf numFmtId="0" fontId="2" applyFont="1"/>' });
+    expect(b.addedParts.font).toEqual(['<font><b/><u/><sz val="11"/><color theme="10"/><name val="Calibri"/></font>']);
     expect(b.withLinkFont(0, true)).toEqual({ index: on.index, created: false });
     expect(b.withLinkFont(on.index, true)).toEqual({ index: on.index, created: false });
     // Taking it away leaves the font in automatic colour, and a font already made is used again.
     const off = b.withLinkFont(on.index, false);
     expect(b.get(off.index)).toMatchObject({ bold: true, underline: false, color: undefined });
     expect(b.get(off.index).linkFont).toBeUndefined();
-    expect(b.additions.at(-1)?.font).toBe('<font><b/><sz val="11"/><name val="Calibri"/></font>');
+    expect(b.addedParts.font.at(-1)).toBe('<font><b/><sz val="11"/><name val="Calibri"/></font>');
     expect(b.withLinkFont(off.index, false)).toEqual({ index: off.index, created: false });
   });
 
   it('fills in a font that closes itself, with its prefix, and sets a format that doesn’t apply its font to', () => {
     const b = book();
     const on = b.withLinkFont(1, true);
-    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf fontId="2" applyFont="1"/>', font: '<x:font xmlns:x="x"><x:u/><x:color theme="10"/></x:font>' });
+    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf fontId="2" applyFont="1"/>' });
+    expect(b.addedParts.font).toEqual(['<x:font xmlns:x="x"><x:u/><x:color theme="10"/></x:font>']);
     expect(b.get(on.index).linkFont).toBe(true);
   });
 

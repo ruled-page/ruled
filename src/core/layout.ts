@@ -108,6 +108,31 @@ export class SheetLayout {
     return this.merges ?? this.file.merges;
   }
 
+  /** The sizes, hidden rows and columns, panes, merges and filter of `info` as they now are. */
+  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter'> {
+    const sizes = (file: Record<number, number>, edits: Map<number, number | null>) => {
+      const out = { ...file };
+      for (const [line, px] of edits) {
+        if (px === null) delete out[line];
+        else out[line] = px;
+      }
+      return out;
+    };
+    const rows = new Set([...this.fileHidden.rows, ...this.fileFiltered, ...this.hiddenRows.keys(), ...this.currentFiltered]);
+    const cols = new Set([...this.fileHidden.cols, ...this.hiddenCols.keys()]);
+    const f = this.freeze;
+    return {
+      colWidths: sizes(info.colWidths, this.colWidths),
+      rowHeights: sizes(info.rowHeights, this.rowHeights),
+      hiddenRows: [...rows].filter((r) => this.rowHidden(r)).sort((a, b) => a - b),
+      hiddenCols: [...cols].filter((c) => this.hidden('cols', c)).sort((a, b) => a - b),
+      frozenRows: f.rows,
+      frozenCols: f.cols,
+      merges: this.mergeList,
+      filter: this.currentFilter ?? undefined,
+    };
+  }
+
   /** Makes the change, returning the change that undoes it. */
   apply(op: Exclude<LayoutOp, { kind: 'links' }>): LayoutOp {
     switch (op.kind) {
