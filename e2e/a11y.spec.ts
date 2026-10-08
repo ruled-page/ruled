@@ -95,7 +95,7 @@ for (const theme of ['Default', 'Dark']) {
       expect(await violations(page)).toEqual([]);
     });
 
-    test("the formula bar's list of functions and argument hints", async ({ page }) => {
+    test('the list of functions and argument hints, in the formula bar and in a cell', async ({ page }) => {
       await openFile(page, 'orders.xlsx', await ordersWorkbook());
       await useTheme(page, theme);
       await goTo(page, 'E2');
@@ -104,6 +104,16 @@ for (const theme of ['Default', 'Dark']) {
       await expect(page.getByRole('listbox', { name: 'Functions' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.keyboard.type('M(B2,');
+      await expect(page.getByRole('tooltip')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.keyboard.press('Escape');
+
+      // The same, typed in the cell.
+      await goTo(page, 'E3');
+      await page.keyboard.type('=B2*C2+SU', { delay: 20 });
+      await expect(page.getByRole('listbox', { name: 'Functions' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.keyboard.type('M(B2,', { delay: 20 });
       await expect(page.getByRole('tooltip')).toBeVisible();
       expect(await violations(page)).toEqual([]);
     });

@@ -35,6 +35,7 @@ import { alignment, displayText, editText } from '../state/format';
 import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
+import { textCellEditor } from './CellEditor';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
@@ -822,9 +823,16 @@ export function SheetGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [view, rowStart, layoutVersion],
   );
+  // Lists get a dropdown; text gets the editor that helps with formulas.
+  const textEditor = useMemo(() => textCellEditor(store), [store]);
   const provideEditor = useCallback(
-    (cell: GridCell) => (enumOptionsOf(cell) ? { editor: EnumEditor, disablePadding: true } : undefined),
-    [],
+    (cell: GridCell) =>
+      enumOptionsOf(cell)
+        ? { editor: EnumEditor, disablePadding: true }
+        : cell.kind === GridCellKind.Text
+          ? { editor: textEditor, disablePadding: cell.allowWrapping === true }
+          : undefined,
+    [textEditor],
   );
 
   return (

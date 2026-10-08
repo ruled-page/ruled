@@ -7,6 +7,9 @@ export const GLIDE_SCROLLER = 'dvn-scroller';
 /** The box an open cell editor sits in. */
 export const GLIDE_CLIP_REGION = 'gdg-clip-region';
 
+/** Clicks inside an element with this class don't close an open cell editor, as clicks elsewhere do. */
+export const GLIDE_CLICK_OUTSIDE_IGNORE = 'click-outside-ignore';
+
 /**
  * The id of the element Glide opens cell editors in. Glide itself looks for
  * "portal"; vite.glide.ts changes that to this, so the editor doesn't take

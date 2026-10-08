@@ -119,6 +119,7 @@ export const ui = {
   'formulaBar.commentBy': 'Comment — {{author}}: {{text}}',
   'formulaBar.withReplies_one': '{{summary}} ({{count, number}} reply)',
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} replies)',
+  'formulaBar.cell': 'Contents of {{ref}}',
 
   'formulaHelp.functions': 'Functions',
   'formulaHelp.notCalculated': 'Not calculated here',

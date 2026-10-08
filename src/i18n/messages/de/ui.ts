@@ -117,6 +117,7 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.commentBy': 'Kommentar — {{author}}: {{text}}',
   'formulaBar.withReplies_one': '{{summary}} ({{count, number}} Antwort)',
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} Antworten)',
+  'formulaBar.cell': 'Inhalt von {{ref}}',
 
   'formulaHelp.functions': 'Funktionen',
   'formulaHelp.notCalculated': 'Wird hier nicht berechnet',

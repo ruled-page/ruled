@@ -754,6 +754,13 @@
   overflow: hidden;
 }
 
+/* Under a cell being edited, in the popup layer. */
+.wbe .wbe-fx-popup.wbe-fx-floating {
+  position: fixed;
+  top: auto;
+  z-index: 1;
+}
+
 .wbe .wbe-fx-list {
   list-style: none;
   margin: 0;
@@ -814,6 +821,64 @@
 
 .wbe .wbe-fx-hint b {
   font-weight: 700;
+}
+
+/* The cell editor: the text area over a copy of its text, which sizes it
+   (as Glide's own editor does) and, for a formula, shows it coloured. */
+.wbe .wbe-cell-entry {
+  position: relative;
+  height: 100%;
+  margin-top: 6px;
+}
+
+.wbe .wbe-cell-entry-input,
+.wbe .wbe-cell-entry-text {
+  margin: 0;
+  padding: 0;
+  font-size: var(--gdg-editor-font-size);
+  font-family: var(--gdg-font-family);
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--gdg-text-dark);
+}
+
+.wbe .wbe-cell-entry-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  background: transparent;
+  -webkit-text-fill-color: var(--gdg-text-dark);
+}
+
+.wbe .wbe-cell-entry-input:focus-visible {
+  outline: none;
+}
+
+.wbe .wbe-cell-entry-text {
+  visibility: hidden;
+  width: max-content;
+  max-width: 100%;
+  min-width: 100%;
+  padding-bottom: 2px;
+}
+
+.wbe .wbe-colored > .wbe-cell-entry-input {
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--gdg-text-dark);
+}
+
+.wbe .wbe-colored > .wbe-cell-entry-text {
+  visibility: visible;
+  position: relative;
+  pointer-events: none;
 }
 
 .wbe .wbe-cell-note {

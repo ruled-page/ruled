@@ -138,3 +138,78 @@ test.describe('typing a formula in the formula bar', () => {
     expect(await input.evaluate((el: HTMLInputElement) => el.selectionStart)).toBe('=SUM($B$2:$B$3'.length);
   });
 });
+
+test.describe('typing a formula in a cell', () => {
+  const editor = (page: Page) => page.getByRole('textbox', { name: 'Contents of E2' });
+
+  test.beforeEach(async ({ page }) => {
+    await openFile(page, 'orders.xlsx', await ordersWorkbook());
+    await goTo(page, 'E2');
+  });
+
+  test('offers the functions a name could be; Tab inserts one, Escape closes the list and a second Escape stops editing', async ({ page }) => {
+    await page.keyboard.type('=SU', { delay: 20 });
+    const cell = editor(page);
+    await expect(cell).toBeFocused();
+    const list = page.getByRole('listbox', { name: 'Functions' });
+    await expect(list).toBeVisible();
+    await expect(cell).toHaveAttribute('aria-autocomplete', 'list');
+    await expect(cell).toHaveAttribute('aria-controls', (await list.getAttribute('id'))!);
+    await page.keyboard.press('ArrowDown');
+    const second = list.getByRole('option').nth(1);
+    await expect(second).toHaveText('SUBTOTAL');
+    await expect(cell).toHaveAttribute('aria-activedescendant', (await second.getAttribute('id'))!);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Tab');
+    await expect(cell).toHaveValue('=SUM(');
+    await expect(cell).toBeFocused();
+
+    await page.keyboard.type('B2:B3)+ro', { delay: 20 });
+    await expect(list).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(list).toBeHidden();
+    await expect(cell).toHaveValue('=SUM(B2:B3)+ro');
+    await page.keyboard.press('Escape');
+    await expect(cell).toBeHidden();
+    await expect(shown(page, 'E2')).toHaveText('');
+  });
+
+  test('Enter inserts a function rather than finishing the cell; then finishes it', async ({ page }) => {
+    await page.keyboard.type('=1+ab', { delay: 20 });
+    await page.keyboard.press('Enter');
+    await expect(editor(page)).toHaveValue('=1+ABS(');
+    await page.keyboard.type('-D3)', { delay: 20 });
+    await page.keyboard.press('Enter');
+    await expect(shown(page, 'E2')).toHaveText('3');
+  });
+
+  test('shows the arguments under the cell, colours references and outlines them, and F4 cycles one', async ({ page }) => {
+    await page.keyboard.type('=ROUND(C3*B2', { delay: 20 });
+    const hint = page.getByRole('tooltip');
+    await expect(hint).toHaveText('ROUND(number, num_digits)');
+    await expect(hint.locator('b')).toHaveText('number');
+    await expect(editor(page)).toHaveAttribute('aria-describedby', (await hint.getAttribute('id'))!);
+    await expect(page.locator('.wbe-cell-entry-text .wbe-ref')).toHaveText(['C3', 'B2']);
+    const red = await token(page, '--wbe-formula-ref2');
+    await expect.poll(() => gridPixels(page, red)).toBeGreaterThan(20);
+
+    await page.keyboard.press('F4');
+    await expect(editor(page)).toHaveValue('=ROUND(C3*$B$2');
+    await page.keyboard.type(',1', { delay: 20 });
+    await expect(hint.locator('b')).toHaveText('num_digits');
+    await page.keyboard.type(')', { delay: 20 });
+    await expect(hint).toBeHidden();
+    await page.keyboard.press('Enter');
+    await expect(shown(page, 'E2')).toHaveText('1');
+    await expect.poll(() => gridPixels(page, red)).toBe(0);
+    await goTo(page, 'E2');
+    await expect(formulaBar(page)).toHaveValue('=ROUND(C3*$B$2,1)');
+  });
+
+  test('inserts a function clicked in the list, keeping the cell open', async ({ page }) => {
+    await page.keyboard.type('=max', { delay: 20 });
+    await page.getByRole('option', { name: 'MAXIFS', exact: true }).click();
+    await expect(editor(page)).toHaveValue('=MAXIFS(');
+    await expect(editor(page)).toBeFocused();
+  });
+});

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GLIDE_CLIP_REGION, GLIDE_SCROLLER, PORTAL_ID } from '../src/ui/glideDom';
+import { GLIDE_CLICK_OUTSIDE_IGNORE, GLIDE_CLIP_REGION, GLIDE_SCROLLER, PORTAL_ID } from '../src/ui/glideDom';
 import { glidePatches } from '../vite.glide.ts';
 
 const esm = join(__dirname, '..', 'node_modules', '@glideapps', 'glide-data-grid', 'dist', 'esm');
@@ -14,6 +14,7 @@ describe('the installed Glide', () => {
   it('still has the parts of its DOM the editor relies on', () => {
     const code = modules(esm).map((f) => readFileSync(f, 'utf8')).join('\n');
     for (const name of [GLIDE_SCROLLER, GLIDE_CLIP_REGION]) expect(code, name).toMatch(new RegExp(`className: "${name}[ "]`));
+    expect(code).toContain(`classList.contains("${GLIDE_CLICK_OUTSIDE_IGNORE}")`);
   });
 
   it('still takes each of the editor’s patches', () => {
