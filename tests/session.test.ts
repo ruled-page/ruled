@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
@@ -116,6 +118,18 @@ describe('kitchen-sink.xlsx', () => {
     // A formula the engine calculates from the changed cell is up to date.
     expect(stale('G1')).toBe(false);
     expect(valueOf(updateAt(r.updates, s, 'Chain', 'G1'))).toBe(6);
+  });
+
+  it("reads typed and pasted dates into a workbook's 1904 date system", () => {
+    const s = WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'dates-1904.xlsx'))), 'dates.xlsx', 'en-US', { recalc: 'on' });
+    const may1 = (Date.UTC(2026, 4, 1) - Date.UTC(1904, 0, 1)) / 86_400_000;
+    const typed = s.apply({ type: 'input', sheet: 0, ...at('A2'), text: '2026-05-01' });
+    expect(valueOf(updateAt(typed.updates, s, 'Schedule', 'A2'))).toBe(may1);
+    // The end date that adds days to it moves with it.
+    expect(valueOf(updateAt(typed.updates, s, 'Schedule', 'C2'))).toBe(may1 + 10);
+    // A value copied from a 1900-system workbook keeps the date its text shows.
+    const pasted = s.apply({ type: 'pasteText', sheet: 0, ...at('A3'), values: [['5/1/2026']], exact: [[46143]] });
+    expect(valueOf(updateAt(pasted.updates, s, 'Schedule', 'A3'))).toBe(may1);
   });
 
   it('saves only what changed and the result reopens with the edit', async () => {

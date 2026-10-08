@@ -116,7 +116,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const t = useT();
   const rec = view.get(selection.row, selection.col);
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
-  const value = editText(rec, style, store.date1904);
+  const value = editText(rec, style, store.date1904, store.locale);
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const input = useRef<HTMLInputElement>(null);

@@ -26,6 +26,20 @@ test.describe('editing a workbook', () => {
     await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('C4');
   });
 
+  test('pastes from Excel with the exact values behind the rounded text', async ({ page }) => {
+    await goTo(page, 'C2');
+    // What Excel puts on the clipboard for a price shown as 0.33 but worth a third.
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.setData('text/plain', '0.33\r\n');
+      data.setData('text/html', '<table><tr><td x:num="0.333333333333333">0.33</td></tr></table>');
+      document.activeElement!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    });
+    // Two at a third each (0.66 had the rounded text been used), in a column wide enough for six digits.
+    await expect(shown(page, 'D2')).toHaveText('0.666667');
+    await expect(page.getByRole('textbox', { name: 'Cell contents' })).toHaveValue('0.333333333333333');
+  });
+
   test('undoes and redoes', async ({ page }) => {
     await setCell(page, 'B3', '10');
     await expect(shown(page, 'D3')).toHaveText('5');

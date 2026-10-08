@@ -1,4 +1,4 @@
-import { isTextFormat, parseValue } from 'numfmt';
+import { isDateFormat, isTextFormat, parseValue } from 'numfmt';
 import { msg, type Text } from '../i18n/message';
 import { toFileFormula, validateFormula } from './formula';
 import { localeInfo, normalizeForLocale } from './locale';
@@ -17,11 +17,15 @@ export interface ParsedInput {
   error?: Text;
 }
 
+/** Days between the 1900 and 1904 date systems' day zero. */
+export const DAYS_1900_TO_1904 = 1462;
+
 /**
  * Interprets text the way Excel does when it is typed or pasted into a cell
- * with the given number format, reading dates and decimals in `locale`.
+ * with the given number format, reading dates and decimals in `locale`, and
+ * dates as serial numbers in the workbook's date system.
  */
-export function parseInput(text: string, cellNumFmt: string, locale = 'en-US'): ParsedInput {
+export function parseInput(text: string, cellNumFmt: string, locale = 'en-US', date1904 = false): ParsedInput {
   if (text === '') return { content: EMPTY };
   if (text[0] === "'") return { content: { kind: 'string', value: text.slice(1) } };
 
@@ -55,7 +59,9 @@ export function parseInput(text: string, cellNumFmt: string, locale = 'en-US'): 
     if (typeof parsed.v === 'number' && Number.isFinite(parsed.v)) {
       const z = local.numFmt ?? parsed.z;
       const numFmt = z && cellNumFmt === 'General' ? z : undefined;
-      return { content: { kind: 'number', value: parsed.v }, numFmt };
+      // The parser counts days from 1900; a time on its own has no date to move.
+      const value = date1904 && z && isDateFormat(z) && parsed.v >= 1 ? parsed.v - DAYS_1900_TO_1904 : parsed.v;
+      return { content: { kind: 'number', value }, numFmt };
     }
   }
   return { content: { kind: 'string', value: text } };

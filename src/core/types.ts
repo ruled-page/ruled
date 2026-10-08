@@ -427,7 +427,8 @@ export type EditOp =
   /** Text typed into a cell, parsed the way Excel parses input. */
   | { type: 'input'; sheet: number; row: number; col: number; text: string }
   /** Text pasted from outside the app; each value is parsed like typed input. */
-  | { type: 'pasteText'; sheet: number; row: number; col: number; values: string[][] }
+  /** Text pasted from elsewhere; `exact` has the full value of numbers the text shows rounded, where the source gave it. */
+  | { type: 'pasteText'; sheet: number; row: number; col: number; values: string[][]; exact?: (number | null)[][] }
   | { type: 'clear'; sheet: number; rects: Rect[] }
   /** Copy cells within the workbook, tiling the source over the destination. */
   | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect }

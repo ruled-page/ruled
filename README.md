@@ -8,7 +8,7 @@ back as .xlsx without losing what the editor can't display.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill (series,
   dates, months, "Item 1" → "Item 2"), clear, undo and redo.
-- Formulas recalculate live as you edit (HyperFormula, ~420 Excel functions).
+- Formulas recalculate live as you edit (HyperFormula, about 385 of Excel's functions).
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
   open.
@@ -546,9 +546,14 @@ store: undo/redo, confirm dialogs ─edits──►   sheetScanner   cells + the
   table references, spills…) are given Excel's value instead, so formulas
   that depend on them still calculate correctly.
 - **Editing** (`session.ts`, `fill.ts`, `input.ts`): typed and pasted text is
-  parsed the way Excel parses it (numbers, percentages, dates, formulas).
-  Formula references are shifted with `@borgar/fx`. New functions get the
-  `_xlfn.` prefix Excel needs in the file.
+  parsed the way Excel parses it (numbers, percentages, currencies, dates,
+  formulas), in the user's locale (`3/4/2026` is 4 March in the US and 3 April
+  in the UK; `1.234,50 €` is 1234.5 in Germany) and the workbook's date system.
+  The formula bar shows dates the way the locale writes them, so an unchanged
+  date commits unchanged. Pastes from Excel take each number's exact value
+  from the clipboard's HTML rather than the rounded text. Filling continues
+  months and quarters as Excel does. Formula references are shifted with
+  `@borgar/fx`. New functions get the `_xlfn.` prefix Excel needs in the file.
 - **Saving** (`src/core/writer.ts`): only the `<c>` elements of changed cells
   are rewritten, plus cached results of formulas the engine recalculated.
   `calcChain.xml` is removed and the workbook is flagged to recalculate on
@@ -598,10 +603,10 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   large workbooks, and up to 20 can be undone. Cells moved to another sheet
   leave merges and tables behind, so such moves are refused.
 - Sorting reorders rows as Excel does (formulas move as if copied; references
-  from elsewhere don't follow). Filtering hides rows on screen only; the file
+  from elsewhere don't follow). A selected range keeps its first row in place
+  only when it looks like headings (text over numbers, or bold over plain). Filtering hides rows on screen only; the file
   keeps its own filter, as it was.
 - Sheets can't be added, renamed or deleted.
-- Pasted dates are read US-style (`3/4/2026` is 4 March) unless ISO.
 - Validation formulas run in HyperFormula, so a rule using a function it
   lacks is treated as passing. OFFSET and INDIRECT are resolved by the
   editor for list sources only.

@@ -69,10 +69,12 @@ export function normalizeForLocale(text: string, info: LocaleInfo): { text: stri
     return { text: date.time ? `${iso} ${date.time}` : iso, numFmt: date.time ? `${base} h:mm` : base };
   }
   if (info.decimalComma) {
-    const m = /^\s*([-+]?)([\d.\s  ]*\d)(?:,(\d+))?(\s*%)?\s*$/.exec(text);
-    if (m && (m[3] !== undefined || /\.\d{3}(?!\d)/.test(m[2]))) {
-      const whole = m[2].replace(/[.\s  ]/g, '');
-      return { text: `${m[1]}${whole}${m[3] !== undefined ? '.' + m[3] : ''}${m[4] ? '%' : ''}` };
+    // A currency symbol may come before or after the number: 1.234,50 € or € 1.234,50.
+    const m = /^\s*([-+]?)(\p{Sc}\s*)?([-+]?)([\d.\s  ]*\d)(?:,(\d+))?(\s*\p{Sc})?(\s*%)?\s*$/u.exec(text);
+    if (m && (m[5] !== undefined || /\.\d{3}(?!\d)/.test(m[4])) && !(m[2] && m[6])) {
+      const whole = m[4].replace(/[.\s  ]/g, '');
+      const sign = m[1] || m[3];
+      return { text: `${sign}${m[2]?.trim() ?? ''}${whole}${m[5] !== undefined ? '.' + m[5] : ''}${m[6]?.trim() ?? ''}${m[7] ? '%' : ''}` };
     }
   }
   return { text };

@@ -27,7 +27,7 @@ import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
-import { parseClipboardText } from '../state/clipboard';
+import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText, exactText } from '../state/format';
 import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
@@ -170,6 +170,7 @@ export function SheetGrid({
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const styles = store.styles;
   const date1904 = store.date1904;
+  const locale = store.locale;
   const highlight = store.highlightEdits;
   const numbers = store.numbers;
   const schema = store.schema;
@@ -282,7 +283,7 @@ export function SheetGrid({
       }
       return asEnum({
         kind: GridCellKind.Text,
-        data: editText(rec, style, date1904),
+        data: editText(rec, style, date1904, locale),
         displayData: text,
         copyData: numbers.copy === 'raw' ? (exactText(rec, style, false) ?? text) : text,
         allowOverlay: !readOnly,
@@ -296,7 +297,7 @@ export function SheetGrid({
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette, t],
+    [view, dataVersion, styles, date1904, locale, highlight, frozen, numbers, schema, schemaVersion, rowStart, g, palette, t],
   );
 
   // Text spilling into empty neighbours, worked out per row as rows are drawn.
@@ -636,9 +637,12 @@ export function SheetGrid({
       if (!text) return;
       e.preventDefault();
       const values = parseClipboardText(text);
+      // Excel's HTML has the exact values of the numbers its text shows rounded.
+      const html = e.clipboardData?.getData('text/html');
+      const exact = html ? clipboardNumbers(html) : undefined;
       const sel = store.selection;
       const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
-      void store.paste({ row: rect.r1, col: rect.c1 }, values, rect);
+      void store.paste({ row: rect.r1, col: rect.c1 }, values, rect, false, exact);
     };
     window.addEventListener('paste', onPaste, true);
     return () => window.removeEventListener('paste', onPaste, true);

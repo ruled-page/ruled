@@ -1270,16 +1270,54 @@ export class WorkbookStore {
     return rect;
   }
 
-  /** Sorts the data region by the active cell's column. Its first row stays put as headings. */
+  /**
+   * Sorts the data region by the active cell's column. A table's, a filter's
+   * or a block's first row stays put as headings; in a range the user
+   * selected, only when it looks like headings, as Excel judges it.
+   */
   sort(descending: boolean, col = this.selection.col): Promise<EditResult | undefined> {
     const rect = this.dataRegion();
     if (!rect || rect.r2 <= rect.r1) {
       this.toast('info', msg('store.sort.noData'));
       return Promise.resolve(undefined);
     }
-    return this.edit({ type: 'sort', sheet: this.active, rect, keys: [{ col, descending }], header: true }, 'undo', {
+    const sel = this.selection.rects[0];
+    const selected = !!sel && sel.r1 === rect.r1 && sel.r2 === rect.r2 && sel.c1 === rect.c1 && sel.c2 === rect.c2;
+    const header = !selected || this.looksLikeHeadings(rect);
+    return this.edit({ type: 'sort', sheet: this.active, rect, keys: [{ col, descending }], header }, 'undo', {
       label: msg(descending ? 'store.history.sortDescending' : 'store.history.sortAscending'),
     });
+  }
+
+  /**
+   * Whether a range's first row looks like headings rather than data, as
+   * Excel guesses it: text above a column of numbers, dates or logicals, or
+   * bold above plain.
+   */
+  private looksLikeHeadings(rect: Rect): boolean {
+    const view = this.view;
+    if (!view || view.tableAt(rect.r1, rect.c1)?.rect.r1 === rect.r1) return true;
+    const filled = (r: number, c: number) => {
+      const rec = view.get(r, c);
+      return rec && rec.t !== VT.None ? rec : null;
+    };
+    const bold = (r: number) => {
+      for (let c = rect.c1; c <= rect.c2; c++) if (filled(r, c) && this.styles[view.styleAt(r, c)]?.bold) return true;
+      return false;
+    };
+    if (bold(rect.r1) && !bold(rect.r1 + 1)) return true;
+    for (let c = rect.c1; c <= rect.c2; c++) {
+      if (filled(rect.r1, c)?.t !== VT.String) continue;
+      let values = 0;
+      let texts = 0;
+      for (let r = rect.r1 + 1; r <= Math.min(rect.r2, rect.r1 + 50); r++) {
+        const rec = filled(r, c);
+        if (rec?.t === VT.String) texts++;
+        else if (rec) values++;
+      }
+      if (values && !texts) return true;
+    }
+    return false;
   }
 
   /** The text a cell shows, as filters and find compare it. */
@@ -1338,7 +1376,7 @@ export class WorkbookStore {
       const hits: { row: number; col: number }[] = [];
       view.forEach({ r1: 0, c1: 0, r2: MAX_ROWS - 1, c2: MAX_COLS - 1 }, (row, col, rec) => {
         if (rec.t === VT.None && rec.f === undefined) return;
-        let text = q.lookIn === 'formulas' ? editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904) : this.shownText(view, row, col);
+        let text = q.lookIn === 'formulas' ? editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, this.locale) : this.shownText(view, row, col);
         if (!q.matchCase) text = text.toLowerCase();
         if (q.wholeCell ? text === needle : text.includes(needle)) hits.push({ row, col });
       });
@@ -1362,7 +1400,7 @@ export class WorkbookStore {
         skipped++;
         continue;
       }
-      const before = editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904);
+      const before = editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, this.locale);
       const after = q.wholeCell ? replacement : before.replace(pattern, () => replacement);
       if (after === before) continue;
       const list = bySheet.get(h.sheet) ?? [];
@@ -1564,7 +1602,17 @@ export class WorkbookStore {
    * With `ownClipboard`, pastes what was cut or copied here without the text,
    * for when the browser won't let the page read the clipboard.
    */
-  async paste(target: { row: number; col: number }, values: readonly (readonly string[])[], selection: Rect, ownClipboard = false): Promise<void> {
+  /**
+   * Pastes cells. `exact` has, for pastes from Excel, the full value of each
+   * number the text shows rounded (from the clipboard's HTML).
+   */
+  async paste(
+    target: { row: number; col: number },
+    values: readonly (readonly string[])[],
+    selection: Rect,
+    ownClipboard = false,
+    exact?: readonly (readonly (number | null)[])[],
+  ): Promise<void> {
     const view = this.view;
     const clip = this.clip;
     if (!view || (!values.length && !(ownClipboard && clip))) return;
@@ -1620,10 +1668,16 @@ export class WorkbookStore {
         }
       }
     }
+    let numbers = exact?.length === values.length ? exact.map((line) => [...line]) : undefined;
     if (tile) {
       const block = grid;
+      const blockNumbers = numbers;
       grid = [];
-      for (let r = 0; r < selH; r++) grid.push(Array.from({ length: selW }, (_, c) => block[r % h]?.[c % w] ?? ''));
+      numbers = blockNumbers && [];
+      for (let r = 0; r < selH; r++) {
+        grid.push(Array.from({ length: selW }, (_, c) => block[r % h]?.[c % w] ?? ''));
+        numbers?.push(Array.from({ length: selW }, (_, c) => blockNumbers![r % h]?.[c % w] ?? null));
+      }
     }
     if (this.schema) {
       for (let i = 0; i < grid.length; i++) {
@@ -1637,7 +1691,7 @@ export class WorkbookStore {
     const keeps = (row: number, col: number) => (grid[row - dst.r1]?.[col - dst.c1] ?? '').startsWith('=');
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', msg('store.paste.large', { count: rectCells(dst) }));
-    await this.edit({ type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid });
+    await this.edit({ type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}) });
   }
 
   /**

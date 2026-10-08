@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VT } from '../src/core/types';
+import { parseInput } from '../src/core/input';
 import { alignment, cellJson, displayText, editText, exactText, isDateStyle } from '../src/state/format';
 import { bool, err, num, str, style } from './state-fixtures';
 
@@ -134,8 +135,26 @@ describe('what the cell editor and formula bar show', () => {
   it('shows numbers in full, percentages as percentages and dates as dates', () => {
     expect(editText(num(1234.5678), style({ numFmt: '#,##0.00' }), false)).toBe('1234.5678');
     expect(editText(num(0.075), style({ numFmt: '0%' }), false)).toBe('7.5%');
-    expect(editText(num(NEW_YEAR_1904), isoDate, true)).toBe('2026-01-01');
+    expect(editText(num(NEW_YEAR_1904), isoDate, true)).toBe('01/01/2026');
     expect(editText({ t: VT.Number, style: 0, flags: 0 }, general, false)).toBe('');
+  });
+
+  it("writes dates the way the user's locale reads them, so an unchanged date commits unchanged", () => {
+    const march = 46082; // 1 March 2026
+    const dayFirst = style({ numFmt: 'dd/mm/yyyy' });
+    expect(editText(num(march), dayFirst, false, 'en-US')).toBe('03/01/2026');
+    expect(editText(num(march), dayFirst, false, 'en-GB')).toBe('01/03/2026');
+    expect(editText(num(march), dayFirst, false, 'de-DE')).toBe('01.03.2026');
+    expect(editText(num(march + 0.5625), style({ numFmt: 'd mmm yyyy h:mm' }), false, 'en-GB')).toBe('01/03/2026 13:30');
+    for (const locale of ['en-US', 'en-GB', 'de-DE', 'fr-FR', 'ja-JP', 'ar-EG']) {
+      for (const [serial, date1904] of [[march, false], [march - 1462, true], [march + 0.75, false]] as const) {
+        const text = editText(num(serial), dayFirst, date1904, locale);
+        const back = parseInput(text, 'dd/mm/yyyy', locale, date1904).content;
+        expect(back.kind === 'number' && back.value, `${locale} ${text}`).toBeCloseTo(serial, 6);
+      }
+    }
+    // A time on its own, and a date before Excel's phantom 29 February 1900, show as formatted.
+    expect(editText(num(0.5), style({ numFmt: 'h:mm' }), false, 'en-GB')).toBe('12:00');
   });
 
   it('marks text that would otherwise be read as a number, formula or logical', () => {

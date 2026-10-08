@@ -938,7 +938,7 @@ export class WorkbookSession {
     const rule = this.sheet(sheet).info.ruleValidations[ruleIndex];
     if (!rule) return true;
     const cur = this.current(sheet, row, col);
-    const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale);
+    const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale, this.model.date1904);
     if (parsed.error) return false;
     return checkRule(rule, sheet, row, col, parsed.content, text, this.evaluator);
   }
@@ -969,7 +969,7 @@ export class WorkbookSession {
     switch (op.type) {
       case 'input': {
         const cur = this.current(op.sheet, op.row, op.col);
-        const parsed = parseInput(op.text, this.model.styles.get(cur.style).numFmt, this.locale);
+        const parsed = parseInput(op.text, this.model.styles.get(cur.style).numFmt, this.locale, this.model.date1904);
         if (parsed.error) return this.emptyResult(parsed.error);
         put({ sheet: op.sheet, row: op.row, col: op.col, content: parsed.content, style: styleFor(cur.style, parsed.numFmt) });
         break;
@@ -982,9 +982,17 @@ export class WorkbookSession {
             const col = op.col + j;
             if (row >= MAX_ROWS || col >= MAX_COLS) return;
             const cur = this.current(op.sheet, row, col);
-            const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale);
+            const cellFmt = this.model.styles.get(cur.style).numFmt;
+            const parsed = parseInput(text, cellFmt, this.locale, this.model.date1904);
             if (parsed.error) bad++;
-            const content = parsed.error ? { kind: 'string' as const, value: text } : parsed.content;
+            let content: CellContent = parsed.error ? { kind: 'string' as const, value: text } : parsed.content;
+            // The text is rounded to what the source showed; its exact value wins, unless it is a
+            // date from a workbook in the other date system.
+            const exact = op.exact?.[i]?.[j];
+            if (exact != null && content.kind === 'number') {
+              const date = isDateFormat(parsed.numFmt ?? cellFmt);
+              if (!date || Math.floor(exact) === Math.floor(content.value)) content = { kind: 'number', value: exact };
+            }
             put({ sheet: op.sheet, row, col, content, style: styleFor(cur.style, parsed.numFmt) });
           }),
         );
@@ -1052,7 +1060,7 @@ export class WorkbookSession {
       case 'inputs': {
         for (const c of op.cells) {
           const cur = this.current(op.sheet, c.row, c.col);
-          const parsed = parseInput(c.text, this.model.styles.get(cur.style).numFmt, this.locale);
+          const parsed = parseInput(c.text, this.model.styles.get(cur.style).numFmt, this.locale, this.model.date1904);
           if (parsed.error) warnings.push(parsed.error);
           const content = parsed.error ? { kind: 'string' as const, value: c.text } : parsed.content;
           put({ sheet: op.sheet, row: c.row, col: c.col, content, style: styleFor(cur.style, parsed.numFmt) });
@@ -1130,7 +1138,7 @@ export class WorkbookSession {
         if (forward) for (let c = src.c2 + 1; c <= dst.c2; c++) targets.push({ row: line, col: c, x: c - src.c1 });
         else for (let c = src.c1 - 1; c >= dst.c1; c--) targets.push({ row: line, col: c, x: c - src.c1 });
       }
-      const plans = planFill(sources, targets.map((t) => t.x));
+      const plans = planFill(sources, targets.map((t) => t.x), this.model.date1904);
       plans.forEach((plan, i) => {
         const t = targets[i];
         const s = srcCells[plan.source];

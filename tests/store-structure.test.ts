@@ -227,6 +227,25 @@ describe('sorting', () => {
     expect(column(0, 1, 4)).toEqual(['apple', 'Fig', 'Pear', 'Banana']);
   });
 
+  it('sorts a selected range from its first row, unless that row looks like headings', async () => {
+    await open();
+    // Data only: every row is sorted.
+    select(rect(1, 0, 4, 3));
+    await store.sort(false);
+    expect(column(0, 1, 4)).toEqual(['apple', 'Banana', 'Fig', 'Pear']);
+    expect(cell(1, 3)).toMatchObject({ f: 'B2*C2', n: 5 });
+    await store.undo();
+    // Text over a column of numbers is taken as headings, as Excel takes it.
+    select(rect(0, 0, 4, 3));
+    await store.sort(false);
+    expect(column(0, 0, 4)).toEqual(['Name', 'apple', 'Banana', 'Fig', 'Pear']);
+    await store.undo();
+    // Text over text, all plain, is data.
+    select(rect(0, 0, 4, 0));
+    await store.sort(false);
+    expect(column(0, 0, 4)).toEqual(['apple', 'Banana', 'Fig', 'Name', 'Pear']);
+  });
+
   it('says so when there is nothing around the active cell to sort', async () => {
     await open();
     store.setSelection({ row: 10, col: 10, rects: [rect(10, 10)] });

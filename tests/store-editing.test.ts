@@ -224,6 +224,15 @@ describe('pasting text from outside the workbook', () => {
     expect(store.history.at(-1)?.refs).toEqual(['Lines!A5', 'Lines!B5', 'Lines!C5', 'Lines!D5']);
   });
 
+  it('keeps the exact numbers Excel gave behind the rounded text it pasted', async () => {
+    await open();
+    await store.paste({ row: 9, col: 0 }, [['1,234.57', '3/1/2026', '12%', 'n/a']], rect(9, 0), false, [[1234.5678, 46082.5, 0.123456, null]]);
+    expect([cell(9, 0)?.n, cell(9, 1)?.n, cell(9, 2)?.n, cell(9, 3)?.s]).toEqual([1234.5678, 46082.5, 0.123456, 'n/a']);
+    // Tiled over a larger selection, each copy keeps them.
+    await store.paste({ row: 11, col: 0 }, [['0.33']], rect(11, 0, 12, 0), false, [[1 / 3]]);
+    expect([cell(11, 0)?.n, cell(12, 0)?.n]).toEqual([1 / 3, 1 / 3]);
+  });
+
   it('fills a selection that is a whole multiple of the pasted block', async () => {
     await open();
     await store.paste({ row: 9, col: 0 }, [['a', 'b']], rect(9, 0, 10, 3));
