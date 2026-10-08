@@ -26,6 +26,39 @@ describe('number formats', () => {
   });
 });
 
+describe("Excel's Hyperlink look", () => {
+  const fonts = '<fonts count="2"><font><b/><sz val="11"/><color rgb="FFFF0000"/><name val="Calibri"/></font><x:font xmlns:x="x"/></fonts>';
+  const book = () => new StyleBook(`<styleSheet ${SS}>${fonts}<cellXfs count="2"><xf numFmtId="0" fontId="0"/><xf fontId="1" applyFont="0"/></cellXfs></styleSheet>`, undefined, 'en-US');
+
+  it("underlines a format's font in the theme's link colour, keeping the rest of it", () => {
+    const b = book();
+    const on = b.withLinkFont(0, true);
+    expect(on.created).toBe(true);
+    expect(b.get(on.index)).toMatchObject({ bold: true, underline: true, color: '#0563C1', linkFont: true });
+    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf applyFont="1" numFmtId="0" fontId="2"/>', font: '<font><b/><u/><sz val="11"/><color theme="10"/><name val="Calibri"/></font>' });
+    expect(b.withLinkFont(0, true)).toEqual({ index: on.index, created: false });
+    expect(b.withLinkFont(on.index, true)).toEqual({ index: on.index, created: false });
+    // Taking it away leaves the font in automatic colour, and a font already made is used again.
+    const off = b.withLinkFont(on.index, false);
+    expect(b.get(off.index)).toMatchObject({ bold: true, underline: false, color: undefined });
+    expect(b.get(off.index).linkFont).toBeUndefined();
+    expect(b.additions.at(-1)?.font).toBe('<font><b/><sz val="11"/><name val="Calibri"/></font>');
+    expect(b.withLinkFont(off.index, false)).toEqual({ index: off.index, created: false });
+  });
+
+  it('fills in a font that closes itself, with its prefix, and sets a format that doesn’t apply its font to', () => {
+    const b = book();
+    const on = b.withLinkFont(1, true);
+    expect(b.additions.at(-1)).toEqual({ xfRaw: '<xf fontId="2" applyFont="1"/>', font: '<x:font xmlns:x="x"><x:u/><x:color theme="10"/></x:font>' });
+    expect(b.get(on.index).linkFont).toBe(true);
+  });
+
+  it('keeps the format of a workbook without fonts of its own', () => {
+    const b = new StyleBook(undefined, undefined, 'en-US');
+    expect(b.withLinkFont(0, true)).toEqual({ index: 0, created: false });
+  });
+});
+
 describe('colours', () => {
   it('read a theme from system colours, or fall back when it has no colour scheme', () => {
     const theme = parseThemeColors(

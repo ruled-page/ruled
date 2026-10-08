@@ -1398,6 +1398,16 @@ export class WorkbookSession {
         }
         break;
       }
+      case 'linkFormat': {
+        for (const rect of op.rects) {
+          this.forEachCell(op.sheet, rect, (row, col, cur) => {
+            const r = this.model.styles.withLinkFont(cur.style, op.on);
+            if (r.created) newStyles.push({ index: r.index, style: this.model.styles.get(r.index) });
+            if (r.index !== cur.style) put({ sheet: op.sheet, row, col, content: cur.content, style: r.index });
+          });
+        }
+        break;
+      }
       case 'inputs': {
         for (const c of op.cells) {
           const cur = this.current(op.sheet, c.row, c.col);

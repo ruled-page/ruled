@@ -421,6 +421,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   comment: 'store.history.comment',
   // Changes to names are always labelled with the name.
   name: 'store.history.edit',
+  linkFormat: 'links.history.edit',
 };
 
 /** Has the browser download a file. */
@@ -1797,12 +1798,14 @@ export class WorkbookStore {
   /**
    * Gives the selected cells a link, replacing any they had, as one undoable
    * step. `text`, when it differs from what the active cell shows, goes into
-   * that cell first, as Excel's "Text to display" does.
+   * that cell first, as Excel's "Text to display" does; and as in Excel, the
+   * cells take its Hyperlink look.
    */
   async setLink(link: LinkFields, text?: string): Promise<void> {
     const view = this.view;
     if (!view) return;
-    const change = replaceLinks(view.info.links, this.linkRects(), link);
+    const rects = this.linkRects();
+    const change = replaceLinks(view.info.links, rects, link);
     const { row, col } = this.selection;
     const before: EditOp[] = [];
     if (text !== undefined && text !== this.shownText(view, row, col)) {
@@ -1812,14 +1815,28 @@ export class WorkbookStore {
       if ('reject' in prepared) return this.toast('warn', prepared.reject);
       before.push({ type: 'input', sheet: this.active, row, col, text: prepared.text });
     }
+    // A protected sheet refuses the link; its cells keep their look.
+    if (!view.info.protected) before.push({ type: 'linkFormat', sheet: this.active, rects, on: true });
     await this.changeLayout({ kind: 'links', ...change }, msg(change.remove.length ? 'links.history.edit' : 'links.history.insert'), before);
   }
 
-  /** Takes the links off the selected cells, which keep what they hold, as one undoable step. */
+  /**
+   * Takes the links off the selected cells, which keep what they hold, as
+   * one undoable step. As Excel's Remove Hyperlink does, the cells that had
+   * a link lose its look.
+   */
   async removeLinks(): Promise<void> {
     const view = this.view;
-    const change = view && replaceLinks(view.info.links, this.linkRects());
-    if (change?.remove.length) await this.changeLayout({ kind: 'links', ...change }, msg('links.history.remove'));
+    const rects = this.linkRects();
+    const change = view && replaceLinks(view.info.links, rects);
+    if (!view || !change?.remove.length) return;
+    const linked = change.remove.flatMap((l) =>
+      rects
+        .map((r) => ({ r1: Math.max(r.r1, l.rect.r1), c1: Math.max(r.c1, l.rect.c1), r2: Math.min(r.r2, l.rect.r2), c2: Math.min(r.c2, l.rect.c2) }))
+        .filter((r) => r.r1 <= r.r2 && r.c1 <= r.c2),
+    );
+    const before: EditOp[] = view.info.protected ? [] : [{ type: 'linkFormat', sheet: this.active, rects: linked, on: false }];
+    await this.changeLayout({ kind: 'links', ...change }, msg('links.history.remove'), before);
   }
 
   /**

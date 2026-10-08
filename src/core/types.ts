@@ -558,6 +558,8 @@ export type EditOp =
    * formulas that use it, as Excel does.
    */
   | { type: 'name'; change: NameChange }
+  /** Gives the cells that hold something Excel's Hyperlink look, as inserting a link does, or takes it away, as removing one does. */
+  | { type: 'linkFormat'; sheet: number; rects: Rect[]; on: boolean }
   /** Several operations applied in order and undone as one. */
   | { type: 'batch'; ops: EditOp[] };
 

@@ -175,6 +175,23 @@ describe('saving links', () => {
   });
 });
 
+describe("Excel's Hyperlink look", () => {
+  it('is given to the cells that hold something, saved as a font of its own, and taken away again', () => {
+    const s = open();
+    const r = s.apply({ type: 'linkFormat', sheet: 0, rects: [rect(0, 0, 4, 1)], on: true });
+    // A1:B3 hold something; the empty cells below are left as they are.
+    expect(r.redo.map((c) => `${c.row}:${c.col}`)).toEqual(['0:0', '0:1', '1:0', '1:1', '2:0', '2:1']);
+    expect(r.newStyles).toHaveLength(1);
+    const saved = open(s.save());
+    const grid = saved.model.sheets[0].scan!.grid;
+    expect(saved.model.styles.get(grid.styles[0])).toMatchObject({ linkFont: true, underline: true });
+    // After the workbook's own fonts, which number two.
+    expect(parts(s.save())['xl/styles.xml']).toMatch(/<fonts [^>]*count="3">.*<\/font><font><u\/><color theme="10"\/><family val="2"\/>.*<\/font><\/fonts>/);
+    const off = s.apply({ type: 'linkFormat', sheet: 0, rects: [rect(0, 0)], on: false });
+    expect(s.model.styles.get(off.redo[0].style).linkFont).toBeUndefined();
+  });
+});
+
 describe('links and cells', () => {
   it("stay when a cell's contents are cleared, as Excel's Clear Contents leaves them", () => {
     const s = open();

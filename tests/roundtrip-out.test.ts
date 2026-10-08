@@ -83,6 +83,8 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   const summary = sheetIndex(h, 'Summary');
   links(h, summary, { add: [{ rect: range('A19'), target: 'https://example.com/changed page', tooltip: 'Changed "tip"' }], remove: h.model.sheets[summary].info.links });
   links(h, data, { add: [{ rect: range('B2', 'C3'), location: "'Summary'!A1", display: 'Summary' }, { rect: range('D5'), target: 'mailto:someone@example.com?subject=Prices & more' }], remove: [] });
+  h.apply({ type: 'linkFormat', sheet: data, rects: [range('B2', 'D5')], on: true });
+  h.apply({ type: 'linkFormat', sheet: data, rects: [range('C3')], on: false });
   h.apply({ type: 'copy', srcSheet: data, src: range('B2'), sheet: notes, dst: range('A1', 'A3') });
   write('kitchen-sink.links.xlsx', h);
   const o = open('orders.xlsx');

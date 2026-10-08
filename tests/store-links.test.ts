@@ -149,6 +149,8 @@ describe('editing links', () => {
     await store.setLink({ target: 'https://example.com/new', display: 'New', tooltip: 'Tip' }, 'New');
     expect(store.linkAt(1, 1)).toMatchObject({ target: 'https://example.com/new', tooltip: 'Tip' });
     expect(store.view!.get(1, 1)?.s).toBe('New');
+    // The cell takes Excel's Hyperlink look, as it does when Excel inserts a link.
+    expect(store.styles[store.view!.get(1, 1)!.style]).toMatchObject({ linkFont: true, underline: true });
     expect(actions()).toEqual(['Insert link']);
     expect(store.editedCount).toBe(2);
     const info = await saved();
@@ -184,6 +186,18 @@ describe('editing links', () => {
     await store.removeLinks();
     expect(actions()).toHaveLength(1);
     expect((await saved()).links.map(linkAddress)).toEqual(['mailto:someone@example.com', 'Hidden!A1']);
+  });
+
+  it('takes the Hyperlink look away with the link, as Excel does', async () => {
+    await open();
+    select(rect(1, 1, 2, 1));
+    await store.setLink({ target: 'https://example.com/new' }, 'New');
+    select(rect(1, 1));
+    await store.removeLinks();
+    expect(store.styles[store.view!.get(1, 1)!.style].linkFont).toBeUndefined();
+    expect(store.view!.get(1, 1)?.s).toBe('New');
+    // The rest of the range keeps its link.
+    expect(store.linkAt(2, 1)?.target).toBe('https://example.com/new');
   });
 
   it("keeps a cell's link when its contents are cleared", async () => {

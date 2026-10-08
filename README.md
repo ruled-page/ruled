@@ -65,7 +65,8 @@ back as .xlsx without losing what the editor can't display.
   go when pointed at and in the formula bar, and are followed with Ctrl+click
   or Ctrl+Enter (⌘ on a Mac) or from the cell menu: to a place in the
   workbook, or to a web page or email in a new tab after asking. The cell
-  menu inserts, edits and removes them, undoably, and saves them as Excel
+  menu inserts, edits and removes them, undoably, giving cells Excel's
+  Hyperlink look and taking it away as Excel does, and saves them as Excel
   does. Clearing a cell keeps its link, as Excel's Clear Contents does;
   copying, sorting and moving cells takes their links with them.
 - "What's in this file" lists everything the editor keeps but can't show,

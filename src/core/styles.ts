@@ -467,6 +467,46 @@ export class StyleBook {
     return { index, created: true };
   }
 
+  /**
+   * The format index for `base` with Excel's Hyperlink look, which inserting
+   * a link gives a cell: its font underlined in the theme's hyperlink colour,
+   * as the Hyperlink cell style has it. Without (`on` false) it is the look
+   * removing a link leaves: the font in automatic colour, not underlined.
+   * Anything else about the font stays. A workbook without fonts of its own
+   * keeps `base`.
+   */
+  withLinkFont(base: number, on: boolean): { index: number; created: boolean } {
+    const style = this.get(base);
+    if (!this.parts.font.length || (on ? style.linkFont && style.underline : !style.linkFont)) return { index: base, created: false };
+    const key = `${base}|link:${on}`;
+    const existing = this.derived.get(key);
+    if (existing !== undefined) return { index: existing, created: false };
+
+    const raw = this.xfRaw[base] ?? this.xfRaw[0];
+    const p = /^<(\w+:)?xf\b/.exec(raw)?.[1] ?? '';
+    const tagEnd = findTagEnd(raw, 0);
+    const open = raw.slice(0, tagEnd + 1);
+    const attrs = parseAttrs(open.slice(open.indexOf(' ') + 1, open.endsWith('/>') ? -2 : -1));
+    const from = this.partXml('font', Number(attrs.fontId ?? 0)) ?? this.parts.font[0];
+    const parts = childrenByName(innerOf(from), FONT_ORDER);
+    parts.delete('u');
+    parts.delete('color');
+    if (on) {
+      parts.set('u', `<${p}u/>`);
+      parts.set('color', `<${p}color theme="10"/>`);
+    }
+    const fontId = this.part('font', `<${p}font>${FONT_ORDER.map((n) => parts.get(n) ?? '').join('')}</${p}font>`);
+    const xf = setAttributes(open, { fontId: String(fontId), applyFont: '1' }) + raw.slice(tagEnd + 1);
+
+    const index = this.display.length;
+    const { linkFont: _, ...rest } = style;
+    this.display.push(on ? { ...rest, underline: true, color: '#' + this.theme[10], linkFont: true } : { ...rest, underline: false, color: undefined });
+    this.xfRaw.push(xf);
+    this.additions.push({ xfRaw: xf });
+    this.derived.set(key, index);
+    return { index, created: true };
+  }
+
   /** A font, fill or border by id, the file's or one added since. */
   private partXml(kind: PartKind, id: number): string | undefined {
     const own = this.parts[kind];
