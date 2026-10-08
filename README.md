@@ -4,7 +4,7 @@ Open an Excel workbook in the browser, edit it like a spreadsheet, and save it
 back as .xlsx without losing what the editor can't display.
 
 - View any .xlsx or .xlsm: every sheet, number formats, fonts, fills, column
-  widths, merged cells, hidden rows and columns, frozen rows and columns.
+  widths, merged cells, hidden, grouped and frozen rows and columns.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill, clear,
   undo and redo. Pasting from Excel or Google Sheets brings the cells'
@@ -42,6 +42,20 @@ back as .xlsx without losing what the editor can't display.
   column's or row's edge, or set them from the menu), hide and unhide rows
   and columns, freeze panes, merge and unmerge cells. Merging asks first when
   it would clear values, as Excel does.
+- Outlines, as in Excel: a sheet with grouped rows or columns gets outline
+  bars beside the row numbers and above the column letters, kept in line
+  with the grid as it scrolls and with frozen panes. Each group's − or +
+  collapses or expands it, and the numbered buttons show the outline to that
+  level. Alt+Shift+Right and Left (⌥⇧→ and ⌥⇧← on a Mac) group and ungroup
+  the selected rows or columns, asking which for a range of cells, and the
+  cell menu's Rows and Columns also hide or show the detail of the group at
+  the active cell, show a level, and clear the outline. Groups go seven
+  levels deep, follow their rows and columns as others are inserted and
+  deleted (rows and columns inserted inside a group join it), each change is
+  a step to undo, and the outline is saved as Excel saves it, with summary
+  rows below or above and summary columns right or left as the file has
+  them. On a protected sheet, rows or columns can be grouped, hidden and
+  shown only where its protection lets them be formatted, as in Excel.
 - Defined names, as in Excel: type one in the name box to go to its range
   (the box lists the names as you type, and shows the name of a selection
   that is exactly a named range), or type a new one to name the selection.
@@ -467,12 +481,16 @@ Everything works without a mouse. In the grid, the keys are Excel's: arrows
 and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
 menu key) opens the cell menu with fill down and right, and Fill Series
 (whose options are radio buttons and fields, with the Custom Lists dialog
-behind a button); notes and comments;
-rows and columns (insert, delete, height or width, hide and unhide);
-merging; freezing panes; sort and filter; and opening, inserting, editing
-and removing links. Its submenus open with the right arrow, Enter or Space,
-and close with the left arrow or Escape. Shift+F2 opens the cell's note or
-comments, and Ctrl+Enter (⌘Enter on a Mac) follows its link. F6 (Ctrl+F6 where the browser keeps F6) moves
+behind a button); notes and comments; rows and columns (insert, delete,
+height or width, hide and unhide, group and ungroup, and their groups'
+detail and levels); merging; freezing panes; sort and filter; and opening,
+inserting, editing and removing links. Its submenus open with the right
+arrow, Enter or Space, and close with the left arrow or Escape. Shift+F2
+opens the cell's note or comments, Ctrl+Enter (⌘Enter on a Mac) follows its
+link, and Alt+Shift+Right and Left group and ungroup the selected rows or
+columns. The outline bars' buttons say which rows or columns they collapse
+or expand ("Collapse rows 3 to 8"), and whether their group is expanded; a
+click on one leaves the focus in the grid. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
 stays in the grid as it does in Excel; typing a cell such as B4, or a
 name, in the formula bar's name box goes there, and Alt+Down lists the
@@ -610,10 +628,11 @@ opening the copies there.
 `npm run validate:saves` (after `npm run build:verify`; needs the .NET SDK)
 checks that saving never makes a workbook invalid. It saves edited copies of
 the samples and of the workbooks in `tests/corpus` (made by
-`scripts/gen_corpus.py` and `scripts/gen_charts.py` with XlsxWriter: a
-protected form with unlocked input cells, an Excel table with structured
-references, dynamic arrays, LET and LAMBDA, the 1904 date system, one chart
-of each kind), validates them with Microsoft's Open XML
+`scripts/gen_corpus.py`, `scripts/gen_charts.py` and `scripts/gen_outline.py`
+with XlsxWriter: a protected form with unlocked input cells, an Excel table
+with structured references, dynamic arrays, LET and LAMBDA, the 1904 date
+system, one chart of each kind, rows and columns grouped two levels deep),
+validates them with Microsoft's Open XML
 SDK (`tools/ooxml-validate`), and fails on any error a copy has that its
 original didn't. CI runs it.
 
@@ -873,6 +892,13 @@ The worker holds about 0.8 GB for that file; the UI thread stays under 100 MB.
   Excel. Each one rebuilds the calculation engine, which takes a moment on
   large workbooks, and up to 20 can be undone. Cells moved to another sheet
   leave merges and tables behind, so such moves are refused.
+- Outlines: Excel's Auto Outline, outline styles and outline settings (where
+  summaries go, whether the outline symbols show) aren't offered, and the
+  bars show on any sheet with groups; what a file sets is kept and saved.
+  Ungrouping or clearing an outline leaves the rows its
+  collapsed groups hid hidden, as in Excel. A group whose total row is also
+  the total row of a group around it expands with that group, as the file
+  marks only the row as collapsed.
 - Sorting reorders rows as Excel does (formulas move as if copied; references
   from elsewhere don't follow). A selected range keeps its first row in place
   only when it looks like headings (text over numbers, or bold over plain). Filtering by values is saved as
