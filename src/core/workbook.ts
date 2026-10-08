@@ -45,6 +45,8 @@ export interface WorkbookModel {
   properties: Record<string, string>;
   /** The people who have written threaded comments. */
   people: Person[];
+  /** The workbook's structure is protected: sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
+  structureLocked: boolean;
 }
 
 const EMU_PER_PX = 9525;
@@ -694,5 +696,6 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     hasActiveContent: controls + objects > 0,
     properties: readCustomProperties(pkg),
     people,
+    structureLocked: ['1', 'true'].includes(attr(child(wb, 'workbookProtection'), 'lockStructure') ?? ''),
   };
 }

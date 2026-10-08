@@ -5,7 +5,7 @@ import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1 } from '../src/core/refs';
 import type { CommentChange, LayoutOp } from '../src/core/types';
-import { open, sheetIndex } from './helpers';
+import { open, sample, sheetIndex } from './helpers';
 
 /**
  * Writes edited copies of the samples and of the workbooks in tests/corpus,
@@ -100,6 +100,31 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   note(t2, 'Arrays', 'D2', { action: 'setNote', text: 'Largest line.', author: 'Cara' });
   note(t2, 'Arrays', 'A1', { action: 'startThread', text: 'Sorted?', author: 'Cara' });
   write('templates.commented.xlsx', t2);
+
+  // Sheets added, renamed, deleted, moved, hidden and unhidden, with what refers to them following.
+  const ks = () => WorkbookSession.open(sample('kitchen-sink.xlsx'), 'kitchen-sink.xlsx', 'en-US', { recalc: 'on' });
+  const renamed = ks();
+  write('kitchen-sink.sheet-renamed.xlsx', renamed.restructure({ type: 'renameSheet', sheet: sheetIndex(renamed, 'Summary'), name: "Q4 Summary's" }));
+  const deleted = ks();
+  write('kitchen-sink.data-deleted.xlsx', deleted.restructure({ type: 'deleteSheet', sheet: sheetIndex(deleted, 'Data') }));
+  const summaryDeleted = ks();
+  write('kitchen-sink.summary-deleted.xlsx', summaryDeleted.restructure({ type: 'deleteSheet', sheet: sheetIndex(summaryDeleted, 'Summary') }));
+  let arranged = ks();
+  arranged = arranged.restructure({ type: 'addSheet', at: 1, name: 'Sheet1' });
+  arranged.apply({ type: 'input', sheet: 1, ...at('A1'), text: '=Data!F2*2' });
+  arranged = arranged.restructure({ type: 'moveSheet', sheet: sheetIndex(arranged, 'Monthly Chart'), to: 0 });
+  arranged = arranged.restructure({ type: 'hideSheet', sheet: sheetIndex(arranged, 'Summary'), hidden: true });
+  arranged = arranged.restructure({ type: 'hideSheet', sheet: sheetIndex(arranged, 'Settings'), hidden: false });
+  arranged = arranged.restructure({ type: 'deleteSheet', sheet: sheetIndex(arranged, 'Monthly Chart') });
+  write('kitchen-sink.sheets-arranged.xlsx', arranged);
+  const pivots = () => WorkbookSession.open(sample('pivot.xlsx'), 'pivot.xlsx');
+  write('pivot.source-renamed.xlsx', pivots().restructure({ type: 'renameSheet', sheet: 0, name: 'Raw data' }));
+  write('pivot.source-deleted.xlsx', pivots().restructure({ type: 'deleteSheet', sheet: 0 }));
+  write('pivot.pivot-deleted.xlsx', pivots().restructure({ type: 'deleteSheet', sheet: 1 }));
+  const tables = corpus('templates.xlsx');
+  write('templates.table-sheet-renamed.xlsx', tables.restructure({ type: 'renameSheet', sheet: lines, name: 'Order lines' }));
+  write('templates.table-sheet-deleted.xlsx', tables.restructure({ type: 'deleteSheet', sheet: lines }));
+  write('templates.sheet-added.xlsx', tables.restructure({ type: 'addSheet', at: 3, name: 'Sheet1' }));
 
   const d = corpus('dates-1904.xlsx');
   d.apply({ type: 'input', sheet: 0, ...at('A3'), text: '2026-05-01' });

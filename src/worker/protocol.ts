@@ -1,5 +1,5 @@
 import type { Text } from '../i18n/message';
-import type { StructuralOp } from '../core/refTransform';
+import type { WorkbookOp } from '../core/sheetRules';
 import type { OpenOptions } from '../core/session';
 import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
 
@@ -11,8 +11,8 @@ export type WorkerRequest =
   | { id: number; type: 'validate'; sheet: number; row: number; col: number; text: string; rule: number }
   | { id: number; type: 'listSource'; sheet: number; formula: string }
   | { id: number; type: 'conditionalFormats'; sheet: number }
-  /** Insert or delete rows or columns, or move cells, rewriting references. */
-  | { id: number; type: 'structure'; op: StructuralOp }
+  /** Insert or delete rows or columns, move cells, or add, rename, delete, move, hide or unhide a sheet, rewriting references. */
+  | { id: number; type: 'structure'; op: WorkbookOp }
   /** Go back to, or forward to, the workbook as it was around a structural change. */
   | { id: number; type: 'undoStructure' | 'redoStructure' }
   /** Turn live recalculation on for a workbook opened with it off. */

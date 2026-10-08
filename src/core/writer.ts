@@ -436,6 +436,8 @@ function pivotSourceChanged(xml: string, model: WorkbookModel, input: SaveInput)
   const source = firstElement(xml, 'worksheetSource');
   if (!source) return true;
   const a = parseAttrs(source.attrs);
+  // A source whose sheet was deleted can't be refreshed from.
+  if (a.ref === '#REF!') return false;
   let sheet = a.sheet !== undefined ? model.sheets.findIndex((m) => m.info.name === a.sheet) : -1;
   let rect: Rect | null = null;
   const area = (ref: string) => {

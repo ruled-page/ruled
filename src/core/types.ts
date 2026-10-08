@@ -401,6 +401,8 @@ export interface LoadResult {
   timings: Record<string, number>;
   /** Custom document properties, such as the schema the file was last saved with. */
   properties: Record<string, string>;
+  /** The workbook's structure is protected, so its sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
+  structureLocked?: boolean;
 }
 
 export interface CalcSample {

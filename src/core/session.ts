@@ -57,7 +57,9 @@ import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
 import { csvPackage, isCsvFile } from './csvWorkbook';
 import { restructure } from './restructure';
-import { refMapFor, type StructuralOp } from './refTransform';
+import { refMapFor, type RefMap, type StructuralOp } from './refTransform';
+import { applySheetOp } from './sheetOps';
+import { isSheetOp, sheetIndexMap, type SheetOp, type WorkbookOp } from './sheetRules';
 import { OoxmlPackage, type PackageLimits } from './zip';
 
 export interface OpenOptions {
@@ -394,6 +396,7 @@ export class WorkbookSession {
       date1904: this.model.date1904,
       timings: this.timings,
       properties: this.model.properties,
+      structureLocked: this.model.structureLocked,
     };
   }
 
@@ -1567,14 +1570,16 @@ export class WorkbookSession {
   // Structural changes
 
   /**
-   * The workbook after inserting or deleting rows or columns, or moving
-   * cells, as a new session. The current state is written out, the change is
-   * applied to every part that refers to the moved cells, and the result is
-   * opened. This session is left as it was, so undo can return to it.
+   * The workbook after inserting or deleting rows or columns, moving cells,
+   * or adding, renaming, deleting, moving, hiding or unhiding a sheet, as a
+   * new session. The current state is written out, the change is applied to
+   * every part that refers to what changed, and the result is opened. This
+   * session is left as it was, so undo can return to it.
    */
-  restructure(op: StructuralOp): WorkbookSession {
+  restructure(op: WorkbookOp): WorkbookSession {
     const pkg = this.savedPackage();
-    const { broken } = restructure(pkg, readWorkbook(pkg, this.locale), op);
+    const before = readWorkbook(pkg, this.locale);
+    const { broken } = isSheetOp(op) ? applySheetOp(pkg, before, op) : restructure(pkg, before, op);
     const next = new WorkbookSession(pkg, null, this.fileName, readWorkbook(pkg, this.locale), {}, this.locale);
     next.stripMacros = this.stripMacros;
     next.recalcOff = this.recalcOff;
@@ -1582,9 +1587,11 @@ export class WorkbookSession {
       next.structureWarnings.push(msg('core.structure.brokenRefs', { count: broken, error: '#REF!' }));
     }
 
-    // Changes so far follow their cells; changes to cells that were deleted go.
-    const map = refMapFor(op);
+    // Changes so far follow their cells, and their sheets; changes to cells that were deleted go.
     const names = this.model.sheets.map((m) => m.info.name);
+    const now = next.model.sheets.map((m) => m.info.name);
+    const sheets = isSheetOp(op) ? sheetIndexMap(op, names.length) : names.map((_n, i) => i);
+    const map: RefMap = isSheetOp(op) ? { sheets: new Set(), range: (s, rect) => (sheets[s] === null ? null : { sheet: sheets[s], rect }) } : refMapFor(op);
     const index = (name: string) => names.findIndex((n) => n === name);
     for (const c of this.changes()) {
       // Notes and threads are listed from what the workbook had, carried below.
@@ -1592,11 +1599,12 @@ export class WorkbookSession {
       const s = index(c.sheet);
       const at = parseA1(c.ref);
       if (c.note || s < 0 || !at) {
-        if (c.note) next.baked.structure.push(c);
+        // Earlier changes to rows, columns and sheets are listed under the sheet's name as it is now.
+        if (c.note) next.baked.structure.push(s >= 0 && sheets[s] !== null ? { ...c, sheet: now[sheets[s]] } : c);
         continue;
       }
       const to = map.range(s, { r1: at.row, c1: at.col, r2: at.row, c2: at.col });
-      if (to) next.baked.changes.push({ ...c, sheet: names[to.sheet], ref: toA1(to.rect.r1, to.rect.c1) });
+      if (to) next.baked.changes.push({ ...c, sheet: now[to.sheet], ref: toA1(to.rect.r1, to.rect.c1) });
     }
     for (const { sheet, key, before } of this.noteChanges()) {
       const row = Math.floor(key / MAX_COLS);
@@ -1722,7 +1730,8 @@ function placedBorder(b: { where: BorderPlacement; edge?: BorderEdge }, rect: Re
   }
 }
 
-function describeStructure(op: StructuralOp, names: string[]): CellChange {
+function describeStructure(op: WorkbookOp, names: string[]): CellChange {
+  if (isSheetOp(op)) return describeSheetChange(op, names);
   if (op.type === 'growTable') {
     return { sheet: names[op.sheet], ref: op.table, before: '', after: '', note: msg('core.change.tableGrew', { table: op.table, count: op.rows }) };
   }
@@ -1743,4 +1752,21 @@ function describeStructure(op: StructuralOp, names: string[]): CellChange {
     deleteCols: 'core.change.deletedColumns',
   };
   return { sheet: names[op.sheet], ref, before: '', after: '', note: msg(notes[op.type], { count: op.count }) };
+}
+
+/** A change to a sheet in words, listed under the sheet's name (its new name, for one renamed). */
+function describeSheetChange(op: SheetOp, names: string[]): CellChange {
+  const change = (sheet: string, note: CellChange['note']): CellChange => ({ sheet, ref: '', before: '', after: '', note });
+  switch (op.type) {
+    case 'addSheet':
+      return change(op.name, msg('sheets.change.added'));
+    case 'renameSheet':
+      return change(op.name, msg('sheets.change.renamed', { from: names[op.sheet] }));
+    case 'deleteSheet':
+      return change(names[op.sheet], msg('sheets.change.deleted'));
+    case 'moveSheet':
+      return change(names[op.sheet], msg('sheets.change.moved', { position: op.to + 1 }));
+    case 'hideSheet':
+      return change(names[op.sheet], msg(op.hidden ? 'sheets.change.hidden' : 'sheets.change.unhidden'));
+  }
 }
