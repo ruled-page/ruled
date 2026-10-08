@@ -5,6 +5,7 @@ import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
 import { parseA1, quoteSheetName } from '../src/core/refs';
 import type { CommentChange, LayoutOp, NameChange } from '../src/core/types';
+import { builtInLists } from '../src/state/fillLists';
 import { open, sample, sheetIndex } from './helpers';
 
 /**
@@ -52,6 +53,16 @@ it.skipIf(!process.env.ROUNDTRIP_OUT)('writes edited workbooks', () => {
   const f = open('orders.xlsx');
   f.apply({ type: 'layout', sheet: 0, op: { kind: 'filter', filter: { rect: { r1: 0, c1: 0, r2: 3, c2: 3 }, columns: { 0: ['Bolts', ''] } }, rows: [2, 3] } });
   write('orders.filtered.xlsx', f);
+
+  // Fill Series: dates by month along a row, a growth series down to a stop value, and German day names continued.
+  const sr = open('orders.xlsx');
+  sr.apply({ type: 'input', sheet: 0, ...at('A50'), text: '2026-01-31' });
+  sr.apply({ type: 'series', sheet: 0, rect: { r1: 49, c1: 0, r2: 49, c2: 5 }, series: { by: 'rows', type: 'date', dateUnit: 'month', step: 1, trend: false } });
+  sr.apply({ type: 'input', sheet: 0, ...at('H50'), text: '3' });
+  sr.apply({ type: 'series', sheet: 0, rect: { r1: 49, c1: 7, r2: 59, c2: 7 }, series: { by: 'columns', type: 'growth', dateUnit: 'day', step: 2, stop: 1000, trend: false } });
+  sr.apply({ type: 'input', sheet: 0, ...at('J50'), text: 'Montag' });
+  sr.apply({ type: 'fill', sheet: 0, src: { r1: 49, c1: 9, r2: 49, c2: 9 }, dst: { r1: 49, c1: 9, r2: 55, c2: 9 }, lists: builtInLists(['de']) });
+  write('orders.series.xlsx', sr);
   const tf = corpus('templates.xlsx');
   const orders = tf.model.sheets.find((m) => m.info.tables.some((t) => t.name === 'Orders'))!;
   const table = orders.info.tables.find((t) => t.name === 'Orders')!;

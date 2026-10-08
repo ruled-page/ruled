@@ -70,6 +70,7 @@ export interface WorkbookEditorElement extends HTMLElement {
   setTheme(theme: EditorTheme | undefined): void;
   setLanguage(language: string): void;
   setUser(user: string | undefined): void;
+  setCustomLists(lists: string[][] | undefined): void;
   readonly status: EditorHandle['status'];
   readonly fileName: string;
   readonly unsaved: boolean;
@@ -87,7 +88,7 @@ declare global {
 }
 
 /** Options a connected element applies without re-creating the editor. */
-const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas'];
+const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas', 'customLists'];
 
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
@@ -95,7 +96,7 @@ const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas'];
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -151,6 +152,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
         if (changed.includes('theme')) this.handle.setTheme(next.theme);
         if (changed.includes('language') && next.language) this.handle.setLanguage(next.language);
         if (changed.includes('user')) this.handle.setUser(next.user);
+        if (changed.includes('customLists')) this.handle.setCustomLists(next.customLists);
         if (changed.includes('schemas')) {
           const ids = new Set((next.schemas ?? []).map((s) => s.id));
           for (const s of before.schemas ?? []) if (!ids.has(s.id)) this.handle.removeSchema(s.id);
@@ -304,6 +306,12 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     setUser(user: string | undefined): void {
       this.opts = { ...this.opts, user };
       this.handle?.setUser(user);
+    }
+
+    /** Changes the lists that filling continues without re-creating the editor. */
+    setCustomLists(lists: string[][] | undefined): void {
+      this.opts = { ...this.opts, customLists: lists };
+      this.handle?.setCustomLists(lists);
     }
 
     get status(): EditorHandle['status'] {

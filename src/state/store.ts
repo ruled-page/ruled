@@ -31,6 +31,8 @@ import {
   type FormatChange,
   type PastePart,
   type LayoutOp,
+  type ReadOnlyCells,
+  type SeriesOptions,
   type ListValidation,
   type NameChange,
   type NameRef,
@@ -46,7 +48,9 @@ import { namedRange } from './names';
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
-import { displayText, editText, exactText } from './format';
+import { displayText, editText, exactText, isDateStyle } from './format';
+import { builtInLists, cleanLists, loadUserLists, saveUserLists } from './fillLists';
+import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
@@ -233,6 +237,13 @@ export interface StoreOptions {
   translations?: Translations;
   /** Name recorded against each action in the change history. */
   user?: string;
+  /**
+   * Lists that dragging the fill handle and AutoFill continue, as Excel's
+   * custom lists do, after the built-in day and month names: each list is
+   * its entries in order, e.g. [['North', 'East', 'South', 'West']]. Users
+   * can add their own in the Custom Lists dialog.
+   */
+  customLists?: string[][];
   /** Keep unsaved edits in the browser and offer them back when the same file is reopened. Default true. */
   drafts?: boolean;
   /** Size and complexity limits for opened files; see OpenOptions. */
@@ -419,6 +430,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   pasteText: 'store.history.paste',
   copy: 'store.history.paste',
   fill: 'store.history.fill',
+  series: 'fill.history.series',
   clear: 'store.history.clear',
   restore: 'store.history.restore',
   sort: 'store.history.sort',
@@ -498,6 +510,12 @@ export class WorkbookStore {
   nameManagerOpen = false;
   /** Asking for a link to give the selected cells. */
   linkDialog = false;
+  /** Excel's Fill Series dialog, for the selection. */
+  seriesDialog = false;
+  /** Excel's Custom Lists dialog, opened from the Fill Series dialog. */
+  customListsOpen = false;
+  /** The user's lists couldn't be kept in the browser's storage, so they last until the page closes. */
+  listsNotKept = false;
   /** Addresses the user has agreed to open while this workbook is open. */
   private readonly trustedLinks = new Set<string>();
   designerOpen = false;
@@ -2027,6 +2045,23 @@ export class WorkbookStore {
     return displayText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, false, this.locale).text;
   }
 
+  /** What the selected cells show, row by row, leaving out empty ones: the entries of a list imported from them. */
+  selectedTexts(limit = 1000): string[] {
+    const view = this.view;
+    const rect = this.selection.rects[0];
+    if (!view || !rect) return [];
+    const cells: { row: number; col: number }[] = [];
+    view.forEach(rect, (row, col) => cells.push({ row, col }));
+    cells.sort((a, b) => a.row - b.row || a.col - b.col);
+    const out: string[] = [];
+    for (const c of cells) {
+      const text = this.shownText(view, c.row, c.col).trim();
+      if (text) out.push(text);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   /** The values in a column of the filter range, with how many rows hold each, for picking what to show. */
   filterChoices(col: number): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string> } | undefined {
     const view = this.view;
@@ -2623,7 +2658,8 @@ export class WorkbookStore {
     const dst: Rect = single ? rect : across ? { ...rect, c1: rect.c1 + 1 } : { ...rect, r1: rect.r1 + 1 };
     const keeps = (row: number, col: number) => !!((view.get(across ? row : src.r1, across ? src.c1 : col)?.flags ?? 0) & CellFlag.Formula);
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
-    await this.edit({ type: 'copy', srcSheet: this.active, src, sheet: this.active, dst }, 'undo', {
+    const readOnly = this.schemaReadOnly(dst);
+    await this.edit({ type: 'copy', srcSheet: this.active, src, sheet: this.active, dst, ...(readOnly && { readOnly }) }, 'undo', {
       label: msg(across ? 'store.history.fillRight' : 'store.history.fillDown'),
     });
   }
@@ -2641,7 +2677,141 @@ export class WorkbookStore {
       return !!((view.get(sr, sc)?.flags ?? 0) & CellFlag.Formula);
     };
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
-    await this.edit({ type: 'fill', sheet: this.active, src, dst });
+    const readOnly = this.schemaReadOnly(dst);
+    await this.edit({ type: 'fill', sheet: this.active, src, dst, lists: this.fillLists, ...(readOnly && { readOnly }) });
+  }
+
+  /** What Excel's Fill Series dialog starts with for the selection: rows for a wide one, and dates when it starts with one. */
+  seriesStart(): SeriesOptions {
+    const sel = this.selection;
+    const rect = sel.rects[0] ?? { r1: sel.row, r2: sel.row, c1: sel.col, c2: sel.col };
+    const rec = this.view?.get(rect.r1, rect.c1);
+    const date = rec?.t === VT.Number && isDateStyle(this.styles[rec.style] ?? this.styles[0]);
+    return { by: rect.c2 - rect.c1 > rect.r2 - rect.r1 ? 'rows' : 'columns', type: date ? 'date' : 'linear', dateUnit: 'day', step: 1, trend: false };
+  }
+
+  /**
+   * Excel's Fill Series over the selection (its first range): each row or
+   * column becomes a series from the cells it starts with. With one cell
+   * selected, the series runs on from it, down or across, until the stop
+   * value, as in Excel. One step to undo; locked cells of a protected sheet
+   * and the schema's read-only cells are left as they are, as filling by
+   * dragging leaves them.
+   */
+  async fillSeries(series: SeriesOptions): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const sel = this.selection;
+    let rect = sel.rects[0] ?? { r1: sel.row, r2: sel.row, c1: sel.col, c2: sel.col };
+    const across = series.by === 'rows';
+    if (rect.r1 === rect.r2 && rect.c1 === rect.c2 && series.stop !== undefined && series.type !== 'autofill') {
+      const rec = view.get(rect.r1, rect.c1);
+      const start = rec?.t === VT.Number ? rec.n : undefined;
+      const run = start === undefined ? undefined : seriesLine([start], across ? MAX_COLS - rect.c1 : MAX_ROWS - rect.r1, series, this.date1904);
+      // A series that doesn't move would never reach the stop value.
+      if (run?.direction) rect = across ? { ...rect, c2: rect.c1 + run.values.length } : { ...rect, r2: rect.r1 + run.values.length };
+    }
+    // The cells a series starts from stay; a trend replaces its numbers, and AutoFill keeps what it continues.
+    const lead = (row: number, col: number) => (across ? col - rect.c1 : row - rect.r1);
+    const keeps = (row: number, col: number) => {
+      if (series.trend && series.type !== 'date' && series.type !== 'autofill') return false;
+      if (series.type !== 'autofill') return lead(row, col) === 0;
+      for (let i = 0; i <= lead(row, col); i++) {
+        const rec = across ? view.get(row, rect.c1 + i) : view.get(rect.r1 + i, col);
+        if (!rec || rec.t === VT.None) return false;
+      }
+      return true;
+    };
+    if (!(await this.okToReplace(this.formulasLost(view, [rect], keeps)))) return;
+    const readOnly = this.schemaReadOnly(rect);
+    await this.edit({ type: 'series', sheet: this.active, rect, series, lists: this.fillLists, ...(readOnly && { readOnly }) }, 'undo', {
+      label: msg('fill.history.series'),
+    });
+  }
+
+  /**
+   * The cells in `rect` the schema keeps read-only, in runs, for an edit to
+   * leave as they are; the worker knows the sheet's own locked cells.
+   */
+  private schemaReadOnly(rect: Rect): ReadOnlyCells[] | undefined {
+    const view = this.view;
+    if (!this.schema || !view?.constraint) return undefined;
+    type Run = ReadOnlyCells & { key: string };
+    const out: Run[] = [];
+    let above: Run[] = [];
+    for (let row = rect.r1; row <= rect.r2; row++) {
+      const runs: Run[] = [];
+      for (let col = rect.c1; col <= rect.c2; col++) {
+        const reason = view.constraint(row, col);
+        const key = reason === undefined ? '' : JSON.stringify(reason);
+        const last = runs[runs.length - 1];
+        if (key && last?.key === key && last.c2 === col - 1) last.c2 = col;
+        else if (key) runs.push({ r1: row, r2: row, c1: col, c2: col, reason: reason!, key });
+      }
+      // A row with the same runs as the one above makes those taller.
+      if (runs.length && runs.length === above.length && runs.every((r, i) => r.c1 === above[i].c1 && r.c2 === above[i].c2 && r.key === above[i].key)) {
+        for (const r of above) r.r2 = row;
+        continue;
+      }
+      out.push(...runs);
+      above = runs;
+    }
+    return out.length ? out.map(({ key: _key, ...r }) => r) : undefined;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lists that filling continues
+
+  /** Day and month names in the editor's language and locale, and in English. */
+  get builtInFillLists(): string[][] {
+    return builtInLists([this.t.language, this.locale]);
+  }
+
+  /** The host's lists, from the `customLists` option. */
+  get hostFillLists(): string[][] {
+    return cleanLists(this.options.customLists);
+  }
+
+  private ownLists?: { user: string | undefined; lists: string[][] };
+
+  /** The user's own lists, kept in this browser for each user. */
+  get userLists(): string[][] {
+    const user = this.options.user;
+    if (!this.ownLists || this.ownLists.user !== user) this.ownLists = { user, lists: loadUserLists(user) };
+    return this.ownLists.lists;
+  }
+
+  /** Every list filling continues, the first to match winning: the built-in ones, the host's, then the user's. */
+  get fillLists(): string[][] {
+    return [...this.builtInFillLists, ...this.hostFillLists, ...this.userLists];
+  }
+
+  /** Replaces the user's own lists, keeping them in the browser where it can. */
+  setUserLists(lists: string[][]): void {
+    const user = this.options.user;
+    const clean = cleanLists(lists);
+    this.ownLists = { user, lists: clean };
+    this.listsNotKept = !saveUserLists(user, clean);
+    this.notify();
+  }
+
+  /** Deletes one of the user's lists, once they confirm it. */
+  async deleteUserList(index: number): Promise<boolean> {
+    const list = this.userLists[index];
+    if (!list) return false;
+    const sure = await this.confirm({
+      title: msg('fill.lists.deleteTitle'),
+      body: msg('fill.lists.deleteBody', { list: list.join(', ') }),
+      confirmLabel: msg('fill.lists.deleteConfirm'),
+    });
+    if (sure) this.setUserLists(this.userLists.filter((_, i) => i !== index));
+    return sure;
+  }
+
+  /** Changes the host's lists while the editor is open. */
+  setCustomLists(lists: string[][] | undefined): void {
+    this.options.customLists = lists;
+    this.notify();
   }
 
   // ---------------------------------------------------------------------------
@@ -3030,6 +3200,8 @@ export class WorkbookStore {
       | 'nameDialog'
       | 'nameManagerOpen'
       | 'linkDialog'
+      | 'seriesDialog'
+      | 'customListsOpen'
       | 'schemaDraft'
       | 'designerPick',
   >(

@@ -234,6 +234,36 @@ export interface BlockedRegion extends Rect {
 
 export interface MergeRange extends Rect {}
 
+/**
+ * Cells the page keeps read-only, a schema's, which an edit leaves as they
+ * are and counts as skipped, as it does a protected sheet's locked cells.
+ */
+export interface ReadOnlyCells extends Rect {
+  reason: Text;
+}
+
+/** Excel's Fill Series: how each row or column of a selection is filled from the cells it starts with. */
+export interface SeriesOptions {
+  /** Each row of the selection is a series of its own, or each column. */
+  by: 'rows' | 'columns';
+  /**
+   * Linear adds the step, Growth multiplies by it, Date moves a date on by
+   * the step in `dateUnit`, and AutoFill continues the cells as dragging the
+   * fill handle would, ignoring the step and stop.
+   */
+  type: 'linear' | 'growth' | 'date' | 'autofill';
+  dateUnit: 'day' | 'weekday' | 'month' | 'year';
+  step: number;
+  /** The series ends before a value that would pass this one. */
+  stop?: number;
+  /**
+   * Linear and Growth: fits a straight line or an exponential curve to the
+   * numbers the row or column starts with, ignoring the step, and replaces
+   * them with the fitted values too, as Excel does.
+   */
+  trend: boolean;
+}
+
 /** Where an Excel list validation gets its allowed values. */
 export type ListSource =
   | { kind: 'values'; values: string[] }
@@ -531,9 +561,14 @@ export type EditOp =
    * everything, or only the values (formulas' results), the formulas or the
    * formats, and turned on its side with `transpose`.
    */
-  | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect; what?: PastePart; transpose?: boolean }
-  /** Drag-fill from the source into the destination, extending series. */
-  | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
+  | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect; what?: PastePart; transpose?: boolean; readOnly?: ReadOnlyCells[] }
+  /**
+   * Drag-fill from the source into the destination, extending series and
+   * continuing the `lists` (by default, English day and month names).
+   */
+  | { type: 'fill'; sheet: number; src: Rect; dst: Rect; lists?: string[][]; readOnly?: ReadOnlyCells[] }
+  /** Fills each row or column of `rect` with a series, as Excel's Fill Series dialog does. */
+  | { type: 'series'; sheet: number; rect: Rect; series: SeriesOptions; lists?: string[][]; readOnly?: ReadOnlyCells[] }
   /** Put cells, their notes and threads, the layout and the names back to an exact earlier state (undo/redo). */
   | { type: 'restore'; cells: CellSnapshot[]; notes?: NoteSnapshot[]; layout?: LayoutChange[]; names?: NameChange[] }
   /** Adds, changes or deletes a cell's note or comment thread. */

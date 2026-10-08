@@ -42,6 +42,8 @@ export interface EditorHandle {
   setLanguage(language: string): void;
   /** Changes the name recorded against each action in the change history. */
   setUser(user: string | undefined): void;
+  /** Changes the lists that filling continues, as the `customLists` option gives them. */
+  setCustomLists(lists: string[][] | undefined): void;
   /** Whether a workbook is open, opening or couldn't be opened. */
   readonly status: 'empty' | 'loading' | 'ready' | 'error';
   /** The open workbook's file name. */
@@ -85,6 +87,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     setTheme: (theme) => store.setTheme(theme),
     setLanguage: (language) => store.setLanguage(language),
     setUser: (user) => store.setUser(user),
+    setCustomLists: (lists) => store.setCustomLists(lists),
     get status() {
       return store.status;
     },

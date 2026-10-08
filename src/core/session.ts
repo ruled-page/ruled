@@ -22,7 +22,7 @@ import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote 
 import type { Person } from './comments';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
 import { mergeEditResults } from './editResult';
-import { planFill, type FillSource } from './fill';
+import { ENGLISH_LISTS, planFill, seriesLine, type FillSource } from './fill';
 import { SheetLinks } from './hyperlinks';
 import { copyLinks, isHyperlinkFormula, literalHyperlinkTarget, sortLinks } from './links';
 import { displayFormula, engineFormula, isVolatile, makeShifter, validateFormula } from './formula';
@@ -58,6 +58,7 @@ import {
   type LoadResult,
   type NoteSnapshot,
   type NameChange,
+  type ReadOnlyCells,
   type Rect,
   type SheetGrid,
   type SheetInfo,
@@ -1340,7 +1341,11 @@ export class WorkbookSession {
         break;
       }
       case 'fill': {
-        warnings.push(...this.planFillWrites(op.sheet, op.src, op.dst, put));
+        warnings.push(...this.planFillWrites(op.sheet, op.src, op.dst, op.lists ?? ENGLISH_LISTS, put));
+        break;
+      }
+      case 'series': {
+        warnings.push(...this.planSeriesWrites(op, put));
         break;
       }
       case 'sort': {
@@ -1432,7 +1437,7 @@ export class WorkbookSession {
         break;
       }
     }
-    const committed = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore');
+    const committed = this.commit([...writes.values()], warnings, newStyles, op.type === 'restore', 'readOnly' in op ? op.readOnly : undefined);
     const result = notes ? { ...committed, noteUndo: notes.undo, noteRedo: notes.redo } : committed;
     const layout = op.type === 'restore' ? (op.layout ?? []) : links;
     return layout.length ? mergeEditResults([result, this.applyLayout(layout)]) : result;
@@ -1604,25 +1609,16 @@ export class WorkbookSession {
     }
   }
 
-  private planFillWrites(sheet: number, src: Rect, dst: Rect, put: (w: Write) => void): Text[] {
+  private planFillWrites(sheet: number, src: Rect, dst: Rect, lists: readonly (readonly string[])[], put: (w: Write) => void): Text[] {
     // The destination may include the source; fill the part beyond it.
     const vertical = dst.r1 < src.r1 || dst.r2 > src.r2;
     const forward = vertical ? dst.r2 > src.r2 : dst.c2 > src.c2;
-    const isDate = (style: number) => {
-      try {
-        return isDateFormat(this.model.styles.get(style).numFmt);
-      } catch {
-        return false;
-      }
-    };
     let lost = 0;
     const lines = vertical ? [src.c1, src.c2] : [src.r1, src.r2];
     for (let line = lines[0]; line <= lines[1]; line++) {
       const srcCells: { row: number; col: number }[] = [];
       const len = vertical ? src.r2 - src.r1 + 1 : src.c2 - src.c1 + 1;
       for (let i = 0; i < len; i++) srcCells.push(vertical ? { row: src.r1 + i, col: line } : { row: line, col: src.c1 + i });
-      const states = srcCells.map((p) => this.current(sheet, p.row, p.col));
-      const sources: FillSource[] = states.map((s) => ({ content: s.content, isDate: isDate(s.style) }));
       const targets: { row: number; col: number; x: number }[] = [];
       if (vertical) {
         if (forward) for (let r = src.r2 + 1; r <= dst.r2; r++) targets.push({ row: r, col: line, x: r - src.r1 });
@@ -1631,24 +1627,107 @@ export class WorkbookSession {
         if (forward) for (let c = src.c2 + 1; c <= dst.c2; c++) targets.push({ row: line, col: c, x: c - src.c1 });
         else for (let c = src.c1 - 1; c >= dst.c1; c--) targets.push({ row: line, col: c, x: c - src.c1 });
       }
-      const plans = planFill(sources, targets.map((t) => t.x), this.model.date1904);
-      plans.forEach((plan, i) => {
-        const t = targets[i];
-        const s = srcCells[plan.source];
-        if (plan.kind === 'value') {
-          put({ sheet, row: t.row, col: t.col, content: plan.content, style: states[plan.source].style });
-        } else {
-          const r = this.copiedContent(sheet, s.row, s.col, t.row, t.col);
-          if (r.lost) lost++;
-          put({ sheet, row: t.row, col: t.col, content: r.content, style: r.style });
-        }
-      });
+      lost += this.fillLine(sheet, srcCells, targets, lists, put);
     }
     return lost ? [msg('core.edit.filledAsValues', { count: lost })] : [];
   }
 
-  /** Applies writes; `restoring` puts back an earlier state, so cells a merge covers then are written too. */
-  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[], restoring = false): EditResult {
+  /**
+   * Fills the targets from the source cells along one row or column, as
+   * dragging the fill handle does; says how many formulas could only be
+   * copied as their values.
+   */
+  private fillLine(
+    sheet: number,
+    srcCells: { row: number; col: number }[],
+    targets: { row: number; col: number; x: number }[],
+    lists: readonly (readonly string[])[],
+    put: (w: Write) => void,
+  ): number {
+    const isDate = (style: number) => {
+      try {
+        return isDateFormat(this.model.styles.get(style).numFmt);
+      } catch {
+        return false;
+      }
+    };
+    const states = srcCells.map((p) => this.current(sheet, p.row, p.col));
+    const sources: FillSource[] = states.map((s) => ({ content: s.content, isDate: isDate(s.style) }));
+    const plans = planFill(sources, targets.map((t) => t.x), this.model.date1904, lists);
+    let lost = 0;
+    plans.forEach((plan, i) => {
+      const t = targets[i];
+      const s = srcCells[plan.source];
+      if (plan.kind === 'value') {
+        put({ sheet, row: t.row, col: t.col, content: plan.content, style: states[plan.source].style });
+      } else {
+        const r = this.copiedContent(sheet, s.row, s.col, t.row, t.col);
+        if (r.lost) lost++;
+        put({ sheet, row: t.row, col: t.col, content: r.content, style: r.style });
+      }
+    });
+    return lost;
+  }
+
+  /**
+   * Excel's Fill Series: each row (or column) of the range is a series from
+   * the cells it starts with. Rows that don't start with a number (or, for
+   * AutoFill, with anything) are left as they are. Numbers written take the
+   * first cell's format, so a date series shows as dates.
+   */
+  private planSeriesWrites(op: Extract<EditOp, { type: 'series' }>, put: (w: Write) => void): Text[] {
+    const { sheet, rect, series } = op;
+    const across = series.by === 'rows';
+    const length = across ? rect.c2 - rect.c1 + 1 : rect.r2 - rect.r1 + 1;
+    const [first, last] = across ? [rect.r1, rect.r2] : [rect.c1, rect.c2];
+    let lost = 0;
+    let started = 0;
+    let notGrowth = 0;
+    for (let line = first; line <= last; line++) {
+      const cells = Array.from({ length }, (_, i) => (across ? { row: line, col: rect.c1 + i } : { row: rect.r1 + i, col: line }));
+      if (series.type === 'autofill') {
+        // What the line starts with is continued through the rest of it.
+        let k = 0;
+        while (k < length && this.current(sheet, cells[k].row, cells[k].col).content.kind !== 'empty') k++;
+        if (!k) continue;
+        started++;
+        lost += this.fillLine(sheet, cells.slice(0, k), cells.slice(k).map((c, i) => ({ ...c, x: k + i })), op.lists ?? ENGLISH_LISTS, put);
+        continue;
+      }
+      const starts: number[] = [];
+      for (const c of cells) {
+        const v = this.cellValue(sheet, c.row, c.col);
+        if (typeof v !== 'number') break;
+        starts.push(v);
+        if (!series.trend) break;
+      }
+      if (!starts.length) continue;
+      started++;
+      const planned = seriesLine(starts, length, series, this.model.date1904);
+      if (!planned) {
+        notGrowth++;
+        continue;
+      }
+      const style = this.current(sheet, cells[0].row, cells[0].col).style;
+      planned.values.forEach((value, i) => {
+        const at = cells[planned.from + i];
+        // Numbers a trend replaces keep their own format.
+        const own = planned.from + i < starts.length ? this.current(sheet, at.row, at.col).style : style;
+        put({ sheet, row: at.row, col: at.col, content: { kind: 'number', value }, style: own });
+      });
+    }
+    const warnings: Text[] = [];
+    if (!started) warnings.push(msg(series.type === 'autofill' ? 'fill.series.nothingToContinue' : 'fill.series.noNumber'));
+    if (notGrowth) warnings.push(msg('fill.series.growthTrend', { count: notGrowth }));
+    if (lost) warnings.push(msg('core.edit.filledAsValues', { count: lost }));
+    return warnings;
+  }
+
+  /**
+   * Applies writes; `restoring` puts back an earlier state, so cells a merge
+   * covers then are written too. Cells in `readOnly` are skipped as locked ones are.
+   */
+  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[], restoring = false, readOnly?: ReadOnlyCells[]): EditResult {
     const engine = this.engine;
     const undo: CellSnapshot[] = [];
     const redo: CellSnapshot[] = [];
@@ -1658,7 +1737,7 @@ export class WorkbookSession {
     const applied: Write[] = [];
 
     for (const w of writes) {
-      const reason = this.blockedReason(w.sheet, w.row, w.col);
+      const reason = this.blockedReason(w.sheet, w.row, w.col) ?? readOnly?.find((r) => inRect(r, w.row, w.col))?.reason;
       // The cells a merge covers take formats, as Excel gives them the merge's borders; and earlier states are put back whole.
       const styleOnly = w.content.kind === 'empty' && this.current(w.sheet, w.row, w.col).content.kind === 'empty';
       if (reason && !(reason === MERGED && (restoring || styleOnly))) {
