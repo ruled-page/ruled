@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { glideEagerEditor } from './vite.glide';
 
 /**
  * Vite writes the React build's worker URL as an expression that other
@@ -40,7 +41,7 @@ export default defineConfig(({ mode }) => {
     base: './',
     // A fixed name, which the package exports as fake-spreadsheet/worker.
     worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js' } } },
-    plugins: standalone ? [] : [plainWorkerUrl()],
+    plugins: standalone ? [glideEagerEditor()] : [glideEagerEditor(), plainWorkerUrl()],
     resolve: {
       // CommonJS modules that require('react'), which an ES module library can't do once React is external.
       alias: [
