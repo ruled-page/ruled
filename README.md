@@ -57,7 +57,9 @@ back as .xlsx without losing what the editor can't display.
   the formula bar shows the rule or its input message. Pasted values and
   formulas aren't checked, as in Excel.
 - Right-click a cell or heading to cut, copy and paste, insert or delete rows
-  and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F).
+  and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F),
+  with Excel's wildcards: * for any run of characters, ? for any one, and ~
+  before either to mean it literally.
   Cutting and pasting moves cells, and references to them follow. Rows
   inserted into an Excel table, or typed or pasted just below one without a
   totals row, become part of it with its calculated columns and formats.

@@ -8,6 +8,7 @@ import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '../core/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { withHooksFrom } from '../schema/hooks';
 import { SchemaController } from '../schema/controller';
+import { hasWildcards, matchesWhole, matchSpan, parsePattern, searchIn } from '../core/wildcard';
 import { stepDecimals } from './numberFormats';
 import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
 import {
@@ -1666,11 +1667,18 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Find and replace
 
-  /** Cells matching a search, in reading order: by sheet, then row, then column. */
+  /**
+   * Cells matching a search, in reading order: by sheet, then row, then
+   * column. As in Excel, * stands for any run of characters and ? for any
+   * one, and ~ before either means it literally.
+   */
   find(q: FindQuery): { sheet: number; row: number; col: number }[] {
     if (!q.text) return [];
     const out: { sheet: number; row: number; col: number }[] = [];
     const needle = q.matchCase ? q.text : q.text.toLowerCase();
+    const pattern = hasWildcards(needle) ? parsePattern(needle) : undefined;
+    const matches = (text: string) =>
+      pattern ? (q.wholeCell ? matchesWhole(pattern, text) : searchIn(pattern, text) !== -1) : q.wholeCell ? text === needle : text.includes(needle);
     const sheets = q.scope === 'workbook' ? this.sheets.map((_, i) => i) : [this.active];
     for (const s of sheets) {
       const view = this.sheets[s];
@@ -1680,7 +1688,7 @@ export class WorkbookStore {
         if (rec.t === VT.None && rec.f === undefined) return;
         let text = q.lookIn === 'formulas' ? editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, this.locale) : this.shownText(view, row, col);
         if (!q.matchCase) text = text.toLowerCase();
-        if (q.wholeCell ? text === needle : text.includes(needle)) hits.push({ row, col });
+        if (matches(text)) hits.push({ row, col });
       });
       hits.sort((a, b) => a.row - b.row || a.col - b.col);
       out.push(...hits.map((h) => ({ sheet: s, ...h })));
@@ -1691,8 +1699,18 @@ export class WorkbookStore {
   /** Replaces the search text in matching cells' contents (formulas included). Resolves to how many cells changed. */
   async replace(q: FindQuery, replacement: string, only?: { sheet: number; row: number; col: number }): Promise<number> {
     const hits = only ? [only] : this.find({ ...q, lookIn: 'formulas' });
-    const flags = q.matchCase ? 'g' : 'gi';
-    const pattern = new RegExp(q.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    const pattern = parsePattern(q.matchCase ? q.text : q.text.toLowerCase());
+    /** Every match in the text replaced, left to right, as the search finds them. */
+    const replaceAll = (text: string) => {
+      const hay = q.matchCase ? text : text.toLowerCase();
+      let out = '';
+      let from = 0;
+      for (let span = matchSpan(pattern, hay, 0); span; span = span[1] < hay.length ? matchSpan(pattern, hay, span[1]) : undefined) {
+        out += text.slice(from, span[0]) + replacement;
+        from = span[1];
+      }
+      return out + text.slice(from);
+    };
     const bySheet = new Map<number, { row: number; col: number; text: string }[]>();
     let skipped = 0;
     for (const h of hits) {
@@ -1703,7 +1721,7 @@ export class WorkbookStore {
         continue;
       }
       const before = editText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, this.locale);
-      const after = q.wholeCell ? replacement : before.replace(pattern, () => replacement);
+      const after = q.wholeCell ? replacement : replaceAll(before);
       if (after === before) continue;
       const list = bySheet.get(h.sheet) ?? [];
       list.push({ row: h.row, col: h.col, text: after });

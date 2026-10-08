@@ -391,11 +391,23 @@ describe('find and replace', () => {
     expect(column(0, 0, 4)).toEqual(['Name', 'Pear', 'apple', 'Fig', 'Banana']);
   });
 
-  it('replaces inside formulas, only matching case when asked, and treats the search text literally', async () => {
+  it('replaces inside formulas, only matching case when asked, with ~ before a wildcard meaning it literally', async () => {
     await open();
-    expect(await store.replace(query('b2*', { matchCase: true }), 'B3*')).toBe(0);
-    expect(await store.replace(query('b2*'), 'B3*')).toBe(1);
+    expect(await store.replace(query('b2~*', { matchCase: true }), 'B3*')).toBe(0);
+    expect(await store.replace(query('b2~*'), 'B3*')).toBe(1);
     expect(cell(1, 3)).toMatchObject({ f: 'B3*C2', n: 2 });
+  });
+
+  it("finds and replaces with Excel's wildcards: * for any run and ? for any one character", async () => {
+    await open();
+    expect(store.find(query('?ear', { wholeCell: true })).map((h) => h.row)).toEqual([1]);
+    expect(store.find(query('b*n*a')).map((h) => h.row)).toEqual([4]);
+    expect(store.find(query('p*r', { wholeCell: true, matchCase: true }))).toEqual([]);
+    // Each match goes, left to right; a trailing star takes the rest of the cell.
+    expect(await store.replace(query('a?'), '-', { sheet: 0, row: 4, col: 0 })).toBe(1);
+    expect(cell(4, 0)?.s).toBe('B--a');
+    expect(await store.replace(query('i*'), 'ig tree', { sheet: 0, row: 3, col: 0 })).toBe(1);
+    expect(cell(3, 0)?.s).toBe('Fig tree');
   });
 
   it('replaces the whole cell, or just one cell', async () => {

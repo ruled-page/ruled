@@ -1,6 +1,7 @@
 import { parseA1Ref, type Token } from '@borgar/fx';
 import { CellError, ErrorType, HyperFormula } from 'hyperformula';
 import { MAX_COLS, MAX_ROWS } from './refs';
+import { matchesWhole, parsePattern, searchIn } from './wildcard';
 
 /**
  * Limits on what the calculation engine is asked to do, so that a workbook
@@ -50,92 +51,6 @@ export function tooLargeToCalculate(tokens: Token[]): boolean {
 
 // ---------------------------------------------------------------------------
 // Wildcards
-
-const LITERAL = 0;
-const ANY = 1;
-const STAR = 2;
-
-interface Pattern {
-  kinds: number[];
-  chars: string[];
-}
-
-/** Excel's wildcards: * for any run, ? for any character, ~ before either to mean it literally. */
-function parsePattern(p: string): Pattern {
-  const kinds: number[] = [];
-  const chars: string[] = [];
-  for (let i = 0; i < p.length; i++) {
-    let c = p[i];
-    let kind = c === '*' ? STAR : c === '?' ? ANY : LITERAL;
-    if (c === '~' && i < p.length - 1) {
-      c = p[++i];
-      kind = LITERAL;
-    }
-    // Runs of * mean the same as one.
-    if (kind === STAR && kinds[kinds.length - 1] === STAR) continue;
-    kinds.push(kind);
-    chars.push(c);
-  }
-  return { kinds, chars };
-}
-
-/** Whether the whole of s matches, in at most length × pattern-length steps. */
-function matchesWhole({ kinds, chars }: Pattern, s: string): boolean {
-  let si = 0;
-  let pi = 0;
-  let star = -1;
-  let mark = 0;
-  while (si < s.length) {
-    if (pi < kinds.length && (kinds[pi] === ANY || (kinds[pi] === LITERAL && chars[pi] === s[si]))) {
-      si++;
-      pi++;
-    } else if (pi < kinds.length && kinds[pi] === STAR) {
-      star = pi++;
-      mark = si;
-    } else if (star !== -1) {
-      pi = star + 1;
-      si = ++mark;
-    } else {
-      return false;
-    }
-  }
-  while (pi < kinds.length && kinds[pi] === STAR) pi++;
-  return pi === kinds.length;
-}
-
-/** Earliest index at or after `from` where the pattern's tokens [a, b) match, or -1. */
-function findSegment({ kinds, chars }: Pattern, a: number, b: number, s: string, from: number): number {
-  for (let j = from; j + (b - a) <= s.length; j++) {
-    let k = a;
-    while (k < b && (kinds[k] === ANY || chars[k] === s[j + k - a])) k++;
-    if (k === b) return j;
-  }
-  return -1;
-}
-
-/**
- * Where the pattern first matches inside s. The pieces between stars are
- * found one after another, each as early as it can be, which is where the
- * leftmost match puts them.
- */
-function searchIn(pattern: Pattern, s: string): number {
-  const { kinds } = pattern;
-  let start = -1;
-  let pos = 0;
-  let a = 0;
-  while (a <= kinds.length) {
-    let b = a;
-    while (b < kinds.length && kinds[b] !== STAR) b++;
-    if (b > a || start === -1) {
-      const at = b > a ? findSegment(pattern, a, b, s, pos) : pos;
-      if (at === -1) return -1;
-      if (start === -1) start = at;
-      pos = at + (b - a);
-    }
-    a = b + 1;
-  }
-  return start;
-}
 
 let installed = false;
 
