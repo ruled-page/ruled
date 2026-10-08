@@ -12,6 +12,7 @@ import { useDialog } from './useDialog';
 import type { Translator } from '../i18n';
 import { errorText, msg, type Localized, type MessageKey, type Text } from '../i18n/message';
 import { useT } from '../i18n/react';
+import { Select } from './Select';
 
 const TYPES: FieldType[] = ['text', 'number', 'integer', 'percent', 'date', 'boolean', 'enum'];
 
@@ -126,9 +127,9 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
         <input className="wbe-mono" value={f.key} onChange={(e) => set('key', e.target.value.replace(/\s+/g, ''))} aria-label={named('designer.field.key')} />
       </td>
       <td>
-        <select value={f.type} onChange={(e) => set('type', e.target.value as FieldType)} aria-label={named('designer.field.type')}>
+        <Select value={f.type} onChange={(e) => set('type', e.target.value as FieldType)} aria-label={named('designer.field.type')}>
           {typeOptions(t)}
-        </select>
+        </Select>
       </td>
       <td className="wbe-center">
         <input type="checkbox" checked={!!f.required} onChange={(e) => set('required', e.target.checked)} aria-label={named('designer.field.required')} />
@@ -140,11 +141,11 @@ function FieldRow({ field: f, onChange, onRemove }: FieldRowProps) {
         <input type="checkbox" checked={!!f.readOnly} onChange={(e) => set('readOnly', e.target.checked)} aria-label={named('designer.field.readOnly')} />
       </td>
       <td>
-        <select value={f.formula ?? 'allow'} onChange={(e) => set('formula', e.target.value === 'allow' ? undefined : (e.target.value as FieldSchema['formula']))} aria-label={named('designer.field.formulas')}>
+        <Select value={f.formula ?? 'allow'} onChange={(e) => set('formula', e.target.value === 'allow' ? undefined : (e.target.value as FieldSchema['formula']))} aria-label={named('designer.field.formulas')}>
           <option value="allow">{t('designer.field.formulaAllow')}</option>
           <option value="require">{t('designer.field.formulaRequire')}</option>
           <option value="forbid">{t('designer.field.formulaForbid')}</option>
-        </select>
+        </Select>
       </td>
       {f.type === 'text' ? (
         <>
@@ -263,7 +264,7 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
         ))}
       </ul>
       <div className="wbe-add-check">
-        <select
+        <Select
           value={kind}
           onChange={(e) => {
             const k = e.target.value as DeclarativeRule['rule'];
@@ -278,33 +279,33 @@ function ChecksEditor({ table, onChange }: { table: TableSchema; onChange: (t: T
           <option value="compare">{t('designer.checks.kindCompare')}</option>
           <option value="requiredIf">{t('designer.checks.kindRequiredIf')}</option>
           <option value="uniqueTogether">{t('designer.checks.kindUniqueTogether')}</option>
-        </select>
-        <select value={perRecord ? target : field} onChange={(e) => setField(e.target.value)} aria-label={t('designer.checks.field')}>
+        </Select>
+        <Select value={perRecord ? target : field} onChange={(e) => setField(e.target.value)} aria-label={t('designer.checks.field')}>
           {!perRecord && <option value="*">{t('designer.checks.everyField')}</option>}
           {fieldOptions}
-        </select>
+        </Select>
         {kind === 'monotonic' && (
-          <select value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.direction')}>
+          <Select value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.direction')}>
             <option value="nonIncreasing">{t('designer.checks.nonIncreasing')}</option>
             <option value="nonDecreasing">{t('designer.checks.nonDecreasing')}</option>
             <option value="increasing">{t('designer.checks.increasing')}</option>
             <option value="decreasing">{t('designer.checks.decreasing')}</option>
-          </select>
+          </Select>
         )}
         {(kind === 'firstEquals' || kind === 'sum') && <input className="wbe-narrow" value={param} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.value')} />}
         {kind === 'compare' && (
-          <select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label={t('designer.checks.comparison')}>
+          <Select value={op} onChange={(e) => setOp(e.target.value as CompareOp)} aria-label={t('designer.checks.comparison')}>
             {OPS.map((o) => (
               <option key={o}>{o}</option>
             ))}
-          </select>
+          </Select>
         )}
         {kind === 'requiredIf' && <span className="wbe-muted wbe-small">{t('designer.checks.when')}</span>}
         {kind === 'uniqueTogether' && <span className="wbe-muted wbe-small">{t('designer.checks.with')}</span>}
         {perRecord && (
-          <select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? t('designer.checks.whenField') : t('designer.checks.otherField')}>
+          <Select value={other} onChange={(e) => setOther(e.target.value)} aria-label={kind === 'requiredIf' ? t('designer.checks.whenField') : t('designer.checks.otherField')}>
             {fieldOptions}
-          </select>
+          </Select>
         )}
         {kind === 'requiredIf' && <input className="wbe-narrow" value={param} placeholder={t('designer.checks.anyValue')} onChange={(e) => setParam(e.target.value)} aria-label={t('designer.checks.equals')} />}
         <button className="wbe-btn" onClick={add} disabled={perRecord && target === other}>
@@ -364,9 +365,9 @@ function CellsEditor({ cells, onChange }: { cells: CellSchema[]; onChange: (cell
                     <input className="wbe-mono" value={c.key} onChange={(e) => set(i, { key: e.target.value.replace(/\s+/g, '') })} aria-label={named('designer.field.key')} />
                   </td>
                   <td>
-                    <select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label={named('designer.field.type')}>
+                    <Select value={c.type} onChange={(e) => set(i, { type: e.target.value as FieldType })} aria-label={named('designer.field.type')}>
                       {typeOptions(t)}
-                    </select>
+                    </Select>
                   </td>
                   <td className="wbe-center">
                     <input type="checkbox" checked={!!c.required} onChange={(e) => set(i, { required: e.target.checked })} aria-label={named('designer.field.required')} />
@@ -734,27 +735,27 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                         </label>
                         <label>
                           {t('designer.schema.otherSheets')}
-                          <select value={draft.otherSheets ?? 'editable'} onChange={(e) => edit((d) => void (d.otherSheets = e.target.value as 'editable'))}>
+                          <Select value={draft.otherSheets ?? 'editable'} onChange={(e) => edit((d) => void (d.otherSheets = e.target.value as 'editable'))}>
                             <option value="editable">{t('designer.schema.editable')}</option>
                             <option value="readOnly">{t('designer.schema.readOnly')}</option>
-                          </select>
+                          </Select>
                         </label>
                         <label>
                           {t('designer.schema.saveWithErrors')}
-                          <select value={draft.saveWithErrors ?? 'block'} onChange={(e) => edit((d) => void (d.saveWithErrors = e.target.value as 'block'))}>
+                          <Select value={draft.saveWithErrors ?? 'block'} onChange={(e) => edit((d) => void (d.saveWithErrors = e.target.value as 'block'))}>
                             <option value="block">{t('designer.schema.saveBlocked')}</option>
                             <option value="confirm">{t('designer.schema.saveConfirm')}</option>
-                          </select>
+                          </Select>
                         </label>
                         <label>
                           {t('designer.schema.numbers')}
-                          <select
+                          <Select
                             value={draft.numbers?.display === 'full' ? 'exact' : 'formatted'}
                             onChange={(e) => edit((d) => void (d.numbers = e.target.value === 'exact' ? { display: 'full', copy: 'raw' } : undefined))}
                           >
                             <option value="formatted">{t('designer.schema.numbersFormatted')}</option>
                             <option value="exact">{t('designer.schema.numbersExact')}</option>
-                          </select>
+                          </Select>
                         </label>
                       </div>
 
@@ -767,10 +768,10 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                             </label>
                             <label>
                               {t('designer.sheet.outside')}
-                              <select value={sheet.outside ?? 'readOnly'} onChange={(e) => edit((d) => void (d.sheets[si].outside = e.target.value as 'readOnly'))}>
+                              <Select value={sheet.outside ?? 'readOnly'} onChange={(e) => edit((d) => void (d.sheets[si].outside = e.target.value as 'readOnly'))}>
                                 <option value="readOnly">{t('designer.schema.readOnly')}</option>
                                 <option value="editable">{t('designer.schema.editable')}</option>
-                              </select>
+                              </Select>
                             </label>
                             <label className="wbe-inline">
                               <input type="checkbox" checked={!!sheet.optional} onChange={(e) => edit((d) => void (d.sheets[si].optional = e.target.checked || undefined))} /> {t('designer.sheet.optional')}
@@ -797,10 +798,10 @@ export function SchemaDesigner({ store }: { store: WorkbookStore }) {
                                 </label>
                                 <label>
                                   {t('designer.table.orientation')}
-                                  <select value={table.orientation ?? 'rows'} onChange={(e) => reread(si, ti, { orientation: e.target.value as 'rows' })}>
+                                  <Select value={table.orientation ?? 'rows'} onChange={(e) => reread(si, ti, { orientation: e.target.value as 'rows' })}>
                                     <option value="rows">{t('designer.table.rows')}</option>
                                     <option value="columns">{t('designer.table.columns')}</option>
-                                  </select>
+                                  </Select>
                                 </label>
                                 <label className="wbe-inline" title={t('designer.table.fixedTitle')}>
                                   <input type="checkbox" checked={!!table.records?.labels} onChange={(e) => reread(si, ti, { fixed: e.target.checked })} />{' '}

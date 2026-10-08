@@ -97,13 +97,4 @@ body,
   margin-top: 10px;
 }
 
-.demo-theme,
-.demo-language {
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--wbe-border-strong);
-  border-radius: var(--wbe-radius);
-  background: var(--wbe-surface);
-  color: var(--wbe-text);
-  font: inherit;
-}
+

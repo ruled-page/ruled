@@ -6,6 +6,7 @@ import { shortcutKey } from './keys';
 import { useDialog } from './useDialog';
 import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
+import { Select } from './Select';
 
 /** Find, and find and replace, over the sheet or the whole workbook. */
 export function FindPanel({ store }: { store: WorkbookStore }) {
@@ -127,15 +128,15 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
           <input type="checkbox" checked={wholeCell} onChange={(e) => setWholeCell(e.target.checked)} /> {t('find.wholeCell')}
         </label>
         {!replacing && (
-          <select value={lookIn} onChange={(e) => setLookIn(e.target.value as FindQuery['lookIn'])} aria-label={t('find.lookIn')}>
+          <Select value={lookIn} onChange={(e) => setLookIn(e.target.value as FindQuery['lookIn'])} aria-label={t('find.lookIn')}>
             <option value="values">{t('find.inValues')}</option>
             <option value="formulas">{t('find.inFormulas')}</option>
-          </select>
+          </Select>
         )}
-        <select value={scope} onChange={(e) => setScope(e.target.value as FindQuery['scope'])} aria-label={t('find.within')}>
+        <Select value={scope} onChange={(e) => setScope(e.target.value as FindQuery['scope'])} aria-label={t('find.within')}>
           <option value="sheet">{t('find.thisSheet')}</option>
           <option value="workbook">{t('find.workbook')}</option>
-        </select>
+        </Select>
       </div>
       {current && scope === 'workbook' && <div className="wbe-find-where">{where}</div>}
     </div>

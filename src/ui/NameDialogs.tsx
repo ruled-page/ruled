@@ -16,6 +16,7 @@ import {
 } from '../state/names';
 import type { NameDialog as NameDialogState, WorkbookStore } from '../state/store';
 import { useDialog } from './useDialog';
+import { Select } from './Select';
 
 const refersToText = (n: DefinedName) => displayFormula(n.formula);
 
@@ -125,7 +126,7 @@ export function NameDialog({ store }: { store: WorkbookStore }) {
           </div>
           <div className="wbe-field">
             <label htmlFor={`${id}-scope`}>{t('names.field.scope')}</label>
-            <select
+            <Select
               id={`${id}-scope`}
               value={scope}
               disabled={editing}
@@ -144,7 +145,7 @@ export function NameDialog({ store }: { store: WorkbookStore }) {
                   {s.name}
                 </option>
               ))}
-            </select>
+            </Select>
             {editing && (
               <p id={`${id}-scope-note`} className="wbe-muted wbe-small">
                 {t('names.scope.fixed')}
@@ -243,13 +244,13 @@ export function NameManager({ store }: { store: WorkbookStore }) {
             </button>
             <label className="wbe-names-filter">
               <span>{t('names.manager.filter')}</span>
-              <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
+              <Select value={filter} onChange={(e) => setFilter(e.target.value as Filter)}>
                 {(['all', 'workbook', 'sheet', 'errors', 'noErrors'] as const).map((f) => (
                   <option key={f} value={f}>
                     {t(`names.filter.${f}`)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
           {names.length ? (

@@ -6,6 +6,7 @@ import type { WorkbookStore } from '../state/store';
 import { ContextMenu } from './ContextMenu';
 import { Icon } from './icons';
 import { useDialog } from './useDialog';
+import { Select } from './Select';
 
 const FONTS = ['Aptos', 'Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Segoe UI', 'Tahoma', 'Times New Roman', 'Verdana'];
 const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
@@ -63,7 +64,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
   );
   return (
     <div className="wbe-format-bar" role="group" aria-label={t('format.label')}>
-      <select
+      <Select
         className="wbe-format-font"
         value={s.fontFamily}
         disabled={disabled}
@@ -76,8 +77,8 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
             {f}
           </option>
         ))}
-      </select>
-      <select
+      </Select>
+      <Select
         className="wbe-format-size"
         value={String(sizePt)}
         disabled={disabled}
@@ -90,7 +91,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
             {t.number(n)}
           </option>
         ))}
-      </select>
+      </Select>
       <div className="wbe-btn-group">
         {toggle('bold', 'bold')}
         {toggle('italic', 'italic')}
@@ -130,7 +131,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
       <button className="wbe-btn wbe-icon" aria-pressed={s.wrap} disabled={disabled} onClick={() => void store.formatCells({ wrap: !s.wrap })} title={t('format.wrap')} aria-label={t('format.wrap')}>
         <Icon name="wrap" />
       </button>
-      <select
+      <Select
         className="wbe-format-number"
         value={kind ?? 'custom'}
         disabled={disabled}
@@ -148,7 +149,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
             {t(`format.number.${k}`)}
           </option>
         ))}
-      </select>
+      </Select>
       <div className="wbe-btn-group">
         <button className="wbe-btn wbe-icon" disabled={disabled} onClick={() => void store.stepDecimals(1)} title={t('format.decimalsMore')} aria-label={t('format.decimalsMore')}>
           <Icon name="decimalsMore" />

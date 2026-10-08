@@ -5,6 +5,7 @@ import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
 import type { WorkbookStore } from '../state/store';
 import { useDialog } from './useDialog';
+import { Select } from './Select';
 
 /** A defined name in the place list, told apart from a sheet with the same name. */
 const NAME = 'name:';
@@ -173,7 +174,7 @@ export function LinkDialog({ store }: { store: WorkbookStore }) {
               <div className="wbe-link-place">
                 <label className="wbe-field">
                   <span>{t('links.dialog.sheet')}</span>
-                  <select ref={first} value={draft.place} onChange={(e) => set({ place: e.target.value })}>
+                  <Select ref={first} value={draft.place} onChange={(e) => set({ place: e.target.value })}>
                     <optgroup label={t('links.dialog.sheets')}>
                       {sheets.map((name) => (
                         <option key={name} value={name}>
@@ -190,7 +191,7 @@ export function LinkDialog({ store }: { store: WorkbookStore }) {
                         ))}
                       </optgroup>
                     )}
-                  </select>
+                  </Select>
                 </label>
                 <label className="wbe-field">
                   <span>{t('links.dialog.cell')}</span>

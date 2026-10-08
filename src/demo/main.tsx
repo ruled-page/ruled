@@ -8,6 +8,7 @@ import { DEMO_NS, i18next, LANGUAGE_STORAGE_KEY, LANGUAGES } from './i18n';
 import { DEMO_SCHEMAS } from './schemas';
 import { DEMO_THEMES } from './themes';
 import { Welcome } from './Welcome';
+import { Select } from '../ui/Select';
 import './demo.css';
 
 // A consumer passes its own schemas and save handling here; the demo
@@ -59,13 +60,13 @@ function ThemePicker() {
     }
   };
   return (
-    <select className="demo-theme" value={id} onChange={(e) => choose(e.target.value)} aria-label={t('picker.theme')} title={t('picker.theme')}>
+    <Select className="demo-theme" value={id} onChange={(e) => choose(e.target.value)} aria-label={t('picker.theme')} title={t('picker.theme')}>
       {DEMO_THEMES.map((theme) => (
         <option key={theme.id} value={theme.id}>
           {t(theme.label)}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -82,13 +83,13 @@ function LanguagePicker() {
     }
   };
   return (
-    <select className="demo-language" value={i18n.language} onChange={(e) => choose(e.target.value)} aria-label={t('picker.language')} title={t('picker.language')}>
+    <Select className="demo-language" value={i18n.language} onChange={(e) => choose(e.target.value)} aria-label={t('picker.language')} title={t('picker.language')}>
       {LANGUAGES.map((l) => (
         <option key={l.code} value={l.code} lang={l.code}>
           {l.name}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 

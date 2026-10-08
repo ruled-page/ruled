@@ -250,16 +250,6 @@
   scrollbar-width: thin;
 }
 
-.wbe .wbe-format-bar select {
-  height: 30px;
-  padding: 0 6px;
-  border: 1px solid var(--wbe-border-strong);
-  border-radius: var(--wbe-radius-sm);
-  background: var(--wbe-surface);
-  color: var(--wbe-text);
-  font: inherit;
-}
-
 .wbe .wbe-format-font {
   width: 9.5em;
 }
@@ -554,6 +544,65 @@
 .wbe .wbe-btn-group .wbe-btn:last-child {
   border-radius: 0 var(--wbe-radius) var(--wbe-radius) 0;
   margin-inline-start: -1px;
+}
+
+/* Drop-down lists: the browser's select, the size of a button, with the theme's chevron for its arrow. */
+.wbe .wbe-select {
+  display: inline-grid;
+  align-items: center;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.wbe .wbe-select > select {
+  grid-area: 1 / 1;
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  margin: 0;
+  padding-block: 0;
+  padding-inline: 10px 30px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.wbe .wbe-select > select:hover:not(:disabled) {
+  background: var(--wbe-surface-alt);
+}
+
+.wbe .wbe-select > select:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wbe .wbe-select > :last-child {
+  grid-area: 1 / 1;
+  justify-self: end;
+  margin-inline-end: 9px;
+  color: var(--wbe-text-subtle);
+  pointer-events: none;
+}
+
+.wbe .wbe-select:has(> select:disabled) > :last-child {
+  opacity: 0.45;
+}
+
+/* Forced colours draw no backgrounds or icons' own colours: the browser's arrow comes back. */
+@media (forced-colors: active) {
+  .wbe .wbe-select > select {
+    appearance: auto;
+    padding-inline-end: 4px;
+  }
+
+  .wbe .wbe-select > :last-child {
+    display: none;
+  }
 }
 
 .wbe .wbe-toggle {
@@ -1611,14 +1660,10 @@
 }
 
 /* The link dialog: what the link goes to, and where in the workbook. */
-.wbe .wbe-link-dialog .wbe-field select {
-  font: inherit;
-  padding: 6px 8px;
-  border: 1px solid var(--wbe-border-strong);
+.wbe .wbe-link-dialog .wbe-field .wbe-select > select {
+  height: auto;
+  padding-block: 6px;
   border-radius: var(--wbe-radius-sm);
-  background: var(--wbe-surface);
-  color: var(--wbe-text);
-  min-width: 0;
 }
 
 .wbe .wbe-link-dialog .wbe-field input:disabled {
@@ -2133,9 +2178,7 @@
 
 /* Defined names: the dialog that defines or edits one, and the Name Manager. */
 
-.wbe .wbe-name-form .wbe-field select,
-.wbe .wbe-name-form .wbe-field textarea,
-.wbe .wbe-names-filter select {
+.wbe .wbe-name-form .wbe-field textarea {
   font: inherit;
   padding: 6px 8px;
   border: 1px solid var(--wbe-border-strong);
@@ -2144,11 +2187,18 @@
   color: var(--wbe-text);
 }
 
+.wbe .wbe-name-form .wbe-field .wbe-select > select,
+.wbe .wbe-names-filter .wbe-select > select {
+  height: auto;
+  padding-block: 6px;
+  border-radius: var(--wbe-radius-sm);
+}
+
 .wbe .wbe-name-form .wbe-field textarea {
   resize: vertical;
 }
 
-.wbe .wbe-name-form .wbe-field select:disabled {
+.wbe .wbe-name-form .wbe-field .wbe-select > select:disabled {
   color: var(--wbe-text-muted);
   background: var(--wbe-surface-alt);
 }
@@ -2862,8 +2912,7 @@
   padding-bottom: 6px;
 }
 
-.wbe .wbe-form input:not([type='checkbox']),
-.wbe .wbe-form select {
+.wbe .wbe-form input:not([type='checkbox']) {
   height: 28px;
   border: 1px solid var(--wbe-border-strong);
   border-radius: var(--wbe-radius);
@@ -2884,8 +2933,13 @@
   width: 64px;
 }
 
+.wbe .wbe-form .wbe-select > select {
+  height: 28px;
+  font-size: var(--wbe-font-size-sm);
+}
+
 .wbe .wbe-form input:focus,
-.wbe .wbe-form select:focus,
+.wbe .wbe-form .wbe-select > select:focus,
 .wbe .wbe-json-editor textarea:focus {
   outline: 2px solid var(--wbe-focus-ring);
   outline-offset: 0;
@@ -3339,9 +3393,13 @@
   font-weight: 600;
 }
 
+.wbe .wbe-find-panel .wbe-select > select {
+  height: 28px;
+  border-radius: var(--wbe-radius-sm);
+}
+
 .wbe .wbe-filter-search,
-.wbe .wbe-find-panel input:not([type]),
-.wbe .wbe-find-panel select {
+.wbe .wbe-find-panel input:not([type]) {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--wbe-border-strong);
