@@ -122,6 +122,39 @@ describe('saving without a host', () => {
   });
 });
 
+describe('results that may be out of date', () => {
+  /** B2 uses a function the editor can't calculate, and C2 reads it. */
+  async function chain(): Promise<Uint8Array> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Rates');
+    ws.addRow(['Input', 'Lookup', 'Doubled']);
+    ws.addRow([1, { formula: '_xludf.RATE_FOR(A2)', result: 0.25 }, { formula: 'B2*2', result: 0.5 }]);
+    return new Uint8Array(await wb.xlsx.writeBuffer());
+  }
+
+  it('asks before saving them, and tells the host which cells they are', async () => {
+    const saves: SavedWorkbook[] = [];
+    await open({ onSave: (f) => void saves.push(f) }, await chain(), 'rates.xlsx');
+    await store.download();
+    // Nothing changed, so Excel's results stand and nothing is asked.
+    expect(saves.map((f) => f.outOfDate)).toEqual([[]]);
+
+    await store.input(1, 0, '2');
+    const saving = store.download();
+    expect(english.text((await answer('cancel')).title)).toBe('Save results that may be out of date?');
+    await saving;
+    expect(saves).toHaveLength(1);
+
+    const again = store.download();
+    expect(english.text((await answer('confirm')).body)).toMatch(/^2 formulas may be out of date\./);
+    await again;
+    expect(saves[1].outOfDate).toEqual([
+      { sheet: 'Rates', ref: 'B2' },
+      { sheet: 'Rates', ref: 'C2' },
+    ]);
+  });
+});
+
 describe('saving to the host', () => {
   it('hands over the file, its changes and the history in the editor’s language', async () => {
     let got: SavedWorkbook | undefined;

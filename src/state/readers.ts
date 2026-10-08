@@ -1,5 +1,5 @@
-import { MAX_COLS, MAX_ROWS, parseA1, parseRange } from '../core/refs';
-import type { DisplayStyle, Rect } from '../core/types';
+import { MAX_COLS, MAX_ROWS, parseA1, parseRange, toA1 } from '../core/refs';
+import { CellFlag, type DisplayStyle, type Rect } from '../core/types';
 import type { JsonValue } from '../schema/types';
 import { cellJson } from './format';
 import type { SheetView } from './sheetView';
@@ -9,6 +9,20 @@ export interface WorkbookReaders {
   cell(sheet: string, ref: string): JsonValue;
   /** A range's values row by row, e.g. range('Data', 'A1:F200'); without a range, the sheet's used range. */
   range(sheet: string, ref?: string): JsonValue[][];
+}
+
+/**
+ * Formulas whose value may be out of date: ones this editor can't calculate,
+ * still showing Excel's last result although a cell they depend on changed,
+ * and every formula that depends on one of those.
+ */
+export function outOfDateCells(sheets: SheetView[]): { sheet: string; ref: string }[] {
+  return sheets.flatMap((view) =>
+    view
+      .flagged(CellFlag.Stale)
+      .sort((a, b) => a.row - b.row || a.col - b.col)
+      .map(({ row, col }) => ({ sheet: view.info.name, ref: toA1(row, col) })),
+  );
 }
 
 /** The A1 parser takes row 0 and columns past XFD; neither is on a sheet. */

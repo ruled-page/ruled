@@ -140,6 +140,13 @@ export class SheetView {
     this.version++;
   }
 
+  /** Cells updated since the file was read whose flags include `flag`, in no particular order. */
+  flagged(flag: number): { row: number; col: number }[] {
+    const out: { row: number; col: number }[] = [];
+    for (const [key, rec] of this.overlay) if (rec.flags & flag) out.push({ row: Math.floor(key / MAX_COLS), col: key % MAX_COLS });
+    return out;
+  }
+
   /** Calls fn for each non-empty cell inside rect (file cells and overlay). */
   /** The last row and column in use: the file's used range, grown by cells typed or pasted beyond it. */
   extent(): { maxRow: number; maxCol: number } {

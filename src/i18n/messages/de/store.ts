@@ -23,6 +23,12 @@ export const store: Record<keyof typeof en, string> = {
   'store.save.withErrorsTitle': 'Trotz Fehlern speichern?',
   'store.save.withErrorsBody': '{{reason}} Die Datei trotzdem speichern?',
   'store.save.withErrorsConfirm': 'Trotzdem speichern',
+  'store.save.outOfDateTitle': 'Möglicherweise veraltete Ergebnisse speichern?',
+  'store.save.outOfDateBody_one':
+    '{{count, number}} Formel ist möglicherweise veraltet. Sie verwendet etwas, das dieser Editor nicht berechnen kann, eine Zelle, von der sie abhängt, hat sich geändert, und sie zeigt noch das letzte Ergebnis aus Excel. Excel berechnet sie beim nächsten Öffnen der Datei neu. Trotzdem speichern?',
+  'store.save.outOfDateBody_other':
+    '{{count, number}} Formeln sind möglicherweise veraltet. Sie verwenden etwas, das dieser Editor nicht berechnen kann, Zellen, von denen sie abhängen, haben sich geändert, und sie zeigen noch die letzten Ergebnisse aus Excel. Excel berechnet sie beim nächsten Öffnen der Datei neu. Trotzdem speichern?',
+  'store.save.outOfDateConfirm': 'Trotzdem speichern',
   'store.save.reviewTitle_one': '{{count, number}} geänderte Zelle speichern?',
   'store.save.reviewTitle_other': '{{count, number}} geänderte Zellen speichern?',
   'store.save.reviewBody': 'Prüfen Sie jeden Wert, bevor er in die Datei übernommen wird.',

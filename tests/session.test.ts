@@ -97,6 +97,27 @@ describe('kitchen-sink.xlsx', () => {
     expect(r.undo).toHaveLength(1);
   });
 
+  it('marks a whole chain stale, through formulas it can’t calculate and the ones it can', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Chain');
+    ws.getCell('A1').value = 1;
+    // B1 and C1 use functions the engine doesn't have; D1 and F1 it calculates.
+    ws.getCell('B1').value = { formula: '_xludf.FOO(A1)', result: 2 };
+    ws.getCell('C1').value = { formula: '_xludf.BAR(B1)', result: 20 };
+    ws.getCell('D1').value = { formula: 'C1*10', result: 200 };
+    ws.getCell('E1').value = { formula: '_xludf.BAZ(D1)', result: 7 };
+    ws.getCell('F1').value = { formula: 'E1+1', result: 8 };
+    ws.getCell('G1').value = { formula: 'A1+1', result: 2 };
+    const s = WorkbookSession.open(new Uint8Array(await wb.xlsx.writeBuffer()), 'chain.xlsx');
+    s.ensureEngine();
+    const r = s.apply({ type: 'input', sheet: 0, ...at('A1'), text: '5' });
+    const stale = (ref: string) => has(updateAt(r.updates, s, 'Chain', ref)?.flags, CellFlag.Stale);
+    expect(['B1', 'C1', 'D1', 'E1', 'F1'].map(stale)).toEqual([true, true, true, true, true]);
+    // A formula the engine calculates from the changed cell is up to date.
+    expect(stale('G1')).toBe(false);
+    expect(valueOf(updateAt(r.updates, s, 'Chain', 'G1'))).toBe(6);
+  });
+
   it('saves only what changed and the result reopens with the edit', async () => {
     const s = open('kitchen-sink.xlsx');
     s.ensureEngine();

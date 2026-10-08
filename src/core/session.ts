@@ -814,30 +814,43 @@ export class WorkbookSession {
     return report;
   }
 
-  /** Marks formulas the engine cannot vouch for after the given cells changed. */
+  /**
+   * Marks formulas the engine cannot vouch for after the given cells changed.
+   * The engine holds formulas it can't calculate as Excel's saved values, so it
+   * doesn't know what they read: a chain of them is followed here, round by
+   * round, along with the engine's own formulas that read each one.
+   */
   private markStale(changed: Pos[], extraRoots: Pos[] = []): Pos[] {
-    const roots: Pos[] = [...extraRoots];
-    if (this.untrusted.length && changed.length) {
-      for (const u of this.untrusted) {
-        if (this.stale[u.target.sheet].has(cellKey(u.target.row, u.target.col))) continue;
-        if (!this.isUntrustedOriginal(u.target.sheet, u.target.row, u.target.col)) continue;
-        const hit =
-          u.reads === null ||
-          changed.some((c) => u.reads!.some((r) => r.sheet === c.sheet && inRect(r.rect, c.row, c.col)));
-        if (hit) roots.push(u.target);
-      }
-    }
-    if (!roots.length) return [];
     const out: Pos[] = [];
-    const mark = (p: Pos) => {
+    const mark = (p: Pos): boolean => {
       const key = cellKey(p.row, p.col);
-      if (this.stale[p.sheet].has(key)) return;
-      if (this.current(p.sheet, p.row, p.col).content.kind !== 'formula') return;
+      if (this.stale[p.sheet].has(key)) return false;
+      if (this.current(p.sheet, p.row, p.col).content.kind !== 'formula') return false;
       this.stale[p.sheet].add(key);
       out.push(p);
+      return true;
     };
-    for (const r of roots) if (!extraRoots.includes(r)) mark(r);
-    for (const d of this.engine?.dependentsOf(roots) ?? []) mark(d);
+    let frontier = changed;
+    let roots: Pos[] = [...extraRoots];
+    for (let round = 0; frontier.length || roots.length; round++) {
+      if (this.untrusted.length && frontier.length) {
+        for (const u of this.untrusted) {
+          if (this.stale[u.target.sheet].has(cellKey(u.target.row, u.target.col))) continue;
+          if (!this.isUntrustedOriginal(u.target.sheet, u.target.row, u.target.col)) continue;
+          // A formula that could read anything is hit by the first change only.
+          const hit =
+            (u.reads === null && round === 0) ||
+            (u.reads !== null && frontier.some((c) => u.reads!.some((r) => r.sheet === c.sheet && inRect(r.rect, c.row, c.col))));
+          if (hit) roots.push(u.target);
+        }
+      }
+      if (!roots.length) break;
+      const next: Pos[] = [];
+      for (const r of roots) if (!extraRoots.includes(r) && mark(r)) next.push(r);
+      for (const d of this.engine?.dependentsOf(roots) ?? []) if (mark(d)) next.push(d);
+      frontier = next;
+      roots = [];
+    }
     return out;
   }
 

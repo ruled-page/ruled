@@ -184,7 +184,10 @@ by `saveLabel`) runs the schema checks and hands the host the saved workbook:
   single cells, as plain JSON (dates as ISO text), with `schema` naming the
   schema, its version and the errors and warnings it found;
 - `cell(sheet, ref)` and `range(sheet, ref?)`: any value, for hosts without a schema;
-- `changes` (each change, before and after) and `history`.
+- `changes` (each change, before and after) and `history`;
+- `outOfDate`: formulas whose value may be stale because they use something
+  the editor can't calculate and a cell they depend on changed (Excel
+  recalculates them on opening). Save asks before saving any.
 
 The host can keep the file, the values or both. A separate Download button
 exports a copy without saving it to the host, and leaving the page warns only

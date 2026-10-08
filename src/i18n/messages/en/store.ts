@@ -19,6 +19,12 @@ export const store = {
   'store.save.withErrorsTitle': 'Save with errors?',
   'store.save.withErrorsBody': '{{reason}} Save the file anyway?',
   'store.save.withErrorsConfirm': 'Save anyway',
+  'store.save.outOfDateTitle': 'Save results that may be out of date?',
+  'store.save.outOfDateBody_one':
+    "{{count, number}} formula may be out of date. It uses something this editor can't calculate, a cell it depends on has changed, and it still shows Excel's last result. Excel recalculates it when the file is next opened. Save anyway?",
+  'store.save.outOfDateBody_other':
+    "{{count, number}} formulas may be out of date. They use something this editor can't calculate, cells they depend on have changed, and they still show Excel's last results. Excel recalculates them when the file is next opened. Save anyway?",
+  'store.save.outOfDateConfirm': 'Save anyway',
   'store.save.reviewTitle_one': 'Save {{count, number}} changed cell?',
   'store.save.reviewTitle_other': 'Save {{count, number}} changed cells?',
   'store.save.reviewBody': 'Check each value before it goes into the file.',

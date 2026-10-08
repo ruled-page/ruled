@@ -27,7 +27,7 @@ import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './draf
 import { pasteRisks } from './pasteRisks';
 import { parseClipboardText } from './clipboard';
 import { displayText, editText, exactText } from './format';
-import { workbookReaders, type WorkbookReaders } from './readers';
+import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { SheetView } from './sheetView';
@@ -115,6 +115,13 @@ export interface SavedWorkbook extends WorkbookReaders {
   schema?: { id: string; name: string; version?: string; errors: number; warnings: number };
   /** The values in the shape of that schema: each table's records by field, each single cell. */
   values?: SchemaValues;
+  /**
+   * Formulas whose saved value may be out of date: this editor can't calculate
+   * them, a cell they depend on changed, and they still hold Excel's last
+   * result (as does any formula reading one). Excel recalculates them when the
+   * file is next opened; until then, don't rely on their values.
+   */
+  outOfDate: { sheet: string; ref: string }[];
 }
 
 export interface EditorFeatures {
@@ -697,6 +704,7 @@ export class WorkbookStore {
         changes: res.changes,
         history: this.history.map((h) => ({ ...h, action: this.t.text(h.action) })),
         editedCount: this.editedCount,
+        outOfDate: outOfDateCells(this.sheets),
         ...(ctl && summary
           ? {
               schema: { id: ctl.schema.id, name: this.t.localized(ctl.schema.name), version: ctl.schema.version, errors: summary.errors, warnings: summary.warnings },
@@ -739,6 +747,17 @@ export class WorkbookStore {
         if (!go) return;
       }
     }
+    await this.queue;
+    const outOfDate = outOfDateCells(this.sheets).length;
+    if (
+      outOfDate &&
+      !(await this.confirm({
+        title: msg('store.save.outOfDateTitle'),
+        body: msg('store.save.outOfDateBody', { count: outOfDate }),
+        confirmLabel: msg('store.save.outOfDateConfirm'),
+      }))
+    )
+      return;
     const saved = await this.save();
     if (!saved) return;
     if (this.numbers.reviewBeforeSave && saved.changes.length) {
