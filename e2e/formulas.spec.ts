@@ -75,6 +75,16 @@ test.describe('typing a formula in the formula bar', () => {
     await expect(input).toBeFocused();
   });
 
+  test('keeps the highlighted function in view in a long list, and goes round from the top to the bottom', async ({ page }) => {
+    await page.keyboard.type('=C');
+    const options = page.getByRole('listbox').getByRole('option');
+    expect(await options.count()).toBeGreaterThan(40);
+    await expect(options.last()).not.toBeInViewport();
+    await page.keyboard.press('ArrowUp');
+    await expect(options.last()).toHaveAttribute('aria-selected', 'true');
+    await expect(options.last()).toBeInViewport();
+  });
+
   test('marks the functions it leaves for Excel to calculate, and inserts a function clicked', async ({ page }) => {
     await page.keyboard.type('=LE');
     await expect(page.getByRole('option', { name: 'LET Not calculated here' })).toBeVisible();

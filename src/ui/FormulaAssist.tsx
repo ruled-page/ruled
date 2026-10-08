@@ -147,7 +147,17 @@ export function FunctionList({ id, completion, active, onPick, onHover }: { id: 
   const fn = completion.matches[active];
   return (
     <>
-      <ul className="wbe-fx-list" id={id} role="listbox" aria-label={t('formulaHelp.functions')} ref={list}>
+      <ul
+        className="wbe-fx-list"
+        id={id}
+        role="listbox"
+        aria-label={t('formulaHelp.functions')}
+        ref={list}
+        // The list can't be scrolled by the user directly (see editor.css); the wheel scrolls it here.
+        onWheel={(e) => {
+          e.currentTarget.scrollTop += e.deltaY * (e.deltaMode === 1 ? 23 : 1);
+        }}
+      >
         {completion.matches.map((f, i) => (
           <li
             key={f.name}

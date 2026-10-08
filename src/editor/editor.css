@@ -761,12 +761,15 @@
   z-index: 1;
 }
 
+/* Scrolled by the arrow keys, which keep the highlighted function in view,
+   and the wheel; not a scrolling region of its own, which would need the
+   focus that stays in the formula. */
 .wbe .wbe-fx-list {
   list-style: none;
   margin: 0;
   padding: 4px 0;
   max-height: 232px;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .wbe .wbe-fx-list li {
