@@ -75,3 +75,32 @@ test('opens the colour palette and the borders menu from the keyboard', async ({
   expect(lines.getCell('B2').font?.color).toMatchObject({ argb: 'FFFF0000' });
   expect(lines.getCell('B2').border).toMatchObject({ top: { style: 'thin' }, right: { style: 'thin' } });
 });
+
+test('pastes from Excel with its formats, and pastes transposed from the menu', async ({ page, browserName }) => {
+  test.skip(browserName === 'firefox', 'Firefox gives a paste event made by a script its own empty clipboard data.');
+  const bar = page.getByRole('group', { name: 'Format' });
+  await goTo(page, 'A6');
+  await page.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/plain', 'Bold\tRed\r\n');
+    data.setData('text/html', '<style><!--.xl65 {font-weight:700;} .xl66 {color:red; background:yellow;}--></style><table><tr><td class=xl65>Bold</td><td class=xl66>Red</td></tr></table>');
+    document.activeElement!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await expect(shown(page, 'B6')).toHaveText('Red');
+  await expect(bar.getByRole('button', { name: 'Bold' })).toHaveAttribute('aria-pressed', 'true');
+
+  // Copy A1:B2 and paste it on its side at D6.
+  await goTo(page, 'A1:B2');
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Copy' }).click();
+  await goTo(page, 'D6');
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Paste special' }).click();
+  await page.getByRole('menuitem', { name: 'Transposed' }).click();
+  await expect(shown(page, 'E6')).toHaveText('Bolts');
+  await expect(shown(page, 'D7')).toHaveText('Qty');
+
+  const lines = (await save(page)).getWorksheet('Lines')!;
+  expect(lines.getCell('A6').font).toMatchObject({ bold: true });
+  expect(lines.getCell('B6').fill).toMatchObject({ fgColor: { argb: 'FFFFFF00' } });
+});

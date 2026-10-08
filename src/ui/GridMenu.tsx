@@ -76,6 +76,16 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.cut'), hint: mod(t, 'X'), onSelect: () => void store.copySelection(true), disabled: locked },
     { label: t('menu.copy'), hint: mod(t, 'C'), onSelect: () => void store.copySelection(false) },
     { label: t('menu.paste'), hint: mod(t, 'V'), onSelect: () => void store.pasteFromClipboard(), disabled: cellsLocked },
+    {
+      label: t('menu.pasteSpecial'),
+      disabled: cellsLocked,
+      items: [
+        { label: t('menu.pasteValues'), onSelect: () => void store.pasteSpecial('values') },
+        { label: t('menu.pasteFormulas'), onSelect: () => void store.pasteSpecial('formulas') },
+        { label: t('menu.pasteFormats'), onSelect: () => void store.pasteSpecial('formats') },
+        { label: t('menu.pasteTransposed'), onSelect: () => void store.pasteSpecial('all', true) },
+      ],
+    },
     { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
     { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
     { separator: true },

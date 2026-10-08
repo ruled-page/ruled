@@ -7,7 +7,11 @@ back as .xlsx without losing what the editor can't display.
   widths, merged cells, hidden rows and columns, frozen rows and columns.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill (series,
-  dates, months, "Item 1" → "Item 2"), clear, undo and redo.
+  dates, months, "Item 1" → "Item 2"), clear, undo and redo. Pasting from
+  Excel or Google Sheets brings the cells' formats too (bold, colours,
+  borders, alignment, number formats). Paste special pastes only the values,
+  the formulas or the formats of cells copied in the workbook, or pastes
+  them transposed.
 - Format cells from the format bar: font and size, bold, italic, underline
   and strikethrough, font and fill colours, borders, alignment and wrapping,
   number formats (with more or fewer decimals), and clearing formats. Each

@@ -1085,14 +1085,28 @@ export class WorkbookSession {
       case 'copy': {
         const h = op.src.r2 - op.src.r1 + 1;
         const w = op.src.c2 - op.src.c1 + 1;
+        const what = op.what ?? 'all';
         let lost = 0;
         for (let row = op.dst.r1; row <= op.dst.r2; row++) {
           for (let col = op.dst.c1; col <= op.dst.c2; col++) {
-            const sr = op.src.r1 + ((row - op.dst.r1) % h);
-            const sc = op.src.c1 + ((col - op.dst.c1) % w);
+            // Turned on its side, the destination's rows come from the source's columns.
+            const [down, across] = op.transpose ? [col - op.dst.c1, row - op.dst.r1] : [row - op.dst.r1, col - op.dst.c1];
+            const sr = op.src.r1 + (down % h);
+            const sc = op.src.c1 + (across % w);
+            const here = this.current(op.sheet, row, col);
+            if (what === 'formats') {
+              put({ sheet: op.sheet, row, col, content: here.content, style: this.current(op.srcSheet, sr, sc).style });
+              continue;
+            }
             const r = this.copiedContent(op.srcSheet, sr, sc, row, col);
+            if (what === 'values') {
+              const src = this.current(op.srcSheet, sr, sc);
+              const content = src.content.kind === 'formula' ? valueContent(this.formulaValue(op.srcSheet, sr, sc)) : src.content;
+              put({ sheet: op.sheet, row, col, content, style: here.style });
+              continue;
+            }
             if (r.lost) lost++;
-            put({ sheet: op.sheet, row, col, content: r.content, style: r.style });
+            put({ sheet: op.sheet, row, col, content: r.content, style: what === 'formulas' ? here.style : r.style });
           }
         }
         if (lost) warnings.push(msg('core.edit.copiedAsValues', { count: lost }));

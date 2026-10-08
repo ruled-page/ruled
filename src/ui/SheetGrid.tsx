@@ -28,6 +28,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { colToLetters, inRect } from '../core/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
+import { clipboardFormats } from '../state/clipboardFormats';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText } from '../state/format';
 import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
@@ -677,12 +678,13 @@ export function SheetGrid({
       if (!text) return;
       e.preventDefault();
       const values = parseClipboardText(text);
-      // Excel's HTML has the exact values of the numbers its text shows rounded.
+      // Excel's HTML has the exact values of the numbers its text shows rounded, and each cell's formats.
       const html = e.clipboardData?.getData('text/html');
       const exact = html ? clipboardNumbers(html) : undefined;
+      const formats = html ? clipboardFormats(html) : undefined;
       const sel = store.selection;
       const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
-      void store.paste({ row: rect.r1, col: rect.c1 }, values, rect, false, exact);
+      void store.paste({ row: rect.r1, col: rect.c1 }, values, rect, false, exact, formats);
     };
     window.addEventListener('paste', onPaste, true);
     return () => window.removeEventListener('paste', onPaste, true);

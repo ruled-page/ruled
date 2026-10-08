@@ -21,6 +21,7 @@ import {
   type BorderPlacement,
   type Finding,
   type FormatChange,
+  type PastePart,
   type LayoutOp,
   type ListValidation,
   type Rect,
@@ -32,7 +33,7 @@ import { CSV_FILE, type CsvOptions } from '../core/csv';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
 import { pasteRisks } from './pasteRisks';
-import { parseClipboardText } from './clipboard';
+import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
 import { displayText, editText, exactText } from './format';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
@@ -1882,6 +1883,48 @@ export class WorkbookStore {
     await this.paste({ row: rect.r1, col: rect.c1 }, parseClipboardText(text), rect);
   }
 
+  /**
+   * Excel's Paste Special: only the values (formulas' results), the
+   * formulas or the formats of what was copied in this workbook, or all of
+   * it turned on its side. From another app only text is to hand, so values
+   * and turning on its side are what can be pasted from there.
+   */
+  async pasteSpecial(what: PastePart, transpose = false): Promise<void> {
+    const view = this.view;
+    const clip = this.clip;
+    const sel = this.selection;
+    const at = { row: sel.rects[0]?.r1 ?? sel.row, col: sel.rects[0]?.c1 ?? sel.col };
+    if (!view) return;
+    if (clip?.cut) return this.toast('info', msg('store.pasteSpecial.notAfterCut'));
+    if (!clip) {
+      if (what === 'formulas' || what === 'formats') return this.toast('info', msg('store.pasteSpecial.copyHere'));
+      let text: string;
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        return this.toast('warn', msg('store.clipboard.readBlocked'));
+      }
+      const values = parseClipboardText(text);
+      const cell = { r1: at.row, c1: at.col, r2: at.row, c2: at.col };
+      return this.paste(at, transpose ? transposeGrid(values) : values, cell);
+    }
+    const h = clip.rect.r2 - clip.rect.r1 + 1;
+    const w = clip.rect.c2 - clip.rect.c1 + 1;
+    const dst: Rect = { r1: at.row, c1: at.col, r2: at.row + (transpose ? w : h) - 1, c2: at.col + (transpose ? h : w) - 1 };
+    if (dst.r2 >= MAX_ROWS || dst.c2 >= MAX_COLS) return this.toast('warn', msg('store.pasteSpecial.noRoom'));
+    if (what !== 'formats') {
+      const src = this.sheets[clip.sheet];
+      const keeps = (row: number, col: number) => {
+        if (what === 'values') return false;
+        const [down, across] = transpose ? [col - dst.c1, row - dst.r1] : [row - dst.r1, col - dst.c1];
+        return !!((src.get(clip.rect.r1 + down, clip.rect.c1 + across)?.flags ?? 0) & CellFlag.Formula);
+      };
+      if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
+    }
+    const label = msg(transpose && what === 'all' ? 'store.history.pasteTransposed' : `store.history.paste.${what}`);
+    await this.edit({ type: 'copy', srcSheet: clip.sheet, src: clip.rect, sheet: this.active, dst, what, transpose }, 'undo', { label });
+  }
+
   /** The range marked by the last cut, shown with a dashed outline until it is pasted. */
   get cutRange(): { sheet: number; rect: Rect } | undefined {
     return this.clip?.cut ? { sheet: this.clip.sheet, rect: this.clip.rect } : undefined;
@@ -1982,6 +2025,7 @@ export class WorkbookStore {
     selection: Rect,
     ownClipboard = false,
     exact?: readonly (readonly (number | null)[])[],
+    formats?: readonly (readonly (FormatChange | null)[])[],
   ): Promise<void> {
     const view = this.view;
     const clip = this.clip;
@@ -2063,7 +2107,36 @@ export class WorkbookStore {
     if (!(await this.okToReplace(this.formulasLost(view, [dst], keeps)))) return;
     if (rectCells(dst) > 200_000) this.toast('info', msg('store.paste.large', { count: rectCells(dst) }));
     if (!(await this.growTableTo(dst))) return;
-    await this.edit({ type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}) });
+    const text: EditOp = { type: 'pasteText', sheet: this.active, row: dst.r1, col: dst.c1, values: grid, ...(numbers ? { exact: numbers } : {}) };
+    const formatOps = formats && this.features.format && rectCells(dst) <= 100_000 ? this.pastedFormats(dst, formats, h, w) : [];
+    await this.edit(formatOps.length ? { type: 'batch', ops: [text, ...formatOps] } : text, 'undo', { label: msg('store.history.paste') });
+  }
+
+  /**
+   * The formats pasted from another app, as format changes over the cells
+   * they land on, tiled as the values are: cells in a row with the same
+   * formats share one change.
+   */
+  private pastedFormats(dst: Rect, formats: readonly (readonly (FormatChange | null)[])[], h: number, w: number): EditOp[] {
+    const byChange = new Map<string, { change: FormatChange; rects: Rect[] }>();
+    for (let row = dst.r1; row <= dst.r2; row++) {
+      let run: { key: string; rect: Rect } | undefined;
+      for (let col = dst.c1; col <= dst.c2 + 1; col++) {
+        const change = col <= dst.c2 ? formats[(row - dst.r1) % h]?.[(col - dst.c1) % w] : null;
+        const key = change ? JSON.stringify(change) : '';
+        if (run && run.key === key) {
+          run.rect.c2 = col;
+          continue;
+        }
+        if (run) {
+          const group = byChange.get(run.key) ?? { change: JSON.parse(run.key) as FormatChange, rects: [] };
+          group.rects.push(run.rect);
+          byChange.set(run.key, group);
+        }
+        run = key ? { key, rect: { r1: row, r2: row, c1: col, c2: col } } : undefined;
+      }
+    }
+    return [...byChange.values()].map(({ change, rects }) => ({ type: 'format', sheet: this.active, rects, change }));
   }
 
   /**

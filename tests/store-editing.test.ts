@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { VT } from '../src/core/types';
+import { CellFlag, VT } from '../src/core/types';
 import { english } from '../src/i18n';
 import type { Answer, ConfirmRequest, StoreOptions, WorkbookStore } from '../src/state/store';
 import { clipboardNumbers } from '../src/state/clipboard';
@@ -546,5 +546,89 @@ describe('filling', () => {
     store.setSelection({ row: 1, col: 0, rects: [rect(1, 0, 3, 0)] });
     await store.fillDown(true);
     expect(store.history).toHaveLength(0);
+  });
+});
+
+describe('paste special', () => {
+  /** Copies `src` here, without the system clipboard, and selects the cell at `row`, `col`. */
+  function copyThen(src: ReturnType<typeof rect>, row: number, col: number) {
+    store.noteCopy(src);
+    store.setSelection({ row, col, rects: [rect(row, col)] });
+  }
+
+  it('pastes the values of formulas, keeping the destination formats', async () => {
+    await open();
+    store.setSelection({ row: 0, col: 4, rects: [rect(0, 4)] });
+    await store.formatCells({ italic: true });
+    copyThen(rect(1, 3, 2, 3), 0, 4);
+    await store.pasteSpecial('values');
+    expect([cell(0, 4)?.n, cell(1, 4)?.n]).toEqual([6, 2]);
+    expect(cell(0, 4)!.flags & CellFlag.Formula).toBe(0);
+    expect(store.styles[cell(0, 4)!.style].italic).toBe(true);
+    expect(lastAction()).toBe('Paste values');
+  });
+
+  it('pastes formulas, moving their references, or only the formats', async () => {
+    await open();
+    copyThen(rect(1, 3), 3, 3);
+    // D4 holds a value; the formula replaces it.
+    await store.pasteSpecial('formulas');
+    expect(cell(3, 3)?.f).toBe('B4*C4');
+    store.setSelection({ row: 0, col: 0, rects: [rect(0, 0)] });
+    await store.formatCells({ fill: '#FF0000' });
+    copyThen(rect(0, 0), 3, 0);
+    await store.pasteSpecial('formats');
+    expect(cell(3, 0)?.s).toBe('Washers');
+    expect(store.styles[cell(3, 0)!.style].fill).toBe('#FF0000');
+  });
+
+  it('pastes on its side, and transposes text from another app', async () => {
+    await open();
+    copyThen(rect(0, 0, 1, 2), 6, 0);
+    await store.pasteSpecial('all', true);
+    expect([cell(6, 0)?.s, cell(6, 1)?.s, cell(7, 0)?.s, cell(8, 1)?.n]).toEqual(['Item', 'Bolts', 'Qty', 3]);
+    expect(lastAction()).toBe('Paste transposed');
+
+    store.cancelCut();
+    (store as unknown as { clip?: unknown }).clip = undefined;
+    vi.stubGlobal('navigator', { clipboard: { readText: async () => 'a\tb\nc\td' } });
+    store.setSelection({ row: 10, col: 0, rects: [rect(10, 0)] });
+    await store.pasteSpecial('values', true);
+    expect([cell(10, 0)?.s, cell(10, 1)?.s, cell(11, 0)?.s, cell(11, 1)?.s]).toEqual(['a', 'c', 'b', 'd']);
+    await store.pasteSpecial('formats');
+    expect(toasts()).toEqual(['Formulas and formats can be pasted from cells copied in this workbook. Copy them here first.']);
+  });
+
+  it('refuses after a cut, and where there is no room', async () => {
+    await open();
+    store.noteCopy(rect(0, 0), true);
+    await store.pasteSpecial('values');
+    store.noteCopy(rect(0, 0, 0, 3));
+    store.setSelection({ row: 5, col: 16_382, rects: [rect(5, 16_382)] });
+    await store.pasteSpecial('all');
+    expect(toasts()).toEqual(['Cut cells can only be pasted whole, as in Excel. Copy them instead.', "There isn't room on the sheet for what was copied there."]);
+  });
+});
+
+describe('pasting formats from another app', () => {
+  it('formats the pasted cells as the source had them, in the same step, tiled with the values', async () => {
+    await open();
+    const bold = { bold: true };
+    const red = { fill: '#FF0000', numFmt: '0.00%' };
+    store.setSelection({ row: 6, col: 0, rects: [rect(6, 0, 7, 3)] });
+    await store.paste({ row: 6, col: 0 }, [['a', '0.5']], rect(6, 0, 7, 3), false, undefined, [[bold, red]]);
+    expect(cell(7, 2)?.s).toBe('a');
+    expect(store.styles[cell(7, 2)!.style].bold).toBe(true);
+    expect(store.styles[cell(6, 3)!.style]).toMatchObject({ fill: '#FF0000', numFmt: '0.00%' });
+    expect(lastAction()).toBe('Paste');
+    await store.undo();
+    expect(cell(6, 3)?.s).toBeUndefined();
+    expect(store.styles[cell(6, 3)?.style ?? 0].fill).toBeUndefined();
+  });
+
+  it('leaves formats out when the host turns the format bar off', async () => {
+    await open({ features: { format: false } });
+    await store.paste({ row: 6, col: 0 }, [['a']], rect(6, 0), false, undefined, [[{ bold: true }]]);
+    expect(store.styles[cell(6, 0)!.style].bold).toBe(false);
   });
 });

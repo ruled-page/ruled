@@ -106,3 +106,9 @@ export function clipboardNumbers(html: string): (number | null)[][] | undefined 
   }
   return rows;
 }
+
+/** Rows as columns and columns as rows; short rows count as padded with empty text. */
+export function transposeGrid(values: readonly (readonly string[])[]): string[][] {
+  const width = Math.max(0, ...values.map((r) => r.length));
+  return Array.from({ length: width }, (_, c) => values.map((r) => r[c] ?? ''));
+}

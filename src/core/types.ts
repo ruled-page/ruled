@@ -441,8 +441,12 @@ export type EditOp =
   /** Text pasted from elsewhere; `exact` has the full value of numbers the text shows rounded, where the source gave it. */
   | { type: 'pasteText'; sheet: number; row: number; col: number; values: string[][]; exact?: (number | null)[][] }
   | { type: 'clear'; sheet: number; rects: Rect[] }
-  /** Copy cells within the workbook, tiling the source over the destination. */
-  | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect }
+  /**
+   * Copy cells within the workbook, tiling the source over the destination:
+   * everything, or only the values (formulas' results), the formulas or the
+   * formats, and turned on its side with `transpose`.
+   */
+  | { type: 'copy'; srcSheet: number; src: Rect; sheet: number; dst: Rect; what?: PastePart; transpose?: boolean }
   /** Drag-fill from the source into the destination, extending series. */
   | { type: 'fill'; sheet: number; src: Rect; dst: Rect }
   /** Put cells, and the layout, back to an exact earlier state (undo/redo). */
@@ -499,6 +503,9 @@ export interface FormatChange {
   indent?: number;
   border?: Partial<Record<'left' | 'right' | 'top' | 'bottom', BorderEdge | null>>;
 }
+
+/** What a paste takes from what was copied, as Excel's Paste Special offers. */
+export type PastePart = 'all' | 'values' | 'formulas' | 'formats';
 
 /** Which edges of a range's cells a border goes on. */
 export type BorderPlacement = 'all' | 'outside' | 'inside' | 'top' | 'bottom' | 'left' | 'right' | 'none';
