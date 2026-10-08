@@ -335,6 +335,12 @@ export interface Selection {
   col: number;
   /** Selected ranges, in sheet coordinates. */
   rects: Rect[];
+  /**
+   * Whole rows or columns, or the whole sheet, as selected by their numbers,
+   * their letters or the corner. Their rects reach the end of the used range;
+   * the grid shows the lines in full.
+   */
+  lines?: 'rows' | 'cols' | 'all';
 }
 
 interface Clip {
@@ -713,6 +719,30 @@ export class WorkbookStore {
   setSelection(sel: Selection): void {
     this.selections.set(this.active, sel);
     this.notify();
+  }
+
+  /**
+   * Selects whole rows (or columns), as clicking their numbers (or letters)
+   * does: each range is a first and last line, and `active` is the active
+   * cell, which Excel puts in the line clicked.
+   */
+  selectLines(axis: 'rows' | 'cols', ranges: readonly (readonly [number, number])[], active: { row: number; col: number }): void {
+    const view = this.view;
+    if (!view || !ranges.length) return;
+    const lastRow = Math.max(view.info.maxRow, 0);
+    const lastCol = Math.max(view.info.maxCol, 0);
+    const rects = ranges.map(([a, b]) =>
+      axis === 'rows' ? { r1: Math.min(a, b), r2: Math.max(a, b), c1: 0, c2: lastCol } : { r1: 0, r2: lastRow, c1: Math.min(a, b), c2: Math.max(a, b) },
+    );
+    this.setSelection({ ...active, rects, lines: axis });
+  }
+
+  /** Selects the whole sheet, as the corner above the row numbers or Ctrl+A does, keeping the active cell. */
+  selectAll(): void {
+    const view = this.view;
+    if (!view) return;
+    const { row, col } = this.selection;
+    this.setSelection({ row, col, rects: [{ r1: 0, c1: 0, r2: Math.max(view.info.maxRow, 0), c2: Math.max(view.info.maxCol, 0) }], lines: 'all' });
   }
 
   setActive(i: number): void {
@@ -1535,23 +1565,21 @@ export class WorkbookStore {
     if (op.type === 'growTable' || isSheetOp(op)) return;
     const view = this.sheets[op.type === 'move' ? op.toSheet : op.sheet];
     if (!view) return;
-    const lastCol = Math.max(view.info.maxCol, 0);
-    const lastRow = Math.max(view.info.maxRow, 0);
     const sel = this.selection;
     let rect: Rect;
     if (op.type === 'move') {
       rect = { r1: op.row, c1: op.col, r2: op.row + op.src.r2 - op.src.r1, c2: op.col + op.src.c2 - op.src.c1 };
       this.active = op.toSheet;
     } else if (op.type === 'insertRows') {
-      rect = { r1: op.at, r2: op.at + op.count - 1, c1: 0, c2: lastCol };
+      return this.selectLines('rows', [[op.at, op.at + op.count - 1]], { row: op.at, col: sel.col });
     } else if (op.type === 'insertCols') {
-      rect = { r1: 0, r2: lastRow, c1: op.at, c2: op.at + op.count - 1 };
+      return this.selectLines('cols', [[op.at, op.at + op.count - 1]], { row: sel.row, col: op.at });
     } else if (op.type === 'deleteRows') {
       rect = { r1: op.at, r2: op.at, c1: sel.col, c2: sel.col };
     } else {
       rect = { r1: sel.row, r2: sel.row, c1: op.at, c2: op.at };
     }
-    this.setSelection({ row: rect.r1, col: op.type === 'insertRows' ? sel.col : rect.c1, rects: [rect] });
+    this.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
   }
 
   /** Inserts as many rows as the selection spans, above or below it. */

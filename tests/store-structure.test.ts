@@ -79,8 +79,8 @@ describe('inserting and deleting rows and columns', () => {
     expect(cell(4, 0)?.s).toBe('apple');
     expect(cell(4, 3)?.f).toBe('B5*C5');
     expect(cell(0, 5)?.f).toBe('SUM(D2:D7)');
-    // The new rows are selected across the used columns, keeping the active column.
-    expect(store.selection).toEqual({ row: 2, col: 1, rects: [rect(2, 0, 3, 5)] });
+    // The new rows are selected whole, as Excel selects them, keeping the active column.
+    expect(store.selection).toEqual({ row: 2, col: 1, rects: [rect(2, 0, 3, 5)], lines: 'rows' });
 
     select(rect(1, 0));
     await store.insertRows('below');

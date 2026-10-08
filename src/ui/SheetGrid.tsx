@@ -580,6 +580,11 @@ export function SheetGrid({
     [view, rowStart, rows],
   );
 
+  /** The grid columns and rows in view, frozen ones aside. */
+  const visible = useRef({ x: 1, y: 0, width: 0, height: 0 });
+  /** The sheet row at the top of this pane's view, where Excel puts the active cell of columns selected. */
+  const topRow = useCallback(() => view.visibleRows[Math.min(visible.current.y + rowStart, view.rowCount - 1)] ?? 0, [view, rowStart]);
+
   const cutRange = store.cutRange;
   const formulaRefs = store.formulaRefs;
   // The selection, clipped to this pane. When the active cell is in the other
@@ -612,6 +617,24 @@ export function SheetGrid({
       const range = { x: span.x1 + 1, y: y1 - rowStart, width: span.x2 - span.x1 + 1, height: y2 - y1 + 1 };
       marks.push({ color: withAlpha(refColors[ref.color % refColors.length], 0.1), range, style: 'solid' });
     }
+    // Whole rows and columns are shown in full, past the used range, with their numbers or letters marked.
+    const lines = selection.lines;
+    if (lines) {
+      let columns = CompactSelection.empty();
+      let lineRows = CompactSelection.empty();
+      if (lines === 'all') columns = CompactSelection.fromSingleSelection([1, view.colCount + 1]);
+      else {
+        for (const r of selection.rects) {
+          const s = view.lineSpan(lines, lines === 'rows' ? r.r1 : r.c1, lines === 'rows' ? r.r2 : r.c2);
+          if (!s) continue;
+          if (lines === 'cols') columns = columns.add([s[0] + 1, s[1] + 2]);
+          else if (Math.max(rowStart, s[0]) <= Math.min(last, s[1])) lineRows = lineRows.add([Math.max(rowStart, s[0]) - rowStart, Math.min(last, s[1]) - rowStart + 1]);
+        }
+      }
+      const cell = { x: gc, y: gr - rowStart, width: 1, height: 1 };
+      const current = gr < rowStart || gr > last ? undefined : { cell: [gc, gr - rowStart] as Item, range: cell, rangeStack: [] };
+      return { gridSelection: { current, columns, rows: lineRows } as GridSelection, highlights: marks.length ? marks : undefined };
+    }
     if (gr < rowStart || gr > last) {
       marks.push(...rects.map((range) => ({ color: palette.selectionFill, range, style: 'solid-outline' as const })));
       return { gridSelection: { current: undefined, ...empty } as GridSelection, highlights: marks.length ? marks : undefined };
@@ -624,26 +647,36 @@ export function SheetGrid({
     };
   }, [view, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors]);
 
+  // Mouse presses on the letters, numbers and corner are taken before Glide
+  // sees them (below); touches on them, and Glide's keys for whole lines, come here.
   const onSelectionChange = useCallback(
     (sel: GridSelection) => {
+      /** Runs of grid lines as sheet lines, first to last. */
+      const ranges = (picked: CompactSelection, sheetLine: (g: number) => number) => {
+        const runs: [number, number][] = [];
+        for (const g of picked) {
+          const last = runs[runs.length - 1];
+          if (last && g === last[1] + 1) last[1] = g;
+          else runs.push([g, g]);
+        }
+        return runs.map(([a, b]): [number, number] => [sheetLine(a), sheetLine(b)]);
+      };
       if (sel.columns.length > 0) {
-        const cols = sel.columns.toArray();
-        const c1 = view.visibleCols[Math.max(1, Math.min(...cols)) - 1];
-        const c2 = view.visibleCols[Math.max(1, Math.max(...cols)) - 1];
-        const r2 = Math.max(view.info.maxRow, 0);
-        store.setSelection({ row: 0, col: c1, rects: [{ r1: 0, c1, r2, c2 }] });
+        if (sel.columns.hasIndex(0)) return store.selectAll();
+        const runs = ranges(sel.columns, (g) => view.visibleCols[g - 1]);
+        store.selectLines('cols', runs, { row: topRow(), col: runs[runs.length - 1][0] });
+        return;
+      }
+      if (sel.rows.length > 0) {
+        const runs = ranges(sel.rows, (g) => view.visibleRows[g + rowStart]);
+        store.selectLines('rows', runs, { row: runs[runs.length - 1][0], col: view.visibleCols[0] });
         return;
       }
       if (!sel.current) return;
       const [gc, gr] = sel.current.cell;
       if (gc === 0) {
-        // Clicking a row number selects the whole row.
         const picked = [sel.current.range.y, sel.current.range.y + sel.current.range.height - 1].map((y) => view.visibleRows[y + rowStart]);
-        store.setSelection({
-          row: picked[0],
-          col: view.visibleCols[0],
-          rects: [{ r1: picked[0], r2: picked[1], c1: 0, c2: Math.max(view.info.maxCol, 0) }],
-        });
+        store.selectLines('rows', [[picked[0], picked[1]]], { row: picked[0], col: view.visibleCols[0] });
         return;
       }
       store.setSelection({
@@ -652,7 +685,7 @@ export function SheetGrid({
         rects: [sel.current.range, ...sel.current.rangeStack].map(toSheetRect),
       });
     },
-    [store, view, toSheetRect, rowStart],
+    [store, view, toSheetRect, rowStart, topRow],
   );
 
   // The editor writes the clipboard itself, the text and an escaped HTML
@@ -755,10 +788,8 @@ export function SheetGrid({
       const sel = store.selection;
       const inside = sel.rects.some((r) => inRect(r, row, gc === 0 ? r.c1 : col));
       // Right-clicking outside the selection selects what was clicked first, as Excel does.
-      if (!inside) {
-        const rect = gc === 0 ? { r1: row, r2: row, c1: 0, c2: Math.max(view.info.maxCol, 0) } : { r1: row, r2: row, c1: col, c2: col };
-        store.setSelection({ row, col, rects: [rect] });
-      }
+      if (!inside && gc === 0) store.selectLines('rows', [[row, row]], { row, col });
+      else if (!inside) store.setSelection({ row, col, rects: [{ r1: row, r2: row, c1: col, c2: col }] });
       store.set('menu', { x: e.bounds.x + e.localEventX, y: e.bounds.y + e.localEventY, kind: gc === 0 ? 'row' : 'cell' });
     },
     [store, view, rowStart],
@@ -770,12 +801,10 @@ export function SheetGrid({
       if (gc === 0) return;
       const col = view.visibleCols[gc - 1];
       const sel = store.selection;
-      if (!sel.rects.some((r) => col >= r.c1 && col <= r.c2 && r.r1 === 0)) {
-        store.setSelection({ row: 0, col, rects: [{ r1: 0, r2: Math.max(view.info.maxRow, 0), c1: col, c2: col }] });
-      }
+      if (!sel.rects.some((r) => col >= r.c1 && col <= r.c2 && r.r1 === 0)) store.selectLines('cols', [[col, col]], { row: topRow(), col });
       store.set('menu', { x: e.bounds.x + e.localEventX, y: e.bounds.y + e.localEventY, kind: 'column' });
     },
-    [store, view],
+    [store, view, topRow],
   );
 
   // Glide reads pastes through navigator.clipboard.read(), which makes
@@ -800,21 +829,14 @@ export function SheetGrid({
     return () => window.removeEventListener('paste', onPaste, true);
   }, [store]);
 
+  // Delete clears what is selected, whole rows and columns as far as they hold anything.
   const onDelete = useCallback(
     (sel: GridSelection) => {
-      const rects: Rect[] = [];
-      if (sel.columns.length > 0) {
-        const cols = sel.columns.toArray().filter((c) => c > 0);
-        if (cols.length) {
-          rects.push({ r1: 0, r2: Math.max(view.info.maxRow, 0), c1: view.visibleCols[Math.min(...cols) - 1], c2: view.visibleCols[Math.max(...cols) - 1] });
-        }
-      } else if (sel.current) {
-        rects.push(...[sel.current.range, ...sel.current.rangeStack].map(toSheetRect));
-      }
+      const rects = store.selection.lines ? store.selection.rects : sel.current ? [sel.current.range, ...sel.current.rangeStack].map(toSheetRect) : [];
       if (rects.length) void store.clear(rects);
       return false;
     },
-    [store, view, toSheetRect],
+    [store, toSheetRect],
   );
 
   const onFillPattern = useCallback(
@@ -861,7 +883,6 @@ export function SheetGrid({
   );
   // Rows are resized by dragging the bottom edge of their number, which Glide
   // doesn't offer: a press there is taken before Glide sees it.
-  const visible = useRef({ y: 0, height: 0 });
   const [rowDrag, setRowDrag] = useState<{ row: number; from: number; px: number; y: number } | null>(null);
   const rowEdgeAt = (x: number, y: number): { row: number; edge: number } | undefined => {
     const grid = ref.current;
@@ -874,12 +895,97 @@ export function SheetGrid({
     }
     return undefined;
   };
+  /** The grid columns in view, frozen ones first, the row numbers aside. */
+  const columnsInView = () => {
+    const out: number[] = [];
+    for (let gc = 1; gc <= frozen; gc++) out.push(gc);
+    for (let gc = Math.max(frozen + 1, visible.current.x); gc <= Math.min(view.colCount, visible.current.x + visible.current.width); gc++) out.push(gc);
+    return out;
+  };
+  /**
+   * The letters, row number or corner under the pointer, if any: not where a
+   * column's edge is, which Glide drags to resize it.
+   */
+  const headingAt = (x: number, y: number): { axis: 'rows' | 'cols'; line: number } | { axis: 'all' } | undefined => {
+    const grid = ref.current;
+    if (!grid) return undefined;
+    for (let gr = visible.current.y; gr <= visible.current.y + visible.current.height && gr + rowStart < view.rowCount; gr++) {
+      const b = grid.getBounds(0, gr);
+      if (!b || x < b.x || x >= b.x + b.width) break;
+      if (y >= b.y && y < b.y + b.height) return { axis: 'rows', line: view.visibleRows[gr + rowStart] };
+    }
+    const corner = header ? grid.getBounds(0, -1) : undefined;
+    if (!corner || y < corner.y || y >= corner.y + corner.height) return undefined;
+    if (x >= corner.x && x < corner.x + corner.width) return { axis: 'all' };
+    for (const gc of columnsInView()) {
+      const b = grid.getBounds(gc, -1);
+      if (!b || x < b.x || x >= b.x + b.width) continue;
+      return x - b.x <= 5 || b.x + b.width - x <= 5 ? undefined : { axis: 'cols', line: view.visibleCols[gc - 1] };
+    }
+    return undefined;
+  };
+  /** The row (or column) the pointer is level with while dragging over the numbers (or letters), the nearest in view past either end. */
+  const lineLevelWith = (axis: 'rows' | 'cols', x: number, y: number): number | undefined => {
+    const grid = ref.current;
+    if (!grid) return undefined;
+    const lines = axis === 'rows' ? Array.from({ length: visible.current.height + 1 }, (_, i) => visible.current.y + i).filter((gr) => gr + rowStart < view.rowCount) : columnsInView();
+    let nearest: number | undefined;
+    for (const g of lines) {
+      const b = axis === 'rows' ? grid.getBounds(0, g) : grid.getBounds(g, -1);
+      if (!b) continue;
+      const [at, from, size] = axis === 'rows' ? [y, b.y, b.height] : [x, b.x, b.width];
+      if (nearest === undefined || at >= from) nearest = g;
+      if (at < from + size) break;
+    }
+    if (nearest === undefined) return undefined;
+    return axis === 'rows' ? view.visibleRows[nearest + rowStart] : view.visibleCols[nearest - 1];
+  };
+  /**
+   * Selects whole rows or columns from their numbers or letters as Excel
+   * does: a click picks one, dragging spans several, Shift+click reaches
+   * from the active line, and Ctrl+click (⌘-click on a Mac) adds one. The
+   * corner selects the whole sheet.
+   */
+  const pressHeading = (e: ReactMouseEvent, hit: NonNullable<ReturnType<typeof headingAt>>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ref.current?.focus();
+    // The click that ends the press isn't one on a cell.
+    window.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true });
+    if (hit.axis === 'all') return store.selectAll();
+    const { axis, line } = hit;
+    const sel = store.selection;
+    const same = sel.lines === axis;
+    const add = same && (APPLE ? e.metaKey : e.ctrlKey);
+    const extend = same && e.shiftKey;
+    const anchor = extend ? (axis === 'rows' ? sel.row : sel.col) : line;
+    const kept: [number, number][] = add || extend ? sel.rects.map((r) => (axis === 'rows' ? [r.r1, r.r2] : [r.c1, r.c2])) : [];
+    if (extend) kept.pop();
+    const active = axis === 'rows' ? { row: anchor, col: view.visibleCols[0] ?? 0 } : { row: topRow(), col: anchor };
+    const pick = (to: number) => store.selectLines(axis, [...kept, [anchor, to]], active);
+    pick(line);
+    const move = (m: MouseEvent) => {
+      const to = lineLevelWith(axis, m.clientX, m.clientY);
+      if (to !== undefined) pick(to);
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  };
+
   const onHostMouseMove = (e: ReactMouseEvent) => {
     if (!rowDrag && host.current) host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : '';
   };
   const onHostMouseDown = (e: ReactMouseEvent) => {
     const at = e.button === 0 ? rowEdgeAt(e.clientX, e.clientY) : undefined;
-    if (!at) return;
+    if (!at) {
+      const hit = e.button === 0 ? headingAt(e.clientX, e.clientY) : undefined;
+      if (hit) pressHeading(e, hit);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const start = { row: at.row, from: e.clientY, px: view.rowHeight(at.row), y: at.edge };
@@ -943,6 +1049,21 @@ export function SheetGrid({
         e.cancel();
         e.preventDefault();
         void store.groupSelection(e.key === 'ArrowRight' ? 1 : -1);
+        return;
+      }
+      // Excel's keys for whole lines: Shift+Space the selection's rows, Ctrl+Space its columns, Ctrl+A (⌘A) the sheet.
+      const sel = store.selection;
+      if (e.key === ' ' && !e.altKey && !e.metaKey && e.shiftKey !== e.ctrlKey) {
+        e.cancel();
+        e.preventDefault();
+        const axis = e.shiftKey ? 'rows' : 'cols';
+        store.selectLines(axis, sel.rects.map((r) => (axis === 'rows' ? [r.r1, r.r2] : [r.c1, r.c2])), { row: sel.row, col: sel.col });
+        return;
+      }
+      if (e.key.toLowerCase() === 'a' && (APPLE ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        e.cancel();
+        e.preventDefault();
+        store.selectAll();
         return;
       }
       onKeyDown?.(e);
@@ -1027,7 +1148,7 @@ export function SheetGrid({
         minColumnWidth={18}
         maxColumnWidth={1200}
         onVisibleRegionChanged={(r) => {
-          visible.current = { y: r.y, height: r.height };
+          visible.current = { x: r.x, y: r.y, width: r.width, height: r.height };
           setRegion((n) => n + 1);
           onRegion?.(r);
         }}

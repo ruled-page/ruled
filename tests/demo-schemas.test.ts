@@ -195,7 +195,8 @@ describe('the demo themes', () => {
       ['gridText', 'gridBg'],
       ['gridTextMuted', 'gridBg'],
       ['gridHeaderText', 'gridHeaderBg'],
-      ['gridHeaderSelectedText', 'gridHeaderSelectedBg'],
+      // The letters and numbers of whole columns and rows selected sit on the selection colour.
+      ['gridHeaderSelectedText', 'gridSelection'],
       ['onAccent', 'accent'],
       ['infoBannerText', 'infoBannerBg'],
       ['warningText', 'warningSoft'],

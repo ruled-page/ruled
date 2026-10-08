@@ -61,7 +61,7 @@ export const DEFAULT_PALETTE: GridPalette = {
   headerLine: '#d3d6d6',
   headerHoverBg: '#eaebeb',
   headerSelectedBg: '#e3efe8',
-  headerSelectedText: '#1e7145',
+  headerSelectedText: '#ffffff',
   rowHeaderText: '#5f6368',
   selection: '#1e7145',
   selectionFill: 'rgba(30, 113, 69, 0.1)',

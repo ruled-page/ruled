@@ -41,6 +41,21 @@ async function saved() {
   return WorkbookSession.open(s!.bytes, 'data.xlsx').model.sheets[0].info;
 }
 
+describe('whole rows and columns', () => {
+  it('are selected to the end of the used range, keeping the active cell given, and the sheet as a whole', async () => {
+    await open();
+    store.selectLines('cols', [[1, 1], [3, 4]], { row: 0, col: 3 });
+    expect(store.selection).toEqual({ row: 0, col: 3, rects: [rect(0, 1, 5, 1), rect(0, 3, 5, 4)], lines: 'cols' });
+    store.selectLines('rows', [[4, 2]], { row: 4, col: 0 });
+    expect(store.selection).toEqual({ row: 4, col: 0, rects: [rect(2, 0, 4, 2)], lines: 'rows' });
+    // Lines selected are what the line commands act on.
+    await store.hideLines('rows');
+    expect([2, 3, 4].map((r) => store.view!.gridRow(r))).toEqual([-1, -1, -1]);
+    store.selectAll();
+    expect(store.selection).toEqual({ row: 4, col: 0, rects: [rect(0, 0, 5, 2)], lines: 'all' });
+  });
+});
+
 describe('sizes', () => {
   it('set the width of every selected column, and undo as one step', async () => {
     await open();

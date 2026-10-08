@@ -263,8 +263,9 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
     }
   }, [draft, sel, scroll, assist.anchor]);
 
-  const rect = selection.rects[0];
-  const name = selectionName(store) ?? (rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col));
+  // Whole rows or columns are named by the active cell, as in Excel: their range stops at the used part.
+  const rect = selection.lines ? undefined : selection.rects[0];
+  const name = (rect && selectionName(store)) ?? (rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col));
   const note = cellNote(t, store, view, selection);
   const link = store.linkAt(selection.row, selection.col);
   const address = link && linkAddress(link);

@@ -5,6 +5,10 @@ back as .xlsx without losing what the editor can't display.
 
 - View any .xlsx or .xlsm: every sheet, number formats, fonts, fills, column
   widths, merged cells, hidden, grouped and frozen rows and columns.
+- Select as in Excel: a column's letter or a row's number selects it whole,
+  dragging across them selects several, Shift+click reaches from the active
+  one and Ctrl+click (⌘-click on a Mac) adds another, and the corner above
+  the row numbers selects the sheet.
 - Edit cells, paste from Excel or Google Sheets, copy and paste within the
   workbook (formulas move their references like Excel), drag to fill, clear,
   undo and redo. Pasting from Excel or Google Sheets brings the cells'
@@ -478,7 +482,9 @@ everything on screen. The round-trip checker answers in English.
 ### Keyboard and screen readers
 
 Everything works without a mouse. In the grid, the keys are Excel's: arrows
-and Tab move, typing replaces a cell, Enter edits it, and Shift+F10 (or the
+and Tab move, typing replaces a cell, Enter edits it, Shift+Space selects
+the selection's whole rows, Ctrl+Space its whole columns and Ctrl+A (⌘A)
+the whole sheet, and Shift+F10 (or the
 menu key) opens the cell menu with fill down and right, and Fill Series
 (whose options are radio buttons and fields, with the Custom Lists dialog
 behind a button); notes and comments; rows and columns (insert, delete,

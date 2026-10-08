@@ -101,8 +101,10 @@
   --wbe-grid-header-text: #4a4a4a;
   --wbe-grid-header-line: #d3d6d6;
   --wbe-grid-header-hover-bg: #eaebeb;
+  /* Behind the letter and number of the active cell's column and row; and the
+     letters and numbers of whole columns and rows selected, on the selection colour. */
   --wbe-grid-header-selected-bg: #e3efe8;
-  --wbe-grid-header-selected-text: #1e7145;
+  --wbe-grid-header-selected-text: #ffffff;
   --wbe-grid-row-header-text: #5f6368;
   --wbe-grid-text-muted: #5f6368;
   --wbe-grid-text-light: #9aa0a6;
