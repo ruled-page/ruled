@@ -109,7 +109,7 @@ function measure(el: HTMLElement, view: SheetView, panes: OutlinePane[], regions
     // Columns that scroll slide under the frozen ones, and the row numbers.
     let frozen = 0;
     for (let c = 0; c < view.info.frozenCols; c++) if (view.gridCol(c) >= 0) frozen++;
-    const left = corner.x + corner.width - origin.left;
+    const left = corner.x + corner.width - 1 - origin.left;
     const edge = head.getBounds(frozen, -1);
     const freezeX = frozen && edge ? edge.x + edge.width - 1 - origin.left : left;
     const r = regions[0];

@@ -1801,6 +1801,9 @@ export class WorkbookStore {
   /** Makes a change to the active sheet's outline as one undoable step, then keeps the active cell where it shows. */
   private async changeOutline(axis: Axis, change: OutlineChange | { refused: Text }, label: Text, near?: number): Promise<void> {
     if ('refused' in change) return this.toast('warn', change.refused);
+    // A group that ends the sheet has no line after it to mark.
+    const last = axis === 'rows' ? MAX_ROWS : MAX_COLS;
+    for (const line of Object.keys(change.collapsed)) if (Number(line) >= last) delete change.collapsed[Number(line)];
     const ops: EditOp[] = [];
     if (Object.keys(change.hidden).length) ops.push({ type: 'layout', sheet: this.active, op: { kind: 'hidden', axis, lines: change.hidden } });
     if (Object.keys(change.levels).length || Object.keys(change.collapsed).length) {
