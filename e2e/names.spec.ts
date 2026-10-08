@@ -6,7 +6,7 @@ import { openFile, ordersWorkbook, readWorkbook, shown } from './helpers';
 
 const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
 const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' });
-const formulaBar = (page: Page) => page.getByRole('textbox', { name: 'Cell contents' });
+const formulaBar = (page: Page) => page.getByRole('combobox', { name: 'Cell contents' });
 
 /** From the sheet, types into the name box and presses Enter. */
 async function nameBoxEnter(page: Page, text: string): Promise<void> {

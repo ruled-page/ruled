@@ -18,7 +18,7 @@ async function reach(page: Page, el: Locator, key: string): Promise<void> {
 /** Goes to a cell from the keyboard: into the editor with Tab, to the name box with F6, and the cell's reference. */
 async function goTo(page: Page, ref: string): Promise<void> {
   await reach(page, page.locator('.wbe-root'), 'Tab');
-  const box = page.getByRole('textbox', { name: 'Go to cell' });
+  const box = page.getByRole('combobox', { name: 'Go to cell' });
   await reach(page, box, 'F6');
   await page.keyboard.type(ref);
   await page.keyboard.press('Enter');
