@@ -783,7 +783,11 @@
   height: 100%;
   border: 0;
   padding: 0 10px;
-  font: 14px var(--wbe-font-mono);
+  /* The interface's font, as Excel's formula bar has; without kerning or
+     ligatures, so the coloured copy drawn over it in pieces lines up. */
+  font: 14px var(--wbe-font);
+  font-kerning: none;
+  font-variant-ligatures: none;
   /* Its focus is the line under it, or this outline in forced colours. */
   outline: 2px solid transparent;
   outline-offset: -2px;
@@ -842,7 +846,9 @@
   padding: 0 10px;
   overflow: hidden;
   white-space: pre;
-  font: 14px var(--wbe-font-mono);
+  font: 14px var(--wbe-font);
+  font-kerning: none;
+  font-variant-ligatures: none;
   color: var(--wbe-text);
   pointer-events: none;
 }
