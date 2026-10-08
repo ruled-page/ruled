@@ -1,6 +1,6 @@
 {
   "name": "workbook-editor",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas",
   "scripts": {
     "dev": "vite",

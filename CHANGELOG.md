@@ -5,6 +5,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+## 0.1.0 (2026-10-08)
+
 The first release: an Excel workbook editor for the browser that saves
 workbooks back without losing what it doesn't change.
 
