@@ -603,12 +603,19 @@
   background: var(--wbe-surface);
 }
 
+.wbe .wbe-name-box-wrap {
+  position: relative;
+  display: flex;
+  height: 100%;
+  border-inline-end: 1px solid var(--wbe-border);
+}
+
 .wbe .wbe-name-box {
   width: 96px;
   height: 100%;
-  padding: 0 10px;
+  padding: 0;
+  padding-inline: 10px 2px;
   border: 0;
-  border-inline-end: 1px solid var(--wbe-border);
   background: transparent;
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -620,6 +627,57 @@
   outline: none;
   box-shadow: inset 0 0 0 2px var(--wbe-focus-ring);
   color: var(--wbe-text);
+}
+
+.wbe .wbe-name-box-toggle {
+  width: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wbe-text-subtle);
+  font: inherit;
+  cursor: pointer;
+}
+
+.wbe .wbe-name-box-toggle:hover {
+  color: var(--wbe-text);
+  background: var(--wbe-surface-sunken);
+}
+
+.wbe .wbe-name-box-list {
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 0;
+  z-index: 60;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--wbe-surface);
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  box-shadow: var(--wbe-shadow);
+}
+
+.wbe .wbe-name-box-list[hidden] {
+  display: none;
+}
+
+.wbe .wbe-name-box-list li {
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--wbe-text);
+}
+
+.wbe .wbe-name-box-list li.wbe-active {
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent-strong);
 }
 
 .wbe .wbe-fx {
@@ -1692,6 +1750,84 @@
   margin: 6px 8px;
 }
 
+/* Defined names: the dialog that defines or edits one, and the Name Manager. */
+
+.wbe .wbe-name-form .wbe-field select,
+.wbe .wbe-name-form .wbe-field textarea,
+.wbe .wbe-names-filter select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+}
+
+.wbe .wbe-name-form .wbe-field textarea {
+  resize: vertical;
+}
+
+.wbe .wbe-name-form .wbe-field select:disabled {
+  color: var(--wbe-text-muted);
+  background: var(--wbe-surface-alt);
+}
+
+.wbe .wbe-name-form .wbe-field [aria-invalid='true'] {
+  border-color: var(--wbe-danger);
+}
+
+.wbe .wbe-field .wbe-field-error,
+.wbe .wbe-modal .wbe-field-error {
+  margin: 0;
+  color: var(--wbe-danger);
+  font-size: var(--wbe-font-size-sm);
+}
+
+.wbe .wbe-names-manager {
+  width: 820px;
+}
+
+.wbe .wbe-names-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wbe .wbe-names-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  color: var(--wbe-text-muted);
+}
+
+.wbe .wbe-names-table tbody tr {
+  cursor: pointer;
+}
+
+.wbe .wbe-names-table tr.wbe-picked td {
+  background: var(--wbe-accent-soft);
+  color: var(--wbe-accent-strong);
+}
+
+.wbe .wbe-names-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.wbe .wbe-names-pick input {
+  margin: 0;
+  accent-color: var(--wbe-accent);
+}
+
+.wbe .wbe-modal p.wbe-names-empty {
+  margin-top: 12px;
+}
+
 .wbe .wbe-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -2574,7 +2710,7 @@
     flex-wrap: wrap;
   }
 
-.wbe .wbe-formula-bar > .wbe-name-box,
+.wbe .wbe-formula-bar > .wbe-name-box-wrap,
 .wbe .wbe-formula-bar > .wbe-fx,
 .wbe .wbe-formula-bar > .wbe-formula-field,
 .wbe .wbe-formula-bar > .wbe-cell-menu-btn {

@@ -23,7 +23,7 @@ test.describe('editing a workbook', () => {
     await page.keyboard.press('Enter');
     await expect(shown(page, 'D3')).toHaveText('5');
     // Enter moves down, as in Excel.
-    await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('C4');
+    await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('C4');
   });
 
   test('pastes from Excel with the exact values behind the rounded text', async ({ page, browserName }) => {
@@ -105,11 +105,11 @@ test.describe('editing a workbook', () => {
   });
 
   test('says when the name box holds something that is not a reference', async ({ page }) => {
-    const box = page.getByRole('textbox', { name: 'Go to cell' });
+    const box = page.getByRole('combobox', { name: 'Go to cell' });
     await box.click();
     await box.fill('Nowhere!A1');
     await box.press('Enter');
-    await expect(page.getByText('"Nowhere!A1" isn\'t a cell or range on a sheet in this workbook.')).toBeVisible();
+    await expect(page.getByText('"Nowhere!A1" isn\'t a cell, a range or a name in this workbook.')).toBeVisible();
   });
 });
 

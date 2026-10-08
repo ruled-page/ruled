@@ -153,7 +153,9 @@ export async function nameBoxEnter(store: WorkbookStore, text: string): Promise<
     store.toast('warn', problem);
     return false;
   }
-  return (await defineName(store, { name: typed, formula: refersToFile(store, selectionRefersTo(store)) })) === undefined;
+  if (await defineName(store, { name: typed, formula: refersToFile(store, selectionRefersTo(store)) })) return false;
+  store.focusGrid();
+  return true;
 }
 
 /** How many values a range's preview shows before "…". */

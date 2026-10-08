@@ -22,6 +22,14 @@ back as .xlsx without losing what the editor can't display.
   column's or row's edge, or set them from the menu), hide and unhide rows
   and columns, freeze panes, merge and unmerge cells. Merging asks first when
   it would clear values, as Excel does.
+- Defined names, as in Excel: type one in the name box to go to its range
+  (the box lists the names as you type, and shows the name of a selection
+  that is exactly a named range), or type a new one to name the selection.
+  "Define name…" and "Name manager…" in the cell menu define, edit, filter
+  and delete them, for the workbook or one sheet, with a comment. Formulas
+  that use a name recalculate when it changes, renaming one renames it in
+  the formulas and names that use it, and deleting one leaves #NAME?. Each
+  change is a step to undo, is listed in the Changes panel, and is saved.
 - Formulas recalculate live as you edit (HyperFormula, about 465 of Excel's functions).
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
@@ -185,7 +193,7 @@ Every host controls the editor through the same handle (`EditorHandle`):
   `'saved'`, `'downloaded'`, `'cancelled'`, `'blocked'` or `'failed'`.
 - `downloadCopy()`, `getWorkbook()` (the workbook as a save would hand it
   over, without the checks), `downloadCsv()` and `getCsv()` (the sheet shown
-  as CSV, see [CSV files](#csv-files)), `goTo(ref)`, `registerSchema`,
+  as CSV, see [CSV files](#csv-files)), `goTo(ref)` (a cell, a range or a defined name), `registerSchema`,
   `removeSchema`, `setTheme`, `setLanguage` and `setUser`.
 - `status`, `fileName`, `editedCount` and `unsaved`, with `subscribe(listener)`
   to hear when they change, and `destroy()`.
@@ -417,8 +425,9 @@ merging; freezing panes; sort and filter. Its submenus open with the right
 arrow, Enter or Space, and close with the left arrow or Escape. Shift+F2
 opens the cell's note or comments. F6 (Ctrl+F6 where the browser keeps F6) moves
 between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs, since Tab
-stays in the grid as it does in Excel; typing a cell such as B4 in the
-formula bar's name box goes there. The sheet tabs are one stop: the arrow
+stays in the grid as it does in Excel; typing a cell such as B4, or a
+name, in the formula bar's name box goes there, and Alt+Down lists the
+workbook's names. The sheet tabs are one stop: the arrow
 keys, Home and End move between them, and Enter shows a sheet; on a tab,
 Alt+Shift+Left and Right move its sheet, F2 renames it, and Shift+F10 (or
 the menu key) opens its menu. The + after the tabs adds a sheet, and the

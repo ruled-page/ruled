@@ -82,7 +82,7 @@ test('resizes a row by dragging the edge of its number', async ({ page }) => {
   await page.mouse.up();
   await expect(page.getByRole('button', { name: '1 change' })).toBeVisible();
   // The press didn't select the row number's cell.
-  await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('A2');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('A2');
   const wb = await save(page);
   expect(wb.getWorksheet('Lines')!.getRow(2).height).toBe(30);
 });

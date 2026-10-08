@@ -42,7 +42,7 @@ test.describe('a workbook checked by a schema', () => {
     const panel = page.getByRole('tabpanel');
     await expect(page.getByRole('tab', { name: 'Checks' })).toHaveAttribute('aria-selected', 'true');
     await panel.getByText('Required.').click();
-    await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('B11');
+    await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B11');
   });
 
   test('moves between the panel tabs with the arrow keys', async ({ page }) => {

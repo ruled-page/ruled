@@ -98,8 +98,6 @@ export const ui = {
   'status.sum': 'Sum: {{value}}',
 
   'formulaBar.goTo': 'Go to cell',
-  'formulaBar.goToTitle': 'Selected cell. Type a reference and press Enter to go there.',
-  'formulaBar.notARef': '"{{ref}}" isn\'t a cell or range on a sheet in this workbook.',
   'formulaBar.contents': 'Cell contents',
   'formulaBar.cellMenu': 'Cell menu',
   'formulaBar.checking': 'Checking…',

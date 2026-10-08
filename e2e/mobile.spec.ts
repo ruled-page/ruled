@@ -30,7 +30,7 @@ test('the checks panel waits to be opened, and going to a problem shows its cell
   await expect(page.getByRole('button', { name: 'Undo' })).toBeInViewport();
   await panel.getByText('Required.').tap();
   await expect(page.getByRole('tabpanel')).toHaveCount(0);
-  await expect(page.getByRole('textbox', { name: 'Go to cell' })).toHaveValue('B11');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B11');
   // The problem shows under the formula bar, as there's no hovering on a phone.
   await expect(page.locator('.wbe-cell-note')).toContainText('Required.');
 });
@@ -40,8 +40,8 @@ test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {
   const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
   // Row 3, column B: past the row numbers and the headings.
   await page.touchscreen.tap(grid.x + 120, grid.y + 24 + 34 * 2 + 10);
-  await expect(page.getByRole('textbox', { name: 'Go to cell' })).not.toHaveValue('A1');
-  const name = await page.getByRole('textbox', { name: 'Go to cell' }).inputValue();
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).not.toHaveValue('A1');
+  const name = await page.getByRole('combobox', { name: 'Go to cell' }).inputValue();
   const input = page.getByRole('combobox', { name: 'Cell contents' });
   await input.tap();
   await input.fill('Bracket, edited on a phone');

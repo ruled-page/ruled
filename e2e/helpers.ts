@@ -27,7 +27,7 @@ export async function openFile(page: Page, name: string, bytes: Uint8Array): Pro
 
 /** Selects a cell or range by typing it into the name box; the grid takes the focus. */
 export async function goTo(page: Page, ref: string): Promise<void> {
-  const box = page.getByRole('textbox', { name: 'Go to cell' });
+  const box = page.getByRole('combobox', { name: 'Go to cell' });
   await box.click();
   await box.fill(ref);
   await box.press('Enter');

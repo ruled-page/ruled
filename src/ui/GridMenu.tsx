@@ -2,6 +2,7 @@ import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { mod } from './keys';
+import { openDefineName } from './NameDialogs';
 import { useT } from '../i18n/react';
 
 /** The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find. */
@@ -112,6 +113,9 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     ...lineItems,
     { separator: true },
     ...dataItems,
+    { separator: true },
+    { label: t('names.menu.define'), onSelect: () => openDefineName(store), disabled: view.info.kind !== 'worksheet' },
+    { label: t('names.menu.manager'), onSelect: () => store.set('nameManagerOpen', true) },
     { separator: true },
     { label: t('menu.find'), hint: mod(t, 'F'), onSelect: () => store.set('findOpen', true) },
   ];

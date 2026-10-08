@@ -3,12 +3,12 @@ import { rangeToA1, toA1 } from '../core/refs';
 import { CellFlag, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
 import { displayText, editText } from '../state/format';
+import { nameBoxEnter, nameBoxNames, selectionName } from '../state/names';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useFormulaAssist } from './FormulaAssist';
 import { Icon } from './icons';
 import type { Translator } from '../i18n';
-import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
 
 type Tone = 'info' | 'warn' | 'lock' | 'edit' | 'error' | 'field' | 'note';
@@ -73,43 +73,132 @@ function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Sel
   return null;
 }
 
-/** Shows the selection; type a cell, range or Sheet!ref and press Enter to go there. */
+/**
+ * Shows the selection, or its name; type a cell, range, Sheet!ref or name
+ * and press Enter to go there, or a new name to name the selection. As in
+ * Excel, its list offers the names that refer to cells: typing narrows it,
+ * the arrow keys move through it (Alt+Down opens it), Enter picks.
+ */
 function NameBox({ store, name }: { store: WorkbookStore; name: string }) {
   const t = useT();
+  const id = useId();
+  const box = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   // Set while a click is focusing it, so the click's mouseup doesn't undo the select-all.
   const clicked = useRef(false);
+  const typed = draft !== null && draft !== name ? draft.trim().toUpperCase() : '';
+  const all = nameBoxNames(store);
+  const options = typed ? all.filter((n) => n.toUpperCase().startsWith(typed)) : all;
+  const shown = open && options.length > 0;
+  const close = () => {
+    setOpen(false);
+    setActive(-1);
+  };
+  const go = async (text: string) => {
+    close();
+    if (await nameBoxEnter(store, text)) setDraft(null);
+  };
   return (
-    <input
-      className="wbe-name-box"
-      value={draft ?? name}
-      spellCheck={false}
-      aria-label={t('formulaBar.goTo')}
-      title={t('formulaBar.goToTitle')}
-      onMouseDown={(e) => {
-        clicked.current = document.activeElement !== e.currentTarget;
-      }}
-      onMouseUp={(e) => {
-        if (clicked.current) e.preventDefault();
-        clicked.current = false;
-      }}
-      onFocus={(e) => {
-        setDraft(name);
-        e.target.select();
-      }}
-      onBlur={() => setDraft(null)}
-      onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          if (store.goTo(draft ?? name)) setDraft(null);
-          else store.toast('warn', msg('formulaBar.notARef', { ref: draft }));
-        }
-        if (e.key === 'Escape') {
+    <div className="wbe-name-box-wrap">
+      <input
+        ref={box}
+        className="wbe-name-box"
+        value={draft ?? name}
+        spellCheck={false}
+        autoComplete="off"
+        role="combobox"
+        aria-label={t('formulaBar.goTo')}
+        aria-expanded={shown}
+        aria-controls={`${id}-names`}
+        aria-autocomplete="list"
+        aria-activedescendant={shown && active >= 0 ? `${id}-${active}` : undefined}
+        title={t('names.box.title')}
+        onMouseDown={(e) => {
+          clicked.current = document.activeElement !== e.currentTarget;
+        }}
+        onMouseUp={(e) => {
+          if (clicked.current) e.preventDefault();
+          clicked.current = false;
+        }}
+        onFocus={(e) => {
+          setDraft(name);
+          e.target.select();
+        }}
+        onBlur={() => {
           setDraft(null);
-          e.currentTarget.blur();
-        }
-      }}
-    />
+          close();
+        }}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setOpen(e.target.value.trim() !== '');
+          setActive(-1);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (e.altKey) {
+              if (e.key === 'ArrowDown') setOpen(true);
+              else close();
+            } else if (!shown) {
+              setOpen(true);
+              setActive(e.key === 'ArrowDown' ? 0 : options.length - 1);
+            } else {
+              const step = e.key === 'ArrowDown' ? 1 : -1;
+              setActive((i) => (i < 0 && step < 0 ? options.length - 1 : (i + step + options.length) % options.length));
+            }
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            void go(shown && active >= 0 ? options[active] : (draft ?? name));
+          } else if (e.key === 'Escape') {
+            // The first Escape closes the list; the next leaves the box as it was.
+            if (shown) {
+              e.stopPropagation();
+              close();
+            } else {
+              setDraft(null);
+              e.currentTarget.blur();
+            }
+          }
+        }}
+      />
+      <button
+        className="wbe-name-box-toggle"
+        tabIndex={-1}
+        aria-label={t('names.box.show')}
+        title={t('names.box.show')}
+        // Keeps the focus in the box, whose list this opens.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          box.current?.focus();
+          setDraft(name);
+          if (shown) close();
+          else setOpen(true);
+        }}
+      >
+        <span aria-hidden="true">▾</span>
+      </button>
+      <ul id={`${id}-names`} className="wbe-name-box-list" role="listbox" aria-label={t('names.box.list')} hidden={!shown}>
+        {shown &&
+          options.map((o, i) => (
+            <li
+              key={o}
+              id={`${id}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              className={i === active ? 'wbe-active' : ''}
+              onMouseEnter={() => setActive(i)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                void go(o);
+              }}
+            >
+              {o}
+            </li>
+          ))}
+      </ul>
+    </div>
   );
 }
 
@@ -172,7 +261,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   }, [draft, sel, scroll, assist.anchor]);
 
   const rect = selection.rects[0];
-  const name = rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col);
+  const name = selectionName(store) ?? (rect && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2) ? rangeToA1(rect) : toA1(selection.row, selection.col));
   const note = cellNote(t, store, view, selection);
 
   const commit = () => {

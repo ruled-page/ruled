@@ -12,6 +12,7 @@ import { PORTAL_ID } from '../ui/glideDom';
 import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
 import { ShortcutsDialog, SizeDialog } from '../ui/KeyboardDialogs';
+import { NameDialog, NameManager } from '../ui/NameDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
@@ -337,6 +338,8 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && <SizeDialog store={store} axis="cols" />}
       {ready && <SizeDialog store={store} axis="rows" />}
       {ready && <CommentPopup store={store} />}
+      {ready && <NameManager store={store} />}
+      {ready && <NameDialog store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

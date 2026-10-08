@@ -4,7 +4,7 @@ import { goTo, openFile, openSample, ordersWorkbook, shown } from './helpers';
 /** Everything here is done without the mouse. */
 
 const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
-const nameBox = (page: Page) => page.getByRole('textbox', { name: 'Go to cell' });
+const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' });
 
 test.describe('with only a keyboard', () => {
   test.beforeEach(async ({ page }) => {

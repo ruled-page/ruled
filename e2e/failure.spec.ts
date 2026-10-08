@@ -33,8 +33,8 @@ test('an error while drawing shows a way to carry on, rather than an empty page'
       return format.apply(this, args);
     };
   });
-  await page.getByRole('textbox', { name: 'Go to cell' }).fill('B2:C3');
-  await page.getByRole('textbox', { name: 'Go to cell' }).press('Enter');
+  await page.getByRole('combobox', { name: 'Go to cell' }).fill('B2:C3');
+  await page.getByRole('combobox', { name: 'Go to cell' }).press('Enter');
   const alert = page.getByRole('alert').filter({ hasText: 'Something went wrong showing the workbook' });
   await expect(alert).toBeVisible();
   await page.evaluate(() => ((window as unknown as { breakSum: boolean }).breakSum = false));

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { parseA1, toA1 } from '../core/refs';
+import { nameProblem } from '../core/names';
+import { parseA1, quoteSheetName, toA1 } from '../core/refs';
 import type { CellChange } from '../core/types';
 import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
@@ -102,7 +103,15 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
     const sheet = store.sheets.findIndex((s) => s.info.name === sheetName);
     const pos = parseA1(ref);
     // A change to a whole sheet shows the sheet, if it can be shown.
-    if (sheet >= 0 && ref === '' && store.sheets[sheet].info.state === 'visible') store.setActive(sheet);
+    if (sheet >= 0 && ref === '' && store.sheets[sheet].info.state === 'visible') {
+      store.setActive(sheet);
+      return;
+    }
+    // A change to a defined name: its sheet, if any, is the one it is local to.
+    if (!pos && ref !== '' && !nameProblem(ref)) {
+      store.goTo(sheetName ? `${quoteSheetName(sheetName)}!${ref}` : ref);
+      return;
+    }
     if (sheet < 0 || !pos) return;
     store.reveal(sheet, pos.row, pos.col);
     if (store.narrow) store.set('panel', null);
@@ -132,7 +141,7 @@ function ChangesBody({ store }: { store: WorkbookStore }) {
                       e.stopPropagation();
                       go(c.sheet, c.ref);
                     }}>
-                      {c.ref === '' ? c.sheet : store.sheets.length > 1 ? `${c.sheet}!${c.ref}` : c.ref}
+                      {c.ref === '' ? c.sheet : store.sheets.length > 1 && c.sheet ? `${c.sheet}!${c.ref}` : c.ref}
                     </button>
                   </td>
                   {c.note ? (

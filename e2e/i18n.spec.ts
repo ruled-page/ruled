@@ -39,7 +39,7 @@ test('translates what is already on screen when the language changes', async ({ 
   await expect(page.locator('.wbe-chip-status')).toContainText(german('schemaChip.errors_other', 6));
   await expect(page.getByRole('button', { name: german('toolbar.changes_one', 1) })).toBeVisible();
   // What screen readers read is German too.
-  await expect(page.getByRole('textbox', { name: de['formulaBar.goTo'] })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: de['formulaBar.goTo'] })).toBeVisible();
 
   await page.getByRole('combobox', { name: demoDe['picker.language'] }).selectOption({ label: 'English' });
   await expect(panel.getByText('Required.')).toBeVisible();

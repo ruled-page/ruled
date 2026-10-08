@@ -136,6 +136,36 @@ for (const theme of ['Default', 'Dark']) {
       }
     });
 
+    test('the name box’s list of names, and the name manager and name dialogs', async ({ page }) => {
+      await openFile(page, 'orders.xlsx', await ordersWorkbook());
+      await useTheme(page, theme);
+      await goTo(page, 'D2:D3');
+      const box = page.getByRole('combobox', { name: 'Go to cell' });
+      await box.click();
+      await box.fill('Totals');
+      await box.press('Enter');
+      await expect(box).toHaveValue('Totals');
+      await box.click();
+      await box.press('Alt+ArrowDown');
+      await expect(page.getByRole('listbox', { name: 'Names' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await box.press('Escape');
+      await box.press('Escape');
+
+      await goTo(page, 'B2');
+      await page.keyboard.press('Shift+F10');
+      await page.getByRole('menuitem', { name: 'Name manager…' }).click();
+      await expect(page.getByRole('dialog', { name: 'Name manager' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('button', { name: 'New…' }).click();
+      const dialog = page.getByRole('dialog', { name: 'New name' });
+      await dialog.getByRole('textbox', { name: 'Name' }).fill('A1');
+      await dialog.getByRole('textbox', { name: 'Refers to' }).fill('=Nowhere!A1');
+      await dialog.getByRole('button', { name: 'OK' }).click();
+      await expect(dialog.getByText('This workbook has no sheet called "Nowhere".')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
     test('the schema designer', async ({ page }) => {
       await openSample(page, 'Price list');
       await useTheme(page, theme);
