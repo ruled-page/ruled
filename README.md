@@ -178,9 +178,17 @@ engine is what failed, the file reopens with live recalculation off.
 Opened files are treated as untrusted. Before anything is decompressed the
 editor checks the file size (default limit 200 MB), the total unzipped size
 (1.5 GB), the compression ratio of large parts (zip bombs) and the part
-count; after reading, the cell count (5 million). `macros: 'remove'` strips
-the VBA project on save and saves as .xlsx; `macros: 'block'` refuses
-macro-enabled files. Links to other workbooks are kept but never fetched.
+count; after reading, the cell count (5 million). Parts cut off mid-tag, and
+row or column numbers beyond Excel's, are refused as a damaged file; formulas
+over very large ranges or arrays keep Excel's saved values rather than being
+calculated. Macros are VBA projects and Excel 4.0 macro sheets:
+`macros: 'remove'` strips the VBA project and empties macro sheets (dropping
+the Auto_Open names that run them) on save, and saves as .xlsx;
+`macros: 'block'` refuses workbooks with either. ActiveX controls and
+embedded objects are reported, and `activeContent: 'block'` refuses
+workbooks with them. Links to other workbooks are kept but never fetched.
+The editor is not a file sanitiser: whatever it doesn't remove stays in the
+saved file, as the "What's in this file" panel lists.
 
 Large workbooks: above 200,000 formulas or 2 million cells, live
 recalculation starts off (`recalc: 'auto'`, the default). Formulas then show

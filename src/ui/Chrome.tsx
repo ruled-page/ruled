@@ -213,6 +213,7 @@ export function Banner({ store }: { store: WorkbookStore }) {
     if (charts) parts.push(t('banner.charts', { count: charts }));
     if (pivots) parts.push(t('banner.pivots', { count: pivots }));
     if (count(['macro'])) parts.push(t('banner.macros'));
+    if (count(['activeContent'])) parts.push(t('banner.activeContent'));
     if (count(['externalLink'])) parts.push(t('banner.externalLinks'));
     const notCalculated = (store.calc?.unsupported ?? 0) + (store.calc?.mismatched ?? 0);
     if (notCalculated) parts.push(t('banner.notCalculated', { count: notCalculated }));

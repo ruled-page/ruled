@@ -63,6 +63,7 @@ export const ui: Record<keyof typeof en, string> = {
   'banner.pivots_one': '{{count, number}} PivotTable',
   'banner.pivots_other': '{{count, number}} PivotTables',
   'banner.macros': 'Makros',
+  'banner.activeContent': 'ActiveX-Steuerelemente oder eingebettete Objekte',
   'banner.externalLinks': 'Verknüpfungen mit anderen Arbeitsmappen',
   'banner.notCalculated_one': '{{count, number}} Formel, die dieser Editor nicht neu berechnen kann',
   'banner.notCalculated_other': '{{count, number}} Formeln, die dieser Editor nicht neu berechnen kann',

@@ -320,6 +320,7 @@ export type FindingKind =
   | 'shape'
   | 'control'
   | 'macro'
+  | 'activeContent'
   | 'externalLink'
   | 'connection'
   | 'slicer'

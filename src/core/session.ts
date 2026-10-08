@@ -1,4 +1,4 @@
-import { msg, TextError, type MessageKey, type Text } from '../i18n/message';
+import { isMessage, msg, TextError, type MessageKey, type Text } from '../i18n/message';
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import type { RawCellContent } from 'hyperformula';
 import { format as formatNumber, isDateFormat } from 'numfmt';
@@ -54,8 +54,13 @@ export interface OpenOptions {
     /** Most cells across all sheets. Default 5,000,000. */
     maxCells?: number;
   };
-  /** What to do with VBA macros: keep them (default), remove them on save, or refuse the file. */
+  /**
+   * What to do with macros, VBA or Excel 4.0 macro sheets: keep them
+   * (default), remove them on save, or refuse the file.
+   */
   macros?: 'keep' | 'remove' | 'block';
+  /** ActiveX controls and embedded objects: keep them (default), or refuse the file. */
+  activeContent?: 'keep' | 'block';
   /**
    * Live recalculation: always, never, or (the default) unless the workbook
    * is larger than LIVE_RECALC_LIMITS, when it starts off and can be turned on.
@@ -324,10 +329,16 @@ export class WorkbookSession {
     if (model.hasMacros && macros === 'block') {
       throw new TextError(msg('core.open.macrosBlocked'));
     }
+    if (model.hasActiveContent && options.activeContent === 'block') {
+      throw new TextError(msg('core.open.activeContentBlocked'));
+    }
     if (model.hasMacros && macros === 'remove') {
-      // The VBA project's finding; unsupported macro sheets name their sheet.
-      const f = model.findings.find((x) => x.kind === 'macro' && !x.sheet);
-      if (f) f.detail = msg('core.finding.macros.removedDetail');
+      for (const f of model.findings) {
+        if (f.kind !== 'macro') continue;
+        // The VBA project's finding has no sheet; a macro sheet's names it.
+        if (!f.sheet) f.detail = msg('core.finding.macros.removedDetail');
+        else if (isMessage(f.title) && f.title.key === 'core.finding.macroSheet.title') f.detail = msg('core.finding.macroSheet.removedDetail');
+      }
     }
     const session = new WorkbookSession(
       pkg,

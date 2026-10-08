@@ -65,6 +65,7 @@ export const ui = {
   'banner.pivots_one': '{{count, number}} pivot table',
   'banner.pivots_other': '{{count, number}} pivot tables',
   'banner.macros': 'macros',
+  'banner.activeContent': 'ActiveX controls or embedded objects',
   'banner.externalLinks': 'links to other workbooks',
   'banner.notCalculated_one': "{{count, number}} formula this editor can't recalculate",
   'banner.notCalculated_other': "{{count, number}} formulas this editor can't recalculate",

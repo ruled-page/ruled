@@ -13,7 +13,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.open.noWorkbookPart': 'In dieser Datei fehlt der Teil mit der Arbeitsmappe.',
   'core.open.tooManyCells': 'Diese Arbeitsmappe hat {{cells, number}} Zellen; dieser Editor kann höchstens {{max, number}} aufnehmen.',
   'core.open.macrosBlocked':
-    'Diese Arbeitsmappe enthält Makros (VBA), die hier nicht zulässig sind. Speichern Sie sie in Excel als .xlsx, und öffnen Sie dann diese Datei.',
+    'Diese Arbeitsmappe enthält Makros (VBA oder Excel 4.0-Makroblätter), die hier nicht zulässig sind. Speichern Sie sie in Excel als .xlsx, und öffnen Sie dann diese Datei.',
+  'core.open.activeContentBlocked': 'Diese Arbeitsmappe enthält ActiveX-Steuerelemente oder eingebettete Objekte, die hier nicht zulässig sind.',
 
   'core.finding.hiddenSheet.title': 'Ausgeblendetes Tabellenblatt „{{sheet}}“',
   'core.finding.hiddenSheet.detail': 'Bleibt in der Datei erhalten, wird aber wie in Excel nicht angezeigt.',
@@ -29,6 +30,10 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.unsupportedSheet.title': 'Nicht unterstütztes Blatt „{{sheet}}“',
   'core.finding.unsupportedSheet.detail':
     'Ein Dialog- oder Makroblatt aus älteren Excel-Versionen. Bleibt in der Datei erhalten; wird in diesem Editor nicht angezeigt.',
+  'core.finding.macroSheet.title': 'Excel 4.0-Makroblatt „{{sheet}}“',
+  'core.finding.macroSheet.detail':
+    'Enthält Excel 4.0-Makros, die beim Öffnen der Datei in Excel ausgeführt werden können. Bleibt in der Datei erhalten; wird hier weder angezeigt noch ausgeführt.',
+  'core.finding.macroSheet.removedDetail': 'Enthält Excel 4.0-Makros. Das Blatt wird beim Speichern geleert, und die Datei wird als .xlsx gespeichert.',
   'core.finding.mergedCells.title': 'Verbundene Zellen über mehrere Zeilen',
   'core.finding.mergedCells.detail_one':
     '{{count, number}} verbundener Bereich erstreckt sich über mehr als eine Zeile. Sein Wert wird nur in der oberen linken Zelle angezeigt; die Verbindung bleibt in der Datei erhalten.',
@@ -106,6 +111,9 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.controls.detail_other':
     '{{count, number}} Schaltflächen oder Formularsteuerelemente. Bleiben in der Datei erhalten; werden hier weder angezeigt noch können sie verwendet werden.',
   'core.finding.macros.title': 'Makros (VBA)',
+  'core.finding.activeContent.title': 'ActiveX-Steuerelemente und eingebettete Objekte',
+  'core.finding.activeContent.detail':
+    'ActiveX-Steuerelemente: {{controls, number}}. Eingebettete Objekte: {{objects, number}}. Sie bleiben in der Datei erhalten und können hier nicht ausgeführt werden, beim Öffnen in Excel aber schon.',
   'core.finding.macros.detail': 'Diese Arbeitsmappe enthält Makros. Sie bleiben in der Datei erhalten, können hier aber nicht ausgeführt werden.',
   'core.finding.macros.removedDetail':
     'Diese Arbeitsmappe enthält Makros. Sie werden beim Speichern entfernt, und die Datei wird als .xlsx gespeichert.',

@@ -6,7 +6,7 @@ import type { CellState } from './session';
 import type { ScanResult } from './sheetScanner';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs } from './xml';
+import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements } from './xml';
 import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
 
@@ -305,7 +305,31 @@ function minCol(g: SheetGrid): number {
  * Turns a macro-enabled workbook into a plain one: drops the VBA project
  * (and its signatures) and switches the workbook's content type to .xlsx.
  */
+/**
+ * Removes a workbook's macros: the VBA project, and the contents of Excel 4.0
+ * macro sheets, which become empty worksheets so that sheet positions (and
+ * everything that refers to them) stay as they were. Names that run macros
+ * when the file opens or closes go too.
+ */
 export function removeMacros(pkg: OoxmlPackage, workbookPath: string): void {
+  const macroSheets = pkg.rels(workbookPath).filter((r) => r.type === 'xlMacrosheet' || r.type === 'xlIntlMacrosheet');
+  for (const r of macroSheets) {
+    for (const sub of pkg.rels(r.target)) if (!sub.external) pkg.remove(sub.target);
+    pkg.remove(relsPathFor(r.target));
+    pkg.setText(r.target, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="${MAIN_NS}"><sheetData/></worksheet>`);
+  }
+  if (macroSheets.length) {
+    const relsPath = relsPathFor(workbookPath);
+    const relsXml = pkg.text(relsPath);
+    if (relsXml) {
+      pkg.setText(relsPath, relsXml.replace(/(<(?:\w+:)?Relationship\b[^>]*Type=")[^"]*\/(?:xlMacrosheet|xlIntlMacrosheet)"/g, '$1http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"'));
+    }
+    const ct = pkg.text('[Content_Types].xml');
+    if (ct) pkg.setText('[Content_Types].xml', ct.replace(/application\/vnd\.ms-excel\.(?:intl)?macrosheet\+xml/g, 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml'));
+    const wb = pkg.text(workbookPath);
+    if (wb) pkg.setText(workbookPath, replaceElements(wb, 'definedName', ({ attrs }, all) => (/\sname="(?:_xlnm\.)?Auto_(?:Open|Close|Activate|Deactivate)\b/i.test(attrs) ? '' : all)));
+  }
+
   const rels = pkg.rels(workbookPath).filter((r) => r.type === 'vbaProject');
   for (const r of rels) {
     for (const sub of pkg.rels(r.target)) if (!sub.external) pkg.remove(sub.target);

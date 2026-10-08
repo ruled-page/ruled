@@ -11,7 +11,8 @@ export const core = {
   'core.open.damaged': "This file is damaged, so it wasn't opened. Excel may be able to repair it.",
   'core.open.noWorkbookPart': 'The workbook part is missing from this file.',
   'core.open.tooManyCells': 'This workbook has {{cells, number}} cells; the most this editor can hold is {{max, number}}.',
-  'core.open.macrosBlocked': "This workbook contains macros (VBA), which aren't allowed here. Save it as .xlsx in Excel and open that instead.",
+  'core.open.macrosBlocked': "This workbook contains macros (VBA or Excel 4.0 macro sheets), which aren't allowed here. Save it as .xlsx in Excel and open that instead.",
+  'core.open.activeContentBlocked': "This workbook contains ActiveX controls or embedded objects, which aren't allowed here.",
 
   // "What's in this file": what the workbook holds that the editor keeps but doesn't show.
   'core.finding.hiddenSheet.title': 'Hidden sheet "{{sheet}}"',
@@ -28,6 +29,9 @@ export const core = {
     '{{type}} chart titled "{{title}}" that fills a whole sheet. Kept in the file and redrawn by Excel from the edited data; not shown in this editor.',
   'core.finding.unsupportedSheet.title': 'Unsupported sheet "{{sheet}}"',
   'core.finding.unsupportedSheet.detail': 'A dialog or macro sheet from older versions of Excel. Kept in the file; not shown in this editor.',
+  'core.finding.macroSheet.title': 'Excel 4.0 macro sheet "{{sheet}}"',
+  'core.finding.macroSheet.detail': "Holds Excel 4.0 macros, which can run when the file is opened in Excel. Kept in the file; not shown or run here.",
+  'core.finding.macroSheet.removedDetail': 'Holds Excel 4.0 macros. The sheet is emptied when you save, and the file is saved as .xlsx.',
   'core.finding.mergedCells.title': 'Merged cells spanning rows',
   'core.finding.mergedCells.detail_one':
     '{{count, number}} merged range span more than one row. Their value is shown in the top-left cell only; the merge is kept in the file.',
@@ -101,6 +105,9 @@ export const core = {
   'core.finding.controls.detail_one': '{{count, number}} button or form control. Kept in the file; not shown or usable here.',
   'core.finding.controls.detail_other': '{{count, number}} buttons or form controls. Kept in the file; not shown or usable here.',
   'core.finding.macros.title': 'Macros (VBA)',
+  'core.finding.activeContent.title': 'ActiveX controls and embedded objects',
+  'core.finding.activeContent.detail':
+    "ActiveX controls: {{controls, number}}. Embedded objects: {{objects, number}}. They are kept in the file and can't run here, but could run when it's opened in Excel.",
   'core.finding.macros.detail': 'This workbook contains macros. They are kept in the file but cannot run here.',
   'core.finding.macros.removedDetail': 'This workbook contains macros. They will be removed when you save, and the file is saved as .xlsx.',
   'core.finding.externalLinks.title': 'Links to other workbooks',

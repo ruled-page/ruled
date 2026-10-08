@@ -182,8 +182,10 @@ export interface StoreOptions {
   drafts?: boolean;
   /** Size and complexity limits for opened files; see OpenOptions. */
   limits?: OpenOptions['limits'];
-  /** VBA macros: keep them (default), remove them when saving, or refuse such files. */
+  /** Macros (VBA or Excel 4.0 macro sheets): keep them (default), remove them when saving, or refuse such files. */
   macros?: OpenOptions['macros'];
+  /** ActiveX controls and embedded objects: keep them (default), or refuse such files. */
+  activeContent?: OpenOptions['activeContent'];
   /**
    * Live recalculation: 'auto' (default) turns it off for workbooks too large
    * to recalculate quickly, where the user can turn it on; 'on' and 'off' force it.
@@ -709,7 +711,7 @@ export class WorkbookStore {
     try {
       const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
         [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');

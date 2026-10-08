@@ -12,7 +12,7 @@ const GROUPS: { id: GroupId; title: MessageKey; blurb: MessageKey; kinds: Findin
     title: 'report.keptTitle',
     blurb: 'report.keptBlurb',
     kinds: [
-      'chart', 'chartsheet', 'pivot', 'image', 'shape', 'control', 'macro', 'externalLink', 'connection', 'slicer',
+      'chart', 'chartsheet', 'pivot', 'image', 'shape', 'control', 'macro', 'activeContent', 'externalLink', 'connection', 'slicer',
       'conditionalFormat', 'dataValidation', 'comment', 'sparkline', 'hyperlink', 'cellImage', 'hiddenSheet',
     ],
   },

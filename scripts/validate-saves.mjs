@@ -4,7 +4,8 @@
  * workbook-verify with a row inserted) are validated with Microsoft's Open
  * XML SDK, the closest automated stand-in for Excel opening a file without
  * offering to repair it, and each is compared with its original: an error
- * the original didn't have fails the check. Some samples were generated with
+ * the original didn't have fails the check (and any error, for a copy with
+ * no original here). Some samples were generated with
  * libraries that write small schema errors of their own; those don't count.
  *
  * Needs the .NET SDK (10 or later) and `npm run build:node`.
@@ -20,7 +21,8 @@ const out = mkdtempSync(join(tmpdir(), 'workbook-saves-'));
 const sources = [join(root, 'public', 'samples'), join(root, 'tests', 'corpus')];
 const originals = sources.flatMap((dir) => readdirSync(dir).filter((f) => /\.xls[xm]$/.test(f) && f !== 'big.xlsx').map((f) => join(dir, f)));
 
-execFileSync('npx', ['vitest', 'run', 'tests/roundtrip-out.test.ts'], { cwd: root, stdio: 'inherit', env: { ...process.env, ROUNDTRIP_OUT: out } });
+// The safety tests add a workbook whose macros were removed.
+execFileSync('npx', ['vitest', 'run', 'tests/roundtrip-out.test.ts', 'tests/safety.test.ts'], { cwd: root, stdio: 'inherit', env: { ...process.env, ROUNDTRIP_OUT: out } });
 const verified = join(out, 'verify');
 mkdirSync(verified);
 spawnSync('node', [join(root, 'dist-node', 'verify.js'), ...originals, '--structure', '--no-python', '--out', verified], { cwd: root, stdio: 'ignore' });

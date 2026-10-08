@@ -36,7 +36,10 @@ export interface WorkbookModel {
   date1904: boolean;
   findings: Finding[];
   /** The workbook carries a VBA project. */
+  /** A VBA project or Excel 4.0 macro sheets. */
   hasMacros: boolean;
+  /** ActiveX controls or embedded (OLE) objects. */
+  hasActiveContent: boolean;
   /** Custom document properties. */
   properties: Record<string, string>;
 }
@@ -148,6 +151,11 @@ function readDrawing(pkg: OoxmlPackage, path: string): SheetObject[] {
   return out;
 }
 
+/** Excel 4.0 macro sheets, which hold macros that can run when the file is opened. */
+export function isMacroSheet(relType: string | undefined): boolean {
+  return relType === 'xlMacrosheet' || relType === 'xlIntlMacrosheet';
+}
+
 function countMatches(xml: string | undefined, re: RegExp): number {
   return xml ? (xml.match(re) ?? []).length : 0;
 }
@@ -257,11 +265,12 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
       return { info, path, colStyles: [] };
     }
     if (info.kind !== 'worksheet') {
+      const macroSheet = isMacroSheet(rel?.type);
       findings.push({
         kind: 'macro',
         severity: 'warn',
-        title: msg('core.finding.unsupportedSheet.title', { sheet: name }),
-        detail: msg('core.finding.unsupportedSheet.detail'),
+        title: msg(macroSheet ? 'core.finding.macroSheet.title' : 'core.finding.unsupportedSheet.title', { sheet: name }),
+        detail: msg(macroSheet ? 'core.finding.macroSheet.detail' : 'core.finding.unsupportedSheet.detail'),
         sheet: name,
       });
       return { info, path, colStyles: [] };
@@ -580,6 +589,18 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
 
   // Workbook-level features.
   const vba = relOfType('vbaProject').length > 0 || pkg.has('xl/vbaProject.bin');
+  const macroSheets = wbRels.some((r) => isMacroSheet(r.type));
+  // Controls and embedded objects can run code in Excel, macros or not.
+  const controls = pkg.list().filter((p) => /^xl\/activeX\/activeX\d*\.xml$/.test(p)).length;
+  const objects = pkg.list().filter((p) => p.startsWith('xl/embeddings/')).length;
+  if (controls || objects) {
+    findings.push({
+      kind: 'activeContent',
+      severity: 'warn',
+      title: msg('core.finding.activeContent.title'),
+      detail: msg('core.finding.activeContent.detail', { controls, objects }),
+    });
+  }
   if (vba) {
     findings.push({
       kind: 'macro',
@@ -627,5 +648,15 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string): WorkbookModel {
     });
   }
 
-  return { workbookPath, sheets, styles, names, date1904, findings, hasMacros: vba, properties: readCustomProperties(pkg) };
+  return {
+    workbookPath,
+    sheets,
+    styles,
+    names,
+    date1904,
+    findings,
+    hasMacros: vba || macroSheets,
+    hasActiveContent: controls + objects > 0,
+    properties: readCustomProperties(pkg),
+  };
 }
