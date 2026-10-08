@@ -60,6 +60,10 @@ describe('formulas', () => {
 describe('typed input', () => {
   it('parses like Excel', () => {
     expect(parseInput('12%', 'General')).toEqual({ content: { kind: 'number', value: 0.12 }, numFmt: '0%' });
+    // A comma after the decimal point is no thousands separator: Excel keeps it as text.
+    expect(parseInput('1.234,5', 'General', 'en-US')).toEqual({ content: { kind: 'string', value: '1.234,5' } });
+    expect(parseInput('1.234,5', 'General', 'de-DE').content).toEqual({ kind: 'number', value: 1234.5 });
+    expect(parseInput('1,234.5', 'General', 'en-US').content).toEqual({ kind: 'number', value: 1234.5 });
     expect(parseInput('007', '@')).toEqual({ content: { kind: 'string', value: '007' } });
     expect(parseInput("'=not a formula", 'General')).toEqual({ content: { kind: 'string', value: '=not a formula' } });
     expect(parseInput('#n/a', 'General')).toEqual({ content: { kind: 'error', value: '#N/A' } });

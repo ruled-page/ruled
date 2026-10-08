@@ -1,5 +1,6 @@
 import { displayFormula } from '../core/formula';
 import { parseInput } from '../core/input';
+import { localeInfo } from '../core/locale';
 import { format, formatColor, isDateFormat } from 'numfmt';
 import { VT, type DisplayStyle } from '../core/types';
 
@@ -40,22 +41,26 @@ const isPercent = (pattern: string) => /%/.test(pattern.replace(/"[^"]*"/g, ''))
 
 /**
  * The value with every stored digit (to Excel's 15 significant digits),
- * keeping percentages as percentages. Dates and text are unaffected.
+ * keeping percentages as percentages, with the locale's decimal separator.
+ * Dates and text are unaffected.
  */
-export function exactText(rec: CellRecord, style: DisplayStyle, grouping: boolean): string | undefined {
+export function exactText(rec: CellRecord, style: DisplayStyle, grouping: boolean, locale = 'en-US'): string | undefined {
   if (rec.t !== VT.Number || isDate(style.numFmt)) return undefined;
   const n = rec.n ?? 0;
-  if (isPercent(style.numFmt)) return `${tidy(n * 100)}%`;
-  return grouping ? tidy(n).toLocaleString(undefined, { maximumFractionDigits: 15 }) : String(tidy(n));
+  const plain = (x: number) => (localeInfo(locale).decimalComma ? String(tidy(x)).replace('.', ',') : String(tidy(x)));
+  if (isPercent(style.numFmt)) return `${plain(n * 100)}%`;
+  return grouping ? tidy(n).toLocaleString(locale, { maximumFractionDigits: 15 }) : plain(n);
 }
 
 /**
  * The text Excel would show for a cell, and the colour its number format asks
- * for. Numbers use English separators unless a locale is given.
+ * for. Numbers are written with the locale's separators, and month and day
+ * names in its language, as Excel writes them for the computer's region;
+ * English without one.
  */
 export function displayText(rec: CellRecord, style: DisplayStyle, date1904: boolean, exact = false, locale?: string): { text: string; color?: string } {
   if (exact) {
-    const text = exactText(rec, style, true);
+    const text = exactText(rec, style, true, locale);
     if (text !== undefined) return { text };
   }
   switch (rec.t) {

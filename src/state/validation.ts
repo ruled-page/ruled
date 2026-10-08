@@ -16,7 +16,7 @@ export function listValidationAt(info: SheetInfo, row: number, col: number): Lis
  * the displayed text of the source cells, without blanks or repeats.
  * Undefined when the source can't be resolved.
  */
-export function listOptions(dv: ListValidation, views: SheetView[], styles: DisplayStyle[], date1904: boolean): string[] | undefined {
+export function listOptions(dv: ListValidation, views: SheetView[], styles: DisplayStyle[], date1904: boolean, locale?: string): string[] | undefined {
   const src = dv.source;
   if (src.kind === 'values') return src.values;
   if (src.kind !== 'range') return undefined;
@@ -30,7 +30,7 @@ export function listOptions(dv: ListValidation, views: SheetView[], styles: Disp
     for (let col = src.rect.c1; col <= c2 && out.length < MAX_OPTIONS; col++) {
       const rec = view.get(row, col);
       if (!rec || rec.t === VT.None) continue;
-      const text = displayText(rec, styles[rec.style] ?? styles[0], date1904).text.trim();
+      const text = displayText(rec, styles[rec.style] ?? styles[0], date1904, false, locale).text.trim();
       if (!text || seen.has(text)) continue;
       seen.add(text);
       out.push(text);

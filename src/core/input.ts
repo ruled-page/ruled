@@ -47,7 +47,11 @@ export function parseInput(text: string, cellNumFmt: string, locale = 'en-US', d
   const trimmed = text.trim();
   if (ERROR_LITERALS.has(trimmed.toUpperCase())) return { content: { kind: 'error', value: trimmed.toUpperCase() } };
 
-  const local = normalizeForLocale(text, localeInfo(locale));
+  const info = localeInfo(locale);
+  const local = normalizeForLocale(text, info);
+  // Where a point is the decimal separator, a comma after it isn't a thousands
+  // separator: Excel keeps "1.234,5" as text rather than reading 1.2345.
+  if (!info.decimalComma && /\d\.\d*,/.test(local.text)) return { content: { kind: 'string', value: text } };
   let parsed: ReturnType<typeof parseValue> = null;
   try {
     parsed = parseValue(local.text);

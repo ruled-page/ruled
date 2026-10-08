@@ -2020,11 +2020,11 @@ export class WorkbookStore {
     return false;
   }
 
-  /** The text a cell shows, as filters and find compare it. */
+  /** The text a cell shows, as filters and find compare it, in the locale's format as Excel saves filters. */
   shownText(view: SheetView, row: number, col: number): string {
     const rec = view.get(row, col);
     if (!rec) return '';
-    return displayText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904).text;
+    return displayText(rec, this.styles[rec.style] ?? this.styles[0], this.date1904, false, this.locale).text;
   }
 
   /** The values in a column of the filter range, with how many rows hold each, for picking what to show. */
@@ -2260,8 +2260,8 @@ export class WorkbookStore {
       for (let col = rect.c1; col <= Math.min(rect.c2, lastCol); col++) {
         const rec = view.get(row, col);
         const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
-        const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
-        const text = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
+        const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false, this.locale) : undefined;
+        const text = rec && style ? (raw ?? displayText(rec, style, this.date1904, false, this.locale).text) : '';
         cells.push(rec?.t === VT.Number && rec.n !== undefined ? { text, value: rec.n } : { text });
       }
       rows.push(cells);
@@ -2470,8 +2470,8 @@ export class WorkbookStore {
     if (!view) return;
     const rec = view.get(rect.r1, rect.c1);
     const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
-    const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false) : undefined;
-    const first = rec && style ? (raw ?? displayText(rec, style, this.date1904).text) : '';
+    const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false, this.locale) : undefined;
+    const first = rec && style ? (raw ?? displayText(rec, style, this.date1904, false, this.locale).text) : '';
     this.clip = { sheet: this.active, rect, first, cut };
     this.notify();
   }
@@ -2736,7 +2736,7 @@ export class WorkbookStore {
       const version = dv.source.kind === 'range' ? (this.sheets[dv.source.sheet]?.version ?? 0) : -1;
       const hit = this.listCache.get(dv);
       if (hit && hit.version === version) return hit.options;
-      const options = listOptions(dv, this.sheets, this.styles, this.date1904);
+      const options = listOptions(dv, this.sheets, this.styles, this.date1904, this.locale);
       this.listCache.set(dv, { version, options });
       return options;
     }
@@ -2761,7 +2761,7 @@ export class WorkbookStore {
       ready: this.request({ type: 'listSource', sheet, formula } as Omit<WorkerRequest, 'id'>)
         .then((res) => {
           const src = res.type === 'listSource' ? res.source : null;
-          entry.options = src ? listOptions({ ...dv, source: src }, this.sheets, this.styles, this.date1904) : undefined;
+          entry.options = src ? listOptions({ ...dv, source: src }, this.sheets, this.styles, this.date1904, this.locale) : undefined;
           this.notify();
           return entry.options;
         })

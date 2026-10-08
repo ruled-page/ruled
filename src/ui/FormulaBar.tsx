@@ -211,7 +211,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const style = store.styles[rec?.style ?? 0] ?? store.styles[0];
   // A protected sheet can hide a cell's formula from the formula bar, as Excel does; its value still shows.
   const hidden = !!rec && rec.f !== undefined && view.info.protected && !!style.formulaHidden;
-  const value = hidden ? displayText(rec, style, store.date1904).text : editText(rec, style, store.date1904, store.locale);
+  const value = hidden ? displayText(rec, style, store.date1904, false, store.locale).text : editText(rec, style, store.date1904, store.locale);
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
   const input = useRef<HTMLInputElement>(null);

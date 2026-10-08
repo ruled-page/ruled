@@ -64,6 +64,16 @@ describe('the text a cell shows', () => {
     expect(displayText({ t: VT.None, style: 0, flags: 0 }, general, false).text).toBe('');
   });
 
+  it("writes numbers and month names as the user's locale does", () => {
+    const amount = style({ numFmt: '#,##0.00' });
+    expect(displayText(num(1234.5), amount, false, false, 'de-DE').text).toBe('1.234,50');
+    expect(displayText(num(1234.5), amount, false, false, 'en-GB').text).toBe('1,234.50');
+    expect(displayText(num(0.125), style({ numFmt: '0.0%' }), false, false, 'de-DE').text).toBe('12,5%');
+    expect(displayText(num(NEW_YEAR_1900 + 59), style({ numFmt: 'd mmmm yyyy' }), false, false, 'de-DE').text).toBe('1 März 2026');
+    // Without one, English.
+    expect(displayText(num(1234.5), amount, false).text).toBe('1,234.50');
+  });
+
   it('shows every stored digit when asked for exact numbers', () => {
     const twoPlaces = style({ numFmt: '0.00' });
     expect(displayText(num(3.14159265), twoPlaces, false).text).toBe('3.14');
@@ -90,7 +100,13 @@ describe('exact numbers', () => {
 
   it('groups thousands only when asked to', () => {
     expect(exactText(num(1234567.5), general, false)).toBe('1234567.5');
-    expect(exactText(num(1234567.5), general, true)).toBe((1234567.5).toLocaleString(undefined, { maximumFractionDigits: 15 }));
+    expect(exactText(num(1234567.5), general, true)).toBe('1,234,567.5');
+  });
+
+  it("use the locale's decimal separator", () => {
+    expect(exactText(num(1234567.5), general, false, 'de-DE')).toBe('1234567,5');
+    expect(exactText(num(1234567.5), general, true, 'de-DE')).toBe('1.234.567,5');
+    expect(exactText(num(0.123456), style({ numFmt: '0%' }), false, 'de-DE')).toBe('12,3456%');
   });
 
   it('has nothing to add for dates, text and other values', () => {

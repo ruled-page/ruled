@@ -41,6 +41,8 @@ describe('opening a CSV file in the editor', () => {
     expect(store.sheets.map((s) => s.info.name)).toEqual(['preise']);
     expect(shown(0, 2)).toBe('Gültig ab');
     expect(cell(1, 1)).toMatchObject({ t: VT.Number, n: 1.5 });
+    // Shown, filtered and found as German writes it.
+    expect(shown(1, 1)).toBe('1,5');
     expect(shown(1, 2)).toBe('31/12/2025');
     expect(cell(1, 3)).toMatchObject({ t: VT.String, s: '=HYPERLINK("http://example.com")' });
     expect(cell(1, 3)?.f).toBeUndefined();

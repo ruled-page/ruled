@@ -237,7 +237,7 @@ export function SheetGrid({
       const at = merge ? { row: merge.r1, col: merge.c1 } : { row, col };
       const rec = view.get(at.row, at.col);
       // The cells a merge covers are read as the merge, whose top-left cell holds its value.
-      if (merge && !shown && rec) shown = displayText(rec, effectiveStyle(view, styles, at.row, at.col, rec.style), date1904, numbers.display === 'full').text;
+      if (merge && !shown && rec) shown = displayText(rec, effectiveStyle(view, styles, at.row, at.col, rec.style), date1904, numbers.display === 'full', locale).text;
       const parts = [toA1(at.row, at.col), shown || t('grid.empty')];
       const link = cellLink(view, at.row, at.col);
       if (link) {
@@ -258,7 +258,7 @@ export function SheetGrid({
       return parts.join(', ');
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, numbers, highlight, schema, schemaVersion, sheetIndex, t],
+    [view, dataVersion, styles, date1904, locale, numbers, highlight, schema, schemaVersion, sheetIndex, t],
   );
 
   const sheetName = view.info.name;
@@ -346,7 +346,7 @@ export function SheetGrid({
           themeOverride: bg ? { bgCell: bg } : undefined,
         });
       }
-      let { text, color } = displayText(rec, style, date1904, numbers.display === 'full');
+      let { text, color } = displayText(rec, style, date1904, numbers.display === 'full', locale);
       const full = text;
       let drawStyle = style;
       if (rec.t === VT.Number && !style.wrap) {
