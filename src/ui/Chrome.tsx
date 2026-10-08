@@ -286,6 +286,42 @@ export function Banner({ store }: { store: WorkbookStore }) {
   );
 }
 
+/**
+ * Says when a workbook opened with live recalculation off, being too big to
+ * recalculate as people type, and offers to turn it on, which the status
+ * bar also offers.
+ */
+export function RecalcBanner({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const calc = store.calc;
+  if (!calc?.off || store.recalcBannerDismissed) return null;
+  return (
+    <div className="wbe-banner wbe-banner-warn" role="status">
+      <Icon name="warn" />
+      <p>{t('banner.recalcOff', { count: calc.formulaCells })}</p>
+      {store.recalcStarting ? (
+        <span className="wbe-muted">
+          <span className="wbe-spinner wbe-small" /> {t('status.building')}
+        </span>
+      ) : (
+        <button className="wbe-link" onClick={() => void store.enableRecalc()} title={t('status.turnOnTitle')}>
+          {t('banner.turnOn')}
+        </button>
+      )}
+      <button
+        className="wbe-btn wbe-icon wbe-ghost"
+        onClick={() => {
+          store.set('recalcBannerDismissed', true);
+          store.focusGrid();
+        }}
+        aria-label={t('banner.dismiss')}
+      >
+        <Icon name="close" />
+      </button>
+    </div>
+  );
+}
+
 export function SheetTabs({ store }: { store: WorkbookStore }) {
   const t = useT();
   const hidden = store.sheets.filter((s) => s.info.state !== 'visible').length;

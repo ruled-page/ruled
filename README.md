@@ -378,8 +378,8 @@ editor to carry on and do so. Links refused as unsafe never reach it.
 
 Large workbooks: above 200,000 formulas or 2 million cells, live
 recalculation starts off (`recalc: 'auto'`, the default). Formulas then show
-the values Excel saved and Excel recalculates on open; the status bar offers
-to turn it on. On the 1.1-million-cell sample that is 1 second and about
+the values Excel saved and Excel recalculates on open; a banner says so, and
+it and the status bar offer to turn it on. On the 1.1-million-cell sample that is 1 second and about
 200 MB to open, against 5.5 seconds and 750 MB with the engine. `recalc:
 'on'` or `'off'` forces it either way. The engine only takes the sheets that
 formulas use, adding others when a formula first names them, and sheet XML

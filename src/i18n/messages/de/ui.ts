@@ -74,6 +74,9 @@ export const ui: Record<keyof typeof en, string> = {
   'banner.notCalculated_other': '{{count, number}} Formeln, die dieser Editor nicht neu berechnen kann',
   'banner.reviewDetails': 'Details ansehen',
   'banner.dismiss': 'Schließen',
+  'banner.recalcOff_one': 'Die Live-Neuberechnung ist aus: Diese Arbeitsmappe hat {{count, number}} Formel, mehr als dieser Editor beim Tippen neu berechnet. Formeln zeigen die von Excel gespeicherten Werte, und Excel berechnet sie beim Öffnen der Datei neu.',
+  'banner.recalcOff_other': 'Die Live-Neuberechnung ist aus: Diese Arbeitsmappe hat {{count, number}} Formeln, mehr als dieser Editor beim Tippen neu berechnet. Formeln zeigen die von Excel gespeicherten Werte, und Excel berechnet sie beim Öffnen der Datei neu.',
+  'banner.turnOn': 'Live-Neuberechnung einschalten',
 
   'tabs.label': 'Tabellenblätter',
   'tabs.checkedBy': 'Vom Schema „{{name}}“ geprüft',

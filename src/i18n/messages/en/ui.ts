@@ -76,6 +76,9 @@ export const ui = {
   'banner.notCalculated_other': "{{count, number}} formulas this editor can't recalculate",
   'banner.reviewDetails': 'Review details',
   'banner.dismiss': 'Dismiss',
+  'banner.recalcOff_one': "Live recalculation is off: this workbook has {{count, number}} formula, more than this editor recalculates as you type. Formulas show the values Excel saved, and Excel recalculates them when the file is opened.",
+  'banner.recalcOff_other': "Live recalculation is off: this workbook has {{count, number}} formulas, more than this editor recalculates as you type. Formulas show the values Excel saved, and Excel recalculates them when the file is opened.",
+  'banner.turnOn': 'Turn on live recalculation',
 
   'tabs.label': 'Sheets',
   'tabs.checkedBy': 'Checked by the “{{name}}” schema',

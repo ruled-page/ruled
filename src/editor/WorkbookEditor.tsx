@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
-import { Banner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
+import { Banner, RecalcBanner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
 import { FilterPicker } from '../ui/FilterPicker';
 import { FindPanel } from '../ui/FindPanel';
@@ -295,6 +295,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
         />
       )}
       {ready && <SchemaBanner store={store} />}
+      {ready && <RecalcBanner store={store} />}
       {ready && <Banner store={store} />}
       {ready && store.features.format && <FormatBar store={store} />}
       {ready && view.info.kind === 'worksheet' && <FormulaBar store={store} view={view} selection={selection} />}

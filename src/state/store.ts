@@ -531,6 +531,8 @@ export class WorkbookStore {
   bannerDismissed = false;
   /** The schema banner (no schema matched, or the file was saved under another version), until the next file. */
   schemaBannerDismissed = false;
+  /** The banner saying live recalculation is off, until the next file. */
+  recalcBannerDismissed = false;
   highlightEdits = true;
   /** The user's override for exact numbers; undefined follows the schema or defaults. */
   exactNumbers?: boolean;
@@ -942,6 +944,7 @@ export class WorkbookStore {
       editedCount: 0,
       bannerDismissed: false,
       schemaBannerDismissed: false,
+      recalcBannerDismissed: false,
       panel: null,
       clip: undefined,
       schema: undefined,
@@ -3396,6 +3399,7 @@ export class WorkbookStore {
       | 'panel'
       | 'bannerDismissed'
       | 'schemaBannerDismissed'
+      | 'recalcBannerDismissed'
       | 'highlightEdits'
       | 'exactNumbers'
       | 'designerOpen'
