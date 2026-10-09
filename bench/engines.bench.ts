@@ -80,11 +80,28 @@ it('compares the calculation engines', { timeout: 900_000 }, () => {
       const report = session.ensureEngine();
       const calcMs = performance.now() - started;
       const heap = heapMB() - before;
+      // The engine's share of each edit, the rest being the session's own work.
+      const engine = (session as unknown as { engine?: { write: (w: unknown) => unknown } }).engine;
+      let inEngine = 0;
+      if (engine) {
+        const write = engine.write.bind(engine);
+        engine.write = (w) => {
+          const t = performance.now();
+          try {
+            return write(w);
+          } finally {
+            inEngine += performance.now() - t;
+          }
+        };
+      }
       const times: number[] = [];
+      const engineTimes: number[] = [];
       for (const c of numberCells(session)) {
+        inEngine = 0;
         started = performance.now();
         session.apply({ type: 'input', sheet: c.sheet, row: c.row, col: c.col, text: String(c.value + 1) });
         times.push(performance.now() - started);
+        engineTimes.push(inEngine);
       }
       rows.push({
         engine: kind.name,
@@ -94,6 +111,7 @@ it('compares the calculation engines', { timeout: 900_000 }, () => {
         'calc ms': Math.round(calcMs),
         'edit ms (median)': Number(median(times).toFixed(1)),
         'edit ms (max)': Number(Math.max(0, ...times).toFixed(1)),
+        'in engine ms': Number(median(engineTimes).toFixed(2)),
         'heap MB': Number(heap.toFixed(1)),
         'not calculated': report.unsupported,
         'differ from Excel': report.mismatched,

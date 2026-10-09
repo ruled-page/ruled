@@ -70,8 +70,12 @@ interface RangeRead {
 }
 
 class Sheet {
-  /** Values (never null) and formulas, by key(row, col). */
-  readonly cells = new Map<number, Scalar | Formula>();
+  /**
+   * Values (never null) and formulas, column by column, each indexed by
+   * row: reading down a range is walking an array, and a cell is found
+   * without hashing its position.
+   */
+  readonly columns: (Scalar | Formula | undefined)[][] = [];
   /** Cells a formula's result spills into, with that formula. */
   readonly spilled = new Map<number, Formula>();
   /** Formulas whose results spill. */
@@ -85,6 +89,21 @@ class Sheet {
   maxCol = -1;
 
   constructor(readonly name: string) {}
+
+  get(row: number, col: number): Scalar | Formula | undefined {
+    return this.columns[col]?.[row];
+  }
+
+  set(row: number, col: number, v: Scalar | Formula): void {
+    let column = this.columns[col];
+    if (!column) this.columns[col] = column = [];
+    column[row] = v;
+  }
+
+  delete(row: number, col: number): void {
+    const column = this.columns[col];
+    if (column && row < column.length) column[row] = undefined;
+  }
 
   grow(row: number, col: number): void {
     if (row > this.maxRow) this.maxRow = row;
@@ -170,8 +189,7 @@ export class NativeEngine implements FormulaEngine, Host {
   value(sheet: number, row: number, col: number): Scalar {
     const sh = this.sheets[sheet];
     if (!sh) return null;
-    const k = key(row, col);
-    const c = sh.cells.get(k);
+    const c = sh.get(row, col);
     if (c !== undefined) {
       if (!(c instanceof Formula)) return c;
       if (c.dirty) this.compute(c);
@@ -186,25 +204,25 @@ export class NativeEngine implements FormulaEngine, Host {
         }
       }
     }
-    const owner = sh.spilled.get(k);
+    const owner = sh.spilled.get(key(row, col));
     return owner?.result ? owner.result.get(row - owner.row, col - owner.col) : null;
   }
 
   hyperlink(sheet: number, row: number, col: number): string | undefined {
-    const c = this.sheets[sheet]?.cells.get(key(row, col));
+    const c = this.sheets[sheet]?.get(row, col);
     return c instanceof Formula ? c.link : undefined;
   }
 
   isArray(sheet: number, row: number, col: number): boolean {
     const sh = this.sheets[sheet];
     if (!sh) return false;
-    const c = sh.cells.get(key(row, col));
+    const c = sh.get(row, col);
     if (c instanceof Formula) return !!c.spill || (!!c.result && !c.legacy);
     return sh.spilled.has(key(row, col));
   }
 
   measured(sheet: number, row: number, col: number): ArrayDims | undefined {
-    const c = this.sheets[sheet]?.cells.get(key(row, col));
+    const c = this.sheets[sheet]?.get(row, col);
     return c instanceof Formula ? c.measured : undefined;
   }
 
@@ -321,21 +339,31 @@ export class NativeEngine implements FormulaEngine, Host {
     const sh = this.sheets[ref.sheet];
     if (!sh) return;
     const r = this.bound(ref);
-    const visit = (row: number, col: number) => {
-      const c = sh.cells.get(key(row, col));
-      if (skipSubtotals && c instanceof Formula && c.template.subtotal) return;
-      const v = this.value(r.sheet, row, col);
-      if (v !== null) f(v, row, col);
-    };
-    if (r.rows * r.cols <= 4 * (sh.cells.size + sh.spilled.size)) {
-      for (let row = r.r1; row <= r.r2; row++) for (let col = r.c1; col <= r.c2; col++) visit(row, col);
-      return;
+    const last = Math.min(r.c2, sh.columns.length - 1);
+    for (let col = r.c1; col <= last; col++) {
+      const column = sh.columns[col];
+      if (!column) continue;
+      const end = Math.min(r.r2, column.length - 1);
+      for (let row = r.r1; row <= end; row++) {
+        const c = column[row];
+        if (c === undefined) continue;
+        if (!(c instanceof Formula)) {
+          f(c, row, col);
+          continue;
+        }
+        if (skipSubtotals && c.template.subtotal) continue;
+        if (c.dirty) this.compute(c);
+        f(c.busy ? 0 : c.value, row, col);
+      }
     }
-    // A large range over a sparse sheet: the cells there are, rather than every position.
-    for (const k of [...sh.cells.keys(), ...sh.spilled.keys()]) {
+    if (!sh.spilled.size) return;
+    // Values spilled from formulas, which aren't cells of their own.
+    for (const [k, owner] of sh.spilled) {
       const row = Math.floor(k / MAX_COLS);
       const col = k % MAX_COLS;
-      if (row >= r.r1 && row <= r.r2 && col >= r.c1 && col <= r.c2) visit(row, col);
+      if (row < r.r1 || row > r.r2 || col < r.c1 || col > r.c2) continue;
+      const v = this.value(r.sheet, row, col);
+      if (v !== null && owner.result) f(v, row, col);
     }
   }
 
@@ -346,14 +374,14 @@ export class NativeEngine implements FormulaEngine, Host {
   }
 
   spillOf(sheet: number, row: number, col: number): Ref | undefined {
-    const c = this.sheets[sheet]?.cells.get(key(row, col));
+    const c = this.sheets[sheet]?.get(row, col);
     if (!(c instanceof Formula)) return undefined;
     if (c.dirty) this.compute(c);
     return c.spill;
   }
 
   isFormula(sheet: number, row: number, col: number): boolean {
-    return this.sheets[sheet]?.cells.get(key(row, col)) instanceof Formula;
+    return this.sheets[sheet]?.get(row, col) instanceof Formula;
   }
 
   // ---------------------------------------------------------------------------
@@ -373,8 +401,7 @@ export class NativeEngine implements FormulaEngine, Host {
    */
   private put(sheet: number, row: number, col: number, raw: RawContent, typed: boolean): Ref | undefined {
     const sh = this.sheets[sheet]!;
-    const k = key(row, col);
-    const old = sh.cells.get(k);
+    const old = sh.get(row, col);
     const before = this.changes ? this.peek(sheet, row, col) : undefined;
     let gone: Ref | undefined;
     if (old instanceof Formula) {
@@ -389,15 +416,15 @@ export class NativeEngine implements FormulaEngine, Host {
       const t = compileAt(raw, row, col);
       const f = new Formula(sheet, row, col, t, !typed && !t.spill);
       f.prev = before;
-      sh.cells.set(k, f);
+      sh.set(row, col, f);
       this.register(f);
       if (t.volatile) this.volatile.add(f);
       if (t.spill) sh.anchors.add(f);
       this.dirtied.push(f);
     } else {
       const v = rawValue(raw);
-      if (v === null) sh.cells.delete(k);
-      else sh.cells.set(k, v);
+      if (v === null) sh.delete(row, col);
+      else sh.set(row, col, v);
       if (this.changes && !same(before, v)) this.noteChange(sheet, row, col, v);
     }
     sh.grow(row, col);
@@ -408,7 +435,7 @@ export class NativeEngine implements FormulaEngine, Host {
   private peek(sheet: number, row: number, col: number): Scalar {
     const sh = this.sheets[sheet];
     if (!sh) return null;
-    const c = sh.cells.get(key(row, col));
+    const c = sh.get(row, col);
     if (c !== undefined) return c instanceof Formula ? c.value : c;
     const owner = sh.spilled.get(key(row, col));
     return owner?.result ? owner.result.get(row - owner.row, col - owner.col) : null;
@@ -538,7 +565,7 @@ export class NativeEngine implements FormulaEngine, Host {
     for (const c of cells) {
       this.readersOf(c.sheet, c.row, c.col, mark);
       const sh = this.sheets[c.sheet]!;
-      const own = sh.cells.get(key(c.row, c.col));
+      const own = sh.get(c.row, c.col);
       if (own instanceof Formula) queue.push(own);
       // Content in a spill's way blocks it; taken away, it lets it spill again.
       for (const a of sh.anchors) {
@@ -564,7 +591,7 @@ export class NativeEngine implements FormulaEngine, Host {
       run();
       this.settle(this.dirtied);
       for (const f of this.dirtied) {
-        if (this.sheets[f.sheet]?.cells.get(key(f.row, f.col)) !== f) continue;
+        if (this.sheets[f.sheet]?.get(f.row, f.col) !== f) continue;
         if (!same(f.prev, f.value) || f.reshaped) this.noteChange(f.sheet, f.row, f.col, f.value);
         f.prev = undefined;
         f.reshaped = false;
@@ -679,7 +706,7 @@ export class NativeEngine implements FormulaEngine, Host {
         if (row === f.row && col === f.col) continue;
         const k = key(row, col);
         const owner = sh.spilled.get(k);
-        if (sh.cells.has(k) || (owner && owner !== f)) {
+        if (sh.get(row, col) !== undefined || (owner && owner !== f)) {
           free = false;
           break;
         }
