@@ -137,9 +137,10 @@ describe("a file's own dynamic array", () => {
     const s = corpus();
     const arrays = sheetIndex(s, 'Arrays');
     const info = s.model.sheets[arrays].info;
-    expect(s.calcReport?.liveArrays?.map((a) => rangeToA1(a.rect))).toEqual(['A2:A4', 'G2:I3', 'E5:E6']);
-    // B2:B4 reads the spill as A2#, which isn't calculated here; G6:G8 is the older kind, calculated but changed only as a whole.
-    expect(info.blocked.map((b) => rangeToA1(b))).toEqual(['B2:B4', 'G6:G8']);
+    // B2:B4 reads the spill as A2#, which HyperFormula can't calculate (the native engine can); G6:G8 is the older kind, calculated but changed only as a whole.
+    const native = process.env.ENGINE === 'native';
+    expect(s.calcReport?.liveArrays?.map((a) => rangeToA1(a.rect))).toEqual(native ? ['A2:A4', 'B2:B4', 'G2:I3', 'E5:E6'] : ['A2:A4', 'G2:I3', 'E5:E6']);
+    expect(info.blocked.map((b) => rangeToA1(b))).toEqual(native ? ['G6:G8'] : ['B2:B4', 'G6:G8']);
     expect(column(s, ['A2', 'A3', 'A4'], arrays)).toEqual(['Electrical', 'Hardware', 'Safety']);
     expect(shown(s, 'H3', arrays)).toMatchObject({ value: 5, spilled: true, spill: 'G2:I3' });
     // UNIQUE could need five rows, where A6 has text; it needs three.

@@ -425,6 +425,19 @@ and how long opening, calculating and the last edit took, with the worker's
 heap where the browser reports it (Chrome). The demo turns this on and has an
 engine picker, which `?engine=` in its address also sets.
 
+The editor's own engine (`'native'`, in `src/engine`) is the alternative: it
+reads formulas with the parser the editor already uses, compiles each
+distinct formula once (in its relative R1C1 form, so a column of copied
+formulas shares one), and recalculates only what an edit affects. It has
+148 of Excel's functions so far, dynamic arrays and spills, array formulas
+entered with Ctrl+Shift+Enter, `A2#` and `@`, defined names and Excel's
+rules for comparing and converting values; a formula using a function it
+doesn't have yet keeps Excel's saved value, as any formula an engine can't
+calculate does. It is 15 kB gzipped against HyperFormula's 176 kB, and on
+`big.xlsx` calculates in half the time with 40% less memory. It is in the
+demo and test sites for now, not the library builds. `ENGINE=native npx
+vitest run` runs the unit tests on it.
+
 **Saving to the host.** Edits are kept locally as a draft until saved; with
 `onSave` (or the element's `save-handler="event"`), the Save button (labelled
 by `saveLabel`) runs the schema checks and hands the host the saved workbook:

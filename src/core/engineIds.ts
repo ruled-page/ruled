@@ -3,7 +3,10 @@
  * into the worker only when a workbook is opened with it, so this list is
  * all the page itself knows of them.
  */
-export const ENGINES = [{ id: 'hyperformula', name: 'HyperFormula' }] as const;
+export const ENGINES = [
+  { id: 'hyperformula', name: 'HyperFormula' },
+  { id: 'native', name: 'Native' },
+] as const;
 
 export type EngineId = (typeof ENGINES)[number]['id'];
 

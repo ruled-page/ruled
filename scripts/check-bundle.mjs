@@ -20,6 +20,8 @@ const BUDGETS = [
   ['dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // HyperFormula, which the worker loads when a workbook is opened with it.
   ['dist/assets', /^worker-calc-.*\.js$/, 210],
+  // The editor's own engine, which the worker loads in HyperFormula's place when chosen.
+  ['dist/assets', /^worker-native-.*\.js$/, 60],
   // Loaded only for workbooks with charts.
   ['dist/assets', /^ChartView-.*\.js$/, 75],
   ['dist-lib/react', /^workbook-editor\.js$/, 175],

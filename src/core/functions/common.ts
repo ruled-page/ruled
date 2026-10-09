@@ -1,5 +1,8 @@
 import { ArraySize, CellError, EmptyValue, ErrorType, FunctionPlugin, SimpleRangeValue } from 'hyperformula';
 import { MAX_SPILL_CELLS } from '../engine';
+import { excelRound, numberText } from '../excelNumbers';
+
+export { excelRound, numberText };
 
 /** A node of the engine's syntax tree, as far as these functions read one. */
 export interface Node {
@@ -64,31 +67,6 @@ export function array(rows: Grid): SimpleRangeValue {
   return SimpleRangeValue.onlyValues(rows as never);
 }
 
-/** Rounds the 15-digit decimal value, as Excel does, rather than the binary one. */
-export function excelRound(x: number, digits: number, mode: 'half' | 'up' | 'down'): number {
-  if (!Number.isFinite(x) || x === 0) return x;
-  const d = Math.trunc(digits);
-  const sign = x < 0 ? -1 : 1;
-  const [mantissa, exp] = Math.abs(x).toExponential(14).split('e');
-  // All 15 digits are already left of the rounding point.
-  if (Number(exp) + d >= 14) return x;
-  const shifted = Number(`${mantissa}e${Number(exp) + d}`);
-  const r = mode === 'half' ? Math.round(shifted) : mode === 'up' ? Math.ceil(shifted) : Math.floor(shifted);
-  return sign * Number(`${r}e${-d}`);
-}
-
-/**
- * A number as Excel writes it when it becomes text ("a"&0.1+0.2 is "a0.3"):
- * 15 significant digits, in scientific notation when very large or small.
- */
-export function numberText(n: number): string {
-  if (n === 0) return '0';
-  const [mantissa, e] = n.toExponential(14).split('e');
-  const exp = Number(e);
-  if (exp >= -4 && exp < 15) return String(Number(n.toPrecision(15)));
-  const m = mantissa.replace(/\.?0+$/, '');
-  return `${m}E${exp < 0 ? '-' : '+'}${String(Math.abs(exp)).padStart(2, '0')}`;
-}
 
 /** A value as text, the way Excel converts one: TRUE, 0.3, or the text itself. */
 export function valueText(v: Exclude<Value, CellError>): string {

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { it } from 'vitest';
 import { hyperFormulaEngine } from '../src/core/calc';
+import { nativeEngine } from '../src/engine/native';
 import { chooseEngine, type EngineKind } from '../src/core/engine';
 import { findCell } from '../src/core/sheetScanner';
 import { WorkbookSession } from '../src/core/session';
@@ -17,7 +18,10 @@ import { CellFlag, VT } from '../src/core/types';
  */
 
 /** The engines to compare, with the name of each one's chunk in the build. */
-const ENGINES: { kind: EngineKind; chunk: RegExp }[] = [{ kind: hyperFormulaEngine, chunk: /^worker-calc-.*\.js$/ }];
+const ENGINES: { kind: EngineKind; chunk: RegExp }[] = [
+  { kind: hyperFormulaEngine, chunk: /^worker-calc-.*\.js$/ },
+  { kind: nativeEngine, chunk: /^worker-native-.*\.js$/ },
+];
 
 const root = join(__dirname, '..');
 const FILES = [
