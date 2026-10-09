@@ -7,6 +7,7 @@ import {
   isSpillError,
   MAX_SPILL_CELLS,
   spillFormula,
+  tolerance,
   toRaw,
   unsupportedExplanation,
   unsupportedLabel,
@@ -30,7 +31,7 @@ import { mergeEditResults } from './editResult';
 import { ENGLISH_LISTS, planFill, seriesLine, type FillSource } from './fill';
 import { SheetLinks } from './hyperlinks';
 import { copyLinks, isHyperlinkFormula, literalHyperlinkTarget, sortLinks } from './links';
-import { displayFormula, engineFormula, isVolatile, makeShifter, validateFormula } from './formula';
+import { displayFormula, engineFormula, functionNames, isVolatile, makeShifter, validateFormula } from './formula';
 import { parseInput } from './input';
 import { SheetLayout } from './layout';
 import { isBuiltinName, isName, nameProblem } from './names';
@@ -940,7 +941,9 @@ export class WorkbookSession {
     for (let round = 0; round < 6 && candidates.length; round++) {
       const differing = candidates.filter((p) => {
         const grid = sheets[p.sheet].scan!.grid;
-        return !valuesMatch(gridValue(grid, findCell(grid, p.row, p.col)), engine.value(p.sheet, p.row, p.col)) || this.spillDiffers(p);
+        const idx = findCell(grid, p.row, p.col);
+        const within = tolerance(functionNames(grid.formulas.get(idx) ?? ''));
+        return !valuesMatch(gridValue(grid, idx), engine.value(p.sheet, p.row, p.col), within) || this.spillDiffers(p);
       });
       if (!differing.length) break;
       const downstream = new Set(engine.dependentsOf(differing).map((p) => `${p.sheet}:${p.row}:${p.col}`));

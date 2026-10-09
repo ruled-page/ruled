@@ -177,11 +177,24 @@ export function isSpillError(v: EngineValue): boolean {
   return v !== null && typeof v === 'object' && v.error === '#SPILL!';
 }
 
-export function valuesMatch(excel: EngineValue, engine: EngineValue): boolean {
+/**
+ * Functions Excel works out by searching for a result rather than by a
+ * formula, which it documents as accurate "within 0.000001 percent": their
+ * results can differ from an exact answer in about the eighth significant
+ * digit, so they are compared with that allowance.
+ */
+const SEARCHED = new Set(['IRR', 'XIRR', 'RATE', 'YIELD']);
+
+/** How closely a formula's result must match Excel's saved value, relative to its size. */
+export function tolerance(functions: readonly string[]): number {
+  return functions.some((f) => SEARCHED.has(f)) ? 1e-7 : 1e-9;
+}
+
+export function valuesMatch(excel: EngineValue, engine: EngineValue, within = 1e-9): boolean {
   if (excel === null || excel === '') return engine === null || engine === '' || engine === 0;
   if (typeof excel === 'number' && typeof engine === 'number') {
     const scale = Math.max(1, Math.abs(excel), Math.abs(engine));
-    return Math.abs(excel - engine) <= 1e-9 * scale;
+    return Math.abs(excel - engine) <= within * scale;
   }
   if (typeof excel === 'object' && typeof engine === 'object' && engine) return excel.error === engine.error;
   return excel === engine;
