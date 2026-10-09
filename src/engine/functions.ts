@@ -1,5 +1,6 @@
 import { format } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
+import { Calendar, validBasis, yearFrac } from '../core/bondMath';
 import { excelRound } from '../core/excelNumbers';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
@@ -631,6 +632,225 @@ const ifTest = (v: Scalar) => {
   return bool(v) ? 1 : 2;
 };
 
+// -----------------------------------------------------------------------------
+// Arrays reshaped, text split and joined, money over time
+
+const given = (a: Operand[], i: number) => a[i] !== undefined && a[i] !== null;
+const optNum = (a: Operand[], i: number, ctx: Ctx, d: number) => (given(a, i) ? num(scalarOf(a[i], ctx)) : d);
+const optBool = (a: Operand[], i: number, ctx: Ctx, d: boolean) => (given(a, i) ? bool(scalarOf(a[i], ctx)) : d);
+
+/** TAKE and DROP: rows and columns from the start (or, counted negative, the end). */
+function takeOrDrop(a: Operand[], ctx: Ctx, take: boolean): Matrix {
+  const m = matrixOf(a[0], ctx);
+  const span = (n: number, i: number): [number, number] => {
+    if (!given(a, i)) return [0, n];
+    const k = Math.trunc(num(scalarOf(a[i], ctx)));
+    if (take) return k >= 0 ? [0, Math.min(k, n)] : [Math.max(0, n + k), n];
+    return k >= 0 ? [Math.min(k, n), n] : [0, Math.max(0, n + k)];
+  };
+  const [r1, r2] = span(m.rows, 1);
+  const [c1, c2] = span(m.cols, 2);
+  if (r2 <= r1 || c2 <= c1) throw err('#CALC!');
+  return Matrix.build(r2 - r1, c2 - c1, (r, c) => m.get(r1 + r, c1 + c));
+}
+
+/** CHOOSEROWS and CHOOSECOLS: lines by position, negative from the end. */
+function chooseLines(a: Operand[], ctx: Ctx, rows: boolean): Matrix {
+  const m = matrixOf(a[0], ctx);
+  const n = rows ? m.rows : m.cols;
+  const picks: number[] = [];
+  for (const x of a.slice(1)) {
+    const v = valuesOf(x, ctx);
+    for (const k of v instanceof Matrix ? v.data : [v]) {
+      const i = Math.trunc(num(k));
+      if (i === 0 || Math.abs(i) > n) throw VALUE;
+      picks.push(i > 0 ? i - 1 : n + i);
+    }
+  }
+  return rows ? Matrix.build(picks.length, m.cols, (r, c) => m.get(picks[r], c)) : Matrix.build(m.rows, picks.length, (r, c) => m.get(r, picks[c]));
+}
+
+/** A reference's blank cells as 0, as array results show them. */
+const filled = (m: Matrix) => (m.data.includes(null) ? new Matrix(m.rows, m.cols, m.data.map((v) => v ?? 0)) : m);
+
+/** VSTACK and HSTACK: arrays one after another, short ones padded with #N/A. */
+function stack(a: Operand[], ctx: Ctx, vertical: boolean): Matrix {
+  const ms = a.map((x) => filled(matrixOf(x, ctx)));
+  const across = Math.max(...ms.map((m) => (vertical ? m.cols : m.rows)));
+  const lines: Scalar[][] = [];
+  for (const m of ms) {
+    const count = vertical ? m.rows : m.cols;
+    for (let i = 0; i < count; i++) lines.push(Array.from({ length: across }, (_, j) => (vertical ? (j < m.cols ? m.get(i, j) : NA) : j < m.rows ? m.get(j, i) : NA)));
+  }
+  return vertical ? Matrix.of(lines) : Matrix.build(across, lines.length, (r, c) => lines[c][r]);
+}
+
+/** TOCOL and TOROW: an array's values in one line, by row or by column, blanks or errors left out if asked. */
+function toLine(a: Operand[], ctx: Ctx, column: boolean): Matrix {
+  const m = matrixOf(a[0], ctx);
+  const ignore = optNum(a, 1, ctx, 0);
+  const byCol = optBool(a, 2, ctx, false);
+  if (ignore < 0 || ignore > 3) throw VALUE;
+  const out: Scalar[] = [];
+  const visit = (v: Scalar) => {
+    if (ignore & 1 && v === null) return;
+    if (ignore & 2 && isError(v)) return;
+    out.push(v ?? 0);
+  };
+  if (byCol) for (let c = 0; c < m.cols; c++) for (let r = 0; r < m.rows; r++) visit(m.get(r, c));
+  else m.data.forEach(visit);
+  if (!out.length) throw err('#CALC!');
+  return column ? new Matrix(out.length, 1, out) : new Matrix(1, out.length, out);
+}
+
+/** WRAPROWS and WRAPCOLS: a row or column of values into lines of a given length. */
+function wrapLine(a: Operand[], ctx: Ctx, rows: boolean): Matrix {
+  const m = matrixOf(a[0], ctx);
+  if (m.rows > 1 && m.cols > 1) throw VALUE;
+  const n = Math.trunc(num(scalarOf(a[1], ctx)));
+  if (n < 1) throw NUM;
+  const pad = given(a, 2) ? scalarOf(a[2], ctx) : NA;
+  const values = m.data.map((v) => v ?? 0);
+  const lines = Math.ceil(values.length / n);
+  const at = (line: number, i: number) => (line * n + i < values.length ? values[line * n + i] : pad);
+  return rows ? Matrix.build(lines, n, (r, c) => at(r, c)) : Matrix.build(n, lines, (r, c) => at(c, r));
+}
+
+/** Where the nth delimiter (any of several) is, from the start or, for negative n, the end; the text's end counts as one with `matchEnd`. */
+function findNth(t: string, delims: string[], n: number, insensitive: boolean, matchEnd: boolean): [number, number] | undefined {
+  const s = insensitive ? t.toLowerCase() : t;
+  const ds = delims.map((d) => (insensitive ? d.toLowerCase() : d));
+  let found: [number, number] | undefined;
+  if (n > 0) {
+    let from = 0;
+    for (let k = 0; k < n; k++) {
+      let best = -1;
+      let len = 0;
+      for (const d of ds) {
+        const i = s.indexOf(d, from);
+        if (i >= 0 && (best < 0 || i < best)) [best, len] = [i, d.length];
+      }
+      if (best < 0) return matchEnd && k === n - 1 && from <= s.length ? [s.length, 0] : undefined;
+      found = [best, len];
+      from = best + Math.max(len, 1);
+    }
+    return found;
+  }
+  let end = s.length;
+  for (let k = 0; k < -n; k++) {
+    let best = -1;
+    let len = 0;
+    for (const d of ds) {
+      const i = end - d.length < 0 ? -1 : s.lastIndexOf(d, end - d.length);
+      if (i > best) [best, len] = [i, d.length];
+    }
+    if (best < 0) return matchEnd && k === -n - 1 ? [0, 0] : undefined;
+    found = [best, len];
+    end = best - (len ? 0 : 1);
+  }
+  return found;
+}
+
+const textsOf = (op: Operand, ctx: Ctx) => {
+  const v = valuesOf(op, ctx);
+  return (v instanceof Matrix ? v.data : [v]).map((x) => text(x));
+};
+
+/** TEXTBEFORE and TEXTAFTER. */
+function textAround(a: Operand[], ctx: Ctx, after: boolean): Scalar {
+  const t = text(scalarOf(a[0], ctx));
+  const n = Math.trunc(optNum(a, 2, ctx, 1));
+  if (n === 0 || Math.abs(n) > Math.max(t.length, 1)) throw VALUE;
+  const at = findNth(t, textsOf(a[1], ctx), n, optNum(a, 3, ctx, 0) === 1, optNum(a, 4, ctx, 0) === 1);
+  if (!at) return given(a, 5) ? scalarOf(a[5], ctx) : NA;
+  return after ? t.slice(at[0] + at[1]) : t.slice(0, at[0]);
+}
+
+/** Text split at any of several delimiters. */
+function splitOn(t: string, delims: string[], insensitive: boolean): string[] {
+  const live = delims.filter((d) => d !== '');
+  if (!live.length) return [t];
+  const s = insensitive ? t.toLowerCase() : t;
+  const ds = live.map((d) => (insensitive ? d.toLowerCase() : d));
+  const out: string[] = [];
+  let from = 0;
+  for (;;) {
+    let best = -1;
+    let len = 0;
+    for (const d of ds) {
+      const i = s.indexOf(d, from);
+      if (i >= 0 && (best < 0 || i < best || (i === best && d.length > len))) [best, len] = [i, d.length];
+    }
+    if (best < 0) break;
+    out.push(t.slice(from, best));
+    from = best + len;
+  }
+  out.push(t.slice(from));
+  return out;
+}
+
+/** A value as VALUETOTEXT and ARRAYTOTEXT write it: as shown, or (strict) text in quotes. */
+function valueText(v: Scalar, strict: boolean): string {
+  if (isError(v)) return v.error;
+  if (typeof v === 'string') return strict ? `"${v.replace(/"/g, '""')}"` : v;
+  return text(v);
+}
+
+const groupThousands = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+/** Excel's present value relations: payment, future and present value, at rate r over n periods, paid at the start (type 1) or end. */
+function payment(r: number, n: number, pv: number, fv: number, type: number): number {
+  if (r === 0) return -(pv + fv) / n;
+  const g = (1 + r) ** n;
+  return -(r * (fv + pv * g)) / ((1 + r * type) * (g - 1));
+}
+
+function futureValue(r: number, n: number, pmt: number, pv: number, type: number): number {
+  if (r === 0) return -(pv + pmt * n);
+  const g = (1 + r) ** n;
+  return -(pv * g + (pmt * (1 + r * type) * (g - 1)) / r);
+}
+
+function presentValue(r: number, n: number, pmt: number, fv: number, type: number): number {
+  if (r === 0) return -(fv + pmt * n);
+  const g = (1 + r) ** n;
+  return -(fv + (pmt * (1 + r * type) * (g - 1)) / r) / g;
+}
+
+/** Newton's method from a guess, as Excel's RATE and IRR search; #NUM! when it doesn't settle. */
+function solve(f: (x: number) => number, guess: number): number {
+  let x = guess;
+  for (let i = 0; i < 100; i++) {
+    const y = f(x);
+    if (Math.abs(y) < 1e-10) return x;
+    const h = Math.max(1e-7, Math.abs(x) * 1e-7);
+    const slope = (f(x + h) - f(x - h)) / (2 * h);
+    if (!Number.isFinite(slope) || slope === 0) break;
+    const next = x - y / slope;
+    if (!Number.isFinite(next) || next <= -1) break;
+    if (Math.abs(next - x) < 1e-12) return next;
+    x = next;
+  }
+  throw NUM;
+}
+
+const ERROR_NUMBERS: Record<string, number> = {
+  '#NULL!': 1,
+  '#DIV/0!': 2,
+  '#VALUE!': 3,
+  '#REF!': 4,
+  '#NAME?': 5,
+  '#NUM!': 6,
+  '#N/A': 7,
+  '#GETTING_DATA': 8,
+  '#SPILL!': 9,
+  '#CONNECT!': 10,
+  '#BLOCKED!': 11,
+  '#UNKNOWN!': 12,
+  '#FIELD!': 13,
+  '#CALC!': 14,
+};
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -1003,7 +1223,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const cols = num(scalarOf(a[1], ctx));
       const fixed = a[3] !== undefined && num(scalarOf(a[3], ctx)) === 1;
       const inner = valuesOf(a[2], ctx);
-      const m = inner instanceof Matrix ? inner : new Matrix(1, 1, [inner]);
+      // Blank cells a result reads from show as 0 in it, as in Excel.
+      const m = inner instanceof Matrix ? filled(inner) : new Matrix(1, 1, [inner]);
       if (ctx.notes) ctx.notes.measured = { rows: m.rows, cols: m.cols };
       if (rows === 1 && cols === 1) return m.get(0, 0);
       // Cut or padded to the room it was given, until it is given room for its new size; Ctrl+Shift+Enter arrays repeat a single row or column and show #N/A past their result.
@@ -1196,6 +1417,203 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ISREF: { min: 1, max: 1, fn: ([r]) => r instanceof Ref },
   ISFORMULA: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? ctx.host.isFormula(r.sheet, r.r1, r.c1) : (() => { throw VALUE; })()) },
   NA: { min: 0, max: 0, fn: () => NA },
+
+  // Lookups, and arrays reshaped
+  LOOKUP: {
+    min: 2,
+    max: 3,
+    fn: (a, ctx) => {
+      const target = scalarOf(a[0], ctx);
+      const look = matrixOf(a[1], ctx);
+      let keys: Scalar[];
+      let results: Scalar[];
+      if (a[2] === undefined) {
+        // The array form: the first row or column searched, the last one returned.
+        const across = look.cols > look.rows;
+        keys = across ? look.data.slice(0, look.cols) : Array.from({ length: look.rows }, (_, r) => look.get(r, 0));
+        results = across ? look.data.slice((look.rows - 1) * look.cols) : Array.from({ length: look.rows }, (_, r) => look.get(r, look.cols - 1));
+      } else {
+        keys = look.data;
+        results = matrixOf(a[2], ctx).data;
+      }
+      const at = approximate(keys, target);
+      if (at < 0 || at >= results.length) throw NA;
+      return results[at];
+    },
+  },
+  TAKE: { min: 2, max: 3, fn: (a, ctx) => takeOrDrop(a, ctx, true) },
+  DROP: { min: 2, max: 3, fn: (a, ctx) => takeOrDrop(a, ctx, false) },
+  CHOOSEROWS: { min: 2, max: MANY, fn: (a, ctx) => chooseLines(a, ctx, true) },
+  CHOOSECOLS: { min: 2, max: MANY, fn: (a, ctx) => chooseLines(a, ctx, false) },
+  VSTACK: { min: 1, max: MANY, fn: (a, ctx) => stack(a, ctx, true) },
+  HSTACK: { min: 1, max: MANY, fn: (a, ctx) => stack(a, ctx, false) },
+  TOCOL: { min: 1, max: 3, fn: (a, ctx) => toLine(a, ctx, true) },
+  TOROW: { min: 1, max: 3, fn: (a, ctx) => toLine(a, ctx, false) },
+  WRAPROWS: { min: 2, max: 3, fn: (a, ctx) => wrapLine(a, ctx, true) },
+  WRAPCOLS: { min: 2, max: 3, fn: (a, ctx) => wrapLine(a, ctx, false) },
+  EXPAND: {
+    min: 2,
+    max: 4,
+    fn: (a, ctx) => {
+      const m = filled(matrixOf(a[0], ctx));
+      const rows = Math.trunc(optNum(a, 1, ctx, m.rows));
+      const cols = Math.trunc(optNum(a, 2, ctx, m.cols));
+      if (rows < m.rows || cols < m.cols) throw VALUE;
+      sized(rows, cols);
+      const pad = given(a, 3) ? scalarOf(a[3], ctx) : NA;
+      return Matrix.build(rows, cols, (r, c) => (r < m.rows && c < m.cols ? m.get(r, c) : pad));
+    },
+  },
+
+  // Text, split and joined
+  TEXTBEFORE: { min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, false) },
+  TEXTAFTER: { min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, true) },
+  TEXTSPLIT: {
+    min: 2,
+    max: 6,
+    fn: (a, ctx) => {
+      const t = text(scalarOf(a[0], ctx));
+      const insensitive = optNum(a, 4, ctx, 0) === 1;
+      const skip = optBool(a, 3, ctx, false);
+      const pad = given(a, 5) ? scalarOf(a[5], ctx) : NA;
+      const keep = (parts: string[]) => (skip ? parts.filter((p) => p !== '') : parts);
+      const lines = keep(given(a, 2) ? splitOn(t, textsOf(a[2], ctx), insensitive) : [t]).map((line) => keep(given(a, 1) ? splitOn(line, textsOf(a[1], ctx), insensitive) : [line]));
+      if (!lines.length) throw err('#CALC!');
+      const cols = Math.max(1, ...lines.map((l) => l.length));
+      return Matrix.build(lines.length, cols, (r, c) => (c < lines[r].length ? lines[r][c] : pad));
+    },
+  },
+  VALUETOTEXT: { min: 1, max: 2, fn: (a, ctx) => valueText(scalarOf(a[0], ctx), optNum(a, 1, ctx, 0) === 1) },
+  ARRAYTOTEXT: {
+    min: 1,
+    max: 2,
+    fn: (a, ctx) => {
+      const m = matrixOf(a[0], ctx);
+      const strict = optNum(a, 1, ctx, 0) === 1;
+      if (!strict) return m.data.map((v) => valueText(v, false)).join(', ');
+      return `{${m.rowsOf().map((row) => row.map((v) => valueText(v, true)).join(',')).join(';')}}`;
+    },
+  },
+  FIXED: scalar(1, 3, ([x, d, plain]) => {
+    const digits = Math.trunc(optional(d, 2));
+    if (digits > 127) throw VALUE;
+    const n = excelRound(num(x), digits, 'half');
+    const [whole, frac] = Math.abs(n).toFixed(Math.max(0, digits)).split('.');
+    const body = (plain !== undefined && plain !== null && bool(plain) ? whole : groupThousands(whole)) + (frac ? `.${frac}` : '');
+    return n < 0 ? `-${body}` : body;
+  }),
+  NUMBERVALUE: scalar(1, 3, ([t, dec, group]) => {
+    let s = text(t).replace(/\s/g, '');
+    if (!s) return 0;
+    const d = dec === undefined || dec === null ? '.' : text(dec).charAt(0);
+    const g = group === undefined || group === null ? ',' : text(group).charAt(0);
+    if (!d || d === g) throw VALUE;
+    let percent = 0;
+    while (s.endsWith('%')) {
+      percent++;
+      s = s.slice(0, -1);
+    }
+    const at = s.indexOf(d);
+    const whole = (at < 0 ? s : s.slice(0, at)).split(g).join('');
+    const frac = at < 0 ? '' : s.slice(at + 1);
+    if (frac.includes(g) || frac.includes(d)) throw VALUE;
+    const n = Number(`${whole}${frac ? `.${frac}` : ''}`);
+    if (!Number.isFinite(n) || whole + frac === '') throw VALUE;
+    return n / 100 ** percent;
+  }),
+  // Bytes are characters, as in Excel set to a language that writes one byte a character.
+  LENB: scalar(1, 1, ([t]) => text(t).length),
+  MIDB: scalar(3, 3, ([t, s, n]) => {
+    const start = Math.trunc(num(s));
+    const k = Math.trunc(num(n));
+    if (start < 1 || k < 0) throw VALUE;
+    return text(t).substr(start - 1, k);
+  }),
+  TYPE: {
+    min: 1,
+    max: 1,
+    fn: ([v], ctx) => {
+      if ((v instanceof Ref && !v.single) || v instanceof Matrix) return 64;
+      if (v instanceof Lambda) return 128;
+      const x = scalarOf(v, ctx);
+      return isError(x) ? 16 : typeof x === 'string' ? 2 : typeof x === 'boolean' ? 4 : 1;
+    },
+  },
+  'ERROR.TYPE': scalar(1, 1, ([v]) => (isError(v) && ERROR_NUMBERS[v.error] ? ERROR_NUMBERS[v.error] : NA)),
+
+  // Money over time
+  PMT: scalar(3, 5, ([r, n, pv, fv, t]) => payment(num(r), num(n), num(pv), optional(fv, 0), optional(t, 0) ? 1 : 0)),
+  FV: scalar(3, 5, ([r, n, p, pv, t]) => futureValue(num(r), num(n), num(p), optional(pv, 0), optional(t, 0) ? 1 : 0)),
+  PV: scalar(3, 5, ([r, n, p, fv, t]) => presentValue(num(r), num(n), num(p), optional(fv, 0), optional(t, 0) ? 1 : 0)),
+  NPER: scalar(3, 5, ([r, p, pv, fv, t]) => {
+    const rate = num(r);
+    const pay = num(p);
+    const f = optional(fv, 0);
+    const type = optional(t, 0) ? 1 : 0;
+    if (rate === 0) {
+      if (pay === 0) throw NUM;
+      return -(num(pv) + f) / pay;
+    }
+    const x = (pay * (1 + rate * type) - f * rate) / (pay * (1 + rate * type) + num(pv) * rate);
+    if (x <= 0) throw NUM;
+    return Math.log(x) / Math.log(1 + rate);
+  }),
+  RATE: scalar(3, 6, ([n, p, pv, fv, t, g]) => {
+    const periods = num(n);
+    const pay = num(p);
+    const present = num(pv);
+    const future = optional(fv, 0);
+    const type = optional(t, 0) ? 1 : 0;
+    return solve((r) => (r === 0 ? present + pay * periods + future : present * (1 + r) ** periods + (pay * (1 + r * type) * ((1 + r) ** periods - 1)) / r + future), optional(g, 0.1));
+  }),
+  NPV: {
+    min: 2,
+    max: MANY,
+    fn: (a, ctx) => {
+      const r = num(scalarOf(a[0], ctx));
+      let total = 0;
+      let i = 1;
+      numbers(a.slice(1), ctx, (v) => (total += v / (1 + r) ** i++));
+      return total;
+    },
+  },
+  IRR: {
+    min: 1,
+    max: 2,
+    fn: (a, ctx) => {
+      const flows = list([a[0]], ctx);
+      if (!flows.some((v) => v > 0) || !flows.some((v) => v < 0)) throw NUM;
+      return solve((r) => flows.reduce((s, v, i) => s + v / (1 + r) ** i, 0), optNum(a, 1, ctx, 0.1));
+    },
+  },
+  YEARFRAC: scalar(2, 3, ([s, e, b], ctx) => {
+    const basis = Math.trunc(optional(b, 0));
+    if (!validBasis(basis)) throw NUM;
+    const start = Math.floor(dateArg(s, ctx));
+    const end = Math.floor(dateArg(e, ctx));
+    const calendar = new Calendar(ctx.host.date1904 ? { year: 1904, month: 1, day: 1 } : { year: 1899, month: 12, day: 30 });
+    return yearFrac(calendar, start, end, basis);
+  }),
+  PERCENTOF: { min: 2, max: 2, fn: (a, ctx) => {
+    const all = sum(list([a[1]], ctx));
+    if (all === 0) throw DIV0;
+    return sum(list([a[0]], ctx)) / all;
+  } },
+  GESTEP: scalar(1, 2, ([x, s]) => (num(x) >= optional(s, 0) ? 1 : 0)),
+  PERMUT: scalar(2, 2, ([n, k]) => {
+    const a = Math.trunc(num(n));
+    const b = Math.trunc(num(k));
+    if (a <= 0 || b < 0 || a < b) throw NUM;
+    let p = 1;
+    for (let i = 0; i < b; i++) p *= a - i;
+    return p;
+  }),
+  PERMUTATIONA: scalar(2, 2, ([n, k]) => {
+    const a = Math.trunc(num(n));
+    const b = Math.trunc(num(k));
+    if (a < 0 || b < 0) throw NUM;
+    return a ** b;
+  }),
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },
