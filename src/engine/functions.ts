@@ -4,7 +4,7 @@ import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from '../c
 import { excelRound } from '../core/excelNumbers';
 import { eliminate } from '../core/matrixMath';
 import { estimate, prepare, project, RegressionError } from '../core/regressionMath';
-import { MAX_COLS, MAX_ROWS } from '../core/refs';
+import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
@@ -1274,6 +1274,109 @@ function days360(start: number, end: number, european: boolean, ctx: Ctx): numbe
   return (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
 }
 
+// -----------------------------------------------------------------------------
+// Counting, number bases, Roman numerals and trigonometry
+
+function factorial(n: number): number {
+  let f = 1;
+  for (let i = 2; i <= n; i++) f *= i;
+  return f;
+}
+
+/** n choose k, exact for the whole numbers Excel gives. */
+function choose(n: number, k: number): number {
+  let r = 1;
+  for (let i = 1; i <= Math.min(k, n - k); i++) r = (r * (n - k + i)) / i;
+  return Math.round(r);
+}
+
+const gcd2 = (a: number, b: number): number => (b === 0 ? a : gcd2(b, a % b));
+
+/** Whole, non-negative numbers from the arguments, for GCD, LCM and MULTINOMIAL. */
+function wholes(a: Operand[], ctx: Ctx): number[] {
+  const out = list(a, ctx).map(Math.trunc);
+  if (out.some((n) => n < 0)) throw NUM;
+  return out;
+}
+
+/** SUMX2MY2 and its kind: a sum over pairs of numbers from two equal-sized arrays. */
+function pairSum(a: Operand[], ctx: Ctx, f: (x: number, y: number) => number): number {
+  const xs = matrixOf(a[0], ctx).data;
+  const ys = matrixOf(a[1], ctx).data;
+  if (xs.length !== ys.length) throw NA;
+  let total = 0;
+  xs.forEach((x, i) => {
+    const y = ys[i];
+    if (isError(x)) throw x;
+    if (isError(y)) throw y;
+    if (typeof x === 'number' && typeof y === 'number') total += f(x, y);
+  });
+  return total;
+}
+
+const ROMAN_CHARS = 'MDCLXVI';
+const ROMAN_VALUES = [1000, 500, 100, 50, 10, 5, 1];
+
+/** A number in Roman numerals: form 0 classic, 1 to 4 more and more concise, as Excel writes them. */
+function roman(value: number, form: number): string {
+  let n = value;
+  let out = '';
+  const last = ROMAN_VALUES.length - 1;
+  for (let i = 0; i <= last / 2; i++) {
+    let index = 2 * i;
+    const digit = Math.floor(n / ROMAN_VALUES[index]);
+    if (digit % 5 === 4) {
+      const index2 = digit === 4 ? index - 1 : index - 2;
+      let steps = 0;
+      while (steps < form && index < last) {
+        steps++;
+        if (ROMAN_VALUES[index2] - ROMAN_VALUES[index + 1] <= n) index++;
+        else steps = form;
+      }
+      out += ROMAN_CHARS[index] + ROMAN_CHARS[index2];
+      n = n + ROMAN_VALUES[index] - ROMAN_VALUES[index2];
+    } else {
+      if (digit > 4) out += ROMAN_CHARS[index - 1];
+      out += ROMAN_CHARS[index].repeat(digit % 5);
+      n %= ROMAN_VALUES[index];
+    }
+  }
+  return out;
+}
+
+/** Roman numerals read as a number: a numeral before a larger one is taken away. */
+function arabic(t: string): number {
+  let s = t.trim().toUpperCase();
+  const negative = s.startsWith('-');
+  if (negative) s = s.slice(1);
+  if (s.length > 255) throw VALUE;
+  let total = 0;
+  let largest = 0;
+  for (let i = s.length - 1; i >= 0; i--) {
+    const at = ROMAN_CHARS.indexOf(s[i]);
+    if (at < 0) throw VALUE;
+    const v = ROMAN_VALUES[at];
+    if (v < largest) total -= v;
+    else {
+      total += v;
+      largest = v;
+    }
+  }
+  return negative ? -total : total;
+}
+
+const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** A trigonometric function of one number, #NUM! outside its domain, #DIV/0! where it is infinite. */
+const trig = (f: (x: number) => number, divides = false): FunctionSpec =>
+  scalar(1, 1, ([x]) => {
+    const v = num(x);
+    if (Math.abs(v) >= 2 ** 27) throw NUM;
+    const r = f(v);
+    if (!Number.isFinite(r)) throw divides ? DIV0 : NUM;
+    return r;
+  });
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -2473,6 +2576,159 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const v = (h * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0)) / 86400;
     return v - Math.floor(v);
   }),
+
+  // Counting and sums of pairs
+  FACT: scalar(1, 1, ([x]) => {
+    const n = Math.trunc(num(x));
+    if (n < 0 || n > 170) throw NUM;
+    return factorial(n);
+  }),
+  FACTDOUBLE: scalar(1, 1, ([x]) => {
+    const n = Math.trunc(num(x));
+    if (n < -1 || n > 300) throw NUM;
+    let f = 1;
+    for (let i = n; i > 1; i -= 2) f *= i;
+    return f;
+  }),
+  COMBIN: scalar(2, 2, ([n, k]) => {
+    const a = Math.trunc(num(n));
+    const b = Math.trunc(num(k));
+    if (a < 0 || b < 0 || a < b) throw NUM;
+    return choose(a, b);
+  }),
+  COMBINA: scalar(2, 2, ([n, k]) => {
+    const a = Math.trunc(num(n));
+    const b = Math.trunc(num(k));
+    if (a < 0 || b < 0 || (a === 0 && b > 0)) throw NUM;
+    return b === 0 ? 1 : choose(a + b - 1, b);
+  }),
+  GCD: { min: 1, max: MANY, fn: (a, ctx) => wholes(a, ctx).reduce(gcd2, 0) },
+  LCM: { min: 1, max: MANY, fn: (a, ctx) => wholes(a, ctx).reduce((l, n) => (l === 0 || n === 0 ? 0 : (l / gcd2(l, n)) * n), 1) },
+  MULTINOMIAL: {
+    min: 1,
+    max: MANY,
+    fn: (a, ctx) => {
+      const ns = wholes(a, ctx);
+      const total = sum(ns);
+      if (total > 170) throw NUM;
+      return Math.round(ns.reduce((r, n) => r / factorial(n), factorial(total)));
+    },
+  },
+  SERIESSUM: {
+    min: 4,
+    max: 4,
+    fn: (a, ctx) => {
+      const x = num(scalarOf(a[0], ctx));
+      const n = num(scalarOf(a[1], ctx));
+      const m = num(scalarOf(a[2], ctx));
+      return numberMatrix(a[3], ctx)
+        .flat()
+        .reduce((s, c, i) => s + c * x ** (n + i * m), 0);
+    },
+  },
+  SUMX2MY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => x * x - y * y) },
+  SUMX2PY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => x * x + y * y) },
+  SUMXMY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => (x - y) ** 2) },
+  SQRTPI: math1((x) => (x < 0 ? NUM : Math.sqrt(x * Math.PI))),
+  'CEILING.PRECISE': scalar(1, 2, ([x, s]) => {
+    const k = Math.abs(optional(s, 1));
+    return k === 0 ? 0 : excelRound(Math.ceil(num(x) / k) * k, 10, 'half');
+  }),
+  'ISO.CEILING': scalar(1, 2, ([x, s]) => {
+    const k = Math.abs(optional(s, 1));
+    return k === 0 ? 0 : excelRound(Math.ceil(num(x) / k) * k, 10, 'half');
+  }),
+  'FLOOR.PRECISE': scalar(1, 2, ([x, s]) => {
+    const k = Math.abs(optional(s, 1));
+    return k === 0 ? 0 : excelRound(Math.floor(num(x) / k) * k, 10, 'half');
+  }),
+
+  // Number bases and Roman numerals
+  ROMAN: scalar(1, 2, ([x, f]) => {
+    const n = Math.trunc(num(x));
+    const form = f === undefined || f === null ? 0 : typeof f === 'boolean' ? (f ? 0 : 4) : Math.trunc(num(f));
+    if (n < 0 || n > 3999 || form < 0 || form > 4) throw VALUE;
+    return roman(n, form);
+  }),
+  ARABIC: scalar(1, 1, ([t]) => arabic(text(t))),
+  BASE: scalar(2, 3, ([x, r, len]) => {
+    const n = Math.trunc(num(x));
+    const radix = Math.trunc(num(r));
+    const min = Math.trunc(optional(len, 0));
+    if (n < 0 || n >= 2 ** 53 || radix < 2 || radix > 36 || min < 0 || min > 255) throw NUM;
+    return n.toString(radix).toUpperCase().padStart(min, '0');
+  }),
+  DECIMAL: scalar(2, 2, ([t, r]) => {
+    const s = text(t).trim().toUpperCase();
+    const radix = Math.trunc(num(r));
+    if (radix < 2 || radix > 36) throw NUM;
+    if (s.length > 255) throw VALUE;
+    let n = 0;
+    for (const ch of s) {
+      const d = DIGITS.indexOf(ch);
+      if (d < 0 || d >= radix) throw NUM;
+      n = n * radix + d;
+    }
+    return n;
+  }),
+
+  // Trigonometry
+  SIN: trig(Math.sin),
+  COS: trig(Math.cos),
+  TAN: trig(Math.tan),
+  ASIN: math1((x) => (x < -1 || x > 1 ? NUM : Math.asin(x))),
+  ACOS: math1((x) => (x < -1 || x > 1 ? NUM : Math.acos(x))),
+  ATAN: math1(Math.atan),
+  ATAN2: scalar(2, 2, ([x, y]) => {
+    if (num(x) === 0 && num(y) === 0) throw DIV0;
+    return Math.atan2(num(y), num(x));
+  }),
+  SINH: math1(Math.sinh),
+  COSH: math1(Math.cosh),
+  TANH: math1(Math.tanh),
+  ASINH: math1(Math.asinh),
+  ACOSH: math1((x) => (x < 1 ? NUM : Math.acosh(x))),
+  ATANH: math1((x) => (x <= -1 || x >= 1 ? NUM : Math.atanh(x))),
+  COT: trig((x) => 1 / Math.tan(x), true),
+  CSC: trig((x) => 1 / Math.sin(x), true),
+  SEC: trig((x) => 1 / Math.cos(x), true),
+  COTH: math1((x) => (x === 0 ? DIV0 : 1 / Math.tanh(x))),
+  CSCH: math1((x) => (x === 0 ? DIV0 : 1 / Math.sinh(x))),
+  SECH: math1((x) => 1 / Math.cosh(x)),
+  ACOT: math1((x) => Math.PI / 2 - Math.atan(x)),
+  ACOTH: math1((x) => (Math.abs(x) <= 1 ? NUM : 0.5 * Math.log((x + 1) / (x - 1)))),
+  RADIANS: math1((x) => (x * Math.PI) / 180),
+  DEGREES: math1((x) => (x * 180) / Math.PI),
+
+  // References and sheets
+  ADDRESS: scalar(2, 5, ([r, c, absolute, a1, sheet]) => {
+    const row = Math.trunc(num(r));
+    const col = Math.trunc(num(c));
+    const abs = Math.trunc(optional(absolute, 1));
+    if (row < 1 || row > MAX_ROWS || col < 1 || col > MAX_COLS || abs < 1 || abs > 4) throw VALUE;
+    const absRow = abs === 1 || abs === 2;
+    const absCol = abs === 1 || abs === 3;
+    const ref =
+      a1 === undefined || a1 === null || bool(a1)
+        ? `${absCol ? '$' : ''}${colToLetters(col - 1)}${absRow ? '$' : ''}${row}`
+        : `R${absRow ? row : `[${row}]`}C${absCol ? col : `[${col}]`}`;
+    if (sheet === undefined || sheet === null) return ref;
+    const name = text(sheet);
+    return name ? `${quoteSheetName(name)}!${ref}` : `!${ref}`;
+  }),
+  AREAS: { min: 1, max: 1, fn: ([r]) => (r instanceof Ref ? 1 : (() => { throw VALUE; })()) },
+  SHEET: {
+    min: 0,
+    max: 1,
+    fn: ([v], ctx) => {
+      if (v === undefined) return ctx.sheet + 1;
+      if (v instanceof Ref) return v.sheet + 1;
+      const at = ctx.host.sheetIndex(text(scalarOf(v, ctx)));
+      if (at < 0) throw NA;
+      return at + 1;
+    },
+  },
+  SHEETS: { min: 0, max: 1, fn: ([v], ctx) => (v === undefined ? ctx.host.sheetCount() : v instanceof Ref ? 1 : (() => { throw VALUE; })()) },
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },

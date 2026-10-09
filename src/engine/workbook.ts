@@ -380,6 +380,10 @@ export class NativeEngine implements FormulaEngine, Host {
     return c.spill;
   }
 
+  sheetCount(): number {
+    return this.sheets.length;
+  }
+
   isFormula(sheet: number, row: number, col: number): boolean {
     return this.sheets[sheet]?.get(row, col) instanceof Formula;
   }

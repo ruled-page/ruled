@@ -20,6 +20,8 @@ export interface Host {
   /** The range a formula in a cell spills into (for A2#), if it spills. */
   spillOf(sheet: number, row: number, col: number): Ref | undefined;
   isFormula(sheet: number, row: number, col: number): boolean;
+  /** How many sheets the workbook has, for SHEETS. */
+  sheetCount(): number;
 }
 
 /** What a formula's cell notes as it is worked out. */
