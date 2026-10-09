@@ -1,6 +1,6 @@
 import { format } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
-import { BondError, Bonds, Calendar, validBasis, vdb, yearFrac } from '../core/bondMath';
+import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from '../core/bondMath';
 import { excelRound } from '../core/excelNumbers';
 import { eliminate } from '../core/matrixMath';
 import { estimate, prepare, project, RegressionError } from '../core/regressionMath';
@@ -1175,6 +1175,105 @@ function estimation(a: Operand[], ctx: Ctx, log: boolean): Matrix {
   return Matrix.of(rows.map((row) => row.map((v) => (typeof v === 'number' ? v : err(v.error)))));
 }
 
+// -----------------------------------------------------------------------------
+// Loans, depreciation and cash flows on dates; weeks and working days
+
+/** IPMT: the interest in one period of a loan or annuity. */
+function interestIn(r: number, per: number, n: number, pv: number, fv: number, type: number): number {
+  if (per < 1 || per > n) throw NUM;
+  if (type === 1 && per === 1) return 0;
+  const pmt = payment(r, n, pv, fv, type);
+  const interest = futureValue(r, per - 1, pmt, pv, type) * r;
+  return type === 1 ? interest / (1 + r) : interest;
+}
+
+/** CUMIPMT and CUMPRINC: interest (or principal) paid from one period to another. */
+function cumulative(a: Scalar[], principal: boolean): number {
+  const [r, n, pv, s, e] = a.slice(0, 5).map(num);
+  const type = num(a[5]);
+  const start = Math.trunc(s);
+  const end = Math.trunc(e);
+  if (r <= 0 || n <= 0 || pv <= 0 || start < 1 || end < start || end > n || (type !== 0 && type !== 1)) throw NUM;
+  const pmt = payment(r, n, pv, 0, type);
+  let total = 0;
+  for (let per = start; per <= end; per++) {
+    const interest = interestIn(r, per, n, pv, 0, type);
+    total += principal ? pmt - interest : interest;
+  }
+  return total;
+}
+
+/** Cash flows and their dates for XNPV and XIRR: numbers, as many dates as values, none before the first. */
+function datedFlows(a: Operand[], ctx: Ctx): { values: number[]; days: number[] } {
+  const values = numberMatrix(a[0], ctx).flat();
+  const dates = numberMatrix(a[1], ctx).flat().map(Math.trunc);
+  if (values.length !== dates.length || !values.length) throw NUM;
+  if (dates.some((d) => d < dates[0])) throw NUM;
+  return { values, days: dates.map((d) => d - dates[0]) };
+}
+
+const xnpv = (r: number, f: { values: number[]; days: number[] }) => f.values.reduce((s, v, i) => s + v / (1 + r) ** (f.days[i] / 365), 0);
+
+/** A JavaScript date (UTC) for a serial number. */
+function jsDate(serial: number, ctx: Ctx): Date {
+  const { y, m, d } = dateOf(serial, ctx.host.date1904);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** The ISO 8601 week a date falls in: weeks start on Monday, and week 1 holds the year's first Thursday. */
+function isoWeek(serial: number, ctx: Ctx): number {
+  const d = jsDate(serial, ctx);
+  const day = (d.getUTCDay() + 6) % 7;
+  const thursday = new Date(d.getTime() + (3 - day) * DAY_MS);
+  const first = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  return 1 + Math.floor((thursday.getTime() - first.getTime()) / DAY_MS / 7);
+}
+
+/** The weekend for NETWORKDAYS.INTL and WORKDAY.INTL, Monday first: a code 1–7 or 11–17, or seven 0s and 1s. */
+function weekendOf(op: Operand | undefined, ctx: Ctx): boolean[] {
+  const v = op === undefined || op === null ? 1 : scalarOf(op, ctx);
+  if (typeof v === 'string') {
+    if (!/^[01]{7}$/.test(v)) throw VALUE;
+    return [...v].map((c) => c === '1');
+  }
+  const code = Math.trunc(num(v));
+  const days = Array<boolean>(7).fill(false);
+  if (code >= 1 && code <= 7) {
+    // 1 is Saturday and Sunday, 2 Sunday and Monday, …, 7 Friday and Saturday.
+    days[(code + 4) % 7] = true;
+    days[(code + 5) % 7] = true;
+  } else if (code >= 11 && code <= 17) days[(code - 11 + 6) % 7] = true;
+  else throw NUM;
+  return days;
+}
+
+const workday = (serial: number, weekend: boolean[], holidays: Set<number>, ctx: Ctx) => !weekend[weekday(serial, 2, ctx) - 1] && !holidays.has(serial);
+
+/** DAYS360: days between dates on a 360-day year, by the US (NASD) method or the European one. */
+function days360(start: number, end: number, european: boolean, ctx: Ctx): number {
+  let { y: y1, m: m1, d: d1 } = dateOf(start, ctx.host.date1904);
+  let { y: y2, m: m2, d: d2 } = dateOf(end, ctx.host.date1904);
+  const last = (y: number, m: number, d: number) => dateOf(serialOf(y, m + 1, 0, ctx.host.date1904), ctx.host.date1904).d === d;
+  if (european) {
+    if (d1 === 31) d1 = 30;
+    if (d2 === 31) d2 = 30;
+  } else {
+    const startLast = last(y1, m1, d1);
+    if (startLast) d1 = 30;
+    if (d2 === 31) {
+      if (d1 < 30) {
+        d2 = 1;
+        m2 += 1;
+      } else d2 = 30;
+    }
+  }
+  if (m2 > 12) {
+    m2 -= 12;
+    y2 += 1;
+  }
+  return (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
+}
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -2188,6 +2287,192 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   GROWTH: { min: 1, max: 4, fn: (a, ctx) => projection(a, ctx, true) },
   LINEST: { min: 1, max: 4, fn: (a, ctx) => estimation(a, ctx, false) },
   LOGEST: { min: 1, max: 4, fn: (a, ctx) => estimation(a, ctx, true) },
+
+  // Loans and depreciation
+  IPMT: scalar(4, 6, ([r, per, n, pv, fv, t]) => interestIn(num(r), num(per), num(n), num(pv), optional(fv, 0), optional(t, 0) ? 1 : 0)),
+  PPMT: scalar(4, 6, ([r, per, n, pv, fv, t]) => {
+    const type = optional(t, 0) ? 1 : 0;
+    return payment(num(r), num(n), num(pv), optional(fv, 0), type) - interestIn(num(r), num(per), num(n), num(pv), optional(fv, 0), type);
+  }),
+  CUMIPMT: scalar(6, 6, (a) => cumulative(a, false)),
+  CUMPRINC: scalar(6, 6, (a) => cumulative(a, true)),
+  ISPMT: scalar(4, 4, ([r, per, n, pv]) => {
+    if (num(n) === 0) throw DIV0;
+    return num(pv) * num(r) * (num(per) / num(n) - 1);
+  }),
+  SLN: scalar(3, 3, ([c, s, l]) => {
+    if (num(l) === 0) throw DIV0;
+    return (num(c) - num(s)) / num(l);
+  }),
+  SYD: scalar(4, 4, ([c, s, l, p]) => {
+    const life = num(l);
+    const per = num(p);
+    if (life <= 0 || per <= 0 || per > life) throw NUM;
+    return ((num(c) - num(s)) * (life - per + 1) * 2) / (life * (life + 1));
+  }),
+  DDB: scalar(4, 5, ([c, s, l, p, f]) => {
+    const [cost, salvage, life, period, factor] = [num(c), num(s), num(l), num(p), optional(f, 2)];
+    if (cost < 0 || salvage < 0 || life <= 0 || period <= 0 || period > life || factor <= 0) throw NUM;
+    return ddb(cost, salvage, life, period, factor);
+  }),
+  DB: scalar(4, 5, ([c, s, l, p, mo]) => {
+    const [cost, salvage, life, period] = [num(c), num(s), num(l), Math.trunc(num(p))];
+    const months = Math.trunc(optional(mo, 12));
+    if (cost < 0 || salvage < 0 || life <= 0 || months < 1 || months > 12 || period < 1 || period > life + (months < 12 ? 1 : 0)) throw NUM;
+    if (cost === 0) return 0;
+    const rate = Math.round((1 - (salvage / cost) ** (1 / life)) * 1000) / 1000;
+    let total = (cost * rate * months) / 12;
+    if (period === 1) return total;
+    for (let k = 2; k < period; k++) total += (cost - total) * rate;
+    return period === life + 1 ? ((cost - total) * rate * (12 - months)) / 12 : (cost - total) * rate;
+  }),
+  // Cash flows and rates
+  XNPV: {
+    min: 3,
+    max: 3,
+    fn: (a, ctx) => {
+      const r = num(scalarOf(a[0], ctx));
+      if (r <= -1) throw NUM;
+      return xnpv(r, datedFlows(a.slice(1), ctx));
+    },
+  },
+  XIRR: {
+    min: 2,
+    max: 3,
+    fn: (a, ctx) => {
+      const flows = datedFlows(a, ctx);
+      if (!flows.values.some((v) => v > 0) || !flows.values.some((v) => v < 0)) throw NUM;
+      return solve((r) => xnpv(r, flows), optNum(a, 2, ctx, 0.1));
+    },
+  },
+  MIRR: {
+    min: 3,
+    max: 3,
+    fn: (a, ctx) => {
+      const flows = list([a[0]], ctx);
+      const finance = num(scalarOf(a[1], ctx));
+      const reinvest = num(scalarOf(a[2], ctx));
+      const n = flows.length;
+      let negative = 0;
+      let positive = 0;
+      flows.forEach((v, i) => {
+        if (v < 0) negative += v / (1 + finance) ** i;
+        else positive += v * (1 + reinvest) ** (n - 1 - i);
+      });
+      if (negative === 0 || positive === 0) throw DIV0;
+      return (positive / -negative) ** (1 / (n - 1)) - 1;
+    },
+  },
+  EFFECT: scalar(2, 2, ([r, n]) => {
+    const rate = num(r);
+    const periods = Math.trunc(num(n));
+    if (rate <= 0 || periods < 1) throw NUM;
+    return (1 + rate / periods) ** periods - 1;
+  }),
+  NOMINAL: scalar(2, 2, ([r, n]) => {
+    const rate = num(r);
+    const periods = Math.trunc(num(n));
+    if (rate <= 0 || periods < 1) throw NUM;
+    return periods * ((1 + rate) ** (1 / periods) - 1);
+  }),
+  RRI: scalar(3, 3, ([n, pv, fv]) => {
+    if (num(n) <= 0 || num(pv) === 0) throw NUM;
+    const r = (num(fv) / num(pv)) ** (1 / num(n)) - 1;
+    if (!Number.isFinite(r)) throw NUM;
+    return r;
+  }),
+  PDURATION: scalar(3, 3, ([r, pv, fv]) => {
+    if (num(r) <= 0 || num(pv) <= 0 || num(fv) <= 0) throw NUM;
+    return (Math.log(num(fv)) - Math.log(num(pv))) / Math.log(1 + num(r));
+  }),
+  FVSCHEDULE: {
+    min: 2,
+    max: 2,
+    fn: (a, ctx) => {
+      let v = num(scalarOf(a[0], ctx));
+      for (const r of matrixOf(a[1], ctx).data) {
+        if (isError(r)) throw r;
+        v *= 1 + (r === null ? 0 : num(r));
+      }
+      return v;
+    },
+  },
+  DOLLARDE: scalar(2, 2, ([d, f]) => {
+    const fraction = Math.trunc(num(f));
+    if (fraction < 0) throw NUM;
+    if (fraction === 0) throw DIV0;
+    const x = num(d);
+    const whole = Math.trunc(x);
+    return whole + ((x - whole) * 10 ** Math.ceil(Math.log10(fraction))) / fraction;
+  }),
+  DOLLARFR: scalar(2, 2, ([d, f]) => {
+    const fraction = Math.trunc(num(f));
+    if (fraction < 0) throw NUM;
+    if (fraction === 0) throw DIV0;
+    const x = num(d);
+    const whole = Math.trunc(x);
+    return whole + ((x - whole) * fraction) / 10 ** Math.ceil(Math.log10(fraction));
+  }),
+
+  // Weeks and working days
+  WEEKNUM: scalar(1, 2, ([v, t], ctx) => {
+    const serial = dateArg(v, ctx);
+    const type = Math.trunc(optional(t, 1));
+    if (type === 21) return isoWeek(serial, ctx);
+    const starts: Record<number, number> = { 1: 0, 17: 0, 2: 1, 11: 1, 12: 2, 13: 3, 14: 4, 15: 5, 16: 6 };
+    const start = starts[type];
+    if (start === undefined) throw NUM;
+    const d = jsDate(serial, ctx);
+    const jan1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const offset = (jan1.getUTCDay() - start + 7) % 7;
+    const dayOfYear = Math.round((d.getTime() - jan1.getTime()) / DAY_MS);
+    return Math.floor((dayOfYear + offset) / 7) + 1;
+  }),
+  ISOWEEKNUM: scalar(1, 1, ([v], ctx) => isoWeek(dateArg(v, ctx), ctx)),
+  DAYS360: scalar(2, 3, ([s, e, m], ctx) => days360(Math.floor(dateArg(s, ctx)), Math.floor(dateArg(e, ctx)), m !== undefined && m !== null && bool(m), ctx)),
+  'NETWORKDAYS.INTL': {
+    min: 2,
+    max: 4,
+    fn: (a, ctx) => {
+      const start = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
+      const end = Math.floor(dateArg(scalarOf(a[1], ctx), ctx));
+      const weekend = weekendOf(a[2], ctx);
+      const holidays = holidaysOf(a[3], ctx);
+      const step = end >= start ? 1 : -1;
+      let n = 0;
+      for (let d = start; step > 0 ? d <= end : d >= end; d += step) if (workday(d, weekend, holidays, ctx)) n += step;
+      return n;
+    },
+  },
+  'WORKDAY.INTL': {
+    min: 2,
+    max: 4,
+    fn: (a, ctx) => {
+      let d = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
+      let left = Math.trunc(num(scalarOf(a[1], ctx)));
+      const weekend = weekendOf(a[2], ctx);
+      if (weekend.every(Boolean)) throw VALUE;
+      const holidays = holidaysOf(a[3], ctx);
+      const step = left >= 0 ? 1 : -1;
+      while (left !== 0) {
+        d += step;
+        if (workday(d, weekend, holidays, ctx)) left -= step;
+      }
+      return d;
+    },
+  },
+  TIMEVALUE: scalar(1, 1, ([t]) => {
+    const m = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?\s*([ap]m)?\s*$/i.exec(text(t));
+    if (!m) throw VALUE;
+    let h = Number(m[1]);
+    const ampm = m[4]?.toLowerCase();
+    if (ampm) {
+      if (h < 1 || h > 12) throw VALUE;
+      h = (h % 12) + (ampm === 'pm' ? 12 : 0);
+    }
+    const v = (h * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0)) / 86400;
+    return v - Math.floor(v);
+  }),
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },

@@ -364,7 +364,7 @@ export function vdb(cost: number, salvage: number, life: number, start: number, 
 }
 
 /** Double-declining (or factor-declining) depreciation for one whole period. */
-function ddb(cost: number, salvage: number, life: number, period: number, factor: number): number {
+export function ddb(cost: number, salvage: number, life: number, period: number, factor: number): number {
   let rate = factor / life;
   let before: number;
   if (rate >= 1) {
