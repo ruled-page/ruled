@@ -2,6 +2,7 @@ import { format } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
 import { Calendar, validBasis, yearFrac } from '../core/bondMath';
 import { excelRound } from '../core/excelNumbers';
+import { eliminate } from '../core/matrixMath';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
@@ -851,6 +852,265 @@ const ERROR_NUMBERS: Record<string, number> = {
   '#CALC!': 14,
 };
 
+// -----------------------------------------------------------------------------
+// Statistics, distributions and matrices
+
+/** PERCENTILE.INC (inclusive) or PERCENTILE.EXC of sorted values. */
+function percentile(sorted: number[], k: number, inclusive: boolean): number {
+  const n = sorted.length;
+  if (!n || k < 0 || k > 1) throw NUM;
+  const rank = inclusive ? k * (n - 1) + 1 : k * (n + 1);
+  if (rank < 1 || rank > n) throw NUM;
+  const lo = Math.floor(rank);
+  const v = sorted[lo - 1];
+  return lo === n ? v : v + (rank - lo) * (sorted[lo] - v);
+}
+
+const ascending = (xs: number[]) => [...xs].sort((a, b) => a - b);
+
+/** The values that occur most often (at least twice), in the order they first appear. */
+function modes(values: number[]): number[] {
+  const counts = new Map<number, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const most = Math.max(0, ...counts.values());
+  return most < 2 ? [] : [...counts].filter(([, n]) => n === most).map(([v]) => v);
+}
+
+/** Where x falls among sorted values, as a fraction: PERCENTRANK, inclusive or exclusive of the ends, cut (not rounded) to `digits`. */
+function percentRank(a: Operand[], ctx: Ctx, inclusive: boolean): number {
+  const sorted = ascending(list([a[0]], ctx));
+  const x = num(scalarOf(a[1], ctx));
+  const digits = Math.trunc(optNum(a, 2, ctx, 3));
+  if (!sorted.length || digits < 1) throw NUM;
+  const n = sorted.length;
+  if (x < sorted[0] || x > sorted[n - 1]) throw NA;
+  let below = 0;
+  while (below < n && sorted[below] < x) below++;
+  let r: number;
+  if (sorted[below] === x) r = inclusive ? (n === 1 ? 1 : below / (n - 1)) : (below + 1) / (n + 1);
+  else {
+    const fraction = (x - sorted[below - 1]) / (sorted[below] - sorted[below - 1]);
+    r = inclusive ? (below - 1 + fraction) / (n - 1) : (below + fraction) / (n + 1);
+  }
+  const scale = 10 ** digits;
+  return Math.floor(round15(r * scale)) / scale;
+}
+
+/** The numbers AGGREGATE works on: errors and other subtotals left out as its option says. */
+function aggregateValues(args: Operand[], ctx: Ctx, skipErrors: boolean, skipSubtotals: boolean): number[] {
+  const out: number[] = [];
+  const take = (v: Scalar) => {
+    if (typeof v === 'number') out.push(v);
+    else if (isError(v) && !skipErrors) throw v;
+  };
+  for (const x of args) {
+    if (x instanceof Ref) ctx.host.each(x, take, skipSubtotals);
+    else if (x instanceof Matrix) x.data.forEach(take);
+    else if (x !== undefined) {
+      const v = scalarOf(x, ctx);
+      if (isError(v)) {
+        if (!skipErrors) throw v;
+      } else out.push(num(v));
+    }
+  }
+  return out;
+}
+
+/** AGGREGATE's functions 1 to 13, on all their arguments. */
+const AGGREGATE_LISTS: Record<number, (v: number[], args: Operand[], ctx: Ctx) => number> = {
+  ...AGGREGATES,
+  12: (v) => median(v),
+  13: (v) => {
+    const m = modes(v);
+    if (!m.length) throw NA;
+    return m[0];
+  },
+};
+
+/** Functions 14 to 19, which take one array and a k. */
+const AGGREGATE_RANKED: Record<number, (sorted: number[], k: number) => number> = {
+  14: (s, k) => nth(s, k, true),
+  15: (s, k) => nth(s, k, false),
+  16: (s, k) => percentile(s, k, true),
+  17: (s, q) => {
+    if (Math.trunc(q) < 0 || Math.trunc(q) > 4) throw NUM;
+    return percentile(s, Math.trunc(q) / 4, true);
+  },
+  18: (s, k) => percentile(s, k, false),
+  19: (s, q) => {
+    if (Math.trunc(q) < 1 || Math.trunc(q) > 3) throw NUM;
+    return percentile(s, Math.trunc(q) / 4, false);
+  },
+};
+
+/** Pairs of numbers from two equal-sized ranges or arrays, for the regression functions; a pair with text or a blank is left out. */
+function pairs(ys: Operand, xs: Operand, ctx: Ctx): { y: number[]; x: number[] } {
+  const a = matrixOf(ys, ctx).data;
+  const b = matrixOf(xs, ctx).data;
+  if (a.length !== b.length) throw NA;
+  const y: number[] = [];
+  const x: number[] = [];
+  for (let i = 0; i < a.length; i++) {
+    if (isError(a[i])) throw a[i];
+    if (isError(b[i])) throw b[i];
+    if (typeof a[i] === 'number' && typeof b[i] === 'number') {
+      y.push(a[i] as number);
+      x.push(b[i] as number);
+    }
+  }
+  return { y, x };
+}
+
+/** The sums a straight line through pairs is worked out from. */
+function line(ys: Operand, xs: Operand, ctx: Ctx) {
+  const { y, x } = pairs(ys, xs, ctx);
+  const n = y.length;
+  if (!n) throw DIV0;
+  const my = sum(y) / n;
+  const mx = sum(x) / n;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (x[i] - mx) * (y[i] - my);
+    sxx += (x[i] - mx) ** 2;
+    syy += (y[i] - my) ** 2;
+  }
+  return { n, mx, my, sxy, sxx, syy };
+}
+
+function slopeOf(ys: Operand, xs: Operand, ctx: Ctx): { slope: number; intercept: number } {
+  const l = line(ys, xs, ctx);
+  if (l.sxx === 0) throw DIV0;
+  const slope = l.sxy / l.sxx;
+  return { slope, intercept: l.my - slope * l.mx };
+}
+
+function correl(ys: Operand, xs: Operand, ctx: Ctx): number {
+  const l = line(ys, xs, ctx);
+  if (l.sxx === 0 || l.syy === 0) throw DIV0;
+  return l.sxy / Math.sqrt(l.sxx * l.syy);
+}
+
+/** The error function, to full double precision (W. J. Cody's rational approximations): erf, or with `complement`, erfc. */
+function erf(x: number, complement = false): number {
+  const y = Math.abs(x);
+  if (y <= 0.46875) {
+    const A = [3.1611237438705655, 113.86415415105016, 377.485237685302, 3209.3775891384694, 0.18577770618460315];
+    const B = [23.601290952344122, 244.02463793444417, 1282.6165260773723, 2844.236833439171];
+    const z = y > 1.11e-16 ? y * y : 0;
+    let num = A[4] * z;
+    let den = z;
+    for (let i = 0; i < 3; i++) {
+      num = (num + A[i]) * z;
+      den = (den + B[i]) * z;
+    }
+    const r = (x * (num + A[3])) / (den + B[3]);
+    return complement ? 1 - r : r;
+  }
+  let c: number;
+  if (y <= 4) {
+    const C = [0.5641884969886701, 8.883149794388375, 66.11919063714163, 298.6351381974001, 881.952221241769, 1712.0476126340707, 2051.0783778260716, 1230.3393547979972, 2.1531153547440383e-8];
+    const D = [15.744926110709835, 117.6939508913125, 537.1811018620099, 1621.3895745666903, 3290.7992357334597, 4362.619090143247, 3439.3676741437216, 1230.3393548037495];
+    let num = C[8] * y;
+    let den = y;
+    for (let i = 0; i < 7; i++) {
+      num = (num + C[i]) * y;
+      den = (den + D[i]) * y;
+    }
+    c = (num + C[7]) / (den + D[7]);
+  } else {
+    const P = [0.30532663496123236, 0.36034489994980445, 0.12578172611122926, 0.016083785148742275, 0.0006587491615298367, 0.016315387137302097];
+    const Q = [2.5685201922898684, 1.8729528499234604, 0.5279051029514283, 0.06051834131244132, 0.0023352049762686918];
+    const z = 1 / (y * y);
+    let num = P[5] * z;
+    let den = z;
+    for (let i = 0; i < 4; i++) {
+      num = (num + P[i]) * z;
+      den = (den + Q[i]) * z;
+    }
+    c = (0.5641895835477563 - (z * (num + P[4])) / (den + Q[4])) / y;
+  }
+  const s = Math.trunc(y * 16) / 16;
+  c *= Math.exp(-s * s) * Math.exp(-(y - s) * (y + s));
+  if (complement) return x < 0 ? 2 - c : c;
+  return x < 0 ? c - 1 : 1 - c;
+}
+
+const normalCdf = (z: number) => 0.5 * erf(-z / Math.SQRT2, true);
+const normalPdf = (z: number) => Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+
+/** The standard normal quantile: P. J. Acklam's approximation, then refined against normalCdf. */
+function normalInverse(p: number): number {
+  if (p <= 0 || p >= 1) throw NUM;
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  let x: number;
+  if (p < 0.02425) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    x = (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  } else if (p > 1 - 0.02425) {
+    const q = Math.sqrt(-2 * Math.log(1 - p));
+    x = -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  } else {
+    const q = p - 0.5;
+    const r = q * q;
+    x = ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+  }
+  for (let i = 0; i < 2; i++) {
+    const e = normalCdf(x) - p;
+    const u = e * Math.sqrt(2 * Math.PI) * Math.exp((x * x) / 2);
+    x -= u / (1 + (x * u) / 2);
+  }
+  return x;
+}
+
+/** ln(n!) by summing, exact enough for the binomial sums here. */
+function logFactorial(n: number): number {
+  let s = 0;
+  for (let i = 2; i <= n; i++) s += Math.log(i);
+  return s;
+}
+
+/** P(lo <= X <= hi) for X binomial with n trials and success chance p. */
+function binomialRange(n: number, p: number, lo: number, hi: number): number {
+  if (p === 0 || p === 1) {
+    const certain = p === 0 ? 0 : n;
+    return certain >= lo && certain <= hi ? 1 : 0;
+  }
+  let lnChoose = logFactorial(n) - logFactorial(lo) - logFactorial(n - lo);
+  let total = 0;
+  for (let k = lo; k <= hi; k++) {
+    total += Math.exp(lnChoose + k * Math.log(p) + (n - k) * Math.log1p(-p));
+    lnChoose += Math.log(n - k) - Math.log(k + 1);
+  }
+  return total;
+}
+
+/** The largest matrix MINVERSE and MDETERM work on, as the work grows with the cube of its size. */
+const MAX_MATRIX = 400;
+
+/** A matrix of numbers; a blank or text in it is #VALUE!. */
+function numberMatrix(op: Operand, ctx: Ctx): number[][] {
+  const m = matrixOf(op, ctx);
+  return m.rowsOf().map((row) =>
+    row.map((v) => {
+      if (isError(v)) throw v;
+      if (typeof v !== 'number') throw VALUE;
+      return v;
+    }),
+  );
+}
+
+function square(op: Operand, ctx: Ctx): number[][] {
+  const m = numberMatrix(op, ctx);
+  if (m.length !== m[0].length) throw VALUE;
+  if (m.length > MAX_MATRIX) throw NUM;
+  return m;
+}
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -1614,6 +1874,229 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (a < 0 || b < 0) throw NUM;
     return a ** b;
   }),
+
+  // Statistics
+  AGGREGATE: {
+    min: 3,
+    max: MANY,
+    fn: (a, ctx) => {
+      const code = Math.trunc(num(scalarOf(a[0], ctx)));
+      const option = Math.trunc(num(scalarOf(a[1], ctx)));
+      if (option < 0 || option > 7) throw VALUE;
+      const skipErrors = option === 2 || option === 3 || option === 6 || option === 7;
+      const skipSubtotals = option <= 3;
+      if (AGGREGATE_RANKED[code]) {
+        if (a.length < 4) throw VALUE;
+        return AGGREGATE_RANKED[code](ascending(aggregateValues([a[2]], ctx, skipErrors, skipSubtotals)), num(scalarOf(a[3], ctx)));
+      }
+      const f = code === 3 ? undefined : AGGREGATE_LISTS[code];
+      const rest = a.slice(2);
+      if (code === 3) return counta(rest, ctx, skipSubtotals);
+      if (!f) throw VALUE;
+      return f(aggregateValues(rest, ctx, skipErrors, skipSubtotals), rest, ctx);
+    },
+  },
+  MODE: { min: 1, max: MANY, fn: (a, ctx) => {
+    const m = modes(list(a, ctx));
+    if (!m.length) throw NA;
+    return m[0];
+  } },
+  'MODE.SNGL': { min: 1, max: MANY, fn: (a, ctx) => {
+    const m = modes(list(a, ctx));
+    if (!m.length) throw NA;
+    return m[0];
+  } },
+  'MODE.MULT': { min: 1, max: MANY, fn: (a, ctx) => {
+    const m = modes(list(a, ctx));
+    if (!m.length) throw NA;
+    return new Matrix(m.length, 1, m);
+  } },
+  PERCENTRANK: { min: 2, max: 3, fn: (a, ctx) => percentRank(a, ctx, true) },
+  'PERCENTRANK.INC': { min: 2, max: 3, fn: (a, ctx) => percentRank(a, ctx, true) },
+  'PERCENTRANK.EXC': { min: 2, max: 3, fn: (a, ctx) => percentRank(a, ctx, false) },
+  PERCENTILE: { min: 2, max: 2, fn: (a, ctx) => percentile(ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx)), true) },
+  'PERCENTILE.INC': { min: 2, max: 2, fn: (a, ctx) => percentile(ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx)), true) },
+  'PERCENTILE.EXC': { min: 2, max: 2, fn: (a, ctx) => percentile(ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx)), false) },
+  QUARTILE: { min: 2, max: 2, fn: (a, ctx) => AGGREGATE_RANKED[17](ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx))) },
+  'QUARTILE.INC': { min: 2, max: 2, fn: (a, ctx) => AGGREGATE_RANKED[17](ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx))) },
+  'QUARTILE.EXC': { min: 2, max: 2, fn: (a, ctx) => AGGREGATE_RANKED[19](ascending(list([a[0]], ctx)), num(scalarOf(a[1], ctx))) },
+  'RANK.AVG': {
+    min: 2,
+    max: 3,
+    fn: (a, ctx) => {
+      const x = num(scalarOf(a[0], ctx));
+      const xs = list([a[1]], ctx);
+      const asc = given(a, 2) && num(scalarOf(a[2], ctx)) !== 0;
+      const ties = xs.filter((v) => round15(v) === round15(x)).length;
+      if (!ties) throw NA;
+      const before = xs.filter((v) => (asc ? v < x : v > x) && round15(v) !== round15(x)).length;
+      return before + (ties + 1) / 2;
+    },
+  },
+  TRIMMEAN: {
+    min: 2,
+    max: 2,
+    fn: (a, ctx) => {
+      const xs = ascending(list([a[0]], ctx));
+      const p = num(scalarOf(a[1], ctx));
+      if (p < 0 || p >= 1 || !xs.length) throw NUM;
+      const cut = Math.floor((xs.length * p) / 2);
+      const kept = xs.slice(cut, xs.length - cut);
+      return sum(kept) / kept.length;
+    },
+  },
+  KURT: {
+    min: 1,
+    max: MANY,
+    fn: (a, ctx) => {
+      const xs = list(a, ctx);
+      const n = xs.length;
+      if (n < 4) throw DIV0;
+      const s = Math.sqrt(variance(xs, true));
+      if (s === 0) throw DIV0;
+      const mean = sum(xs) / n;
+      const fourth = sum(xs.map((x) => ((x - mean) / s) ** 4));
+      return ((n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3))) * fourth - (3 * (n - 1) ** 2) / ((n - 2) * (n - 3));
+    },
+  },
+  FREQUENCY: {
+    min: 2,
+    max: 2,
+    fn: (a, ctx) => {
+      const data = list([a[0]], ctx);
+      const bins = list([a[1]], ctx);
+      const order = bins.map((b, i) => [b, i]).sort((p, q) => p[0] - q[0]);
+      const counts = new Array<number>(bins.length + 1).fill(0);
+      for (const v of data) {
+        const at = order.find(([b]) => v <= b);
+        counts[at ? at[1] : bins.length]++;
+      }
+      return new Matrix(counts.length, 1, counts);
+    },
+  },
+  PROB: {
+    min: 3,
+    max: 4,
+    fn: (a, ctx) => {
+      const xs = matrixOf(a[0], ctx).data;
+      const ps = matrixOf(a[1], ctx).data;
+      if (xs.length !== ps.length) throw NA;
+      const lo = num(scalarOf(a[2], ctx));
+      const hi = given(a, 3) ? num(scalarOf(a[3], ctx)) : lo;
+      let total = 0;
+      let all = 0;
+      xs.forEach((x, i) => {
+        const p = ps[i];
+        if (typeof p !== 'number' || p <= 0 || p > 1) throw NUM;
+        all += p;
+        if (typeof x === 'number' && x >= lo && x <= hi) total += p;
+      });
+      if (Math.abs(all - 1) > 1e-6) throw NUM;
+      return total;
+    },
+  },
+  'BINOM.DIST.RANGE': scalar(3, 4, ([n, p, s, s2]) => {
+    const trials = Math.trunc(num(n));
+    const chance = num(p);
+    const lo = Math.trunc(num(s));
+    const hi = s2 === undefined || s2 === null ? lo : Math.trunc(num(s2));
+    if (trials < 0 || chance < 0 || chance > 1 || lo < 0 || lo > trials || hi < lo || hi > trials) throw NUM;
+    return binomialRange(trials, chance, lo, hi);
+  }),
+  SLOPE: { min: 2, max: 2, fn: (a, ctx) => slopeOf(a[0], a[1], ctx).slope },
+  INTERCEPT: { min: 2, max: 2, fn: (a, ctx) => slopeOf(a[0], a[1], ctx).intercept },
+  FORECAST: { min: 3, max: 3, fn: (a, ctx) => {
+    const { slope, intercept } = slopeOf(a[1], a[2], ctx);
+    return intercept + slope * num(scalarOf(a[0], ctx));
+  } },
+  'FORECAST.LINEAR': { min: 3, max: 3, fn: (a, ctx) => {
+    const { slope, intercept } = slopeOf(a[1], a[2], ctx);
+    return intercept + slope * num(scalarOf(a[0], ctx));
+  } },
+  CORREL: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) },
+  PEARSON: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) },
+  RSQ: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) ** 2 },
+  STEYX: { min: 2, max: 2, fn: (a, ctx) => {
+    const l = line(a[0], a[1], ctx);
+    if (l.n < 3 || l.sxx === 0) throw DIV0;
+    return Math.sqrt((l.syy - l.sxy ** 2 / l.sxx) / (l.n - 2));
+  } },
+  'COVARIANCE.P': { min: 2, max: 2, fn: (a, ctx) => {
+    const l = line(a[0], a[1], ctx);
+    return l.sxy / l.n;
+  } },
+  COVAR: { min: 2, max: 2, fn: (a, ctx) => {
+    const l = line(a[0], a[1], ctx);
+    return l.sxy / l.n;
+  } },
+  'COVARIANCE.S': { min: 2, max: 2, fn: (a, ctx) => {
+    const l = line(a[0], a[1], ctx);
+    if (l.n < 2) throw DIV0;
+    return l.sxy / (l.n - 1);
+  } },
+
+  // The error function and the normal distribution
+  ERF: scalar(1, 2, ([lo, hi]) => (hi === undefined || hi === null ? erf(num(lo)) : erf(num(hi)) - erf(num(lo)))),
+  'ERF.PRECISE': scalar(1, 1, ([x]) => erf(num(x))),
+  ERFC: scalar(1, 1, ([x]) => erf(num(x), true)),
+  'ERFC.PRECISE': scalar(1, 1, ([x]) => erf(num(x), true)),
+  'NORM.S.DIST': scalar(2, 2, ([z, c]) => (bool(c) ? normalCdf(num(z)) : normalPdf(num(z)))),
+  NORMSDIST: scalar(1, 1, ([z]) => normalCdf(num(z))),
+  'NORM.DIST': scalar(4, 4, ([x, m, sd, c]) => {
+    const s = num(sd);
+    if (s <= 0) throw NUM;
+    const z = (num(x) - num(m)) / s;
+    return bool(c) ? normalCdf(z) : normalPdf(z) / s;
+  }),
+  NORMDIST: scalar(4, 4, ([x, m, sd, c]) => {
+    const s = num(sd);
+    if (s <= 0) throw NUM;
+    const z = (num(x) - num(m)) / s;
+    return bool(c) ? normalCdf(z) : normalPdf(z) / s;
+  }),
+  'NORM.S.INV': scalar(1, 1, ([p]) => normalInverse(num(p))),
+  NORMSINV: scalar(1, 1, ([p]) => normalInverse(num(p))),
+  'NORM.INV': scalar(3, 3, ([p, m, sd]) => {
+    if (num(sd) <= 0) throw NUM;
+    return num(m) + num(sd) * normalInverse(num(p));
+  }),
+  NORMINV: scalar(3, 3, ([p, m, sd]) => {
+    if (num(sd) <= 0) throw NUM;
+    return num(m) + num(sd) * normalInverse(num(p));
+  }),
+  STANDARDIZE: scalar(3, 3, ([x, m, sd]) => {
+    if (num(sd) <= 0) throw NUM;
+    return (num(x) - num(m)) / num(sd);
+  }),
+
+  // Matrices
+  MUNIT: scalar(1, 1, ([n]) => {
+    const k = Math.trunc(num(n));
+    if (k < 1) throw VALUE;
+    sized(k, k);
+    return Matrix.build(k, k, (r, c) => (r === c ? 1 : 0));
+  }),
+  MDETERM: { min: 1, max: 1, fn: ([m], ctx) => eliminate(square(m, ctx)).det },
+  MINVERSE: {
+    min: 1,
+    max: 1,
+    fn: ([m], ctx) => {
+      const inverse = eliminate(square(m, ctx)).inverse;
+      if (!inverse) throw NUM;
+      return Matrix.of(inverse);
+    },
+  },
+  MMULT: {
+    min: 2,
+    max: 2,
+    fn: ([x, y], ctx) => {
+      const a = numberMatrix(x, ctx);
+      const b = numberMatrix(y, ctx);
+      if (a[0].length !== b.length) throw VALUE;
+      sized(a.length, b[0].length);
+      return Matrix.build(a.length, b[0].length, (r, c) => a[r].reduce((s, v, k) => s + v * b[k][c], 0));
+    },
+  },
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },
