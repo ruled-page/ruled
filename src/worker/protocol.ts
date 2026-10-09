@@ -1,10 +1,12 @@
 import type { Text } from '../i18n/message';
 import type { WorkbookOp } from '../core/sheetRules';
+import type { EngineInfo, WorkStats } from '../core/engineIds';
 import type { OpenOptions } from '../core/session';
 import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
 
 export type WorkerRequest =
-  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions }
+  /** `engine`: which calculation engine to work the workbook out with (see ENGINES); HyperFormula by default. */
+  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions; engine?: string }
   | { id: number; type: 'edit'; op: EditOp }
   | { id: number; type: 'save'; properties?: Record<string, string> }
   | { id: number; type: 'changes' }
@@ -19,10 +21,10 @@ export type WorkerRequest =
   | { id: number; type: 'enableRecalc' };
 
 export type WorkerResponse =
-  | { id: number; type: 'opened'; result: LoadResult }
+  | { id: number; type: 'opened'; result: LoadResult; engine: EngineInfo }
   /** Sent once, after the calculation engine is built; always before any edit result. */
-  | { type: 'calc'; report: CalcReport }
-  | { id: number; type: 'edited'; result: EditResult }
+  | { type: 'calc'; report: CalcReport; stats?: WorkStats }
+  | { id: number; type: 'edited'; result: EditResult; stats?: WorkStats }
   | { id: number; type: 'saved'; bytes: Uint8Array; fileName: string; changes: CellChange[] }
   | { id: number; type: 'changes'; changes: CellChange[] }
   | { id: number; type: 'validated'; ok: boolean }

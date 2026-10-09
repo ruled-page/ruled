@@ -30,6 +30,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   bar uses the interface's font.
 - The demo's themes show more of what theming can do: Indigo, Paper, Dark
   and High contrast.
+- The calculation engine can be swapped: an `engine` option and
+  `setEngine`, each engine downloaded only when chosen, `diagnostics` in the
+  status bar to compare them, and `npm run engine:bench`.
 
 ## 0.1.0 (2026-10-08)
 

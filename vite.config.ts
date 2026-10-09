@@ -6,7 +6,8 @@ import { glidePatches } from './vite.glide.ts';
 // Babel 8 peer, so JSX is compiled by Vite's built-in Oxc transform instead.
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  worker: { format: 'es' },
+  // The worker's own chunks (each calculation engine is one) are named for it, so the bundle check tells them from the page's.
+  worker: { format: 'es', rolldownOptions: { output: { chunkFileNames: 'assets/worker-[name]-[hash].js' } } },
   plugins: [glidePatches()],
   // The grid's markdown cells are never shown, so their parser isn't needed.
   resolve: { alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) }] },
@@ -20,7 +21,9 @@ export default defineConfig({
       : { rolldownOptions: { input: { main: 'index.html', embedded: 'embedded.html' } } },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // `npm run engine:bench` runs the engine comparison in bench/ instead.
+    include: process.env.ENGINE_BENCH ? ['bench/**/*.bench.ts'] : ['tests/**/*.test.ts'],
+    setupFiles: ['tests/setup.ts'],
     testTimeout: 60_000,
     coverage: {
       provider: 'v8',

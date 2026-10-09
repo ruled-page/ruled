@@ -539,6 +539,21 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
   );
 }
 
+/** Which engine is calculating, what it cost to download, and how long opening, calculating and the last edit took. */
+function EngineReadout({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const info = store.engineInfo;
+  if (!info) return null;
+  const parts = [info.name];
+  parts.push(info.transferBytes || info.decodedBytes ? t('status.engineSize', { kB: Math.round((info.transferBytes || info.decodedBytes) / 1024) }) : t('status.engineCached'));
+  if (store.openMs !== undefined) parts.push(t('status.openMs', { ms: store.openMs }));
+  if (store.calcStats) parts.push(t('status.calcMs', { ms: store.calcStats.ms }));
+  if (store.editStats) parts.push(t('status.editMs', { ms: store.editStats.ms }));
+  const heap = store.editStats?.heapBytes ?? store.calcStats?.heapBytes;
+  if (heap !== undefined) parts.push(t('status.heap', { mb: Math.round(heap / 1048576) }));
+  return <span className="wbe-status-engine">{parts.join(' · ')}</span>;
+}
+
 export function StatusBar({ store, view, selection }: { store: WorkbookStore; view?: SheetView; selection?: Selection }) {
   const t = useT();
   const stats = useMemo(() => {
@@ -609,6 +624,7 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
           </button>
         </span>
       )}
+      {store.diagnostics && <EngineReadout store={store} />}
       {stats && (
         <span className="wbe-status-stats">
           {stats.nums > 0 && <span>{t('status.average', { value: fmt(stats.sum / stats.nums) })}</span>}

@@ -21,6 +21,7 @@
     "build:lib": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json",
     "build:verify": "vite build -c vite.verify.config.ts",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "engine:bench": "ENGINE_BENCH=1 NODE_OPTIONS=--expose-gc vitest run --silent=false",
     "validate:saves": "node scripts/validate-saves.mjs",
     "e2e": "playwright test",
     "notices": "node scripts/notices.mjs",

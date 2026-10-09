@@ -1,5 +1,8 @@
 import { errorText, msg, TextError, type Text } from '../i18n/message';
+import { chooseEngine, chosenEngine } from '../core/engine';
+import type { EngineId, EngineInfo } from '../core/engineIds';
 import { WorkbookSession } from '../core/session';
+import { heapBytes, loadEngine } from './engines';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 
 /** The workbook, its parsed sheets and the calculation engine live here, off the UI thread. */
@@ -38,7 +41,9 @@ function ensureCalc(): void {
   if (!session || calcSent) return;
   calcSent = true;
   try {
-    post({ type: 'calc', report: session.ensureEngine() });
+    const started = performance.now();
+    const report = session.ensureEngine();
+    post({ type: 'calc', report, stats: { ms: Math.round(performance.now() - started), heapBytes: heapBytes() } });
   } catch (err) {
     // The session is left half calculated, so nothing more can be done with it here.
     post({ type: 'failed', text: errorText(err) });
@@ -58,24 +63,56 @@ function calcSoon(s: WorkbookSession): void {
   }, 0);
 }
 
+/** While an engine loads for an open, later requests wait for it, in order; otherwise each is handled at once. */
+let loading: Promise<void> | undefined;
 scope.onmessage = (e) => {
   const req = e.data;
+  const result = loading ? loading.then(() => handle(req)) : handle(req);
+  if (!result) return;
+  loading = result;
+  void result.then(() => {
+    if (loading === result) loading = undefined;
+  });
+};
+
+function fail(id: number, err: unknown): void {
+  post({ id, type: 'error', message: err instanceof Error ? err.message : String(err), text: errorText(err) });
+}
+
+function openWorkbook(req: Extract<WorkerRequest, { type: 'open' }>, engine: EngineInfo): void {
+  session = WorkbookSession.open(new Uint8Array(req.bytes), req.fileName, req.locale, req.options);
+  sessions = [session];
+  at = 0;
+  calcSent = false;
+  post({ id: req.id, type: 'opened', result: session.loadResult(), engine });
+  // Let the grid render first; the engine builds in the next task.
+  calcSoon(session);
+}
+
+/** Handles a request; for an open that has to load its engine first, returns when it is done. */
+function handle(req: WorkerRequest): Promise<void> | undefined {
   try {
     switch (req.type) {
       case 'open': {
-        session = WorkbookSession.open(new Uint8Array(req.bytes), req.fileName, req.locale, req.options);
-        sessions = [session];
-        at = 0;
-        calcSent = false;
-        post({ id: req.id, type: 'opened', result: session.loadResult() });
-        // Let the grid render first; the engine builds in the next task.
-        calcSoon(session);
-        break;
+        // An open that names no engine keeps the one this worker already calculates with.
+        const ready = req.engine === undefined ? chosenEngine() : undefined;
+        if (ready) {
+          openWorkbook(req, { id: ready.id as EngineId, name: ready.name, loadMs: 0, transferBytes: 0, decodedBytes: 0 });
+          break;
+        }
+        return loadEngine(req.engine)
+          .then(({ kind, info }) => {
+            chooseEngine(kind);
+            openWorkbook(req, info);
+          })
+          .catch((err: unknown) => fail(req.id, err));
       }
       case 'edit': {
         if (!session) throw new Error('No workbook is open.');
         ensureCalc();
-        post({ id: req.id, type: 'edited', result: session.apply(req.op) });
+        const started = performance.now();
+        const result = session.apply(req.op);
+        post({ id: req.id, type: 'edited', result, stats: { ms: Math.round((performance.now() - started) * 10) / 10, heapBytes: heapBytes() } });
         break;
       }
       case 'save': {
@@ -133,6 +170,7 @@ scope.onmessage = (e) => {
       }
     }
   } catch (err) {
-    post({ id: req.id, type: 'error', message: err instanceof Error ? err.message : String(err), text: errorText(err) });
+    fail(req.id, err);
   }
-};
+  return undefined;
+}

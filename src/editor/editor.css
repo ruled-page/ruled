@@ -1519,6 +1519,15 @@
   overflow: hidden;
 }
 
+.wbe .wbe-status-engine {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wbe-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
 .wbe .wbe-status-stats {
   display: flex;
   gap: 16px;

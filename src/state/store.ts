@@ -56,6 +56,7 @@ import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
+import type { EngineId, EngineInfo, WorkStats } from '../core/engineIds';
 import { SheetView } from './sheetView';
 import { cellLink, type CellLink, type LinkClick } from './links';
 import { clearOutline, collapseGroup, expandGroup, groupToHide, groupToShow, regroup, showLevel, summaryLine, type Axis, type OutlineChange, type OutlineGroup } from './outline';
@@ -260,6 +261,13 @@ export interface StoreOptions {
    * to recalculate quickly, where the user can turn it on; 'on' and 'off' force it.
    */
   recalc?: OpenOptions['recalc'];
+  /** The calculation engine workbooks are worked out with (see ENGINES); HyperFormula by default. Change it with setEngine. */
+  engine?: EngineId;
+  /**
+   * Show in the status bar which engine is calculating, how large it is,
+   * and how long opening, calculating and the last edit took, for comparing engines.
+   */
+  diagnostics?: boolean;
   /**
    * Called when the editor stops working: its worker couldn't load, crashed,
    * ran out of memory or stopped answering. The editor shows what happened
@@ -642,6 +650,35 @@ export class WorkbookStore {
     this.options.user = user;
   }
 
+  // ---------------------------------------------------------------------------
+  // Calculation engines and what they cost
+
+  /** How the open workbook's engine was loaded. */
+  engineInfo?: EngineInfo;
+  /** How long opening the open workbook took, to the grid showing. */
+  openMs?: number;
+  /** Building the engine and calculating the workbook. */
+  calcStats?: WorkStats;
+  /** The last edit, in the worker. */
+  editStats?: WorkStats;
+
+  get engine(): EngineId {
+    return this.options.engine ?? 'hyperformula';
+  }
+
+  get diagnostics(): boolean {
+    return !!this.options.diagnostics;
+  }
+
+  /** Works the open workbook out with another engine, opening it again from its file. */
+  async setEngine(engine: EngineId): Promise<void> {
+    if (engine === this.engine) return;
+    this.options.engine = engine;
+    const source = this.source;
+    if (source) await this.load(source.fileName, source.bytes);
+    else this.notify();
+  }
+
   setTheme(theme: EditorTheme | undefined): void {
     this.options.theme = theme;
     this.themeVersion++;
@@ -824,6 +861,7 @@ export class WorkbookStore {
     const res = e.data;
     if (res.type === 'calc') {
       clearTimeout(this.calcTimer);
+      this.calcStats = res.stats;
       this.applyCalc(res.report);
       this.notify();
       return;
@@ -973,10 +1011,13 @@ export class WorkbookStore {
     try {
       const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc }, engine: this.engine } as Omit<WorkerRequest, 'id'>,
         [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
+      this.engineInfo = res.engine;
+      this.openMs = Math.round(performance.now() - started);
+      this.calcStats = this.editStats = undefined;
       const r = res.result;
       this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
       for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
@@ -1304,6 +1345,7 @@ export class WorkbookStore {
       try {
         const res = await this.request({ type: 'edit', op } as Omit<WorkerRequest, 'id'>);
         if (res.type !== 'edited') return undefined;
+        this.editStats = res.stats;
         const r = res.result;
         const ctl = this.schema;
         // Schema logic sees each edited cell's value from before the edit.

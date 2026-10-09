@@ -2,6 +2,8 @@ import { english, errorText } from '../i18n';
 import { spawnSync } from 'node:child_process';
 import { strFromU8, unzipSync } from 'fflate';
 import { MAX_ROWS, toA1 } from '../core/refs';
+import { hyperFormulaEngine } from '../core/calc';
+import { chooseEngine } from '../core/engine';
 import { gridValue, WorkbookSession } from '../core/session';
 import type { ScanResult } from '../core/sheetScanner';
 import { CellFlag, VT, type SheetGrid } from '../core/types';
@@ -117,6 +119,9 @@ for sheet, ref in cells:
     out.append(v if isinstance(v, (int, float, str, bool)) or v is None else str(v))
 print(json.dumps(out))
 `;
+
+// Workbooks are verified as the editor calculates them by default.
+chooseEngine(hyperFormulaEngine);
 
 /**
  * Round-trips a workbook through the editor and checks nothing was lost.

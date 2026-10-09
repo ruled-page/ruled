@@ -40,7 +40,8 @@ export default defineConfig(({ mode }) => {
     // Paths relative to the library, wherever the host serves it from.
     base: './',
     // A fixed name, which the package exports as workbook-editor/worker.
-    worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js' } } },
+    // One file, the engine inlined, so hosts' bundlers see a single worker.
+    worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js', codeSplitting: false } } },
     plugins: standalone ? [glidePatches()] : [glidePatches(), plainWorkerUrl()],
     resolve: {
       // CommonJS modules that require('react'), which an ES module library can't do once React is external.

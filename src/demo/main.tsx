@@ -1,6 +1,7 @@
 import { StrictMode, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
+import { ENGINES, type EngineId } from '../core/engineIds';
 import { WorkbookEditor } from '../editor';
 import { handleFor } from '../editor/handle';
 import { WorkbookStore } from '../state/store';
@@ -16,7 +17,22 @@ import './demo.css';
 // editor's text starts in the demo's language; numbers typed into cells are
 // still read in the browser's locale.
 // The demo reaches into the editor's store for its welcome screen; hosts use the handle.
-const store = new WorkbookStore({ schemas: DEMO_SCHEMAS, language: i18next.language });
+/** The engine to calculate with: ?engine= in the link, else the one chosen last time. */
+function firstEngine(): EngineId {
+  const known = (id: string | null | undefined): id is EngineId => ENGINES.some((e) => e.id === id);
+  const asked = new URLSearchParams(location.search).get('engine');
+  if (known(asked)) return asked;
+  try {
+    const stored = localStorage.getItem('demo-engine');
+    if (known(stored)) return stored;
+  } catch {
+    // No stored choice.
+  }
+  return 'hyperformula';
+}
+
+// The status bar says which engine is calculating and how long things take, for comparing engines.
+const store = new WorkbookStore({ schemas: DEMO_SCHEMAS, language: i18next.language, engine: firstEngine(), diagnostics: true });
 const editor = handleFor(store);
 if (import.meta.env.DEV) (window as unknown as { __store: WorkbookStore }).__store = store;
 
@@ -70,6 +86,30 @@ function ThemePicker() {
   );
 }
 
+/** Lets the demo calculate with a different engine, opening the workbook again with it. */
+function EnginePicker() {
+  const { t } = useTranslation(DEMO_NS);
+  const [id, setId] = useState<EngineId>(store.engine);
+  const choose = (next: EngineId) => {
+    setId(next);
+    void store.setEngine(next);
+    try {
+      localStorage.setItem('demo-engine', next);
+    } catch {
+      // Remembering the choice is a nicety.
+    }
+  };
+  return (
+    <Select className="demo-engine" value={id} onChange={(e) => choose(e.target.value as EngineId)} aria-label={t('picker.engine')} title={t('picker.engine')}>
+      {ENGINES.map((engine) => (
+        <option key={engine.id} value={engine.id}>
+          {engine.name}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
 /** Switches the language of the demo's own text and of the editor together. */
 function LanguagePicker() {
   const { t, i18n } = useTranslation(DEMO_NS);
@@ -99,6 +139,7 @@ createRoot(document.getElementById('root')!).render(
       editor={editor}
       toolbarEnd={
         <HostText>
+          <EnginePicker />
           <ThemePicker />
           <LanguagePicker />
         </HostText>

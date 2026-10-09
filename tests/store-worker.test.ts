@@ -10,6 +10,9 @@ async function worker() {
   (globalThis as { self?: unknown }).self = scope;
   vi.resetModules();
   await import('../src/worker/workbook.worker');
+  // The fresh modules need the engine the setup file chose for the old ones.
+  const [{ chooseEngine }, { hyperFormulaEngine }] = await Promise.all([import('../src/core/engine'), import('../src/core/calc')]);
+  chooseEngine(hyperFormulaEngine);
   let id = 0;
   /** Sends a request and returns what the worker answered to it. */
   const send = (req: Omit<WorkerRequest, 'id'>): WorkerResponse => {

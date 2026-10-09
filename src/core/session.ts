@@ -1,9 +1,8 @@
 import { isMessage, msg, TextError, type MessageKey, type Text } from '../i18n/message';
 import { parseA1Ref, tokenize } from '@borgar/fx';
-import type { RawCellContent } from 'hyperformula';
 import { format as formatNumber, isDateFormat } from 'numfmt';
 import {
-  CalcEngine,
+  currentEngine,
   describeValue,
   isSpillError,
   MAX_SPILL_CELLS,
@@ -11,14 +10,16 @@ import {
   toRaw,
   unsupportedExplanation,
   unsupportedLabel,
-  unsupportedReason,
   valuesMatch,
-  type Unsupported,
+  type ArrayDims,
   type EngineChange,
+  type EngineKind,
   type EngineSheet,
   type EngineWrite,
-} from './calc';
-import type { ArrayDims } from './functions/spill';
+  type FormulaEngine,
+  type RawContent,
+  type Unsupported,
+} from './engine';
 import { renameInFormula, sameDefinition } from './definedNames';
 import type { EngineValue } from './engineValue';
 import { evaluateConditionalFormats } from './conditionalFormat';
@@ -191,7 +192,7 @@ function valueContent(v: EngineValue): CellContent {
   return { kind: 'error', value: v.error };
 }
 
-function valueRaw(v: EngineValue): RawCellContent {
+function valueRaw(v: EngineValue): RawContent {
   return toRaw(valueContent(v));
 }
 
@@ -304,7 +305,9 @@ export class WorkbookSession {
   /** The file as opened; null after a structural change, when the session is built from a package. */
   private readonly originalBytes: Uint8Array | null;
   private readonly timings: Record<string, number>;
-  private engine?: CalcEngine;
+  private engine?: FormulaEngine;
+  /** The kind of engine this workbook is calculated with, chosen before it was opened. */
+  readonly engineKind: EngineKind = currentEngine();
   private report?: CalcReport;
   /** Per sheet: cells whose content or style differs from the file. */
   private readonly edits: Map<number, CellState>[];
@@ -860,11 +863,11 @@ export class WorkbookSession {
         const spill = this.savedSpill(s, idx, row, col);
         if (spill) {
           // An array formula, dynamic or entered with Ctrl+Shift+Enter, is calculated here when the engine can calculate its formula.
-          reason = unsupportedReason(this.engineText(formula, s, row, col));
+          reason = this.engineKind.unsupportedReason(this.engineText(formula, s, row, col));
           this.markFileArray(grid, idx, spill, !reason);
         } else if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
         else if (flags & CellFlag.Unsupported) reason = { kind: 'sharedFormula' };
-        else reason = unsupportedReason(this.engineText(formula, s, row, col));
+        else reason = this.engineKind.unsupportedReason(this.engineText(formula, s, row, col));
         if (!reason) continue;
         unsupported++;
         const key = JSON.stringify(reason);
@@ -879,7 +882,7 @@ export class WorkbookSession {
 
     this.constant = constant;
     const needed = this.sheetsFormulasUse();
-    const engine = new CalcEngine(
+    const engine = this.engineKind.create(
       sheets.map((_m, s) => (needed.has(s) ? this.engineSheet(s) : null)),
       // Names can use table references too; formulas see them as cells, as everywhere else.
       this.model.names.map((n) => ({ ...n, formula: this.engineText(n.formula, n.localSheet ?? 0, -1, -1) })),
@@ -1070,7 +1073,7 @@ export class WorkbookSession {
     const grid = m.scan?.grid;
     if (!grid) return null;
     const constant = this.constant[s] ?? new Set<number>();
-    const rows: RawCellContent[][] = new Array(grid.rowCount);
+    const rows: RawContent[][] = new Array(grid.rowCount);
     for (let r = 0; r < grid.rowCount; r++) {
       const start = grid.rowPtr[r];
       const end = grid.rowPtr[r + 1];
@@ -1078,7 +1081,7 @@ export class WorkbookSession {
         rows[r] = [];
         continue;
       }
-      const row: RawCellContent[] = new Array(grid.cols[end - 1] + 1).fill(null);
+      const row: RawContent[] = new Array(grid.cols[end - 1] + 1).fill(null);
       for (let i = start; i < end; i++) {
         // Excel's saved values for a spill are left out, so the formula can spill there.
         if (grid.flags[i] & CellFlag.Spilled) continue;
@@ -1225,7 +1228,7 @@ export class WorkbookSession {
     this.edits.forEach((m, s) => {
       for (const [key, st] of m) {
         if (st.content.kind !== 'formula') continue;
-        if (unsupportedReason(this.engineText(st.content.formula, s, Math.floor(key / MAX_COLS), key % MAX_COLS))) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
+        if (this.engineKind.unsupportedReason(this.engineText(st.content.formula, s, Math.floor(key / MAX_COLS), key % MAX_COLS))) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
         else this.values[s].set(key, this.engine!.value(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
       }
     });
@@ -2181,7 +2184,7 @@ export class WorkbookSession {
       const untrusted = this.isUntrustedOriginal(w.sheet, w.row, w.col);
       const grid = this.sheet(w.sheet).scan?.grid;
       // A formula over the engine's size limits never reaches it.
-      const tooLarge = w.content.kind === 'formula' && unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))?.kind === 'tooLarge';
+      const tooLarge = w.content.kind === 'formula' && this.engineKind.unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))?.kind === 'tooLarge';
       return {
         sheet: w.sheet,
         row: w.row,
@@ -2197,7 +2200,7 @@ export class WorkbookSession {
     const calculated: Write[] = [];
     for (const w of applied) {
       if (w.content.kind !== 'formula' || this.isUntrustedOriginal(w.sheet, w.row, w.col)) continue;
-      if (!engine || unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))) {
+      if (!engine || this.engineKind.unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))) {
         this.newFormulaFlags[w.sheet].set(cellKey(w.row, w.col), CellFlag.Unsupported);
         newUnsupported.push(w);
       } else {

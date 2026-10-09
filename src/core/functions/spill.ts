@@ -1,4 +1,5 @@
 import { ArraySize, EmptyValue, ErrorType, FunctionArgumentType, SimpleRangeValue, type ImplementedFunctions } from 'hyperformula';
+import { SPILL_FUNCTION, type ArrayDims } from '../engine';
 import { array, arraySize, error, ExcelPlugin, grid, literalNumber, plain, type Call, type Grid, type State } from './common';
 
 /**
@@ -14,12 +15,7 @@ import { array, arraySize, error, ExcelPlugin, grid, literalNumber, plain, type 
  * array formula entered with Ctrl+Shift+Enter does: a result of one row or
  * one column is repeated across the range, and cells it doesn't reach show #N/A.
  */
-export const SPILL_FUNCTION = 'WBE.SPILL';
-
-export interface ArrayDims {
-  rows: number;
-  cols: number;
-}
+export { SPILL_FUNCTION, type ArrayDims };
 
 /** Per engine (by its dependency graph): the size each spilling formula's result had when last worked out, by "sheet:row:col". */
 const measured = new WeakMap<object, Map<string, ArrayDims>>();

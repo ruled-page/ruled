@@ -1,4 +1,5 @@
 import { ArraySize, CellError, EmptyValue, ErrorType, FunctionPlugin, SimpleRangeValue } from 'hyperformula';
+import { MAX_SPILL_CELLS } from '../engine';
 
 /** A node of the engine's syntax tree, as far as these functions read one. */
 export interface Node {
@@ -173,7 +174,7 @@ export const omitted = (node: Node | undefined) => !node || node.type === 'EMPTY
 const REFERENCES = new Set(['CELL_REFERENCE', 'CELL_RANGE', 'COLUMN_RANGE', 'ROW_RANGE']);
 
 /** The most cells an array result may have, so that a short formula can't exhaust memory. */
-export const MAX_RESULT_CELLS = 1_000_000;
+export const MAX_RESULT_CELLS = MAX_SPILL_CELLS;
 
 /** Shared plumbing for the plugins that add Excel's functions. */
 export abstract class ExcelPlugin extends FunctionPlugin {
