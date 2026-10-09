@@ -670,13 +670,18 @@ export class WorkbookStore {
     return !!this.options.diagnostics;
   }
 
-  /** Works the open workbook out with another engine, opening it again from its file. */
+  /** Works the open workbook out with another engine, opening it again from its file at the same sheet and cells. */
   async setEngine(engine: EngineId): Promise<void> {
     if (engine === this.engine) return;
     this.options.engine = engine;
     const source = this.source;
-    if (source) await this.load(source.fileName, source.bytes);
-    else this.notify();
+    if (!source) return this.notify();
+    const sheet = this.active;
+    const selection = this.selection;
+    await this.load(source.fileName, source.bytes);
+    if (!this.sheets[sheet]) return;
+    this.setActive(sheet);
+    this.setSelection(selection);
   }
 
   setTheme(theme: EditorTheme | undefined): void {

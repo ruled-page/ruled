@@ -1,4 +1,4 @@
-import { StrictMode, useState, type ReactNode } from 'react';
+import { StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { ENGINES, type EngineId } from '../core/engineIds';
@@ -8,7 +8,7 @@ import { WorkbookStore } from '../state/store';
 import { DEMO_NS, i18next, LANGUAGE_STORAGE_KEY, LANGUAGES } from './i18n';
 import { DEMO_SCHEMAS } from './schemas';
 import { DEMO_THEMES } from './themes';
-import { Welcome } from './Welcome';
+import { openSample, SAMPLES, SCHEMA_SAMPLES, Welcome } from './Welcome';
 import { Select } from '../ui/Select';
 import './demo.css';
 
@@ -31,8 +31,29 @@ function firstEngine(): EngineId {
   return 'hyperformula';
 }
 
+/** The samples, by file name, which the address names so a reload opens the same one. */
+const SAMPLE_FILES = new Set([...SAMPLES, ...SCHEMA_SAMPLES].map((s) => s.file));
+
+/** Keeps ?sample= in the address naming the sample open, or none for another file or none at all. */
+function rememberSample(fileName: string | undefined): void {
+  const url = new URL(location.href);
+  if (fileName && SAMPLE_FILES.has(fileName)) url.searchParams.set('sample', fileName);
+  else url.searchParams.delete('sample');
+  if (url.href !== location.href) history.replaceState(history.state, '', url);
+}
+
 // The status bar says which engine is calculating and how long things take, for comparing engines.
-const store = new WorkbookStore({ schemas: DEMO_SCHEMAS, language: i18next.language, engine: firstEngine(), diagnostics: true });
+const store = new WorkbookStore({
+  schemas: DEMO_SCHEMAS,
+  language: i18next.language,
+  engine: firstEngine(),
+  diagnostics: true,
+  onEvent: (e) => {
+    if (e.type === 'opened') rememberSample(e.fileName);
+  },
+});
+const asked = new URLSearchParams(location.search).get('sample');
+if (asked && SAMPLE_FILES.has(asked)) void openSample(store, asked);
 const editor = handleFor(store);
 if (import.meta.env.DEV) (window as unknown as { __store: WorkbookStore }).__store = store;
 
@@ -83,6 +104,29 @@ function ThemePicker() {
         </option>
       ))}
     </Select>
+  );
+}
+
+/** Back to the list of samples, closing the workbook (the page asks first if it has unsaved edits). */
+function SamplesButton() {
+  const { t } = useTranslation(DEMO_NS);
+  const [open, setOpen] = useState(!!store.fileName);
+  useEffect(() => {
+    const stop = store.subscribe(() => setOpen(!!store.fileName));
+    return () => void stop();
+  }, []);
+  if (!open) return null;
+  return (
+    <button
+      className="wbe-btn"
+      onClick={() => {
+        const url = new URL(location.href);
+        url.searchParams.delete('sample');
+        location.assign(url);
+      }}
+    >
+      {t('toolbar.samples')}
+    </button>
   );
 }
 
@@ -139,6 +183,7 @@ createRoot(document.getElementById('root')!).render(
       editor={editor}
       toolbarEnd={
         <HostText>
+          <SamplesButton />
           <EnginePicker />
           <ThemePicker />
           <LanguagePicker />
