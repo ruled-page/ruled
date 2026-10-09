@@ -22,3 +22,5 @@ tools/ooxml-validate/obj
 
 # Packed by npm run release.
 releases
+tests/excel-checks/*.xlsx
+tests/excel-checks/*.pending.json

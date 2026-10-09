@@ -2,7 +2,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { it } from 'vitest';
-import { engineFormula, toFileFormula } from '../src/core/formula';
+import { tolerance } from '../src/core/engine';
+import { engineFormula, functionNames, toFileFormula } from '../src/core/formula';
 import { nativeEngine } from '../src/engine/native';
 import { FAMILIES } from '../tests/excel-checks/cases';
 
@@ -10,9 +11,9 @@ import { FAMILIES } from '../tests/excel-checks/cases';
  * Writes tests/excel-checks/<family>.xlsx for each family of check formulas:
  * each formula, the native engine's answer beside it, and a cell Excel fills
  * on opening with whether the two agree (and Excel's own value where they
- * don't). The top says how many match. Also writes <family>.json, the
- * native engine's answers, which become the expected values once Excel
- * agrees with them.
+ * don't). The top says how many match. Also writes <family>.pending.json,
+ * the native engine's answers: once Excel agrees with them, renamed to
+ * <family>.json they are the expected values tests/excel-checks.test.ts holds the engine to.
  */
 
 const dir = join(__dirname, '..', 'tests', 'excel-checks');
@@ -46,7 +47,7 @@ it('writes the Excel check workbooks', async () => {
       ws.getCell(`C${r}`).value = ours === null ? '(nothing)' : (ours as ExcelJS.CellValue);
       const same =
         typeof ours === 'number'
-          ? `AND(ISNUMBER(B${r}),ABS(B${r}-C${r})<=1E-9*MAX(1,ABS(C${r})))`
+          ? `AND(ISNUMBER(B${r}),ABS(B${r}-C${r})<=${tolerance(functionNames(toFileFormula(f).slice(1)))}*MAX(1,ABS(C${r})))`
           : typeof ours === 'string'
             ? `AND(ISTEXT(B${r}),EXACT(B${r},C${r}))`
             : typeof ours === 'boolean'
@@ -62,7 +63,7 @@ it('writes the Excel check workbooks', async () => {
       rules: [{ type: 'expression', priority: 1, formulae: [`$D${first}="✗"`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } }],
     });
     await wb.xlsx.writeFile(join(dir, `${family}.xlsx`));
-    writeFileSync(join(dir, `${family}.json`), `${JSON.stringify(Object.fromEntries(formulas.map((f, i) => [f, answers[i]])), null, 2)}\n`);
+    writeFileSync(join(dir, `${family}.pending.json`), `${JSON.stringify(Object.fromEntries(formulas.map((f, i) => [f, answers[i]])), null, 2)}\n`);
     console.log(`${family}: ${formulas.length} formulas, written to tests/excel-checks/${family}.xlsx${missing.length ? `; not calculated here: ${missing.join(' ')}` : ''}`);
   }
 });
