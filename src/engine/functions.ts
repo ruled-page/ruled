@@ -1,6 +1,6 @@
 import { format } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
-import { Calendar, validBasis, yearFrac } from '../core/bondMath';
+import { BondError, Bonds, Calendar, validBasis, vdb, yearFrac } from '../core/bondMath';
 import { excelRound } from '../core/excelNumbers';
 import { eliminate } from '../core/matrixMath';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
@@ -1111,6 +1111,39 @@ function square(op: Operand, ctx: Ctx): number[][] {
   return m;
 }
 
+// -----------------------------------------------------------------------------
+// Bonds, accrued interest, discounted securities and depreciation (shared with the HyperFormula add-on)
+
+const calendarOf = (ctx: Ctx) => new Calendar(ctx.host.date1904 ? { year: 1904, month: 1, day: 1 } : { year: 1899, month: 12, day: 30 });
+
+/**
+ * A bond function: its date arguments (by position) read as dates, the rest
+ * as numbers, missing ones from `defaults`; #NUM! for arguments Excel refuses.
+ */
+function bond(min: number, dates: number[], defaults: Record<number, number | boolean>, f: (b: Bonds, args: number[], flags: boolean[]) => number): FunctionSpec {
+  const max = Math.max(min, ...Object.keys(defaults).map((k) => Number(k) + 1));
+  return scalar(min, max, (a, ctx) => {
+    const nums: number[] = [];
+    const flags: boolean[] = [];
+    for (let i = 0; i < max; i++) {
+      const v = a[i];
+      const missing = v === undefined || v === null;
+      const d = defaults[i];
+      if (typeof d === 'boolean') flags[i] = missing ? d : bool(v);
+      else nums[i] = missing ? (d ?? 0) : dates.includes(i) ? dateArg(v, ctx) : num(v);
+    }
+    try {
+      return f(new Bonds(calendarOf(ctx)), nums, flags);
+    } catch (e) {
+      if (e instanceof BondError) throw NUM;
+      throw e;
+    }
+  });
+}
+
+const couponFn = (pick: (b: Bonds, s: number, m: number, f: number, basis: number) => number) => bond(3, [0, 1], { 3: 0 }, (b, [s, m, f, basis]) => pick(b, s, m, f, basis));
+const discountedFn = (pick: (b: Bonds, s: number, m: number, x: number, y: number, basis: number) => number) => bond(4, [0, 1], { 4: 0 }, (b, [s, m, x, y, basis]) => pick(b, s, m, x, y, basis));
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -1851,8 +1884,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (!validBasis(basis)) throw NUM;
     const start = Math.floor(dateArg(s, ctx));
     const end = Math.floor(dateArg(e, ctx));
-    const calendar = new Calendar(ctx.host.date1904 ? { year: 1904, month: 1, day: 1 } : { year: 1899, month: 12, day: 30 });
-    return yearFrac(calendar, start, end, basis);
+    return yearFrac(calendarOf(ctx), start, end, basis);
   }),
   PERCENTOF: { min: 2, max: 2, fn: (a, ctx) => {
     const all = sum(list([a[1]], ctx));
@@ -2097,6 +2129,28 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return Matrix.build(a.length, b[0].length, (r, c) => a[r].reduce((s, v, k) => s + v * b[k][c], 0));
     },
   },
+
+  // Bonds, accrued interest, discounted securities and depreciation
+  COUPDAYBS: couponFn((b, ...a) => b.coupdaybs(...a)),
+  COUPDAYS: couponFn((b, ...a) => b.coupdays(...a)),
+  COUPDAYSNC: couponFn((b, ...a) => b.coupdaysnc(...a)),
+  COUPNCD: couponFn((b, ...a) => b.coupncd(...a)),
+  COUPNUM: couponFn((b, ...a) => b.coupnum(...a)),
+  COUPPCD: couponFn((b, ...a) => b.couppcd(...a)),
+  PRICE: bond(6, [0, 1], { 6: 0 }, (b, [s, m, rate, yld, red, f, basis]) => b.price(s, m, rate, yld, red, f, basis)),
+  YIELD: bond(6, [0, 1], { 6: 0 }, (b, [s, m, rate, pr, red, f, basis]) => b.yield(s, m, rate, pr, red, f, basis)),
+  DURATION: bond(5, [0, 1], { 5: 0 }, (b, [s, m, c, yld, f, basis]) => b.duration(s, m, c, yld, f, basis)),
+  MDURATION: bond(5, [0, 1], { 5: 0 }, (b, [s, m, c, yld, f, basis]) => b.duration(s, m, c, yld, f, basis, true)),
+  ACCRINT: bond(6, [0, 1, 2], { 4: 1000, 6: 0, 7: true }, (b, [i, first, s, rate, par, f, basis], flags) => b.accrint(i, first, s, rate, par, f, basis, flags[7])),
+  ACCRINTM: bond(3, [0, 1], { 3: 1000, 4: 0 }, (b, [i, s, rate, par, basis]) => b.accrintm(i, s, rate, par, basis)),
+  DISC: discountedFn((b, ...a) => b.disc(...a)),
+  INTRATE: discountedFn((b, ...a) => b.intrate(...a)),
+  RECEIVED: discountedFn((b, ...a) => b.received(...a)),
+  PRICEDISC: discountedFn((b, ...a) => b.pricedisc(...a)),
+  YIELDDISC: discountedFn((b, ...a) => b.yielddisc(...a)),
+  PRICEMAT: bond(5, [0, 1, 2], { 5: 0 }, (b, [s, m, i, rate, yld, basis]) => b.pricemat(s, m, i, rate, yld, basis)),
+  YIELDMAT: bond(5, [0, 1, 2], { 5: 0 }, (b, [s, m, i, rate, pr, basis]) => b.yieldmat(s, m, i, rate, pr, basis)),
+  VDB: bond(5, [], { 5: 2, 6: false }, (_b, [cost, salvage, life, start, end, factor], flags) => vdb(cost, salvage, life, start, end, factor, flags[6])),
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },
