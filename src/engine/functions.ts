@@ -2714,7 +2714,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         : `R${absRow ? row : `[${row}]`}C${absCol ? col : `[${col}]`}`;
     if (sheet === undefined || sheet === null) return ref;
     const name = text(sheet);
-    return name ? `${quoteSheetName(name)}!${ref}` : `!${ref}`;
+    if (!name) return `!${ref}`;
+    // Excel quotes a [Book]Sheet name only when the sheet part needs it.
+    const book = /^\[[^\]']+\]/.exec(name)?.[0] ?? '';
+    const quoted = quoteSheetName(name.slice(book.length));
+    return `${quoted.startsWith("'") ? `'${book}${quoted.slice(1)}` : book + quoted}!${ref}`;
   }),
   AREAS: { min: 1, max: 1, fn: ([r]) => (r instanceof Ref ? 1 : (() => { throw VALUE; })()) },
   SHEET: {
