@@ -3,6 +3,7 @@ import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
 import { BondError, Bonds, Calendar, validBasis, vdb, yearFrac } from '../core/bondMath';
 import { excelRound } from '../core/excelNumbers';
 import { eliminate } from '../core/matrixMath';
+import { estimate, prepare, project, RegressionError } from '../core/regressionMath';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
@@ -1144,6 +1145,36 @@ function bond(min: number, dates: number[], defaults: Record<number, number | bo
 const couponFn = (pick: (b: Bonds, s: number, m: number, f: number, basis: number) => number) => bond(3, [0, 1], { 3: 0 }, (b, [s, m, f, basis]) => pick(b, s, m, f, basis));
 const discountedFn = (pick: (b: Bonds, s: number, m: number, x: number, y: number, basis: number) => number) => bond(4, [0, 1], { 4: 0 }, (b, [s, m, x, y, basis]) => pick(b, s, m, x, y, basis));
 
+// -----------------------------------------------------------------------------
+// Least-squares regression (shared with the HyperFormula add-on)
+
+/** Runs shared regression code, with the error it refuses arguments with. */
+function regression<T>(f: () => T): T {
+  try {
+    return f();
+  } catch (e) {
+    if (e instanceof RegressionError) throw err(e.code);
+    throw e;
+  }
+}
+
+/** TREND, or GROWTH with `log`. */
+function projection(a: Operand[], ctx: Ctx, log: boolean): Matrix {
+  const ys = numberMatrix(a[0], ctx);
+  const xs = given(a, 1) ? numberMatrix(a[1], ctx) : undefined;
+  const news = given(a, 2) ? numberMatrix(a[2], ctx) : undefined;
+  const constant = optBool(a, 3, ctx, true);
+  return Matrix.of(regression(() => project(prepare(ys, xs, log), constant, log, news)));
+}
+
+/** LINEST, or LOGEST with `log`. */
+function estimation(a: Operand[], ctx: Ctx, log: boolean): Matrix {
+  const ys = numberMatrix(a[0], ctx);
+  const xs = given(a, 1) ? numberMatrix(a[1], ctx) : undefined;
+  const rows = regression(() => estimate(prepare(ys, xs, log), optBool(a, 2, ctx, true), log, optBool(a, 3, ctx, false)));
+  return Matrix.of(rows.map((row) => row.map((v) => (typeof v === 'number' ? v : err(v.error)))));
+}
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -2151,6 +2182,12 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   PRICEMAT: bond(5, [0, 1, 2], { 5: 0 }, (b, [s, m, i, rate, yld, basis]) => b.pricemat(s, m, i, rate, yld, basis)),
   YIELDMAT: bond(5, [0, 1, 2], { 5: 0 }, (b, [s, m, i, rate, pr, basis]) => b.yieldmat(s, m, i, rate, pr, basis)),
   VDB: bond(5, [], { 5: 2, 6: false }, (_b, [cost, salvage, life, start, end, factor], flags) => vdb(cost, salvage, life, start, end, factor, flags[6])),
+
+  // Least-squares regression
+  TREND: { min: 1, max: 4, fn: (a, ctx) => projection(a, ctx, false) },
+  GROWTH: { min: 1, max: 4, fn: (a, ctx) => projection(a, ctx, true) },
+  LINEST: { min: 1, max: 4, fn: (a, ctx) => estimation(a, ctx, false) },
+  LOGEST: { min: 1, max: 4, fn: (a, ctx) => estimation(a, ctx, true) },
 
   // How files write A2# and @A1:A3.
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },
