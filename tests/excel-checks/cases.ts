@@ -532,8 +532,8 @@ export const FAMILIES: Record<string, string[]> = {
     '=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),-0.01)',
     '=TBILLPRICE("2008-03-31","2008-06-01",0.09)',
   ],
-  'random-bytes': [
-    // RANDARRAY: its shape, range and whole numbers, which don't depend on chance
+  randarray: [
+    // Its shape, range and whole numbers, which don't depend on chance
     '=ROWS(RANDARRAY(3,2))',
     '=COLUMNS(RANDARRAY(3,2))',
     '=ROWS(RANDARRAY())',
@@ -547,7 +547,9 @@ export const FAMILIES: Record<string, string[]> = {
     '=RANDARRAY(1,1,1.5,3,TRUE)',
     '=RANDARRAY(0)',
     '=RANDARRAY(-1)',
-    // Bytes, one to a character in English
+  ],
+  // Bytes, one to a character in English
+  'text-bytes': [
     '=LEFTB("Sale Price",4)',
     '=LEFTB("Sweden")',
     '=LEFTB("abc",-1)',

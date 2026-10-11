@@ -1,0 +1,18 @@
+{
+  "=LEFTB(\"Sale Price\",4)": "Sale",
+  "=LEFTB(\"Sweden\")": "S",
+  "=LEFTB(\"abc\",-1)": {
+    "error": "#VALUE!"
+  },
+  "=RIGHTB(\"Sale Price\",5)": "Price",
+  "=FINDB(\"M\",\"Miriam McGovern\")": 1,
+  "=FINDB(\"m\",\"Miriam McGovern\")": 6,
+  "=FINDB(\"M\",\"Miriam McGovern\",3)": 8,
+  "=SEARCHB(\"e\",\"Statements\",6)": 7,
+  "=SEARCHB(\"x\",\"Statements\")": {
+    "error": "#VALUE!"
+  },
+  "=REPLACEB(\"abcdefghijk\",6,5,\"*\")": "abcde*k",
+  "=LENB(\"Sale Price\")": 10,
+  "=MIDB(\"Fluid Flow\",7,20)": "Flow"
+}
