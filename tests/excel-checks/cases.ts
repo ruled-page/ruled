@@ -548,6 +548,24 @@ export const FAMILIES: Record<string, string[]> = {
     '=RANDARRAY(0)',
     '=RANDARRAY(-1)',
   ],
+  // Functions from each generation of Excel: 2013, 2019, 2021 and later
+  'newer-functions': [
+    '=SHEET()',
+    '=CONCAT("a","b",1)',
+    '=TEXTJOIN("-",TRUE,"a","","b")',
+    '=IFS(1>2,"x",TRUE,"y")',
+    '=SWITCH(2,1,"one",2,"two")',
+    '=MAXIFS({1,5,3},{1,1,0},1)',
+    '=XLOOKUP(2,{1,2,3},{"a","b","c"})',
+    '=XMATCH(3,{1,2,3})',
+    '=SUM(SEQUENCE(4))',
+    '=ROWS(UNIQUE({1;1;2}))',
+    '=SUM(FILTER({1,2,3},{1,0,1}))',
+    '=INDEX(SORT({3;1;2}),1)',
+    '=LET(x,2,x*3)',
+    '=ROWS(VSTACK({1},{2}))',
+    '=TEXTBEFORE("a-b","-")',
+  ],
   // Bytes, one to a character in English
   'text-bytes': [
     '=LEFTB("Sale Price",4)',
