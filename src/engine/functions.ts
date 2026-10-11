@@ -1093,8 +1093,12 @@ function binomialRange(n: number, p: number, lo: number, hi: number): number {
 // -----------------------------------------------------------------------------
 // Probability distributions, from the gamma and beta functions
 
-/** Values as AVERAGEA and its kind count them: in ranges and arrays TRUE is 1, FALSE and text 0; typed values read as numbers. */
-function listA(args: Operand[], ctx: Ctx): number[] {
+/**
+ * Values as AVERAGEA and its kind count them: in ranges TRUE is 1, FALSE and
+ * text 0; typed values read as numbers. Excel's AVERAGEA counts an array's
+ * values as a range's, the others only an array's numbers.
+ */
+function listA(args: Operand[], ctx: Ctx, arraysAsRanges = false): number[] {
   const out: number[] = [];
   const fromCells = (v: Scalar) => {
     if (typeof v === 'number') out.push(v);
@@ -1105,7 +1109,7 @@ function listA(args: Operand[], ctx: Ctx): number[] {
   for (const a of args) {
     if (a === undefined) continue;
     if (a instanceof Ref) ctx.host.each(a, fromCells);
-    else if (a instanceof Matrix) a.data.forEach(fromCells);
+    else if (a instanceof Matrix) a.data.forEach(arraysAsRanges ? fromCells : (v) => (isError(v) ? fromCells(v) : typeof v === 'number' && out.push(v)));
     else if (a instanceof Lambda) throw VALUE;
     else if (isError(a)) throw a;
     else out.push(num(a));
@@ -1361,7 +1365,8 @@ function hypergeometric(args: Scalar[], cumulative: boolean): number {
   const [k, n, big, total] = args.slice(0, 4).map((v) => Math.trunc(num(v)));
   if (total <= 0 || n <= 0 || n > total || big <= 0 || big > total) throw NUM;
   const least = Math.max(0, n - total + big);
-  if (k < least || k > Math.min(n, big)) throw NUM;
+  if (k < least || (k > Math.min(n, big) && !cumulative)) throw NUM;
+  if (k > Math.min(n, big)) return 1;
   const term = (i: number) => Math.exp(logChoose(big, i) + logChoose(total - big, n - i) - logChoose(total, n));
   if (!cumulative) return term(k);
   let s = 0;
@@ -2821,7 +2826,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return cubes(xs, Math.sqrt(variance(xs, false))) / xs.length;
   } },
   AVERAGEA: { min: 1, max: MANY, fn: (a, ctx) => {
-    const xs = listA(a, ctx);
+    const xs = listA(a, ctx, true);
     if (!xs.length) throw DIV0;
     return sum(xs) / xs.length;
   } },
