@@ -1,0 +1,31 @@
+{
+  "=FORMULATEXT(Data!A1)": "=1+1",
+  "=FORMULATEXT(Data!A2)": "=SUM(B1:B2)",
+  "=FORMULATEXT(Data!A3)": {
+    "error": "#N/A"
+  },
+  "=FORMULATEXT(Data!A5)": {
+    "error": "#N/A"
+  },
+  "=FORMULATEXT(Data!A6)": "=IF(TRUE,\"yes\",\"no\")",
+  "=FORMULATEXT(Data!A7)": "=IFERROR(1/0,\"x\")",
+  "=FORMULATEXT(Data!A8)": "=B1*2+Data!B2",
+  "=FORMULATEXT(Data!A9)": "=\"quote \"\"x\"\"\"",
+  "=FORMULATEXT(Data!A1:A2)": "=1+1",
+  "=LEN(FORMULATEXT(Data!A2))": 11,
+  "=CELL(\"row\",Data!B2)": 2,
+  "=CELL(\"col\",Data!B2)": 2,
+  "=CELL(\"ROW\",Data!B5)": 5,
+  "=CELL(\"row\",Data!C3:D9)": 3,
+  "=CELL(\"contents\",Data!A3)": "text",
+  "=CELL(\"contents\",Data!A1)": 2,
+  "=CELL(\"contents\",Data!A5)": 0,
+  "=CELL(\"type\",Data!A3)": "l",
+  "=CELL(\"type\",Data!A4)": "v",
+  "=CELL(\"type\",Data!A5)": "b",
+  "=CELL(\"type\",Data!A6)": "l",
+  "=CELL(\"type\",Data!A10)": "v",
+  "=CELL(\"address\",A1)": "$A$1",
+  "=CELL(\"address\",$C$7)": "$C$7",
+  "=CELL(\"address\",AB100:AC200)": "$AB$100"
+}
