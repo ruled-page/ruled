@@ -1836,6 +1836,84 @@ const trig = (f: (x: number) => number, divides = false): FunctionSpec =>
   });
 
 // -----------------------------------------------------------------------------
+// Database functions and Treasury bills
+
+/**
+ * A database criterion: as COUNTIF's, except that a blank matches anything
+ * and plain text matches text beginning with it, as Excel's filters do.
+ */
+function dbCriterion(c: Scalar): (v: Scalar) => boolean {
+  if (c === null || c === '') return () => true;
+  if (typeof c === 'string' && !/^(<=|>=|<>|<|>|=)/.test(c) && !Number.isFinite(Number(c)) && !/^(true|false)$/i.test(c)) return criterion(`${c}*`);
+  return criterion(c);
+}
+
+/** Which column of a database a header names, ignoring case; -1 if none. */
+function columnNamed(name: Scalar, headers: Scalar[]): number {
+  if (name === null) return -1;
+  const wanted = text(name).toLowerCase();
+  return headers.findIndex((h) => h !== null && !isError(h) && text(h).toLowerCase() === wanted);
+}
+
+/**
+ * The records of a database (a range whose first row names its columns)
+ * that meet the criteria (a range of headers above conditions): those
+ * meeting every condition in any one criteria row. Gives each such record's
+ * value in the field, or with no field, null for each.
+ */
+function records(a: Operand[], ctx: Ctx, fieldNeeded = true): Scalar[] {
+  const db = grid(a[0], ctx);
+  const criteria = grid(a[2], ctx);
+  if (criteria.rows < 2) throw VALUE;
+  const headers = Array.from({ length: db.cols }, (_, c) => db.at(0, c));
+  let field: number | undefined;
+  if (given(a, 1)) {
+    const f = scalarOf(a[1], ctx);
+    if (typeof f === 'number') field = Math.trunc(f) - 1;
+    else if (typeof f === 'string') field = columnNamed(f, headers);
+    else if (isError(f)) throw f;
+    else throw VALUE;
+    if (field < 0 || field >= db.cols) throw VALUE;
+  } else if (fieldNeeded) throw VALUE;
+  const rows: { col: number; test: (v: Scalar) => boolean }[][] = [];
+  for (let r = 1; r < criteria.rows; r++) {
+    const row = [];
+    for (let c = 0; c < criteria.cols; c++) {
+      const condition = criteria.at(r, c);
+      if (isError(condition)) throw condition;
+      if (condition === null || condition === '') continue;
+      const col = columnNamed(criteria.at(0, c), headers);
+      // A condition under a header the database lacks is a worked-out one: TRUE lets every record through.
+      row.push(col < 0 ? { col, test: () => condition === true } : { col, test: dbCriterion(condition) });
+    }
+    rows.push(row);
+  }
+  const out: Scalar[] = [];
+  for (let r = 1; r < db.rows; r++) {
+    if (rows.some((row) => row.every((t) => t.test(t.col < 0 ? null : db.at(r, t.col))))) out.push(field === undefined ? null : db.at(r, field));
+  }
+  return out;
+}
+
+/** The numbers among the matching records' values in the field. */
+function dbNumbers(a: Operand[], ctx: Ctx): number[] {
+  const out: number[] = [];
+  for (const v of records(a, ctx)) {
+    if (isError(v)) throw v;
+    if (typeof v === 'number') out.push(v);
+  }
+  return out;
+}
+
+/** Days from a Treasury bill's settlement to its maturity, which must come after it and within a year. */
+function billDays(s: Scalar, m: Scalar, ctx: Ctx): number {
+  const settle = Math.trunc(dateArg(s, ctx));
+  const mature = Math.trunc(dateArg(m, ctx));
+  if (settle >= mature || mature > eomonth(settle, 12, ctx, false)) throw NUM;
+  return mature - settle;
+}
+
+// -----------------------------------------------------------------------------
 // Engineering: binary, octal and hexadecimal, bits, Bessel functions, complex numbers
 
 /** The bits ten binary, octal or hexadecimal digits hold; a negative number is written as their two's complement. */
@@ -3688,6 +3766,64 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ACOTH: math1((x) => (Math.abs(x) <= 1 ? NUM : 0.5 * Math.log((x + 1) / (x - 1)))),
   RADIANS: math1((x) => (x * Math.PI) / 180),
   DEGREES: math1((x) => (x * 180) / Math.PI),
+
+  // Database functions
+  DSUM: { min: 3, max: 3, fn: (a, ctx) => sum(dbNumbers(a, ctx)) },
+  DAVERAGE: { min: 3, max: 3, fn: (a, ctx) => {
+    const xs = dbNumbers(a, ctx);
+    if (!xs.length) throw DIV0;
+    return sum(xs) / xs.length;
+  } },
+  DCOUNT: { min: 3, max: 3, fn: (a, ctx) => (given(a, 1) ? dbNumbers(a, ctx).length : records(a, ctx, false).length) },
+  DCOUNTA: { min: 3, max: 3, fn: (a, ctx) => records(a, ctx, false).filter((v) => !given(a, 1) || (v !== null && v !== '')).length },
+  DMAX: { min: 3, max: 3, fn: (a, ctx) => {
+    const xs = dbNumbers(a, ctx);
+    return xs.length ? xs.reduce((m, x) => (x > m ? x : m), -Infinity) : 0;
+  } },
+  DMIN: { min: 3, max: 3, fn: (a, ctx) => {
+    const xs = dbNumbers(a, ctx);
+    return xs.length ? xs.reduce((m, x) => (x < m ? x : m), Infinity) : 0;
+  } },
+  DPRODUCT: { min: 3, max: 3, fn: (a, ctx) => {
+    const xs = dbNumbers(a, ctx);
+    return xs.length ? xs.reduce((p, x) => p * x, 1) : 0;
+  } },
+  DSTDEV: { min: 3, max: 3, fn: (a, ctx) => Math.sqrt(variance(dbNumbers(a, ctx), true)) },
+  DSTDEVP: { min: 3, max: 3, fn: (a, ctx) => Math.sqrt(variance(dbNumbers(a, ctx), false)) },
+  DVAR: { min: 3, max: 3, fn: (a, ctx) => variance(dbNumbers(a, ctx), true) },
+  DVARP: { min: 3, max: 3, fn: (a, ctx) => variance(dbNumbers(a, ctx), false) },
+  DGET: { min: 3, max: 3, fn: (a, ctx) => {
+    const found = records(a, ctx);
+    if (!found.length) throw VALUE;
+    if (found.length > 1) throw NUM;
+    return found[0] ?? 0;
+  } },
+
+  // Treasury bills
+  TBILLPRICE: scalar(3, 3, ([s, m, d], ctx) => {
+    const days = billDays(s, m, ctx);
+    const discount = num(d);
+    if (discount <= 0) throw NUM;
+    const price = 100 * (1 - (discount * days) / 360);
+    if (price <= 0) throw NUM;
+    return price;
+  }),
+  TBILLYIELD: scalar(3, 3, ([s, m, p], ctx) => {
+    const days = billDays(s, m, ctx);
+    const price = num(p);
+    if (price <= 0) throw NUM;
+    return ((100 - price) / price) * (360 / days);
+  }),
+  TBILLEQ: scalar(3, 3, ([s, m, d], ctx) => {
+    const days = billDays(s, m, ctx);
+    const discount = num(d);
+    if (discount <= 0) throw NUM;
+    if (days <= 182) return (365 * discount) / (360 - discount * days);
+    const price = 100 * (1 - (discount * days) / 360);
+    if (price <= 0) throw NUM;
+    const t = days / 365;
+    return (-t + Math.sqrt(t * t - (2 * t - 1) * (1 - 100 / price))) / (t - 0.5);
+  }),
 
   // Binary, octal and hexadecimal
   BIN2DEC: convert(2, 10),

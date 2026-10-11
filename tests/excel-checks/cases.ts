@@ -1,3 +1,6 @@
+import type { EngineSheet } from '../../src/core/engine';
+import { engineFormula, toFileFormula } from '../../src/core/formula';
+
 /**
  * Formulas to check against Excel, by family: `npm run excel:check` writes
  * a workbook per family that Excel grades on opening (tests/excel-checks/),
@@ -485,5 +488,77 @@ export const FAMILIES: Record<string, string[]> = {
     '=IMCOSH("4+3i")',
     '=IMSECH("4+3i")',
     '=IMCSCH("4+3i")',
+  ],  database: [
+    // Microsoft's examples
+    '=DCOUNT(Data!A5:E11,"Age",Data!A1:F2)',
+    '=DCOUNTA(Data!A5:E11,"Profit",Data!A1:F2)',
+    '=DMAX(Data!A5:E11,"Profit",Data!A1:A3)',
+    '=DMIN(Data!A5:E11,"Profit",Data!A1:B2)',
+    '=DSUM(Data!A5:E11,"Profit",Data!A1:A2)',
+    '=DSUM(Data!A5:E11,"Profit",Data!A1:F2)',
+    '=DPRODUCT(Data!A5:E11,"Yield",Data!A1:F2)',
+    '=DAVERAGE(Data!A5:E11,"Yield",Data!A1:B2)',
+    '=DAVERAGE(Data!A5:E11,3,Data!A5:E11)',
+    '=DSTDEV(Data!A5:E11,"Yield",Data!A1:A3)',
+    '=DSTDEVP(Data!A5:E11,"Yield",Data!A1:A3)',
+    '=DVAR(Data!A5:E11,"Yield",Data!A1:A3)',
+    '=DVARP(Data!A5:E11,"Yield",Data!A1:A3)',
+    '=DGET(Data!A5:E11,"Yield",Data!A1:A3)',
+    // Criteria and fields
+    '=DGET(Data!A5:E11,"Yield",Data!A1:F2)',
+    '=DGET(Data!A5:E11,"Tree",Data!M1:M2)',
+    '=DCOUNTA(Data!A5:E11,"Tree",Data!H1:H2)',
+    '=DSUM(Data!A5:E11,"Height",Data!I1:I2)',
+    '=DCOUNT(Data!A5:E11,,Data!J1:J2)',
+    '=DCOUNTA(Data!A5:E11,,Data!K1:K2)',
+    '=DSUM(Data!A5:E11,"Profit",Data!L1:L3)',
+    '=DSUM(Data!A5:E11,"profit",Data!A1:A2)',
+    '=DSUM(Data!A5:E11,"Weight",Data!A1:A2)',
+    '=DSUM(Data!A5:E11,6,Data!A1:A2)',
+    '=DSUM(Data!A5:E11,0,Data!A1:A2)',
+    '=DMAX(Data!A5:E11,"Profit",Data!M1:M2)',
+    '=DPRODUCT(Data!A5:E11,"Profit",Data!M1:M2)',
+    '=DAVERAGE(Data!A5:E11,"Profit",Data!M1:M2)',
+    '=DSTDEV(Data!A5:E11,"Profit",Data!I1:I2)',
+    // Treasury bills
+    '=TBILLPRICE(DATE(2008,3,31),DATE(2008,6,1),0.09)',
+    '=TBILLYIELD(DATE(2008,3,31),DATE(2008,6,1),98.45)',
+    '=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),0.0914)',
+    '=TBILLEQ(DATE(2008,1,1),DATE(2008,12,1),0.0914)',
+    '=TBILLPRICE(DATE(2008,6,1),DATE(2008,3,31),0.09)',
+    '=TBILLPRICE(DATE(2008,1,1),DATE(2009,1,1),0.09)',
+    '=TBILLPRICE(DATE(2008,1,1),DATE(2009,1,2),0.09)',
+    '=TBILLYIELD(DATE(2008,3,31),DATE(2008,6,1),0)',
+    '=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),-0.01)',
+    '=TBILLPRICE("2008-03-31","2008-06-01",0.09)',
   ],
 };
+
+/**
+ * Cells some families' formulas read, on a sheet named Data: rows from A1,
+ * text starting with = a formula. The database functions read the tree
+ * database from Microsoft's examples (A5:E11), with criteria above and beside it.
+ */
+export const DATA: Record<string, (string | number | null)[][]> = {
+  database: [
+    ['Tree', 'Height', 'Age', 'Yield', 'Profit', 'Height', null, 'Tree', 'Profit', 'Tree', 'Tree', 'Height', 'Tree'],
+    ['="=Apple"', '>10', null, null, null, '<16', null, 'Ch', 105, '<>Apple', 'P*', '>=12', 'Plum'],
+    ['="=Pear"', null, null, null, null, null, null, null, null, null, null, '<9', null],
+    [],
+    ['Tree', 'Height', 'Age', 'Yield', 'Profit'],
+    ['Apple', 18, 20, 14, 105],
+    ['Pear', 12, 12, 10, 96],
+    ['Cherry', 13, 14, 9, 105],
+    ['Apple', 14, 15, 10, 75],
+    ['Pear', 9, 8, 8, 76.8],
+    ['Apple', 8, 9, 6, 45],
+  ],
+};
+
+/** A family's sheets for the engine: its formulas down column A of Check, then any Data. */
+export function checkSheets(family: string): EngineSheet[] {
+  const cell = (v: string | number | null) => (typeof v === 'string' && v.startsWith('=') ? engineFormula(toFileFormula(v).slice(1)) : v);
+  const sheets = [{ name: 'Check', rows: FAMILIES[family].map((f) => [cell(f)]) }];
+  if (DATA[family]) sheets.push({ name: 'Data', rows: DATA[family].map((row) => row.map(cell)) });
+  return sheets;
+}
