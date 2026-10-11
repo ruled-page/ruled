@@ -1,7 +1,7 @@
 import { format } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
 import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from '../core/bondMath';
-import { excelRound } from '../core/excelNumbers';
+import { excelRound, numberText } from '../core/excelNumbers';
 import { eliminate } from '../core/matrixMath';
 import { estimate, prepare, project, RegressionError } from '../core/regressionMath';
 import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
@@ -1835,6 +1835,283 @@ const trig = (f: (x: number) => number, divides = false): FunctionSpec =>
     return r;
   });
 
+// -----------------------------------------------------------------------------
+// Engineering: binary, octal and hexadecimal, bits, Bessel functions, complex numbers
+
+/** The bits ten binary, octal or hexadecimal digits hold; a negative number is written as their two's complement. */
+const RADIX_BITS: Record<number, number> = { 2: 10, 8: 30, 16: 40 };
+const RADIX_DIGITS: Record<number, RegExp> = { 2: /^[01]{0,10}$/, 8: /^[0-7]{0,10}$/, 16: /^[0-9a-f]{0,10}$/i };
+
+/** A binary, octal or hexadecimal number read from its digits: #NUM! with more than ten, or one the base lacks. */
+function fromRadix(v: Scalar, radix: number): number {
+  if (typeof v === 'boolean') throw VALUE;
+  const t = text(v);
+  if (!RADIX_DIGITS[radix].test(t)) throw NUM;
+  const n = t ? parseInt(t, radix) : 0;
+  const bits = RADIX_BITS[radix];
+  return n >= 2 ** (bits - 1) ? n - 2 ** bits : n;
+}
+
+/** A number in a base, padded to `places` digits; #NUM! beyond what ten digits hold. A negative number is ten digits, whatever `places`. */
+function toRadix(n: number, radix: number, places: Scalar | undefined): string {
+  const bits = RADIX_BITS[radix];
+  if (n < -(2 ** (bits - 1)) || n >= 2 ** (bits - 1)) throw NUM;
+  if (n < 0) return (n + 2 ** bits).toString(radix).toUpperCase();
+  const digits = n.toString(radix).toUpperCase();
+  if (places === undefined || places === null) return digits;
+  if (typeof places === 'boolean') throw VALUE;
+  const width = Math.trunc(num(places));
+  if (width < digits.length || width > 10) throw NUM;
+  return digits.padStart(width, '0');
+}
+
+/** BIN2DEC and its kind: from a base (or decimal, 10) to another. */
+const convert = (from: number, to: number): FunctionSpec =>
+  scalar(1, to === 10 ? 1 : 2, ([x, places]) => {
+    if (typeof x === 'boolean') throw VALUE;
+    const n = from === 10 ? Math.trunc(num(x)) : fromRadix(x, from);
+    return to === 10 ? n : toRadix(n, to, places);
+  });
+
+const BIT_LIMIT = 2 ** 48;
+const HALF = 2 ** 24;
+
+/** A whole number from 0 to 2^48 − 1, as the bit functions take. */
+function bitNumber(v: Scalar): number {
+  const n = num(v);
+  if (n < 0 || n >= BIT_LIMIT || !Number.isInteger(n)) throw NUM;
+  return n;
+}
+
+/** A bitwise operation on 48-bit numbers, a 24-bit half at a time. */
+const bitwise = (op: (a: number, b: number) => number): FunctionSpec =>
+  scalar(2, 2, ([x, y]) => {
+    const a = bitNumber(x);
+    const b = bitNumber(y);
+    return (op(Math.floor(a / HALF), Math.floor(b / HALF)) >>> 0) * HALF + (op(a % HALF, b % HALF) >>> 0);
+  });
+
+const bitShift = (left: boolean): FunctionSpec =>
+  scalar(2, 2, ([x, by]) => {
+    const n = bitNumber(x);
+    const s = Math.trunc(num(by));
+    if (Math.abs(s) > 53) throw NUM;
+    const up = left ? s : -s;
+    const r = up >= 0 ? n * 2 ** up : Math.floor(n / 2 ** -up);
+    if (r >= BIT_LIMIT) throw NUM;
+    return r;
+  });
+
+/** Where a backward recurrence for the Bessel functions of orders up to `top` starts, far enough out that its errors die away. */
+const besselStart = (x: number, top: number) => {
+  const far = Math.max(top, Math.abs(x));
+  return 2 * Math.ceil((far + 20 + Math.sqrt(40 * far)) / 2);
+};
+
+/**
+ * J or I of orders 0 to `top` by Miller's backward recurrence: from far out,
+ * where they are negligible, down to order 0, then scaled to the sum they
+ * are known to have (J₀ + 2J₂ + 2J₄ + … = 1; I₀ + 2I₁ + 2I₂ + … = eˣ).
+ */
+function besselOrders(x: number, top: number, modified: boolean): number[] {
+  const out = new Array<number>(top + 1).fill(0);
+  if (x === 0) {
+    out[0] = 1;
+    return out;
+  }
+  const ax = Math.abs(x);
+  let above = 0;
+  let here = 1;
+  const start = besselStart(ax, top);
+  let total = 2 * here;
+  for (let m = start; m > 0; m--) {
+    const below = ((2 * m) / ax) * here + (modified ? above : -above);
+    above = here;
+    here = below;
+    if (m - 1 <= top) out[m - 1] = here;
+    if (m - 1 > 0 && (modified || (m - 1) % 2 === 0)) total += 2 * here;
+    if (Math.abs(here) > 1e250) {
+      here *= 1e-250;
+      above *= 1e-250;
+      total *= 1e-250;
+      for (let k = m - 1; k <= top; k++) out[k] *= 1e-250;
+    }
+  }
+  total += here;
+  const scale = modified ? Math.exp(ax - Math.log(total)) : 1 / total;
+  return out.map((v, k) => v * scale * (x < 0 && k % 2 ? -1 : 1));
+}
+
+const EULER_GAMMA = 0.5772156649015329;
+
+/** Y of order n, from the series of J that give Y₀ and Y₁, then upward, where the recurrence is stable. */
+function besselY(x: number, n: number): number {
+  const top = besselStart(x, 0) + 1;
+  const j = besselOrders(x, top, false);
+  const log = Math.log(x / 2) + EULER_GAMMA;
+  let s0 = 0;
+  let s1 = 0;
+  for (let k = 1; 2 * k + 1 <= top; k++) {
+    const sign = k % 2 ? -1 : 1;
+    s0 += (sign * j[2 * k]) / k;
+    s1 += (sign * (j[2 * k - 1] - j[2 * k + 1])) / k;
+  }
+  let below = (2 / Math.PI) * (log * j[0] - 2 * s0);
+  if (n === 0) return below;
+  let here = (2 / Math.PI) * (log * j[1] - j[0] / x + s1);
+  for (let m = 1; m < n; m++) {
+    const next = ((2 * m) / x) * here - below;
+    below = here;
+    here = next;
+  }
+  return here;
+}
+
+/** K of order n: ∫₀^∞ e^(−x cosh t) cosh(nt) dt, by the trapezoidal rule, which is exact to rounding for an integrand this smooth. */
+function besselK(x: number, n: number): number {
+  const h = Math.min(0.2, 0.5 / Math.sqrt(x));
+  let total = Math.exp(-x) / 2;
+  for (let k = 1; k < 100000; k++) {
+    const t = k * h;
+    const c = x * Math.cosh(t);
+    const term = (Math.exp(n * t - c) + Math.exp(-n * t - c)) / 2;
+    total += term;
+    if (x * Math.sinh(t) > n && term <= total * 1e-17) break;
+  }
+  return total * h;
+}
+
+/** The Bessel functions' x and order: the order cut to a whole number, at least 0. */
+function besselArgs(x: Scalar, n: Scalar, positiveX: boolean): [number, number] {
+  if (typeof x === 'boolean' || typeof n === 'boolean') throw VALUE;
+  const v = num(x);
+  const order = Math.trunc(num(n));
+  if (order < 0 || (positiveX && v <= 0)) throw NUM;
+  return [v, order];
+}
+
+interface Complex {
+  re: number;
+  im: number;
+  /** The letter its text used for √−1, when it had one. */
+  unit?: string;
+}
+
+const COMPLEX_PART = '(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?';
+/** "3", "3+4i", "3-i", "4j", "-i": a real part, an imaginary part, or both. */
+const COMPLEX_TEXT = new RegExp(`^(?:([+-]?${COMPLEX_PART})(?:([+-])(${COMPLEX_PART})?([ij]))?|([+-]?)(${COMPLEX_PART})?([ij]))$`);
+
+/** A complex number from its text, or a number as its real part. */
+function complexOf(v: Scalar): Complex {
+  if (typeof v === 'number') return { re: v, im: 0 };
+  if (typeof v === 'boolean') throw VALUE;
+  if (v === null) return { re: 0, im: 0 };
+  if (isError(v)) throw v;
+  const m = COMPLEX_TEXT.exec(v);
+  if (!m) throw NUM;
+  if (m[7]) return { re: 0, im: (m[5] === '-' ? -1 : 1) * (m[6] ? Number(m[6]) : 1), unit: m[7] };
+  if (!m[4]) return { re: Number(m[1]), im: 0 };
+  return { re: Number(m[1]), im: (m[2] === '-' ? -1 : 1) * (m[3] ? Number(m[3]) : 1), unit: m[4] };
+}
+
+/** The letter for √−1 in a result: j if the numbers used it; mixing i and j is #VALUE!. */
+function unitOf(zs: Complex[]): string {
+  const units = new Set(zs.map((z) => z.unit).filter(Boolean));
+  if (units.size > 1) throw VALUE;
+  return units.has('j') ? 'j' : 'i';
+}
+
+/** A complex number as Excel writes it: "3+4i", "3-i", "4i", "3", parts to 15 significant digits. */
+function complexText(z: Complex, unit: string): string {
+  if (!Number.isFinite(z.re) || !Number.isFinite(z.im)) throw NUM;
+  const re = round15(z.re);
+  const im = round15(z.im);
+  if (im === 0) return numberText(re);
+  const imaginary = im === 1 ? '' : im === -1 ? '-' : numberText(im);
+  if (re === 0) return imaginary + unit;
+  return `${numberText(re)}${im > 0 ? '+' : ''}${imaginary}${unit}`;
+}
+
+const ONE: Complex = { re: 1, im: 0 };
+const times = (a: Complex, b: Complex): Complex => ({ re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re });
+
+function over(a: Complex, b: Complex): Complex {
+  const d = b.re * b.re + b.im * b.im;
+  if (d === 0) throw NUM;
+  return { re: (a.re * b.re + a.im * b.im) / d, im: (a.im * b.re - a.re * b.im) / d };
+}
+
+const sinC = (z: Complex): Complex => ({ re: Math.sin(z.re) * Math.cosh(z.im), im: Math.cos(z.re) * Math.sinh(z.im) });
+const cosC = (z: Complex): Complex => ({ re: Math.cos(z.re) * Math.cosh(z.im), im: -Math.sin(z.re) * Math.sinh(z.im) });
+const sinhC = (z: Complex): Complex => ({ re: Math.sinh(z.re) * Math.cos(z.im), im: Math.cosh(z.re) * Math.sin(z.im) });
+const coshC = (z: Complex): Complex => ({ re: Math.cosh(z.re) * Math.cos(z.im), im: Math.sinh(z.re) * Math.sin(z.im) });
+
+/**
+ * A quotient over a real denominator, as the double-angle forms of tan, cot,
+ * sec and the rest give them (tan z = (sin 2a + i sinh 2b) / (cos 2a + cosh 2b)),
+ * which keep the digits Excel shows; #NUM! where the function is infinite.
+ */
+function halves(re: number, im: number, denominator: number): Complex {
+  if (denominator === 0) throw NUM;
+  return { re: re / denominator, im: im / denominator };
+}
+
+function lnC(z: Complex): Complex {
+  if (z.re === 0 && z.im === 0) throw NUM;
+  return { re: Math.log(Math.hypot(z.re, z.im)), im: Math.atan2(z.im, z.re) };
+}
+
+/** z to a power: whole powers by multiplying, so (2+3i)³ is exactly −46+9i; others by the polar form. */
+function powerC(z: Complex, p: number): Complex {
+  if (z.re === 0 && z.im === 0) {
+    if (p <= 0) throw NUM;
+    return { re: 0, im: 0 };
+  }
+  if (Number.isInteger(p) && Math.abs(p) <= 1024) {
+    let result = ONE;
+    let base = z;
+    for (let e = Math.abs(p); e > 0; e >>= 1) {
+      if (e & 1) result = times(result, base);
+      base = times(base, base);
+    }
+    return p < 0 ? over(ONE, result) : result;
+  }
+  const r = Math.hypot(z.re, z.im) ** p;
+  const angle = Math.atan2(z.im, z.re) * p;
+  return { re: r * Math.cos(angle), im: r * Math.sin(angle) };
+}
+
+/** Complex numbers among the arguments, from ranges and arrays too; blank cells are left out. */
+function complexes(args: Operand[], ctx: Ctx): Complex[] {
+  const out: Complex[] = [];
+  const take = (v: Scalar) => {
+    if (v !== null) out.push(complexOf(v));
+  };
+  for (const a of args) {
+    if (a === undefined) continue;
+    if (a instanceof Ref) ctx.host.each(a, take);
+    else if (a instanceof Matrix) a.data.forEach(take);
+    else if (a instanceof Lambda) throw VALUE;
+    else take(a);
+  }
+  return out;
+}
+
+/** A function of one complex number, giving one. */
+const complex1 = (f: (z: Complex) => Complex): FunctionSpec =>
+  scalar(1, 1, ([x]) => {
+    const z = complexOf(x);
+    return complexText(f(z), unitOf([z]));
+  });
+
+/** A function of two complex numbers, giving one. */
+const complex2 = (f: (a: Complex, b: Complex) => Complex): FunctionSpec =>
+  scalar(2, 2, ([x, y]) => {
+    const a = complexOf(x);
+    const b = complexOf(y);
+    return complexText(f(a, b), unitOf([a, b]));
+  });
+
 export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Logic
   IF: { min: 2, max: 3, lazy: (a, ctx) => lazyEach(a, ctx, ifTest) },
@@ -3327,6 +3604,96 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ACOTH: math1((x) => (Math.abs(x) <= 1 ? NUM : 0.5 * Math.log((x + 1) / (x - 1)))),
   RADIANS: math1((x) => (x * Math.PI) / 180),
   DEGREES: math1((x) => (x * 180) / Math.PI),
+
+  // Binary, octal and hexadecimal
+  BIN2DEC: convert(2, 10),
+  BIN2HEX: convert(2, 16),
+  BIN2OCT: convert(2, 8),
+  DEC2BIN: convert(10, 2),
+  DEC2HEX: convert(10, 16),
+  DEC2OCT: convert(10, 8),
+  HEX2BIN: convert(16, 2),
+  HEX2DEC: convert(16, 10),
+  HEX2OCT: convert(16, 8),
+  OCT2BIN: convert(8, 2),
+  OCT2DEC: convert(8, 10),
+  OCT2HEX: convert(8, 16),
+
+  // Bits
+  BITAND: bitwise((a, b) => a & b),
+  BITOR: bitwise((a, b) => a | b),
+  BITXOR: bitwise((a, b) => a ^ b),
+  BITLSHIFT: bitShift(true),
+  BITRSHIFT: bitShift(false),
+  DELTA: scalar(1, 2, ([a, b]) => (num(a) === optional(b, 0) ? 1 : 0)),
+
+  // Bessel functions
+  BESSELJ: dist(2, 2, ([x, n]) => {
+    const [v, order] = besselArgs(x, n, false);
+    return besselOrders(v, order, false)[order];
+  }),
+  BESSELI: dist(2, 2, ([x, n]) => {
+    const [v, order] = besselArgs(x, n, false);
+    return besselOrders(v, order, true)[order];
+  }),
+  BESSELY: dist(2, 2, ([x, n]) => besselY(...besselArgs(x, n, true))),
+  BESSELK: dist(2, 2, ([x, n]) => besselK(...besselArgs(x, n, true))),
+
+  // Complex numbers
+  COMPLEX: scalar(2, 3, ([re, im, suffix]) => {
+    if (typeof re === 'boolean' || typeof im === 'boolean') throw VALUE;
+    const unit = suffix === undefined || suffix === null ? 'i' : text(suffix);
+    if (unit !== 'i' && unit !== 'j') throw VALUE;
+    return complexText({ re: num(re), im: num(im) }, unit);
+  }),
+  IMREAL: scalar(1, 1, ([z]) => complexOf(z).re),
+  IMAGINARY: scalar(1, 1, ([z]) => complexOf(z).im),
+  IMABS: scalar(1, 1, ([z]) => {
+    const c = complexOf(z);
+    return Math.hypot(c.re, c.im);
+  }),
+  IMARGUMENT: scalar(1, 1, ([z]) => {
+    const c = complexOf(z);
+    if (c.re === 0 && c.im === 0) throw DIV0;
+    return Math.atan2(c.im, c.re);
+  }),
+  IMCONJUGATE: complex1((z) => ({ re: z.re, im: -z.im })),
+  IMSUM: { min: 1, max: MANY, fn: (a, ctx) => {
+    const zs = complexes(a, ctx);
+    return complexText(zs.reduce((s, z) => ({ re: s.re + z.re, im: s.im + z.im }), { re: 0, im: 0 }), unitOf(zs));
+  } },
+  IMPRODUCT: { min: 1, max: MANY, fn: (a, ctx) => {
+    const zs = complexes(a, ctx);
+    return complexText(zs.reduce(times, ONE), unitOf(zs));
+  } },
+  IMSUB: complex2((a, b) => ({ re: a.re - b.re, im: a.im - b.im })),
+  IMDIV: complex2(over),
+  IMPOWER: scalar(2, 2, ([x, p]) => {
+    const z = complexOf(x);
+    if (typeof p === 'boolean') throw VALUE;
+    return complexText(powerC(z, num(p)), unitOf([z]));
+  }),
+  IMSQRT: complex1((z) => powerC(z, 0.5)),
+  IMEXP: complex1((z) => ({ re: Math.exp(z.re) * Math.cos(z.im), im: Math.exp(z.re) * Math.sin(z.im) })),
+  IMLN: complex1(lnC),
+  IMLOG10: complex1((z) => {
+    const l = lnC(z);
+    return { re: l.re / Math.LN10, im: l.im / Math.LN10 };
+  }),
+  IMLOG2: complex1((z) => {
+    const l = lnC(z);
+    return { re: l.re / Math.LN2, im: l.im / Math.LN2 };
+  }),
+  IMSIN: complex1(sinC),
+  IMCOS: complex1(cosC),
+  IMTAN: complex1(({ re: a, im: b }) => halves(Math.sin(2 * a), Math.sinh(2 * b), Math.cos(2 * a) + Math.cosh(2 * b))),
+  IMCOT: complex1(({ re: a, im: b }) => halves(Math.sin(2 * a), -Math.sinh(2 * b), Math.cosh(2 * b) - Math.cos(2 * a))),
+  IMSEC: complex1(({ re: a, im: b }) => halves(2 * Math.cos(a) * Math.cosh(b), 2 * Math.sin(a) * Math.sinh(b), Math.cos(2 * a) + Math.cosh(2 * b))),
+  IMCSC: complex1(({ re: a, im: b }) => halves(2 * Math.sin(a) * Math.cosh(b), -2 * Math.cos(a) * Math.sinh(b), Math.cosh(2 * b) - Math.cos(2 * a))),
+  IMSINH: complex1(sinhC),
+  IMCOSH: complex1(coshC),
+  IMSECH: complex1(({ re: a, im: b }) => halves(2 * Math.cosh(a) * Math.cos(b), -2 * Math.sinh(a) * Math.sin(b), Math.cosh(2 * a) + Math.cos(2 * b))),
+  IMCSCH: complex1(({ re: a, im: b }) => halves(2 * Math.sinh(a) * Math.cos(b), -2 * Math.cosh(a) * Math.sin(b), Math.cosh(2 * a) - Math.cos(2 * b))),
 
   // References and sheets
   ADDRESS: scalar(2, 5, ([r, c, absolute, a1, sheet]) => {
