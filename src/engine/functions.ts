@@ -2403,6 +2403,22 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return x < 0 ? -r : r;
   }),
   RAND: { min: 0, max: 0, volatile: true, fn: () => Math.random() },
+  RANDARRAY: {
+    min: 0,
+    max: 5,
+    volatile: true,
+    fn: (a, ctx) => {
+      const arg = (i: number, d: number) => (given(a, i) ? num(scalarOf(a[i], ctx)) : d);
+      const rows = Math.trunc(arg(0, 1));
+      const cols = Math.trunc(arg(1, 1));
+      const lo = arg(2, 0);
+      const hi = arg(3, 1);
+      const whole = given(a, 4) && bool(scalarOf(a[4], ctx));
+      sized(rows, cols);
+      if (lo > hi || (whole && (!Number.isInteger(lo) || !Number.isInteger(hi)))) throw VALUE;
+      return Matrix.build(rows, cols, () => (whole ? lo + Math.floor(Math.random() * (hi - lo + 1)) : lo + Math.random() * (hi - lo)));
+    },
+  },
   RANDBETWEEN: {
     ...scalar(2, 2, ([a, b]) => {
       const lo = Math.ceil(num(a));
@@ -3947,6 +3963,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ANCHORARRAY: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref && r.single ? (ctx.host.spillOf(r.sheet, r.r1, r.c1) ?? REF) : REF) },
   SINGLE: { min: 1, max: 1, fn: ([v], ctx) => scalarOf(v, ctx) },
 };
+
+// Bytes are characters, as in Excel set to a language that writes one byte a character.
+for (const name of ['LEFT', 'RIGHT', 'FIND', 'SEARCH', 'REPLACE']) FUNCTIONS[`${name}B`] = FUNCTIONS[name];
 
 /** A text's value as a number, the way VALUE reads it: numbers, percentages, dates. */
 function dateValueOrNumber(t: string, ctx: Ctx): number {

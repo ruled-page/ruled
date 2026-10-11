@@ -532,6 +532,35 @@ export const FAMILIES: Record<string, string[]> = {
     '=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),-0.01)',
     '=TBILLPRICE("2008-03-31","2008-06-01",0.09)',
   ],
+  'random-bytes': [
+    // RANDARRAY: its shape, range and whole numbers, which don't depend on chance
+    '=ROWS(RANDARRAY(3,2))',
+    '=COLUMNS(RANDARRAY(3,2))',
+    '=ROWS(RANDARRAY())',
+    '=SUMPRODUCT((RANDARRAY(20,20)>=0)*(RANDARRAY(20,20)<1))',
+    '=SUMPRODUCT((RANDARRAY(20,20,5,7)>=5)*(RANDARRAY(20,20,5,7)<=7))',
+    '=SUMPRODUCT((RANDARRAY(20,20,1,6,TRUE)>=1)*(RANDARRAY(20,20,1,6,TRUE)<=6))',
+    '=SUMPRODUCT(--(MOD(RANDARRAY(20,20,1,6,TRUE),1)=0))',
+    '=RANDARRAY(1,1,3,3)',
+    '=RANDARRAY(1,1,3,3,TRUE)',
+    '=RANDARRAY(1,1,5,2)',
+    '=RANDARRAY(1,1,1.5,3,TRUE)',
+    '=RANDARRAY(0)',
+    '=RANDARRAY(-1)',
+    // Bytes, one to a character in English
+    '=LEFTB("Sale Price",4)',
+    '=LEFTB("Sweden")',
+    '=LEFTB("abc",-1)',
+    '=RIGHTB("Sale Price",5)',
+    '=FINDB("M","Miriam McGovern")',
+    '=FINDB("m","Miriam McGovern")',
+    '=FINDB("M","Miriam McGovern",3)',
+    '=SEARCHB("e","Statements",6)',
+    '=SEARCHB("x","Statements")',
+    '=REPLACEB("abcdefghijk",6,5,"*")',
+    '=LENB("Sale Price")',
+    '=MIDB("Fluid Flow",7,20)',
+  ],
 };
 
 /**
