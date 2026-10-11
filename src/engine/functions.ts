@@ -2572,8 +2572,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return r.cols === 1 || ctx.legacy ? r.c1 + 1 : Matrix.build(1, r.cols, (_i, j) => r.c1 + j + 1);
     },
   },
-  ROWS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.rows : matrixOf(r, ctx).rows) },
-  COLUMNS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.cols : matrixOf(r, ctx).cols) },
+  ROWS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.rows : r instanceof Areas ? (() => { throw REF; })() : matrixOf(r, ctx).rows) },
+  COLUMNS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.cols : r instanceof Areas ? (() => { throw REF; })() : matrixOf(r, ctx).cols) },
   TRANSPOSE: {
     min: 1,
     max: 1,

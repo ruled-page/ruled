@@ -266,9 +266,10 @@ function referenceOperator(op: string, left: Node, right: Node): Node {
     if (isError(a)) return a;
     if (isError(b)) return b;
     if (op === ',') {
-      // A union, (A1:B2,D4): its areas in order, which may be on other sheets.
+      // A union, (A1:B2,D4): its areas in order, all on one sheet.
       if (!(a instanceof Ref || a instanceof Areas) || !(b instanceof Ref || b instanceof Areas)) return VALUE;
-      return new Areas([...(a instanceof Areas ? a.refs : [a]), ...(b instanceof Areas ? b.refs : [b])]);
+      const refs = [...(a instanceof Areas ? a.refs : [a]), ...(b instanceof Areas ? b.refs : [b])];
+      return refs.every((r) => r.sheet === refs[0].sheet) ? new Areas(refs) : VALUE;
     }
     if (!(a instanceof Ref) || !(b instanceof Ref) || a.sheet !== b.sheet) return VALUE;
     if (op === ':') return new Ref(a.sheet, Math.min(a.r1, b.r1), Math.min(a.c1, b.c1), Math.max(a.r2, b.r2), Math.max(a.c2, b.c2));
