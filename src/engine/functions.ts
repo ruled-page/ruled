@@ -1902,83 +1902,176 @@ const bitShift = (left: boolean): FunctionSpec =>
     return r;
   });
 
-/** Where a backward recurrence for the Bessel functions of orders up to `top` starts, far enough out that its errors die away. */
-const besselStart = (x: number, top: number) => {
-  const far = Math.max(top, Math.abs(x));
-  return 2 * Math.ceil((far + 20 + Math.sqrt(40 * far)) / 2);
-};
-
-/**
- * J or I of orders 0 to `top` by Miller's backward recurrence: from far out,
- * where they are negligible, down to order 0, then scaled to the sum they
- * are known to have (J₀ + 2J₂ + 2J₄ + … = 1; I₀ + 2I₁ + 2I₂ + … = eˣ).
+/*
+ * The Bessel functions as Excel works them out: rational fits (Hart) for
+ * J₀, J₁, Y₀ and Y₁ below 8 and asymptotic forms above it, the polynomial
+ * fits of Abramowitz and Stegun 9.8 for I₀, I₁, K₀ and K₁, and recurrences
+ * from those for higher orders. They are good to about eight digits, and
+ * reproduce Excel's own digits, such as BESSELJ(0,0) = 1.00000000283141.
  */
-function besselOrders(x: number, top: number, modified: boolean): number[] {
-  const out = new Array<number>(top + 1).fill(0);
-  if (x === 0) {
-    out[0] = 1;
-    return out;
-  }
-  const ax = Math.abs(x);
-  let above = 0;
-  let here = 1;
-  const start = besselStart(ax, top);
-  let total = 2 * here;
-  for (let m = start; m > 0; m--) {
-    const below = ((2 * m) / ax) * here + (modified ? above : -above);
-    above = here;
-    here = below;
-    if (m - 1 <= top) out[m - 1] = here;
-    if (m - 1 > 0 && (modified || (m - 1) % 2 === 0)) total += 2 * here;
-    if (Math.abs(here) > 1e250) {
-      here *= 1e-250;
-      above *= 1e-250;
-      total *= 1e-250;
-      for (let k = m - 1; k <= top; k++) out[k] *= 1e-250;
-    }
-  }
-  total += here;
-  const scale = modified ? Math.exp(ax - Math.log(total)) : 1 / total;
-  return out.map((v, k) => v * scale * (x < 0 && k % 2 ? -1 : 1));
+
+const TWO_OVER_PI = 0.636619772;
+
+/** Horner's rule: c[0] + c[1]·t + c[2]·t² + … */
+const poly = (c: number[], t: number) => c.reduceRight((s, k) => s * t + k, 0);
+
+/** J₀ or J₁ (and the matching Y) beyond 8: amplitude and phase corrections. */
+function besselFar(x: number, one: boolean, y: boolean): number {
+  const z = 8 / x;
+  const t = z * z;
+  const xx = x - (one ? 2.356194491 : 0.785398164);
+  const p = one
+    ? poly([1, 0.183105e-2, -0.3516396496e-4, 0.2457520174e-5, -0.240337019e-6], t)
+    : poly([1, -0.1098628627e-2, 0.2734510407e-4, -0.2073370639e-5, 0.2093887211e-6], t);
+  const q = one
+    ? poly([0.04687499995, -0.2002690873e-3, 0.8449199096e-5, -0.88228987e-6, 0.105787412e-6], t)
+    : poly([-0.1562499995e-1, 0.1430488765e-3, -0.6911147651e-5, 0.7621095161e-6, y ? -0.934945152e-7 : -0.934935152e-7], t);
+  const amplitude = Math.sqrt(TWO_OVER_PI / x);
+  return y ? amplitude * (Math.sin(xx) * p + z * Math.cos(xx) * q) : amplitude * (Math.cos(xx) * p - z * Math.sin(xx) * q);
 }
 
-const EULER_GAMMA = 0.5772156649015329;
+function besselJ0(x: number): number {
+  const ax = Math.abs(x);
+  if (ax >= 8) return besselFar(ax, false, false);
+  const t = x * x;
+  return (
+    poly([57568490574, -13362590354, 651619640.7, -11214424.18, 77392.33017, -184.9052456], t) /
+    poly([57568490411, 1029532985, 9494680.718, 59272.64853, 267.8532712, 1], t)
+  );
+}
 
-/** Y of order n, from the series of J that give Y₀ and Y₁, then upward, where the recurrence is stable. */
+function besselJ1(x: number): number {
+  const ax = Math.abs(x);
+  if (ax >= 8) return Math.sign(x) * besselFar(ax, true, false);
+  const t = x * x;
+  return (
+    (x * poly([72362614232, -7895059235, 242396853.1, -2972611.439, 15704.4826, -30.16036606], t)) /
+    poly([144725228442, 2300535178, 18583304.74, 99447.43394, 376.9991397, 1], t)
+  );
+}
+
+/**
+ * Jₙ: upward from J₀ and J₁ when x is past n, else Miller's downward
+ * recurrence from 2⌊(n + ⌊√(40n)⌋)/2⌋, scaled so J₀ + 2J₂ + 2J₄ + … = 1.
+ */
+function besselJ(x: number, n: number): number {
+  if (n === 0) return besselJ0(x);
+  if (n === 1) return besselJ1(x);
+  const ax = Math.abs(x);
+  if (ax === 0) return 0;
+  const tox = 2 / ax;
+  let result: number;
+  if (ax > n) {
+    let below = besselJ0(ax);
+    let here = besselJ1(ax);
+    for (let j = 1; j < n; j++) [below, here] = [here, j * tox * here - below];
+    result = here;
+  } else {
+    let even = false;
+    let above = 0;
+    let here = 1;
+    let total = 0;
+    result = 0;
+    for (let j = 2 * Math.floor((n + Math.floor(Math.sqrt(40 * n))) / 2); j > 0; j--) {
+      [above, here] = [here, j * tox * here - above];
+      if (Math.abs(here) > 1e10) {
+        here *= 1e-10;
+        above *= 1e-10;
+        result *= 1e-10;
+        total *= 1e-10;
+      }
+      if (even) total += here;
+      even = !even;
+      if (j === n) result = above;
+    }
+    result /= 2 * total - here;
+  }
+  return x < 0 && n % 2 ? -result : result;
+}
+
+function besselY0(x: number): number {
+  if (x >= 8) return besselFar(x, false, true);
+  const t = x * x;
+  return (
+    poly([-2957821389, 7062834065, -512359803.6, 10879881.29, -86327.92757, 228.4622733], t) /
+      poly([40076544269, 745249964.8, 7189466.438, 47447.2647, 226.1030244, 1], t) +
+    TWO_OVER_PI * besselJ0(x) * Math.log(x)
+  );
+}
+
+function besselY1(x: number): number {
+  if (x >= 8) return besselFar(x, true, true);
+  const t = x * x;
+  return (
+    (x * poly([-0.4900604943e13, 0.127527439e13, -0.5153438139e11, 0.7349264551e9, -0.4237922726e7, 0.8511937935e4], t)) /
+      poly([0.249958057e14, 0.4244419664e12, 0.3733650367e10, 0.2245904002e8, 0.102042605e6, 0.3549632885e3, 1], t) +
+    TWO_OVER_PI * (besselJ1(x) * Math.log(x) - 1 / x)
+  );
+}
+
+/** Yₙ, upward from Y₀ and Y₁. */
 function besselY(x: number, n: number): number {
-  const top = besselStart(x, 0) + 1;
-  const j = besselOrders(x, top, false);
-  const log = Math.log(x / 2) + EULER_GAMMA;
-  let s0 = 0;
-  let s1 = 0;
-  for (let k = 1; 2 * k + 1 <= top; k++) {
-    const sign = k % 2 ? -1 : 1;
-    s0 += (sign * j[2 * k]) / k;
-    s1 += (sign * (j[2 * k - 1] - j[2 * k + 1])) / k;
-  }
-  let below = (2 / Math.PI) * (log * j[0] - 2 * s0);
-  if (n === 0) return below;
-  let here = (2 / Math.PI) * (log * j[1] - j[0] / x + s1);
-  for (let m = 1; m < n; m++) {
-    const next = ((2 * m) / x) * here - below;
-    below = here;
-    here = next;
-  }
+  if (n === 0) return besselY0(x);
+  let below = besselY0(x);
+  let here = besselY1(x);
+  for (let j = 1; j < n; j++) [below, here] = [here, ((2 * j) / x) * here - below];
   return here;
 }
 
-/** K of order n: ∫₀^∞ e^(−x cosh t) cosh(nt) dt, by the trapezoidal rule, which is exact to rounding for an integrand this smooth. */
-function besselK(x: number, n: number): number {
-  const h = Math.min(0.2, 0.5 / Math.sqrt(x));
-  let total = Math.exp(-x) / 2;
-  for (let k = 1; k < 100000; k++) {
-    const t = k * h;
-    const c = x * Math.cosh(t);
-    const term = (Math.exp(n * t - c) + Math.exp(-n * t - c)) / 2;
-    total += term;
-    if (x * Math.sinh(t) > n && term <= total * 1e-17) break;
+function besselI0(x: number): number {
+  const ax = Math.abs(x);
+  if (ax < 3.75) return poly([1, 3.5156229, 3.0899424, 1.2067492, 0.2659732, 0.360768e-1, 0.45813e-2], (x / 3.75) ** 2);
+  return (Math.exp(ax) / Math.sqrt(ax)) * poly([0.39894228, 0.1328592e-1, 0.225319e-2, -0.157565e-2, 0.916281e-2, -0.2057706e-1, 0.2635537e-1, -0.1647633e-1, 0.392377e-2], 3.75 / ax);
+}
+
+function besselI1(x: number): number {
+  const ax = Math.abs(x);
+  const r =
+    ax < 3.75
+      ? ax * poly([0.5, 0.87890594, 0.51498869, 0.15084934, 0.2658733e-1, 0.301532e-2, 0.32411e-3], (x / 3.75) ** 2)
+      : (Math.exp(ax) / Math.sqrt(ax)) * poly([0.39894228, -0.3988024e-1, -0.362018e-2, 0.163801e-2, -0.1031555e-1, 0.2282967e-1, -0.2895312e-1, 0.1787654e-1, -0.420059e-2], 3.75 / ax);
+  return x < 0 ? -r : r;
+}
+
+/** Iₙ: Miller's downward recurrence from 2(n + ⌊√(40n)⌋), scaled to I₀. */
+function besselI(x: number, n: number): number {
+  if (n === 0) return besselI0(x);
+  if (n === 1) return besselI1(x);
+  if (x === 0) return 0;
+  const tox = 2 / Math.abs(x);
+  let above = 0;
+  let here = 1;
+  let result = 0;
+  for (let j = 2 * (n + Math.floor(Math.sqrt(40 * n))); j > 0; j--) {
+    [above, here] = [here, above + j * tox * here];
+    if (Math.abs(here) > 1e10) {
+      result *= 1e-10;
+      here *= 1e-10;
+      above *= 1e-10;
+    }
+    if (j === n) result = above;
   }
-  return total * h;
+  result *= besselI0(x) / here;
+  return x < 0 && n % 2 ? -result : result;
+}
+
+function besselK0(x: number): number {
+  if (x <= 2) return -Math.log(x / 2) * besselI0(x) + poly([-0.57721566, 0.4227842, 0.23069756, 0.348859e-1, 0.262698e-2, 0.1075e-3, 0.74e-5], (x * x) / 4);
+  return (Math.exp(-x) / Math.sqrt(x)) * poly([1.25331414, -0.7832358e-1, 0.2189568e-1, -0.1062446e-1, 0.587872e-2, -0.25154e-2, 0.53208e-3], 2 / x);
+}
+
+function besselK1(x: number): number {
+  if (x <= 2) return Math.log(x / 2) * besselI1(x) + (1 / x) * poly([1, 0.15443144, -0.67278579, -0.18156897, -0.1919402e-1, -0.110404e-2, -0.4686e-4], (x * x) / 4);
+  return (Math.exp(-x) / Math.sqrt(x)) * poly([1.25331414, 0.23498619, -0.365562e-1, 0.1504268e-1, -0.780353e-2, 0.325614e-2, -0.68245e-3], 2 / x);
+}
+
+/** Kₙ, upward from K₀ and K₁. */
+function besselK(x: number, n: number): number {
+  if (n === 0) return besselK0(x);
+  let below = besselK0(x);
+  let here = besselK1(x);
+  for (let j = 1; j < n; j++) [below, here] = [here, below + ((2 * j) / x) * here];
+  return here;
 }
 
 /** The Bessel functions' x and order: the order cut to a whole number, at least 0. */
@@ -2061,20 +2154,11 @@ function lnC(z: Complex): Complex {
   return { re: Math.log(Math.hypot(z.re, z.im)), im: Math.atan2(z.im, z.re) };
 }
 
-/** z to a power: whole powers by multiplying, so (2+3i)³ is exactly −46+9i; others by the polar form. */
+/** z to a power, by the polar form, as Excel does even for whole powers: (2+3i)³ is −46+9.00000000000001i. */
 function powerC(z: Complex, p: number): Complex {
   if (z.re === 0 && z.im === 0) {
     if (p <= 0) throw NUM;
     return { re: 0, im: 0 };
-  }
-  if (Number.isInteger(p) && Math.abs(p) <= 1024) {
-    let result = ONE;
-    let base = z;
-    for (let e = Math.abs(p); e > 0; e >>= 1) {
-      if (e & 1) result = times(result, base);
-      base = times(base, base);
-    }
-    return p < 0 ? over(ONE, result) : result;
   }
   const r = Math.hypot(z.re, z.im) ** p;
   const angle = Math.atan2(z.im, z.re) * p;
@@ -3628,14 +3712,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   DELTA: scalar(1, 2, ([a, b]) => (num(a) === optional(b, 0) ? 1 : 0)),
 
   // Bessel functions
-  BESSELJ: dist(2, 2, ([x, n]) => {
-    const [v, order] = besselArgs(x, n, false);
-    return besselOrders(v, order, false)[order];
-  }),
-  BESSELI: dist(2, 2, ([x, n]) => {
-    const [v, order] = besselArgs(x, n, false);
-    return besselOrders(v, order, true)[order];
-  }),
+  BESSELJ: dist(2, 2, ([x, n]) => besselJ(...besselArgs(x, n, false))),
+  BESSELI: dist(2, 2, ([x, n]) => besselI(...besselArgs(x, n, false))),
   BESSELY: dist(2, 2, ([x, n]) => besselY(...besselArgs(x, n, true))),
   BESSELK: dist(2, 2, ([x, n]) => besselK(...besselArgs(x, n, true))),
 

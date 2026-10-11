@@ -185,9 +185,16 @@ export function isSpillError(v: EngineValue): boolean {
  */
 const SEARCHED = new Set(['IRR', 'XIRR', 'RATE', 'YIELD']);
 
+/**
+ * Functions Excel works out from fits good to about eight digits (the Bessel
+ * functions): the same fits give Excel's digits, but the route it takes for
+ * some arguments isn't known, so they have the same allowance.
+ */
+const APPROXIMATED = new Set(['BESSELI', 'BESSELJ', 'BESSELK', 'BESSELY']);
+
 /** How closely a formula's result must match Excel's saved value, relative to its size. */
 export function tolerance(functions: readonly string[]): number {
-  return functions.some((f) => SEARCHED.has(f)) ? 1e-7 : 1e-9;
+  return functions.some((f) => SEARCHED.has(f) || APPROXIMATED.has(f)) ? 1e-7 : 1e-9;
 }
 
 export function valuesMatch(excel: EngineValue, engine: EngineValue, within = 1e-9): boolean {
