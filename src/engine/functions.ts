@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
-import { bool, compare, DIV0, err, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { bool, CALC, compare, DIV0, err, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -2414,6 +2414,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const lo = arg(2, 0);
       const hi = arg(3, 1);
       const whole = given(a, 4) && bool(scalarOf(a[4], ctx));
+      // No rows or columns is an empty array, which Excel shows as #CALC!.
+      if ((rows === 0 || cols === 0) && rows >= 0 && cols >= 0) throw CALC;
       sized(rows, cols);
       if (lo > hi || (whole && (!Number.isInteger(lo) || !Number.isInteger(hi)))) throw VALUE;
       return Matrix.build(rows, cols, () => (whole ? lo + Math.floor(Math.random() * (hi - lo + 1)) : lo + Math.random() * (hi - lo)));

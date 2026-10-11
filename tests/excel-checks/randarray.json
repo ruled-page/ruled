@@ -1,0 +1,23 @@
+{
+  "=ROWS(RANDARRAY(3,2))": 3,
+  "=COLUMNS(RANDARRAY(3,2))": 2,
+  "=ROWS(RANDARRAY())": 1,
+  "=SUMPRODUCT((RANDARRAY(20,20)>=0)*(RANDARRAY(20,20)<1))": 400,
+  "=SUMPRODUCT((RANDARRAY(20,20,5,7)>=5)*(RANDARRAY(20,20,5,7)<=7))": 400,
+  "=SUMPRODUCT((RANDARRAY(20,20,1,6,TRUE)>=1)*(RANDARRAY(20,20,1,6,TRUE)<=6))": 400,
+  "=SUMPRODUCT(--(MOD(RANDARRAY(20,20,1,6,TRUE),1)=0))": 400,
+  "=RANDARRAY(1,1,3,3)": 3,
+  "=RANDARRAY(1,1,3,3,TRUE)": 3,
+  "=RANDARRAY(1,1,5,2)": {
+    "error": "#VALUE!"
+  },
+  "=RANDARRAY(1,1,1.5,3,TRUE)": {
+    "error": "#VALUE!"
+  },
+  "=RANDARRAY(0)": {
+    "error": "#CALC!"
+  },
+  "=RANDARRAY(-1)": {
+    "error": "#VALUE!"
+  }
+}
