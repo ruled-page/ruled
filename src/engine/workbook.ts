@@ -4,7 +4,7 @@ import { engineFormula } from '../core/formula';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
 import { compileAt, resolve, type Template } from './compile';
 import { intersect, type CellNotes, type Ctx, type Host } from './operands';
-import { CALC, err, ERROR_CODES, isError, Lambda, Matrix, REF, Ref, SPILL, VALUE, type Operand, type Scalar } from './values';
+import { Areas, CALC, err, ERROR_CODES, isError, Lambda, Matrix, REF, Ref, SPILL, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * The workbook as this engine holds it: each sheet's values and formulas,
@@ -141,6 +141,8 @@ export class NativeEngine implements FormulaEngine, Host {
   private readonly nameUsers = new Map<string, Set<Formula>>();
   /** Formulas naming a sheet that isn't in the engine yet, by the sheet's name in lower case. */
   private readonly waiting = new Map<string, Set<Formula>>();
+  /** Formulas with three-dimensional references, which a sheet added within their run of sheets joins. */
+  private readonly spans = new Set<Formula>();
   private readonly volatile = new Set<Formula>();
   private depth = 0;
   /** Formulas made dirty by the change being worked out. */
@@ -180,8 +182,15 @@ export class NativeEngine implements FormulaEngine, Host {
     // Formulas that named it before it was here read it now.
     const users = [...(this.waiting.get(content.name.toLowerCase()) ?? [])];
     this.waiting.delete(content.name.toLowerCase());
+    for (const f of this.spans) {
+      if (this.sheets[f.sheet]?.get(f.row, f.col) !== f) this.spans.delete(f);
+      else if (!users.includes(f)) users.push(f);
+    }
     return this.change(() => {
-      for (const f of users) this.reregister(f);
+      for (const f of users) {
+        this.reregister(f);
+        this.dirty(f);
+      }
       this.touch([], users);
     }).filter((c) => c.sheet !== sheet);
   }
@@ -284,7 +293,7 @@ export class NativeEngine implements FormulaEngine, Host {
       return isError(e) ? e : VALUE;
     }
     if (out instanceof Ref) out = out.single ? this.value(out.sheet, out.r1, out.c1) : this.read(out);
-    if (out instanceof Lambda) return CALC;
+    if (out instanceof Lambda || out instanceof Areas) return out instanceof Areas ? VALUE : CALC;
     if (out instanceof Matrix) return out.rows === 1 && out.cols === 1 ? out.get(0, 0) : out.rowsOf();
     return out;
   }
@@ -449,15 +458,17 @@ export class NativeEngine implements FormulaEngine, Host {
     const ctx = { host: this as Host, sheet: f.sheet, row: f.row, col: f.col };
     const add = (spec: Template['refs'][number]) => {
       const ref = resolve(spec, ctx);
+      if (spec.lastSheet !== undefined) this.spans.add(f);
       if (ref === REF) {
-        if (spec.sheet !== null && this.sheetIndex(spec.sheet) < 0) {
-          const k = spec.sheet.toLowerCase();
+        for (const name of [spec.sheet, spec.lastSheet]) {
+          if (name === null || name === undefined || this.sheetIndex(name) >= 0) continue;
+          const k = name.toLowerCase();
           if (!this.waiting.has(k)) this.waiting.set(k, new Set());
           this.waiting.get(k)!.add(f);
         }
         return;
       }
-      this.watch(f, ref as Ref);
+      for (const r of ref instanceof Areas ? ref.refs : [ref as Ref]) this.watch(f, r);
     };
     for (const spec of f.template.refs) add(spec);
     // A name's cells, and those of the names it is defined with.
@@ -677,6 +688,7 @@ export class NativeEngine implements FormulaEngine, Host {
         v = out.get(0, 0);
       }
     } else if (out instanceof Lambda) v = CALC;
+    else if (out instanceof Areas) v = VALUE;
     else v = out;
     // A formula showing an empty cell shows 0.
     if (v === null) v = 0;

@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
-import { bool, CALC, compare, DIV0, err, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, bool, CALC, compare, DIV0, err, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -60,6 +60,7 @@ function numbers(args: Operand[], ctx: Ctx, f: (n: number) => void, how: Collect
   for (const a of args) {
     if (a === undefined) continue;
     if (a instanceof Ref) ctx.host.each(a, fromCells, how.skipSubtotals);
+    else if (a instanceof Areas) for (const r of a.refs) ctx.host.each(r, fromCells, how.skipSubtotals);
     else if (a instanceof Matrix) a.data.forEach(fromCells);
     else if (a instanceof Lambda) throw VALUE;
     else if (how.typed === 'count') {
@@ -129,7 +130,7 @@ function counta(args: Operand[], ctx: Ctx, skipSubtotals = false): number {
   let n = 0;
   for (const a of args) {
     if (a === undefined) continue;
-    if (a instanceof Ref) ctx.host.each(a, (v) => void (v !== null && n++), skipSubtotals);
+    if (a instanceof Ref || a instanceof Areas) for (const r of a instanceof Areas ? a.refs : [a]) ctx.host.each(r, (v) => void (v !== null && n++), skipSubtotals);
     else if (a instanceof Matrix) for (const v of a.data) n += v === null ? 0 : 1;
     else n++;
   }
@@ -173,6 +174,7 @@ function grid(op: Operand, ctx: Ctx): { rows: number; cols: number; at: (r: numb
     return { rows: ref.rows, cols: ref.cols, at: (r, c) => ctx.host.value(ref.sheet, ref.r1 + r, ref.c1 + c) };
   }
   if (op instanceof Matrix) return { rows: op.rows, cols: op.cols, at: (r, c) => op.get(r, c) };
+  if (op instanceof Areas) throw VALUE;
   const v = scalarOf(op, ctx);
   return { rows: 1, cols: 1, at: () => v };
 }
@@ -255,6 +257,7 @@ function ifOne(kind: 'sum' | 'avg', args: Operand[], ctx: Ctx): number {
 
 function matrixOf(op: Operand, ctx: Ctx): Matrix {
   if (op instanceof Ref) return ctx.host.read(ctx.host.bound(op));
+  if (op instanceof Areas) throw VALUE;
   if (op instanceof Matrix) return op;
   return new Matrix(1, 1, [scalarOf(op, ctx)]);
 }
@@ -357,7 +360,11 @@ function slice(op: Operand, ctx: Ctx, r1: number, c1: number, r2: number, c2: nu
 }
 
 function index(args: Operand[], ctx: Ctx): Operand {
-  const area = args[0];
+  // Of a union, the area the fourth argument picks (the first by default).
+  const which = given(args, 3) ? Math.trunc(num(scalarOf(args[3], ctx))) : 1;
+  const areas = args[0] instanceof Areas ? args[0].refs : [args[0]];
+  if (which < 1 || which > areas.length) throw REF;
+  const area = areas[which - 1];
   const dims = area instanceof Ref ? { rows: area.rows, cols: area.cols } : matrixOf(area, ctx);
   let row = args[1] === undefined ? 0 : Math.trunc(num(scalarOf(args[1], ctx)));
   let col = args[2] === undefined ? 0 : Math.trunc(num(scalarOf(args[2], ctx)));
@@ -1109,6 +1116,7 @@ function listA(args: Operand[], ctx: Ctx, arraysAsRanges = false): number[] {
   for (const a of args) {
     if (a === undefined) continue;
     if (a instanceof Ref) ctx.host.each(a, fromCells);
+    else if (a instanceof Areas) for (const r of a.refs) ctx.host.each(r, fromCells);
     else if (a instanceof Matrix) a.data.forEach(arraysAsRanges ? fromCells : (v) => (isError(v) ? fromCells(v) : typeof v === 'number' && out.push(v)));
     else if (a instanceof Lambda) throw VALUE;
     else if (isError(a)) throw a;
@@ -2252,6 +2260,7 @@ function complexes(args: Operand[], ctx: Ctx): Complex[] {
   for (const a of args) {
     if (a === undefined) continue;
     if (a instanceof Ref) ctx.host.each(a, take);
+    else if (a instanceof Areas) for (const r of a.refs) ctx.host.each(r, take);
     else if (a instanceof Matrix) a.data.forEach(take);
     else if (a instanceof Lambda) throw VALUE;
     else take(a);
@@ -2542,7 +2551,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     },
   },
   XLOOKUP: { min: 3, max: 6, fn: (a, ctx) => xlookup(a, ctx) },
-  INDEX: { min: 2, max: 3, fn: (a, ctx) => index(a, ctx) },
+  INDEX: { min: 2, max: 4, fn: (a, ctx) => index(a, ctx) },
   OFFSET: { min: 3, max: 5, volatile: true, fn: (a, ctx) => offset(a, ctx) },
   INDIRECT: { min: 1, max: 2, volatile: true, fn: (a, ctx) => indirect(a, ctx) },
   ROW: {
@@ -3947,7 +3956,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const quoted = quoteSheetName(name.slice(book.length));
     return `${quoted.startsWith("'") ? `'${book}${quoted.slice(1)}` : book + quoted}!${ref}`;
   }),
-  AREAS: { min: 1, max: 1, fn: ([r]) => (r instanceof Ref ? 1 : (() => { throw VALUE; })()) },
+  AREAS: { min: 1, max: 1, fn: ([r]) => (r instanceof Areas ? r.refs.length : r instanceof Ref ? 1 : (() => { throw VALUE; })()) },
   SHEET: {
     min: 0,
     max: 1,

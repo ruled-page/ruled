@@ -580,15 +580,65 @@ export const FAMILIES: Record<string, string[]> = {
     '=LENB("Sale Price")',
     '=MIDB("Fluid Flow",7,20)',
   ],
+  references: [
+    // Three-dimensional: the same cells on each sheet from Jan to Mar
+    '=SUM(Jan:Mar!A1)',
+    '=SUM(Jan:Mar!A1:A2)',
+    '=SUM(Mar:Jan!A1)',
+    '=COUNT(Jan:Mar!A1:B2)',
+    '=COUNTA(Jan:Mar!A1:B2)',
+    '=AVERAGE(Jan:Mar!A2)',
+    '=MAX(Jan:Mar!A1:A2)',
+    '=MIN(Jan:Mar!A1:A2)',
+    '=PRODUCT(Jan:Mar!A1)',
+    '=AVERAGEA(Jan:Mar!B1:B2)',
+    '=STDEV(Jan:Mar!A1)',
+    '=SUM(Jan:Feb!A1,Mar!A2)',
+    '=SUM(Jan:Mar!A1)+Total!A1',
+    '=COUNTIF(Jan:Mar!A1:A2,">5")',
+    // Unions: several areas as one reference
+    '=SUM((Jan!A1:A2,Jan!B1:B2))',
+    '=SUM((Jan!A1:A2,Jan!A1))',
+    '=COUNT((Jan!A1,Jan!A2,Jan!B1))',
+    '=AREAS((Jan!A1:A2,Jan!B1,Jan!B2))',
+    '=AREAS(Jan!A1:B2)',
+    '=INDEX((Jan!A1:A2,Jan!B1:B2),2,1,2)',
+    '=INDEX((Jan!A1:A2,Jan!B1:B2),1,1,3)',
+    '=MAX((Mar!A1:A2,Mar!B2))',
+    '=LARGE((Mar!A1:A2,Mar!B2),2)',
+    '=RANK(Mar!B2,(Mar!A1:A2,Mar!B2))',
+    '=SUM((Jan!A1:A2 Jan!A2:B2))',
+    '=SUM((Jan!A1,Feb!A1))',
+    '=COUNTIF((Jan!A1:A2,Jan!B1),">5")',
+    '=ROWS((Jan!A1:A2,Jan!B1))',
+  ],
 };
 
+type DataCell = string | number | boolean | null;
+
 /**
- * Cells some families' formulas read, on a sheet named Data: rows from A1,
- * text starting with = a formula. The database functions read the tree
- * database from Microsoft's examples (A5:E11), with criteria above and beside it.
+ * Cells some families' formulas read, on sheets after Check, by name: rows
+ * from A1, text starting with = a formula. The database functions read the
+ * tree database from Microsoft's examples (Data!A5:E11), with criteria above
+ * and beside it; the references read a quarter's months and a total sheet.
  */
-export const DATA: Record<string, (string | number | null)[][]> = {
-  database: [
+export const DATA: Record<string, Record<string, DataCell[][]>> = {
+  references: {
+    Jan: [
+      [10, 'x'],
+      [20, true],
+    ],
+    Feb: [
+      [1, 5],
+      [2, null],
+    ],
+    Mar: [
+      [100, null],
+      [200, 3],
+    ],
+    Total: [[1000]],
+  },
+  database: { Data: [
     ['Tree', 'Height', 'Age', 'Yield', 'Profit', 'Height', null, 'Tree', 'Profit', 'Tree', 'Tree', 'Height', 'Tree'],
     ['="=Apple"', '>10', null, null, null, '<16', null, 'Ch', 105, '<>Apple', 'P*', '>=12', 'Plum'],
     ['="=Pear"', null, null, null, null, null, null, null, null, null, null, '<9', null],
@@ -600,13 +650,13 @@ export const DATA: Record<string, (string | number | null)[][]> = {
     ['Apple', 14, 15, 10, 75],
     ['Pear', 9, 8, 8, 76.8],
     ['Apple', 8, 9, 6, 45],
-  ],
+  ] },
 };
 
-/** A family's sheets for the engine: its formulas down column A of Check, then any Data. */
+/** A family's sheets for the engine: its formulas down column A of Check, then its data sheets. */
 export function checkSheets(family: string): EngineSheet[] {
-  const cell = (v: string | number | null) => (typeof v === 'string' && v.startsWith('=') ? engineFormula(toFileFormula(v).slice(1)) : v);
+  const cell = (v: DataCell) => (typeof v === 'string' && v.startsWith('=') ? engineFormula(toFileFormula(v).slice(1)) : v);
   const sheets = [{ name: 'Check', rows: FAMILIES[family].map((f) => [cell(f)]) }];
-  if (DATA[family]) sheets.push({ name: 'Data', rows: DATA[family].map((row) => row.map(cell)) });
+  for (const [name, rows] of Object.entries(DATA[family] ?? {})) sheets.push({ name, rows: rows.map((row) => row.map(cell)) });
   return sheets;
 }

@@ -64,9 +64,9 @@ it('writes the Excel check workbooks', async () => {
       ref: `A${first}:E${last}`,
       rules: [{ type: 'expression', priority: 1, formulae: [`$D${first}="✗"`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } }],
     });
-    if (DATA[family]) {
-      const data = wb.addWorksheet('Data');
-      DATA[family].forEach((row, r) =>
+    for (const [name, rows] of Object.entries(DATA[family] ?? {})) {
+      const data = wb.addWorksheet(name);
+      rows.forEach((row, r) =>
         row.forEach((v, c) => {
           if (v !== null) data.getCell(r + 1, c + 1).value = typeof v === 'string' && v.startsWith('=') ? { formula: toFileFormula(v).slice(1) } as ExcelJS.CellFormulaValue : v;
         }),

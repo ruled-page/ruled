@@ -1,5 +1,5 @@
 import type { FunctionSpec } from './functions';
-import { err, isError, Lambda, Matrix, Ref, VALUE, type Operand, type Scalar } from './values';
+import { Areas, err, isError, Lambda, Matrix, Ref, VALUE, type Operand, type Scalar } from './values';
 
 /** How formulas see the workbook and their own cell, and how operands become values. */
 
@@ -66,6 +66,7 @@ export function intersect(ref: Ref, ctx: Ctx): Scalar {
 export function valuesOf(op: Operand, ctx: Ctx): Scalar | Matrix {
   if (op instanceof Ref) return op.single ? ctx.host.value(op.sheet, op.r1, op.c1) : ctx.host.read(op);
   if (op instanceof Lambda) return err('#CALC!');
+  if (op instanceof Areas) return VALUE;
   return op;
 }
 
@@ -74,6 +75,7 @@ export function scalarOf(op: Operand, ctx: Ctx): Scalar {
   if (op instanceof Ref) return op.single ? ctx.host.value(op.sheet, op.r1, op.c1) : intersect(op, ctx);
   if (op instanceof Matrix) return op.get(0, 0);
   if (op instanceof Lambda) return err('#CALC!');
+  if (op instanceof Areas) return VALUE;
   return op;
 }
 
@@ -137,7 +139,7 @@ export function apply(spec: FunctionSpec, ops: Operand[], ctx: Ctx): Operand {
     return Matrix.build(rows, cols, (r, c) => {
       const one = vals.map((v, i) => (v instanceof Matrix && (scalars === true || scalars.includes(i)) ? v.at(r, c) : v));
       const out = attempt(() => spec.fn!(one as Operand[], ctx));
-      return out instanceof Matrix ? out.get(0, 0) : out instanceof Ref ? scalarOf(out, ctx) : out instanceof Lambda ? err('#CALC!') : out;
+      return out instanceof Matrix ? out.get(0, 0) : out instanceof Ref || out instanceof Areas ? scalarOf(out, ctx) : out instanceof Lambda ? err('#CALC!') : out;
     });
   });
 }

@@ -98,6 +98,15 @@ export class Ref {
   }
 }
 
+/**
+ * Several references at once: a union, (A1:B2,D4), or the same cells on a
+ * run of sheets, Jan:Mar!B2. SUM and its kind read every area; most other
+ * functions take one reference, and give #VALUE! for these.
+ */
+export class Areas {
+  constructor(readonly refs: Ref[]) {}
+}
+
 /** A LAMBDA's parameters and body, with the names it can see where it was written. */
 export class Lambda {
   constructor(
@@ -106,8 +115,8 @@ export class Lambda {
   ) {}
 }
 
-/** What evaluating part of a formula gives: a value, an array, a reference, or a LAMBDA. */
-export type Operand = Scalar | Matrix | Ref | Lambda;
+/** What evaluating part of a formula gives: a value, an array, a reference (or several), or a LAMBDA. */
+export type Operand = Scalar | Matrix | Ref | Areas | Lambda;
 
 /** Numbers as Excel types them: 1,000.50, 12%, $5, 1.5E3. */
 const NUMBER_TEXT = /^[+-]?\$?(?:\d{1,3}(?:,\d{3})+|\d*)(?:\.\d*)?(?:e[+-]?\d+)?%?$/i;

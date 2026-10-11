@@ -3,7 +3,7 @@ import { stripFunctionPrefixes } from '../core/formula';
 import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import { FUNCTIONS } from './functions';
 import { apply, attempt, each, pairwise, scalarOf, valuesOf, type Ctx, type Host } from './operands';
-import { cancel, compare, err, isError, Matrix, NAME, NULL, num, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, cancel, compare, err, isError, Matrix, NAME, NULL, num, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
 
 export type { Ctx, Host };
 
@@ -18,6 +18,8 @@ type Node = (ctx: Ctx) => Operand;
 /** A reference as written, relative to the formula's cell where it isn't absolute. */
 export interface RefSpec {
   sheet: string | null;
+  /** The last sheet of a three-dimensional reference, Jan:Mar!B2, whose first is `sheet`. */
+  lastSheet?: string;
   r0: number | null;
   r1: number | null;
   c0: number | null;
@@ -144,11 +146,12 @@ function reference(n: { value: string; kind: string }, t: Template): Node {
   const parsed = parseR1C1Ref(n.value);
   if (!parsed || !('range' in parsed) || !parsed.range) return () => REF;
   const ctxNames = parsed.context ?? [];
-  // Three-dimensional references (Jan:Mar!B2) aren't calculated here yet.
-  if (ctxNames.length > 1 || ctxNames[0]?.includes(':')) return () => REF;
+  // A run of sheets, Jan:Mar!B2 (a sheet's name can't hold a colon).
+  const [first, last] = ctxNames.length > 1 ? ctxNames : (ctxNames[0]?.split(':') ?? []);
   const r = parsed.range;
   const spec: RefSpec = {
-    sheet: ctxNames[0] ?? null,
+    sheet: first ?? null,
+    lastSheet: last,
     r0: r.r0 ?? null,
     r1: r.r1 ?? null,
     c0: r.c0 ?? null,
@@ -162,10 +165,23 @@ function reference(n: { value: string; kind: string }, t: Template): Node {
   return (ctx) => resolve(spec, ctx);
 }
 
-/** A reference as written, made absolute at the formula's cell; #REF! off the sheet or on a sheet not here. */
-export function resolve(spec: RefSpec, ctx: { host: Host; sheet: number; row: number; col: number }): Ref | typeof REF {
+/**
+ * A reference as written, made absolute at the formula's cell; #REF! off the
+ * sheet or on a sheet not here. A three-dimensional one is the same cells on
+ * each sheet from its first to its last, in the workbook's order.
+ */
+export function resolve(spec: RefSpec, ctx: { host: Host; sheet: number; row: number; col: number }): Ref | Areas | typeof REF {
   const sheet = spec.sheet === null ? ctx.sheet : ctx.host.sheetIndex(spec.sheet);
   if (sheet < 0) return REF;
+  if (spec.lastSheet !== undefined) {
+    const end = ctx.host.sheetIndex(spec.lastSheet);
+    if (end < 0) return REF;
+    const one = resolve({ ...spec, sheet: null, lastSheet: undefined }, { ...ctx, sheet: Math.min(sheet, end) });
+    if (!(one instanceof Ref)) return one;
+    const refs = [];
+    for (let s = Math.min(sheet, end); s <= Math.max(sheet, end); s++) refs.push(new Ref(s, one.r1, one.c1, one.r2, one.c2));
+    return new Areas(refs);
+  }
   const at = (v: number, abs: boolean, here: number) => (abs ? v : here + v);
   let r1: number;
   let r2: number;
@@ -249,6 +265,11 @@ function referenceOperator(op: string, left: Node, right: Node): Node {
     const b = right(ctx);
     if (isError(a)) return a;
     if (isError(b)) return b;
+    if (op === ',') {
+      // A union, (A1:B2,D4): its areas in order, which may be on other sheets.
+      if (!(a instanceof Ref || a instanceof Areas) || !(b instanceof Ref || b instanceof Areas)) return VALUE;
+      return new Areas([...(a instanceof Areas ? a.refs : [a]), ...(b instanceof Areas ? b.refs : [b])]);
+    }
     if (!(a instanceof Ref) || !(b instanceof Ref) || a.sheet !== b.sheet) return VALUE;
     if (op === ':') return new Ref(a.sheet, Math.min(a.r1, b.r1), Math.min(a.c1, b.c1), Math.max(a.r2, b.r2), Math.max(a.c2, b.c2));
     if (op === ' ') {
@@ -258,7 +279,6 @@ function referenceOperator(op: string, left: Node, right: Node): Node {
       const c2 = Math.min(a.c2, b.c2);
       return r1 > r2 || c1 > c2 ? NULL : new Ref(a.sheet, r1, c1, r2, c2);
     }
-    // Unions of references, (A1,B2), aren't calculated here yet.
     return VALUE;
   };
 }

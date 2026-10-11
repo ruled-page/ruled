@@ -1,4 +1,4 @@
-import { parse, parseA1Ref, tokenize } from '@borgar/fx';
+import { parse, tokenize } from '@borgar/fx';
 import type { EngineKind, Unsupported } from '../core/engine';
 import { expandLets, stripFunctionPrefixes } from '../core/formula';
 import { tooLargeToCalculate } from '../core/sizeLimits';
@@ -7,8 +7,8 @@ import { NativeEngine } from './workbook';
 
 /**
  * Why this engine can't calculate a formula (file form), or undefined when
- * it can: functions it doesn't have yet, three-dimensional references,
- * links to other workbooks, and formulas over the size limits.
+ * it can: functions it doesn't have yet, links to other workbooks, and
+ * formulas over the size limits.
  */
 function unsupportedReason(fileFormula: string): Unsupported | undefined {
   const expanded = expandLets(fileFormula);
@@ -28,9 +28,6 @@ function unsupportedReason(fileFormula: string): Unsupported | undefined {
     }
     if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
       if (t.value.includes('[')) return { kind: 'externalLinks' };
-      const ref = parseA1Ref(t.value, { allowTernary: false });
-      const context = ref && 'context' in ref ? (ref.context ?? []) : [];
-      if (context.length > 1 || context[0]?.includes(':')) return { kind: 'threeD' };
     }
   }
   try {
