@@ -1090,6 +1090,459 @@ function binomialRange(n: number, p: number, lo: number, hi: number): number {
   return total;
 }
 
+// -----------------------------------------------------------------------------
+// Probability distributions, from the gamma and beta functions
+
+/** Values as AVERAGEA and its kind count them: in ranges and arrays TRUE is 1, FALSE and text 0; typed values read as numbers. */
+function listA(args: Operand[], ctx: Ctx): number[] {
+  const out: number[] = [];
+  const fromCells = (v: Scalar) => {
+    if (typeof v === 'number') out.push(v);
+    else if (typeof v === 'boolean') out.push(v ? 1 : 0);
+    else if (typeof v === 'string') out.push(0);
+    else if (isError(v)) throw v;
+  };
+  for (const a of args) {
+    if (a === undefined) continue;
+    if (a instanceof Ref) ctx.host.each(a, fromCells);
+    else if (a instanceof Matrix) a.data.forEach(fromCells);
+    else if (a instanceof Lambda) throw VALUE;
+    else if (isError(a)) throw a;
+    else out.push(num(a));
+  }
+  return out;
+}
+
+/** The third moment about the mean, over `s` cubed. */
+function cubes(xs: number[], s: number): number {
+  if (s === 0) throw DIV0;
+  const mean = sum(xs) / xs.length;
+  return sum(xs.map((x) => ((x - mean) / s) ** 3));
+}
+
+/** A distribution's result: an overflow or a result that isn't a number is #NUM!. */
+const dist = (min: number, max: number, f: (a: Scalar[]) => number): FunctionSpec =>
+  scalar(min, max, (a) => {
+    const r = f(a);
+    if (!Number.isFinite(r)) throw NUM;
+    return r;
+  });
+
+/** Degrees of freedom: cut to a whole number, at least 1 and below 10^10. */
+function degrees(v: Scalar): number {
+  const d = Math.trunc(num(v));
+  if (d < 1 || d >= 1e10) throw NUM;
+  return d;
+}
+
+/** A probability from 0 to 1, or with `open`, strictly between them. */
+function probability(v: Scalar, open = false): number {
+  const p = num(v);
+  if (open ? p <= 0 || p >= 1 : p < 0 || p > 1) throw NUM;
+  return p;
+}
+
+function positive(v: Scalar): number {
+  const x = num(v);
+  if (x <= 0) throw NUM;
+  return x;
+}
+
+/** Godfrey's coefficients for Lanczos' approximation with g = 607/128. */
+const LANCZOS = [
+  0.9999999999999971, 57.15623566586292, -59.59796035547549, 14.136097974741746, -0.4919138160976202, 0.00003399464998481189,
+  0.00004652362892704858, -0.00009837447530487956, 0.0001580887032249125, -0.00021026444172410488, 0.00021743961811521265,
+  -0.0001643181065367639, 0.00008441822398385275, -0.000026190838401581408, 0.0000036899182659531625,
+];
+
+/** ln Γ(x) for x > 0, to about 15 digits. */
+function logGamma(x: number): number {
+  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - logGamma(1 - x);
+  const z = x - 1;
+  let a = LANCZOS[0];
+  for (let i = 1; i < LANCZOS.length; i++) a += LANCZOS[i] / (z + i);
+  const t = z + 607 / 128 + 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(a);
+}
+
+/** Γ(x): exact for whole numbers, #NUM! at 0 and the negative whole numbers. */
+function gamma(x: number): number {
+  if (x <= 0 && Number.isInteger(x)) throw NUM;
+  if (Number.isInteger(x) && x <= 171) {
+    let f = 1;
+    for (let i = 2; i < x; i++) f *= i;
+    return f;
+  }
+  return x < 0.5 ? Math.PI / (Math.sin(Math.PI * x) * gamma(1 - x)) : Math.exp(logGamma(x));
+}
+
+const logBeta = (a: number, b: number) => logGamma(a) + logGamma(b) - logGamma(a + b);
+const logChoose = (n: number, k: number) => logGamma(n + 1) - logGamma(k + 1) - logGamma(n - k + 1);
+
+const TINY = 1e-300;
+
+/** The regularised incomplete gamma function P(a, x), or with `upper`, Q(a, x) = 1 − P(a, x), each worked out directly. */
+function gammaP(a: number, x: number, upper = false): number {
+  if (x <= 0) return upper ? 1 : 0;
+  const front = Math.exp(a * Math.log(x) - x - logGamma(a));
+  if (x < a + 1) {
+    let term = 1 / a;
+    let total = term;
+    for (let n = 1; n < 100000 && Math.abs(term) > Math.abs(total) * 1e-17; n++) {
+      term *= x / (a + n);
+      total += term;
+    }
+    const p = Math.min(1, total * front);
+    return upper ? 1 - p : p;
+  }
+  // Lentz's continued fraction for Q.
+  let b = x + 1 - a;
+  let c = 1 / TINY;
+  let d = 1 / b;
+  let h = d;
+  for (let i = 1; i < 100000; i++) {
+    const an = -i * (i - a);
+    b += 2;
+    d = an * d + b;
+    if (Math.abs(d) < TINY) d = TINY;
+    c = b + an / c;
+    if (Math.abs(c) < TINY) c = TINY;
+    d = 1 / d;
+    const step = d * c;
+    h *= step;
+    if (Math.abs(step - 1) < 1e-16) break;
+  }
+  const q = front * h;
+  return upper ? q : 1 - q;
+}
+
+/** The continued fraction for the incomplete beta function, by Lentz's method. */
+function betaFraction(x: number, a: number, b: number): number {
+  let c = 1;
+  let d = 1 - ((a + b) * x) / (a + 1);
+  if (Math.abs(d) < TINY) d = TINY;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m < 100000; m++) {
+    const m2 = 2 * m;
+    for (const aa of [(m * (b - m) * x) / ((a - 1 + m2) * (a + m2)), (-(a + m) * (a + b + m) * x) / ((a + m2) * (a + 1 + m2))]) {
+      d = 1 + aa * d;
+      if (Math.abs(d) < TINY) d = TINY;
+      c = 1 + aa / c;
+      if (Math.abs(c) < TINY) c = TINY;
+      d = 1 / d;
+      h *= d * c;
+    }
+    if (Math.abs(d * c - 1) < 1e-15) break;
+  }
+  return h;
+}
+
+/**
+ * The regularised incomplete beta function I_x(a, b), or with `upper`,
+ * 1 − I_x(a, b); `y` is 1 − x, passed in so a tail keeps its precision.
+ */
+function betaI(x: number, y: number, a: number, b: number, upper = false): number {
+  if (x <= 0) return upper ? 1 : 0;
+  if (y <= 0) return upper ? 0 : 1;
+  const front = Math.exp(a * Math.log(x) + b * Math.log(y) - logBeta(a, b));
+  if (x < (a + 1) / (a + b + 2)) {
+    const lower = (front * betaFraction(x, a, b)) / a;
+    return upper ? 1 - lower : lower;
+  }
+  const high = (front * betaFraction(y, b, a)) / b;
+  return upper ? high : 1 - high;
+}
+
+/** Where a monotonic `f` reaches `target`, from x = 0 up: the bracket doubles until it holds the answer, then halves to the last representable step. */
+function bisect(f: (x: number) => number, target: number, rising: boolean, hi = 1): number {
+  const short = (x: number) => (rising ? f(x) < target : f(x) > target);
+  let lo = 0;
+  while (short(hi)) {
+    lo = hi;
+    hi *= 2;
+    if (hi > 1e300) throw NUM;
+  }
+  for (;;) {
+    const mid = lo + (hi - lo) / 2;
+    if (mid <= lo || mid >= hi) return hi;
+    if (short(mid)) lo = mid;
+    else hi = mid;
+  }
+}
+
+/** P(T > t) for Student's t distribution with v degrees of freedom. */
+function tUpper(t: number, v: number): number {
+  if (t < 0) return 1 - tUpper(-t, v);
+  const t2 = t * t;
+  if (t2 === Infinity) return 0;
+  return 0.5 * betaI(v / (v + t2), t2 / (v + t2), v / 2, 0.5);
+}
+
+const tDensity = (t: number, v: number) => Math.exp(logGamma((v + 1) / 2) - logGamma(v / 2) - ((v + 1) / 2) * Math.log1p((t * t) / v)) / Math.sqrt(v * Math.PI);
+
+/** The t with P(T > t) = p. */
+const tUpperInverse = (p: number, v: number) => bisect((t) => tUpper(t, v), p, false);
+
+function tInverse(p: number, v: number): number {
+  if (p === 0.5) return 0;
+  return p < 0.5 ? -tUpperInverse(p, v) : tUpperInverse(1 - p, v);
+}
+
+/** P(F ≤ f), or with `upper`, P(F > f), for the F distribution. */
+function fDist(f: number, d1: number, d2: number, upper = false): number {
+  if (f <= 0) return upper ? 1 : 0;
+  const s = d1 * f + d2;
+  return betaI((d1 * f) / s, d2 / s, d1 / 2, d2 / 2, upper);
+}
+
+function fDensity(f: number, d1: number, d2: number): number {
+  if (f === 0) return d1 === 2 ? 1 : d1 > 2 ? 0 : Infinity;
+  return Math.exp(0.5 * d1 * Math.log(d1 * f) + 0.5 * d2 * Math.log(d2) - 0.5 * (d1 + d2) * Math.log(d1 * f + d2) - logBeta(d1 / 2, d2 / 2)) / f;
+}
+
+function gammaDensity(x: number, a: number, b: number): number {
+  if (x === 0) return a === 1 ? 1 / b : a > 1 ? 0 : Infinity;
+  return Math.exp((a - 1) * Math.log(x) - x / b - a * Math.log(b) - logGamma(a));
+}
+
+/** The inverse of a cumulative distribution on 0 to infinity: 0 at p = 0. */
+const inverseFrom0 = (cdf: (x: number) => number, p: number) => (p === 0 ? 0 : bisect(cdf, p, true));
+
+/** The inverse of an upper tail on 0 to infinity: 0 at p = 1. */
+const inverseUpper = (tail: (x: number) => number, p: number) => (p === 1 ? 0 : bisect(tail, p, false));
+
+/** BETA.DIST's x, A and B, as a fraction of the way from A to B. */
+function betaPlace(x: Scalar, lo: Scalar | undefined, hi: Scalar | undefined): { x: number; width: number } {
+  const a = optional(lo, 0);
+  const b = optional(hi, 1);
+  const v = num(x);
+  if (v < a || v > b || a === b) throw NUM;
+  return { x: (v - a) / (b - a), width: b - a };
+}
+
+function betaShape(alpha: Scalar, beta: Scalar): [number, number] {
+  return [positive(alpha), positive(beta)];
+}
+
+function betaInverse(p: Scalar, alpha: Scalar, beta: Scalar, lo: Scalar | undefined, hi: Scalar | undefined): number {
+  const q = num(p);
+  const [a, b] = betaShape(alpha, beta);
+  const from = optional(lo, 0);
+  const to = optional(hi, 1);
+  if (q <= 0 || q > 1 || from >= to) throw NUM;
+  return from + (to - from) * bisect((x) => betaI(x, 1 - x, a, b), q, true);
+}
+
+/** The smallest number of successes whose cumulative binomial probability reaches alpha. */
+function binomialInverse(n: number, p: number, alpha: number): number {
+  if (p === 0) return 0;
+  if (p === 1) return n;
+  let lnChoose = 0;
+  let total = 0;
+  for (let k = 0; k < n; k++) {
+    total += Math.exp(lnChoose + k * Math.log(p) + (n - k) * Math.log1p(-p));
+    if (total >= alpha * (1 - 1e-14)) return k;
+    lnChoose += Math.log(n - k) - Math.log(k + 1);
+  }
+  return n;
+}
+
+function negativeBinomial(f: Scalar, s: Scalar, p: Scalar, cumulative: boolean): number {
+  const failures = Math.trunc(num(f));
+  const successes = Math.trunc(num(s));
+  const chance = probability(p);
+  if (failures < 0 || successes < 1) throw NUM;
+  if (cumulative) return betaI(chance, 1 - chance, successes, failures + 1);
+  return Math.exp(logChoose(failures + successes - 1, failures) + successes * Math.log(chance) + failures * Math.log1p(-chance));
+}
+
+function hypergeometric(args: Scalar[], cumulative: boolean): number {
+  const [k, n, big, total] = args.slice(0, 4).map((v) => Math.trunc(num(v)));
+  if (total <= 0 || n <= 0 || n > total || big <= 0 || big > total) throw NUM;
+  const least = Math.max(0, n - total + big);
+  if (k < least || k > Math.min(n, big)) throw NUM;
+  const term = (i: number) => Math.exp(logChoose(big, i) + logChoose(total - big, n - i) - logChoose(total, n));
+  if (!cumulative) return term(k);
+  let s = 0;
+  for (let i = least; i <= k; i++) s += term(i);
+  return Math.min(1, s);
+}
+
+/** The two-tailed chance that a ratio of variances this far from 1 happens by chance. */
+function fTest(a: Operand[], ctx: Ctx): number {
+  const xs = list([a[0]], ctx);
+  const ys = list([a[1]], ctx);
+  if (xs.length < 2 || ys.length < 2) throw DIV0;
+  const vx = variance(xs, true);
+  const vy = variance(ys, true);
+  if (vx === 0 || vy === 0) throw DIV0;
+  const f = vx / vy;
+  const d1 = xs.length - 1;
+  const d2 = ys.length - 1;
+  return 2 * Math.min(fDist(f, d1, d2), fDist(f, d1, d2, true));
+}
+
+/** Student's t-test: paired (1), equal variances (2) or unequal (3); one or two tails. */
+function tTest(a: Operand[], ctx: Ctx): number {
+  const tails = Math.trunc(num(scalarOf(a[2], ctx)));
+  const type = Math.trunc(num(scalarOf(a[3], ctx)));
+  if ((tails !== 1 && tails !== 2) || type < 1 || type > 3) throw NUM;
+  let t: number;
+  let df: number;
+  if (type === 1) {
+    const { y, x } = pairs(a[0], a[1], ctx);
+    const d = y.map((v, i) => v - x[i]);
+    if (d.length < 2) throw DIV0;
+    const s = variance(d, true);
+    if (s === 0) throw DIV0;
+    t = sum(d) / d.length / Math.sqrt(s / d.length);
+    df = d.length - 1;
+  } else {
+    const xs = list([a[0]], ctx);
+    const ys = list([a[1]], ctx);
+    const n1 = xs.length;
+    const n2 = ys.length;
+    if (n1 < 2 || n2 < 2) throw DIV0;
+    const v1 = variance(xs, true);
+    const v2 = variance(ys, true);
+    const diff = sum(xs) / n1 - sum(ys) / n2;
+    if (type === 2) {
+      df = n1 + n2 - 2;
+      const pooled = ((n1 - 1) * v1 + (n2 - 1) * v2) / df;
+      t = diff / Math.sqrt(pooled * (1 / n1 + 1 / n2));
+    } else {
+      const e1 = v1 / n1;
+      const e2 = v2 / n2;
+      t = diff / Math.sqrt(e1 + e2);
+      df = (e1 + e2) ** 2 / (e1 ** 2 / (n1 - 1) + e2 ** 2 / (n2 - 1));
+    }
+    if (!Number.isFinite(t)) throw DIV0;
+  }
+  return tails * tUpper(Math.abs(t), df);
+}
+
+function chiTest(a: Operand[], ctx: Ctx): number {
+  const actual = matrixOf(a[0], ctx);
+  const expected = matrixOf(a[1], ctx);
+  if (actual.rows !== expected.rows || actual.cols !== expected.cols) throw NA;
+  let chi = 0;
+  for (let i = 0; i < actual.data.length; i++) {
+    const o = actual.data[i];
+    const e = expected.data[i];
+    if (isError(o)) throw o;
+    if (isError(e)) throw e;
+    if (typeof o !== 'number' || typeof e !== 'number') continue;
+    if (e === 0) throw DIV0;
+    chi += (o - e) ** 2 / e;
+  }
+  const df = actual.rows > 1 && actual.cols > 1 ? (actual.rows - 1) * (actual.cols - 1) : actual.data.length - 1;
+  if (df < 1) throw NA;
+  return gammaP(df / 2, chi / 2, true);
+}
+
+function zTest(a: Operand[], ctx: Ctx): number {
+  const xs = list([a[0]], ctx);
+  if (!xs.length) throw NA;
+  const x = num(scalarOf(a[1], ctx));
+  const sigma = given(a, 2) ? num(scalarOf(a[2], ctx)) : Math.sqrt(variance(xs, true));
+  if (sigma === 0) throw DIV0;
+  return normalCdf(-((sum(xs) / xs.length - x) / (sigma / Math.sqrt(xs.length))));
+}
+
+function nonNegative(v: Scalar): number {
+  const x = num(v);
+  if (x < 0) throw NUM;
+  return x;
+}
+
+function confidence(alpha: Scalar, sd: Scalar, size: Scalar, student: boolean): number {
+  const a = probability(alpha, true);
+  const s = positive(sd);
+  const n = Math.trunc(num(size));
+  if (n < 1) throw NUM;
+  if (student && n === 1) throw DIV0;
+  return ((student ? tUpperInverse(a / 2, n - 1) : -normalInverse(a / 2)) * s) / Math.sqrt(n);
+}
+
+function logNormal(x: Scalar, mean: Scalar, sd: Scalar, cumulative: boolean): number {
+  const v = positive(x);
+  const s = positive(sd);
+  const z = (Math.log(v) - num(mean)) / s;
+  return cumulative ? normalCdf(z) : normalPdf(z) / (v * s);
+}
+
+function twoTailedT(p: Scalar, v: Scalar): number {
+  const q = num(p);
+  if (q <= 0 || q > 1) throw NUM;
+  const df = degrees(v);
+  return q === 1 ? 0 : tUpperInverse(q / 2, df);
+}
+
+function chiUpperInverse(p: Scalar, v: Scalar): number {
+  const k = degrees(v);
+  return inverseUpper((x) => gammaP(k / 2, x / 2, true), probability(p));
+}
+
+function fUpperInverse(p: Scalar, v1: Scalar, v2: Scalar): number {
+  const d1 = degrees(v1);
+  const d2 = degrees(v2);
+  return inverseUpper((f) => fDist(f, d1, d2, true), probability(p));
+}
+
+function gammaDist(x: Scalar, a: Scalar, b: Scalar, cumulative: boolean): number {
+  const v = nonNegative(x);
+  const alpha = positive(a);
+  const beta = positive(b);
+  return cumulative ? gammaP(alpha, v / beta) : gammaDensity(v, alpha, beta);
+}
+
+function gammaInverse(p: Scalar, a: Scalar, b: Scalar): number {
+  const q = probability(p);
+  const alpha = positive(a);
+  const beta = positive(b);
+  return inverseFrom0((x) => gammaP(alpha, x / beta), q);
+}
+
+function binomial(s: Scalar, n: Scalar, p: Scalar, cumulative: boolean): number {
+  const k = Math.trunc(num(s));
+  const trials = Math.trunc(num(n));
+  const chance = probability(p);
+  if (k < 0 || k > trials) throw NUM;
+  return binomialRange(trials, chance, cumulative ? 0 : k, k);
+}
+
+function criticalBinomial(n: Scalar, p: Scalar, alpha: Scalar): number {
+  const trials = Math.trunc(num(n));
+  const chance = probability(p);
+  const a = probability(alpha);
+  if (trials < 0) throw NUM;
+  return binomialInverse(trials, chance, a);
+}
+
+function poisson(x: Scalar, m: Scalar, cumulative: boolean): number {
+  const k = Math.trunc(num(x));
+  const mean = num(m);
+  if (k < 0 || mean < 0) throw NUM;
+  if (cumulative) return gammaP(k + 1, mean, true);
+  if (mean === 0) return k === 0 ? 1 : 0;
+  return Math.exp(k * Math.log(mean) - mean - logGamma(k + 1));
+}
+
+function exponential(x: Scalar, l: Scalar, cumulative: boolean): number {
+  const v = nonNegative(x);
+  const rate = positive(l);
+  return cumulative ? -Math.expm1(-rate * v) : rate * Math.exp(-rate * v);
+}
+
+function weibull(x: Scalar, a: Scalar, b: Scalar, cumulative: boolean): number {
+  const v = nonNegative(x);
+  const alpha = positive(a);
+  const beta = positive(b);
+  const u = (v / beta) ** alpha;
+  return cumulative ? -Math.expm1(-u) : (alpha / beta) * (v / beta) ** (alpha - 1) * Math.exp(-u);
+}
+
 /** The largest matrix MINVERSE and MDETERM work on, as the work grows with the cube of its size. */
 const MAX_MATRIX = 400;
 
@@ -2333,6 +2786,176 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (num(sd) <= 0) throw NUM;
     return (num(x) - num(m)) / num(sd);
   }),
+
+  // Descriptive statistics
+  AVEDEV: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    if (!xs.length) throw NUM;
+    const mean = sum(xs) / xs.length;
+    return sum(xs.map((x) => Math.abs(x - mean))) / xs.length;
+  } },
+  DEVSQ: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    if (!xs.length) throw NUM;
+    const mean = sum(xs) / xs.length;
+    return sum(xs.map((x) => (x - mean) ** 2));
+  } },
+  GEOMEAN: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    if (!xs.length || xs.some((x) => x <= 0)) throw NUM;
+    return Math.exp(sum(xs.map(Math.log)) / xs.length);
+  } },
+  HARMEAN: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    if (!xs.length || xs.some((x) => x <= 0)) throw NUM;
+    return xs.length / sum(xs.map((x) => 1 / x));
+  } },
+  SKEW: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    const n = xs.length;
+    if (n < 3) throw DIV0;
+    return (n / ((n - 1) * (n - 2))) * cubes(xs, Math.sqrt(variance(xs, true)));
+  } },
+  'SKEW.P': { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    return cubes(xs, Math.sqrt(variance(xs, false))) / xs.length;
+  } },
+  AVERAGEA: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = listA(a, ctx);
+    if (!xs.length) throw DIV0;
+    return sum(xs) / xs.length;
+  } },
+  MAXA: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = listA(a, ctx);
+    return xs.length ? xs.reduce((m, x) => (x > m ? x : m), -Infinity) : 0;
+  } },
+  MINA: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = listA(a, ctx);
+    return xs.length ? xs.reduce((m, x) => (x < m ? x : m), Infinity) : 0;
+  } },
+  STDEVA: { min: 1, max: MANY, fn: (a, ctx) => Math.sqrt(variance(listA(a, ctx), true)) },
+  STDEVPA: { min: 1, max: MANY, fn: (a, ctx) => Math.sqrt(variance(listA(a, ctx), false)) },
+  VARA: { min: 1, max: MANY, fn: (a, ctx) => variance(listA(a, ctx), true) },
+  VARPA: { min: 1, max: MANY, fn: (a, ctx) => variance(listA(a, ctx), false) },
+
+  // More of the normal distribution
+  GAUSS: dist(1, 1, ([z]) => 0.5 * erf(num(z) / Math.SQRT2)),
+  PHI: dist(1, 1, ([x]) => normalPdf(num(x))),
+  FISHER: dist(1, 1, ([x]) => {
+    const v = num(x);
+    if (v <= -1 || v >= 1) throw NUM;
+    return Math.atanh(v);
+  }),
+  FISHERINV: dist(1, 1, ([y]) => Math.tanh(num(y))),
+  CONFIDENCE: dist(3, 3, ([alpha, sd, n]) => confidence(alpha, sd, n, false)),
+  'CONFIDENCE.NORM': dist(3, 3, ([alpha, sd, n]) => confidence(alpha, sd, n, false)),
+  'CONFIDENCE.T': dist(3, 3, ([alpha, sd, n]) => confidence(alpha, sd, n, true)),
+  'Z.TEST': { min: 2, max: 3, fn: (a, ctx) => zTest(a, ctx) },
+  ZTEST: { min: 2, max: 3, fn: (a, ctx) => zTest(a, ctx) },
+  'LOGNORM.DIST': dist(4, 4, ([x, m, sd, c]) => logNormal(x, m, sd, bool(c))),
+  LOGNORMDIST: dist(3, 3, ([x, m, sd]) => logNormal(x, m, sd, true)),
+  'LOGNORM.INV': dist(3, 3, ([p, m, sd]) => Math.exp(num(m) + positive(sd) * normalInverse(num(p)))),
+  LOGINV: dist(3, 3, ([p, m, sd]) => Math.exp(num(m) + positive(sd) * normalInverse(num(p)))),
+
+  // Student's t
+  'T.DIST': dist(3, 3, ([x, v, c]) => {
+    const t = num(x);
+    const df = degrees(v);
+    return bool(c) ? 1 - tUpper(t, df) : tDensity(t, df);
+  }),
+  'T.DIST.RT': dist(2, 2, ([x, v]) => tUpper(num(x), degrees(v))),
+  'T.DIST.2T': dist(2, 2, ([x, v]) => {
+    const t = num(x);
+    if (t < 0) throw NUM;
+    return 2 * tUpper(t, degrees(v));
+  }),
+  TDIST: dist(3, 3, ([x, v, tails]) => {
+    const t = num(x);
+    const n = Math.trunc(num(tails));
+    if (t < 0 || (n !== 1 && n !== 2)) throw NUM;
+    return n * tUpper(t, degrees(v));
+  }),
+  'T.INV': dist(2, 2, ([p, v]) => tInverse(probability(p, true), degrees(v))),
+  'T.INV.2T': dist(2, 2, ([p, v]) => twoTailedT(p, v)),
+  TINV: dist(2, 2, ([p, v]) => twoTailedT(p, v)),
+  'T.TEST': { min: 4, max: 4, fn: (a, ctx) => tTest(a, ctx) },
+  TTEST: { min: 4, max: 4, fn: (a, ctx) => tTest(a, ctx) },
+
+  // Chi-squared
+  'CHISQ.DIST': dist(3, 3, ([x, v, c]) => {
+    const k = degrees(v);
+    const y = nonNegative(x);
+    return bool(c) ? gammaP(k / 2, y / 2) : gammaDensity(y, k / 2, 2);
+  }),
+  'CHISQ.DIST.RT': dist(2, 2, ([x, v]) => gammaP(degrees(v) / 2, nonNegative(x) / 2, true)),
+  CHIDIST: dist(2, 2, ([x, v]) => gammaP(degrees(v) / 2, nonNegative(x) / 2, true)),
+  'CHISQ.INV': dist(2, 2, ([p, v]) => {
+    const k = degrees(v);
+    return inverseFrom0((x) => gammaP(k / 2, x / 2), probability(p));
+  }),
+  'CHISQ.INV.RT': dist(2, 2, ([p, v]) => chiUpperInverse(p, v)),
+  CHIINV: dist(2, 2, ([p, v]) => chiUpperInverse(p, v)),
+  'CHISQ.TEST': { min: 2, max: 2, fn: (a, ctx) => chiTest(a, ctx) },
+  CHITEST: { min: 2, max: 2, fn: (a, ctx) => chiTest(a, ctx) },
+
+  // F
+  'F.DIST': dist(4, 4, ([x, v1, v2, c]) => {
+    const f = nonNegative(x);
+    const d1 = degrees(v1);
+    const d2 = degrees(v2);
+    return bool(c) ? fDist(f, d1, d2) : fDensity(f, d1, d2);
+  }),
+  'F.DIST.RT': dist(3, 3, ([x, v1, v2]) => fDist(nonNegative(x), degrees(v1), degrees(v2), true)),
+  FDIST: dist(3, 3, ([x, v1, v2]) => fDist(nonNegative(x), degrees(v1), degrees(v2), true)),
+  'F.INV': dist(3, 3, ([p, v1, v2]) => {
+    const d1 = degrees(v1);
+    const d2 = degrees(v2);
+    return inverseFrom0((f) => fDist(f, d1, d2), probability(p));
+  }),
+  'F.INV.RT': dist(3, 3, ([p, v1, v2]) => fUpperInverse(p, v1, v2)),
+  FINV: dist(3, 3, ([p, v1, v2]) => fUpperInverse(p, v1, v2)),
+  'F.TEST': { min: 2, max: 2, fn: (a, ctx) => fTest(a, ctx) },
+  FTEST: { min: 2, max: 2, fn: (a, ctx) => fTest(a, ctx) },
+
+  // Gamma and beta
+  GAMMA: dist(1, 1, ([x]) => gamma(num(x))),
+  GAMMALN: dist(1, 1, ([x]) => logGamma(positive(x))),
+  'GAMMALN.PRECISE': dist(1, 1, ([x]) => logGamma(positive(x))),
+  'GAMMA.DIST': dist(4, 4, ([x, a, b, c]) => gammaDist(x, a, b, bool(c))),
+  GAMMADIST: dist(4, 4, ([x, a, b, c]) => gammaDist(x, a, b, bool(c))),
+  'GAMMA.INV': dist(3, 3, ([p, a, b]) => gammaInverse(p, a, b)),
+  GAMMAINV: dist(3, 3, ([p, a, b]) => gammaInverse(p, a, b)),
+  'BETA.DIST': dist(4, 6, ([x, alpha, beta, c, lo, hi]) => {
+    const [a, b] = betaShape(alpha, beta);
+    const at = betaPlace(x, lo, hi);
+    if (bool(c)) return betaI(at.x, 1 - at.x, a, b);
+    return Math.exp((a - 1) * Math.log(at.x) + (b - 1) * Math.log1p(-at.x) - logBeta(a, b)) / at.width;
+  }),
+  BETADIST: dist(3, 5, ([x, alpha, beta, lo, hi]) => {
+    const [a, b] = betaShape(alpha, beta);
+    const at = betaPlace(x, lo, hi);
+    return betaI(at.x, 1 - at.x, a, b);
+  }),
+  'BETA.INV': dist(3, 5, ([p, a, b, lo, hi]) => betaInverse(p, a, b, lo, hi)),
+  BETAINV: dist(3, 5, ([p, a, b, lo, hi]) => betaInverse(p, a, b, lo, hi)),
+
+  // Counts of events
+  'BINOM.DIST': dist(4, 4, ([s, n, p, c]) => binomial(s, n, p, bool(c))),
+  BINOMDIST: dist(4, 4, ([s, n, p, c]) => binomial(s, n, p, bool(c))),
+  'BINOM.INV': dist(3, 3, ([n, p, alpha]) => criticalBinomial(n, p, alpha)),
+  CRITBINOM: dist(3, 3, ([n, p, alpha]) => criticalBinomial(n, p, alpha)),
+  'NEGBINOM.DIST': dist(4, 4, ([f, s, p, c]) => negativeBinomial(f, s, p, bool(c))),
+  NEGBINOMDIST: dist(3, 3, ([f, s, p]) => negativeBinomial(f, s, p, false)),
+  'HYPGEOM.DIST': dist(5, 5, (a) => hypergeometric(a, bool(a[4]))),
+  HYPGEOMDIST: dist(4, 4, (a) => hypergeometric(a, false)),
+  'POISSON.DIST': dist(3, 3, ([x, m, c]) => poisson(x, m, bool(c))),
+  POISSON: dist(3, 3, ([x, m, c]) => poisson(x, m, bool(c))),
+
+  // Times between events
+  'EXPON.DIST': dist(3, 3, ([x, l, c]) => exponential(x, l, bool(c))),
+  EXPONDIST: dist(3, 3, ([x, l, c]) => exponential(x, l, bool(c))),
+  'WEIBULL.DIST': dist(4, 4, ([x, a, b, c]) => weibull(x, a, b, bool(c))),
+  WEIBULL: dist(4, 4, ([x, a, b, c]) => weibull(x, a, b, bool(c))),
 
   // Matrices
   MUNIT: scalar(1, 1, ([n]) => {
