@@ -1,0 +1,61 @@
+{
+  "=DCOUNT(Data!A5:E11,\"Age\",Data!A1:F2)": 1,
+  "=DCOUNTA(Data!A5:E11,\"Profit\",Data!A1:F2)": 1,
+  "=DMAX(Data!A5:E11,\"Profit\",Data!A1:A3)": 105,
+  "=DMIN(Data!A5:E11,\"Profit\",Data!A1:B2)": 75,
+  "=DSUM(Data!A5:E11,\"Profit\",Data!A1:A2)": 225,
+  "=DSUM(Data!A5:E11,\"Profit\",Data!A1:F2)": 75,
+  "=DPRODUCT(Data!A5:E11,\"Yield\",Data!A1:F2)": 10,
+  "=DAVERAGE(Data!A5:E11,\"Yield\",Data!A1:B2)": 12,
+  "=DAVERAGE(Data!A5:E11,3,Data!A5:E11)": 13,
+  "=DSTDEV(Data!A5:E11,\"Yield\",Data!A1:A3)": 2.9664793948382653,
+  "=DSTDEVP(Data!A5:E11,\"Yield\",Data!A1:A3)": 2.65329983228432,
+  "=DVAR(Data!A5:E11,\"Yield\",Data!A1:A3)": 8.8,
+  "=DVARP(Data!A5:E11,\"Yield\",Data!A1:A3)": 7.040000000000001,
+  "=DGET(Data!A5:E11,\"Yield\",Data!A1:A3)": {
+    "error": "#NUM!"
+  },
+  "=DGET(Data!A5:E11,\"Yield\",Data!A1:F2)": 10,
+  "=DGET(Data!A5:E11,\"Tree\",Data!M1:M2)": {
+    "error": "#VALUE!"
+  },
+  "=DCOUNTA(Data!A5:E11,\"Tree\",Data!H1:H2)": 1,
+  "=DSUM(Data!A5:E11,\"Height\",Data!I1:I2)": 31,
+  "=DCOUNT(Data!A5:E11,,Data!J1:J2)": 3,
+  "=DCOUNTA(Data!A5:E11,,Data!K1:K2)": 2,
+  "=DSUM(Data!A5:E11,\"Profit\",Data!L1:L3)": 426,
+  "=DSUM(Data!A5:E11,\"profit\",Data!A1:A2)": 225,
+  "=DSUM(Data!A5:E11,\"Weight\",Data!A1:A2)": {
+    "error": "#VALUE!"
+  },
+  "=DSUM(Data!A5:E11,6,Data!A1:A2)": {
+    "error": "#VALUE!"
+  },
+  "=DSUM(Data!A5:E11,0,Data!A1:A2)": {
+    "error": "#VALUE!"
+  },
+  "=DMAX(Data!A5:E11,\"Profit\",Data!M1:M2)": 0,
+  "=DPRODUCT(Data!A5:E11,\"Profit\",Data!M1:M2)": 0,
+  "=DAVERAGE(Data!A5:E11,\"Profit\",Data!M1:M2)": {
+    "error": "#DIV/0!"
+  },
+  "=DSTDEV(Data!A5:E11,\"Profit\",Data!I1:I2)": 0,
+  "=TBILLPRICE(DATE(2008,3,31),DATE(2008,6,1),0.09)": 98.45,
+  "=TBILLYIELD(DATE(2008,3,31),DATE(2008,6,1),98.45)": 0.09141696292534264,
+  "=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),0.0914)": 0.09415149356594302,
+  "=TBILLEQ(DATE(2008,1,1),DATE(2008,12,1),0.0914)": 0.09905080847249331,
+  "=TBILLPRICE(DATE(2008,6,1),DATE(2008,3,31),0.09)": {
+    "error": "#NUM!"
+  },
+  "=TBILLPRICE(DATE(2008,1,1),DATE(2009,1,1),0.09)": 90.85,
+  "=TBILLPRICE(DATE(2008,1,1),DATE(2009,1,2),0.09)": {
+    "error": "#NUM!"
+  },
+  "=TBILLYIELD(DATE(2008,3,31),DATE(2008,6,1),0)": {
+    "error": "#NUM!"
+  },
+  "=TBILLEQ(DATE(2008,3,31),DATE(2008,6,1),-0.01)": {
+    "error": "#NUM!"
+  },
+  "=TBILLPRICE(\"2008-03-31\",\"2008-06-01\",0.09)": 98.45
+}
