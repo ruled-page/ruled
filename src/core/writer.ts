@@ -562,7 +562,7 @@ const XLDAPR_BLOCK = `<bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c
  * formula, as Excel writes it: an XLDAPR entry in the workbook's metadata
  * part. The part, or the entry, is added when the workbook has none.
  */
-function dynamicArrayMetadata(pkg: OoxmlPackage, workbookPath: string): number {
+export function dynamicArrayMetadata(pkg: OoxmlPackage, workbookPath: string): number {
   const rel = pkg.rels(workbookPath).find((r) => r.type === 'sheetMetadata');
   const existing = rel ? pkg.text(rel.target) : undefined;
   if (!rel || !existing) {

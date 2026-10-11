@@ -3,7 +3,9 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { it } from 'vitest';
 import { tolerance } from '../src/core/engine';
-import { functionNames, toFileFormula } from '../src/core/formula';
+import { functionNames, isDynamicArrayFormula, toFileFormula } from '../src/core/formula';
+import { dynamicArrayMetadata } from '../src/core/writer';
+import { OoxmlPackage } from '../src/core/zip';
 import { nativeEngine } from '../src/engine/native';
 import { checkSheets, DATA, FAMILIES } from '../tests/excel-checks/cases';
 
@@ -70,7 +72,21 @@ it('writes the Excel check workbooks', async () => {
         }),
       );
     }
-    await wb.xlsx.writeFile(join(dir, `${family}.xlsx`));
+    // Formulas using array functions are marked as dynamic array formulas, as
+    // the editor saves them; without the mark Excel shows #NAME? for RANDARRAY.
+    const pkg = OoxmlPackage.open(new Uint8Array(await wb.xlsx.writeBuffer()));
+    const dynamic = formulas.map((f) => isDynamicArrayFormula(toFileFormula(f).slice(1)));
+    if (dynamic.some(Boolean)) {
+      const cm = dynamicArrayMetadata(pkg, 'xl/workbook.xml');
+      const sheet = 'xl/worksheets/sheet1.xml';
+      let xml = pkg.text(sheet)!;
+      dynamic.forEach((d, i) => {
+        const r = first + i;
+        if (d) xml = xml.replace(new RegExp(`<c r="B${r}"([^>]*)><f>`), `<c r="B${r}"$1 cm="${cm}"><f t="array" ref="B${r}">`);
+      });
+      pkg.setText(sheet, xml);
+    }
+    writeFileSync(join(dir, `${family}.xlsx`), pkg.toBytes());
     writeFileSync(join(dir, `${family}.pending.json`), `${JSON.stringify(Object.fromEntries(formulas.map((f, i) => [f, answers[i]])), null, 2)}\n`);
     console.log(`${family}: ${formulas.length} formulas, written to tests/excel-checks/${family}.xlsx${missing.length ? `; not calculated here: ${missing.join(' ')}` : ''}`);
   }
