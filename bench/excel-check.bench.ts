@@ -7,7 +7,7 @@ import { functionNames, isDynamicArrayFormula, toFileFormula } from '../src/core
 import { dynamicArrayMetadata } from '../src/core/writer';
 import { OoxmlPackage } from '../src/core/zip';
 import { nativeEngine } from '../src/engine/native';
-import { checkEngine, DATA, FAMILIES } from '../tests/excel-checks/cases';
+import { checkEngine, DATA, FAMILIES, NAMES } from '../tests/excel-checks/cases';
 
 /**
  * Writes tests/excel-checks/<family>.xlsx for each family of check formulas:
@@ -26,7 +26,8 @@ it('writes the Excel check workbooks', async () => {
   for (const [family, formulas] of Object.entries(FAMILIES)) {
     const engine = checkEngine(family);
     const answers: Answer[] = formulas.map((_f, i) => engine.value(0, i, 0) as Answer);
-    const missing = formulas.filter((f) => nativeEngine.unsupportedReason(toFileFormula(f).slice(1)));
+    const lambdas = new Set(Object.keys(NAMES[family] ?? {}));
+    const missing = formulas.filter((f) => nativeEngine.unsupportedReason(toFileFormula(f).slice(1), lambdas));
     engine.destroy();
 
     const wb = new ExcelJS.Workbook();
@@ -85,6 +86,12 @@ it('writes the Excel check workbooks', async () => {
         if (d) xml = xml.replace(new RegExp(`<c r="B${r}"([^>]*)><f>`), `<c r="B${r}"$1 cm="${cm}"><f t="array" ref="B${r}">`);
       });
       pkg.setText(sheet, xml);
+    }
+    const names = Object.entries(NAMES[family] ?? {});
+    if (names.length) {
+      const escape = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const defined = names.map(([name, f]) => `<definedName name="${name}">${escape(toFileFormula(f).slice(1))}</definedName>`).join('');
+      pkg.setText('xl/workbook.xml', pkg.text('xl/workbook.xml')!.replace('</sheets>', `</sheets><definedNames>${defined}</definedNames>`));
     }
     writeFileSync(join(dir, `${family}.xlsx`), pkg.toBytes());
     writeFileSync(join(dir, `${family}.pending.json`), `${JSON.stringify(Object.fromEntries(formulas.map((f, i) => [f, answers[i]])), null, 2)}\n`);

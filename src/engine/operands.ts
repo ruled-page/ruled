@@ -46,6 +46,8 @@ export interface Ctx {
    */
   legacy: boolean;
   notes?: CellNotes;
+  /** The values of the LAMBDA parameters in scope, by name in capitals. */
+  vars?: Record<string, Operand>;
 }
 
 // -----------------------------------------------------------------------------

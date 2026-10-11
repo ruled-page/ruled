@@ -31,7 +31,7 @@ import { mergeEditResults } from './editResult';
 import { ENGLISH_LISTS, planFill, seriesLine, type FillSource } from './fill';
 import { SheetLinks } from './hyperlinks';
 import { copyLinks, isHyperlinkFormula, literalHyperlinkTarget, sortLinks } from './links';
-import { displayFormula, engineFormula, functionNames, isVolatile, makeShifter, validateFormula } from './formula';
+import { displayFormula, engineFormula, functionNames, isVolatile, makeShifter, stripFunctionPrefixes, validateFormula } from './formula';
 import { parseInput } from './input';
 import { SheetLayout } from './layout';
 import { isBuiltinName, isName, nameProblem } from './names';
@@ -358,6 +358,8 @@ export class WorkbookSession {
   private readonly people: Map<string, Person>;
   /** Per sheet: the file's notes and threads by cell, made when first needed. */
   private fileNotes?: Map<number, CellNote>[];
+  /** The names defined as LAMBDAs, in capitals, which formulas call as functions; worked out again when names change. */
+  private lambdas?: Set<string>;
   /** The file's defined names, as opened; model.names holds them as they now are. */
   private readonly fileNames: DefinedName[];
   /** Per sheet: its hyperlinks, once one has been added, changed or removed. */
@@ -698,6 +700,12 @@ export class WorkbookSession {
     return { content: gridContent(grid, idx), style: grid.styles[idx], idx };
   }
 
+  /** Why the engine can't calculate a formula in a cell, or undefined when it can. */
+  private unsupported(formula: string, sheet: number, row: number, col: number): Unsupported | undefined {
+    this.lambdas ??= new Set(this.model.names.filter((n) => /^\s*LAMBDA\s*\(/i.test(stripFunctionPrefixes(n.formula))).map((n) => n.name.toUpperCase()));
+    return this.engineKind.unsupportedReason(this.engineText(formula, sheet, row, col), this.lambdas);
+  }
+
   current(sheet: number, row: number, col: number): CellState {
     return this.edits[sheet].get(cellKey(row, col)) ?? this.original(sheet, row, col);
   }
@@ -864,11 +872,11 @@ export class WorkbookSession {
         const spill = this.savedSpill(s, idx, row, col);
         if (spill) {
           // An array formula, dynamic or entered with Ctrl+Shift+Enter, is calculated here when the engine can calculate its formula.
-          reason = this.engineKind.unsupportedReason(this.engineText(formula, s, row, col));
+          reason = this.unsupported(formula, s, row, col);
           this.markFileArray(grid, idx, spill, !reason);
         } else if (flags & CellFlag.ArrayMember) reason = { kind: 'array' };
         else if (flags & CellFlag.Unsupported) reason = { kind: 'sharedFormula' };
-        else reason = this.engineKind.unsupportedReason(this.engineText(formula, s, row, col));
+        else reason = this.unsupported(formula, s, row, col);
         if (!reason) continue;
         unsupported++;
         const key = JSON.stringify(reason);
@@ -1237,7 +1245,7 @@ export class WorkbookSession {
     this.edits.forEach((m, s) => {
       for (const [key, st] of m) {
         if (st.content.kind !== 'formula') continue;
-        if (this.engineKind.unsupportedReason(this.engineText(st.content.formula, s, Math.floor(key / MAX_COLS), key % MAX_COLS))) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
+        if (this.unsupported(st.content.formula, s, Math.floor(key / MAX_COLS), key % MAX_COLS)) this.newFormulaFlags[s].set(key, CellFlag.Unsupported);
         else this.values[s].set(key, this.engine!.value(s, Math.floor(key / MAX_COLS), key % MAX_COLS));
       }
     });
@@ -1945,6 +1953,7 @@ export class WorkbookSession {
    * use them. A change to a name that has gone is skipped.
    */
   private applyNames(changes: NameChange[]): EditResult {
+    this.lambdas = undefined;
     const names = this.model.names;
     const applied: NameChange[] = [];
     const undo: NameChange[] = [];
@@ -2193,7 +2202,7 @@ export class WorkbookSession {
       const untrusted = this.isUntrustedOriginal(w.sheet, w.row, w.col);
       const grid = this.sheet(w.sheet).scan?.grid;
       // A formula over the engine's size limits never reaches it.
-      const tooLarge = w.content.kind === 'formula' && this.engineKind.unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))?.kind === 'tooLarge';
+      const tooLarge = w.content.kind === 'formula' && this.unsupported(w.content.formula, w.sheet, w.row, w.col)?.kind === 'tooLarge';
       return {
         sheet: w.sheet,
         row: w.row,
@@ -2209,7 +2218,7 @@ export class WorkbookSession {
     const calculated: Write[] = [];
     for (const w of applied) {
       if (w.content.kind !== 'formula' || this.isUntrustedOriginal(w.sheet, w.row, w.col)) continue;
-      if (!engine || this.engineKind.unsupportedReason(this.engineText(w.content.formula, w.sheet, w.row, w.col))) {
+      if (!engine || this.unsupported(w.content.formula, w.sheet, w.row, w.col)) {
         this.newFormulaFlags[w.sheet].set(cellKey(w.row, w.col), CellFlag.Unsupported);
         newUnsupported.push(w);
       } else {

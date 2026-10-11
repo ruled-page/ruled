@@ -146,8 +146,12 @@ export interface EngineLookups {
 export interface EngineKind {
   readonly id: string;
   readonly name: string;
-  /** Why this engine can't calculate a formula (file form, without "="), or undefined when it can. */
-  unsupportedReason(fileFormula: string): Unsupported | undefined;
+  /**
+   * Why this engine can't calculate a formula (file form, without "="), or
+   * undefined when it can; `lambdas` are the workbook's names defined as
+   * LAMBDAs, in capitals, which formulas call as functions.
+   */
+  unsupportedReason(fileFormula: string, lambdas?: ReadonlySet<string>): Unsupported | undefined;
   create(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean, lookups?: EngineLookups): FormulaEngine;
 }
 

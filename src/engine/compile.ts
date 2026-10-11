@@ -3,7 +3,7 @@ import { stripFunctionPrefixes } from '../core/formula';
 import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import { FUNCTIONS } from './functions';
 import { apply, attempt, each, pairwise, scalarOf, valuesOf, type Ctx, type Host } from './operands';
-import { Areas, cancel, compare, err, isError, Matrix, NAME, NULL, num, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, cancel, compare, err, isError, Lambda, Matrix, NAME, NULL, NUM, num, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
 
 export type { Ctx, Host };
 
@@ -100,13 +100,55 @@ type AstNode =
   | { type: 'ErrorLiteral'; value: string }
   | { type: 'UnaryExpression'; operator: string; arguments: AstNode[] }
   | { type: 'BinaryExpression'; operator: string; arguments: AstNode[] }
-  | { type: 'CallExpression'; callee: { name: string }; arguments: (AstNode | null)[] }
+  | { type: 'CallExpression'; callee: AstNode | { type: 'Identifier'; name: string }; arguments: (AstNode | null)[] }
   | { type: 'ArrayExpression'; elements: AstNode[][] }
-  | { type: 'LambdaExpression' }
+  | { type: 'LambdaExpression'; params: { name: string }[]; body: AstNode | null }
   | { type: 'LetExpression' };
 
-// A LAMBDA called where it is written has no name; it isn't calculated here yet.
-const callName = (n: { callee: { name?: string } }) => stripFunctionPrefixes(n.callee.name ?? 'LAMBDA').toUpperCase();
+/** The function a call names; a LAMBDA called where it is written, LAMBDA(x,x+1)(2), has none. */
+const callName = (n: { callee: object }) => ('name' in n.callee && typeof n.callee.name === 'string' ? stripFunctionPrefixes(n.callee.name).toUpperCase() : '');
+
+/** LAMBDA parameters in scope while a body is compiled, innermost last. */
+const scopes: Set<string>[] = [];
+const inScope = (name: string) => scopes.some((s) => s.has(name));
+
+/** How deeply LAMBDAs may call themselves (through names) before giving #NUM!, as Excel stops them. */
+const MAX_LAMBDA_DEPTH = 1000;
+let lambdaDepth = 0;
+
+/** LAMBDA(x, y, body): a function, run with as many values as it has parameters, which see them by name. */
+function lambda(n: { params: { name: string }[]; body: AstNode | null }, t: Template): Node {
+  const params = n.params.map((p) => stripFunctionPrefixes(p.name).toUpperCase());
+  scopes.push(new Set(params));
+  let body: Node;
+  try {
+    body = node(n.body, t);
+  } finally {
+    scopes.pop();
+  }
+  return (ctx) =>
+    new Lambda(params, (args) => {
+      if (args.length !== params.length) return VALUE;
+      if (lambdaDepth >= MAX_LAMBDA_DEPTH) return NUM;
+      const vars = { ...ctx.vars };
+      params.forEach((p, i) => (vars[p] = args[i]));
+      lambdaDepth++;
+      try {
+        return body({ ...ctx, vars });
+      } catch (e) {
+        if (e instanceof RangeError) return NUM;
+        throw e;
+      } finally {
+        lambdaDepth--;
+      }
+    });
+}
+
+/** Runs a LAMBDA with the arguments a call gives it; a name that isn't one is an error. */
+function invoke(f: Operand | undefined, args: Node[], ctx: Ctx): Operand {
+  if (f instanceof Lambda) return f.call(args.map((a) => a(ctx)));
+  return isError(f) ? f : f === undefined ? NAME : VALUE;
+}
 
 function node(n: AstNode | null | undefined, t: Template): Node {
   if (!n) return () => null;
@@ -131,15 +173,19 @@ function node(n: AstNode | null | undefined, t: Template): Node {
       return binary(n.operator, node(n.arguments[0], t), node(n.arguments[1], t));
     case 'CallExpression':
       return call(n, t);
+    case 'LambdaExpression':
+      return lambda(n, t);
     default:
-      // LET is written out before formulas reach the engine; LAMBDA isn't calculated here yet.
+      // LET is written out before formulas reach the engine.
       return () => NAME;
   }
 }
 
 function reference(n: { value: string; kind: string }, t: Template): Node {
   if (n.kind === 'name') {
-    const name = n.value.toUpperCase();
+    const name = stripFunctionPrefixes(n.value).toUpperCase();
+    // A parameter can hold a blank, REDUCE(,…) giving one.
+    if (inScope(name)) return (ctx) => (ctx.vars && name in ctx.vars ? ctx.vars[name] : NAME);
     t.names.push(name);
     return (ctx) => ctx.host.name(name, ctx);
   }
@@ -306,13 +352,23 @@ function unary(op: string, operand: Node): Node {
 }
 
 /** A function call: arguments evaluated (or, for IF and its kind, handed over to evaluate as needed), then the function. */
-function call(n: { callee: { name: string }; arguments: (AstNode | null)[] }, t: Template): Node {
+function call(n: { callee: AstNode | { type: 'Identifier'; name: string }; arguments: (AstNode | null)[] }, t: Template): Node {
+  const args = n.arguments.map((a) => node(a, t));
   const name = callName(n);
+  // LAMBDA(x,x+1)(2), or a call whose result is called.
+  if (!name) {
+    const f = node(n.callee as AstNode, t);
+    return (ctx) => invoke(f(ctx), args, ctx);
+  }
+  // A parameter holding a LAMBDA, or a name defined as one.
+  if (inScope(name)) return (ctx) => invoke(ctx.vars?.[name], args, ctx);
   t.calls.add(name);
   const spec = FUNCTIONS[name];
-  if (!spec) return () => NAME;
+  if (!spec) {
+    t.names.push(name);
+    return (ctx) => invoke(ctx.host.name(name, ctx), args, ctx);
+  }
   if (spec.volatile) t.volatile = true;
-  const args = n.arguments.map((a) => node(a, t));
   if (args.length < spec.min || args.length > spec.max) return () => VALUE;
   if (spec.lazy) {
     const lazy = spec.lazy;

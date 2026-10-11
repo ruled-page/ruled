@@ -642,6 +642,38 @@ export const FAMILIES: Record<string, string[]> = {
     '=CELL("address",$C$7)',
     '=CELL("address",AB100:AC200)',
   ],
+  lambda: [
+    // LAMBDA written in place, and in names (DOUBLE, FACTORIAL)
+    '=LAMBDA(x,x+1)(2)',
+    '=LAMBDA(x,y,x*y)(3,4)',
+    '=LAMBDA(x,x)(1,2)',
+    '=LAMBDA(x,x+1)',
+    '=LAMBDA(x,LAMBDA(y,x+y))(1)(2)',
+    '=LET(f,LAMBDA(x,x^2),f(5))',
+    '=LAMBDA(r,SUM(r))(Data!A1:A3)',
+    '=DOUBLE(4)',
+    '=DOUBLE(DOUBLE(3))',
+    '=FACTORIAL(5)',
+    '=DOUBLE',
+    // Its helpers
+    '=SUM(MAP({1,2,3},LAMBDA(x,x*10)))',
+    '=INDEX(MAP({1,2;3,4},{10,20;30,40},LAMBDA(a,b,a+b)),2,2)',
+    '=SUM(MAP({1,2,3},{10;20},LAMBDA(a,b,a+b)))',
+    '=SUM(MAP({1,2},LAMBDA(x,y,x)))',
+    '=REDUCE(0,{1,2,3,4},LAMBDA(a,v,a+v))',
+    '=REDUCE(,{1,2,3},LAMBDA(a,v,a+v))',
+    '=REDUCE(1,Data!A1:A3,LAMBDA(a,v,a*v))',
+    '=INDEX(SCAN(0,{1,2,3},LAMBDA(a,v,a+v)),3)',
+    '=SUM(SCAN(1,{1,2,3},LAMBDA(a,v,a*v)))',
+    '=INDEX(BYROW({1,2;3,4},LAMBDA(r,SUM(r))),2)',
+    '=INDEX(BYCOL({1,2;3,4},LAMBDA(c,MAX(c))),2)',
+    '=SUM(BYROW(Data!A1:B3,LAMBDA(r,SUM(r))))',
+    '=INDEX(BYROW(Data!A1:B3,LAMBDA(r,ROW(r))),3)',
+    '=INDEX(BYROW({1,2;3,4},LAMBDA(r,r*2)),1)',
+    '=INDEX(MAKEARRAY(3,3,LAMBDA(r,c,r*c)),2,3)',
+    '=SUM(MAKEARRAY(2,2,LAMBDA(r,c,r+c)))',
+    '=SUM(MAKEARRAY(0,1,LAMBDA(r,c,1)))',
+  ],
 };
 
 type DataCell = string | number | boolean | null;
@@ -653,6 +685,13 @@ type DataCell = string | number | boolean | null;
  * and beside it; the references read a quarter's months and a total sheet.
  */
 export const DATA: Record<string, Record<string, DataCell[][]>> = {
+  lambda: {
+    Data: [
+      [2, 1],
+      [3, 1],
+      [4, 1],
+    ],
+  },
   'formulatext-cell': {
     Data: [
       ['=1+1', 3],
@@ -705,10 +744,19 @@ export function checkSheets(family: string): EngineSheet[] {
   return sheets;
 }
 
-/** The native engine on a family's sheets, told each cell's formula as written, for FORMULATEXT. */
+/** Defined names some families' formulas use, by name: what each refers to, written with "=". */
+export const NAMES: Record<string, Record<string, string>> = {
+  lambda: {
+    DOUBLE: '=LAMBDA(x,x*2)',
+    FACTORIAL: '=LAMBDA(n,IF(n<=1,1,n*FACTORIAL(n-1)))',
+  },
+};
+
+/** The native engine on a family's sheets and names, told each cell's formula as written, for FORMULATEXT. */
 export function checkEngine(family: string): FormulaEngine {
   const written = [FAMILIES[family].map((f) => [f]), ...Object.values(DATA[family] ?? {})];
-  return nativeEngine.create(checkSheets(family), [], false, {
+  const names = Object.entries(NAMES[family] ?? {}).map(([name, f]) => ({ name, formula: toFileFormula(f).slice(1) }));
+  return nativeEngine.create(checkSheets(family), names, false, {
     formulaText: (s, row, col) => {
       const v = written[s]?.[row]?.[col];
       return typeof v === 'string' && v.startsWith('=') ? v : undefined;

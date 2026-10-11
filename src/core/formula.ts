@@ -153,7 +153,8 @@ export function expandLets(fileFormula: string): string | undefined {
       // Without the spaces around the argument.
       while (a < b && list[a].type === 'whitespace') a++;
       while (b > a && list[b - 1].type === 'whitespace') b--;
-      return list.slice(a, b).flatMap((t) => (t.type === 'range_named' ? (values.get(parameterName(t)) ?? [t]) : [t]));
+      // A name's uses, and its calls when it holds a LAMBDA, f(5).
+      return list.slice(a, b).flatMap((t) => (t.type === 'range_named' || t.type === 'func' ? (values.get(parameterName(t)) ?? [t]) : [t]));
     };
     for (let n = 0; n < call.args.length - 1; n += 2) {
       const name = list.slice(...call.args[n]).filter((t) => t.type !== 'whitespace');
@@ -206,7 +207,8 @@ function lambdaParameters(list: Token[]): Set<number> {
     });
     for (let k = i + 2; k < end; k++) {
       const t = list[k];
-      if (t.type === 'range_named' && declared.has(t.value.toUpperCase())) out.add(k);
+      // A parameter, or a call of one that holds a LAMBDA, f(5).
+      if ((t.type === 'range_named' || (t.type === 'func' && list[k + 1]?.value === '(')) && declared.has(t.value.toUpperCase())) out.add(k);
     }
   }
   return out;

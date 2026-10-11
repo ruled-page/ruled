@@ -31,37 +31,58 @@ function cellCalculable(tokens: FxToken[], i: number): boolean {
 }
 
 /**
+ * The first function a parsed formula calls that the engine doesn't have,
+ * leaving out LAMBDA parameters called as functions, and names defined as
+ * LAMBDAs (`lambdas`, in capitals).
+ */
+function unknownCall(n: unknown, lambdas: ReadonlySet<string>, scope: ReadonlySet<string> = new Set()): string | undefined {
+  if (!n || typeof n !== 'object') return undefined;
+  const node = n as { type: string; callee?: { type: string; name?: string }; params?: { name: string }[]; body?: unknown; arguments?: unknown[]; elements?: unknown[][] };
+  if (node.type === 'LambdaExpression') return unknownCall(node.body, lambdas, new Set([...scope, ...(node.params ?? []).map((p) => p.name.toUpperCase())]));
+  if (node.type === 'CallExpression' && node.callee?.type === 'Identifier') {
+    const name = (node.callee.name ?? '').toUpperCase();
+    if ((!FUNCTIONS[name] || name === 'WBE.SPILL') && !scope.has(name) && !lambdas.has(name)) return name.replace(/^_XLUDF\./, '');
+  } else if (node.type === 'CallExpression') {
+    const inner = unknownCall(node.callee, lambdas, scope);
+    if (inner) return inner;
+  }
+  for (const a of [...(node.arguments ?? []), ...(node.elements ?? []).flat()]) {
+    const inner = unknownCall(a, lambdas, scope);
+    if (inner) return inner;
+  }
+  return undefined;
+}
+
+/**
  * Why this engine can't calculate a formula (file form), or undefined when
  * it can: CELL for what it doesn't know, functions it doesn't have yet, links to other workbooks, and
  * formulas over the size limits.
  */
-function unsupportedReason(fileFormula: string): Unsupported | undefined {
+function unsupportedReason(fileFormula: string, lambdas: ReadonlySet<string> = new Set()): Unsupported | undefined {
   const expanded = expandLets(fileFormula);
   if (expanded === undefined) return { kind: 'function', name: 'LET' };
   let tokens;
   try {
-    tokens = tokenize(expanded, { mergeRefs: true, allowTernary: false });
+    tokens = tokenize(stripFunctionPrefixes(expanded), { mergeRefs: true, allowTernary: false });
   } catch {
     return { kind: 'syntax' };
   }
   if (tooLargeToCalculate(tokens)) return { kind: 'tooLarge' };
   for (const t of tokens) {
     if (t.type === 'structured') return { kind: 'tableRefs' };
-    if (t.type === 'func') {
-      const name = stripFunctionPrefixes(t.value).toUpperCase();
-      if (!FUNCTIONS[name] || name === 'WBE.SPILL') return { kind: 'function', name: name.replace(/^_XLUDF\./, '') };
-    }
-    if (t.type === 'func' && stripFunctionPrefixes(t.value).toUpperCase() === 'CELL' && !cellCalculable(tokens, tokens.indexOf(t))) return { kind: 'function', name: 'CELL' };
+    if (t.type === 'func' && t.value.toUpperCase() === 'CELL' && !cellCalculable(tokens, tokens.indexOf(t))) return { kind: 'function', name: 'CELL' };
     if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
       if (t.value.includes('[')) return { kind: 'externalLinks' };
     }
   }
+  let ast;
   try {
-    parse(tokens, { permitArrayRanges: true, permitArrayCalls: true });
+    ast = parse(tokens, { permitArrayRanges: true, permitArrayCalls: true });
   } catch {
     return { kind: 'syntax' };
   }
-  return undefined;
+  const unknown = unknownCall(ast, lambdas);
+  return unknown === undefined ? undefined : { kind: 'function', name: unknown };
 }
 
 /** The editor's own engine (src/engine): no dependencies but the formula parser, and Excel's rules throughout. */

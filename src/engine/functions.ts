@@ -1922,6 +1922,38 @@ function billDays(s: Scalar, m: Scalar, ctx: Ctx): number {
 }
 
 // -----------------------------------------------------------------------------
+// LAMBDA's helpers
+
+/** A LAMBDA argument taking `count` values; anything else is #VALUE!. */
+function lambdaOf(op: Operand, count: number): Lambda {
+  if (!(op instanceof Lambda) || op.params.length !== count) throw VALUE;
+  return op;
+}
+
+/** A LAMBDA's result where one value is wanted: more than one is #CALC!, as arrays can't hold arrays. */
+function single(v: Operand, ctx: Ctx): Scalar {
+  if (v instanceof Lambda) return CALC;
+  if (v instanceof Areas) return VALUE;
+  if (v instanceof Ref) return v.single ? ctx.host.value(v.sheet, v.r1, v.c1) : CALC;
+  if (v instanceof Matrix) return v.rows === 1 && v.cols === 1 ? v.get(0, 0) : CALC;
+  return v;
+}
+
+/** Each row (or column) of a range or array, a range's as a reference, as BYROW and BYCOL give them to their LAMBDA. */
+function lines(op: Operand, ctx: Ctx, byCol: boolean): Operand[] {
+  if (op instanceof Ref) {
+    const r = ctx.host.bound(op);
+    return byCol
+      ? Array.from({ length: r.cols }, (_, c) => new Ref(r.sheet, r.r1, r.c1 + c, r.r2, r.c1 + c))
+      : Array.from({ length: r.rows }, (_, i) => new Ref(r.sheet, r.r1 + i, r.c1, r.r1 + i, r.c2));
+  }
+  const m = matrixOf(op, ctx);
+  return byCol
+    ? Array.from({ length: m.cols }, (_, c) => Matrix.build(m.rows, 1, (r) => m.get(r, c)))
+    : Array.from({ length: m.rows }, (_, r) => Matrix.build(1, m.cols, (_r, c) => m.get(r, c)));
+}
+
+// -----------------------------------------------------------------------------
 // Engineering: binary, octal and hexadecimal, bits, Bessel functions, complex numbers
 
 /** The bits ten binary, octal or hexadecimal digits hold; a negative number is written as their two's complement. */
@@ -3851,6 +3883,68 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const t = days / 365;
     return (-t + Math.sqrt(t * t - (2 * t - 1) * (1 - 100 / price))) / (t - 0.5);
   }),
+
+  // LAMBDA's helpers
+  MAP: {
+    min: 2,
+    max: MANY,
+    fn: (a, ctx) => {
+      const f = lambdaOf(a[a.length - 1], a.length - 1);
+      const arrays = a.slice(0, -1).map((x) => matrixOf(x, ctx));
+      const rows = Math.max(...arrays.map((m) => m.rows));
+      const cols = Math.max(...arrays.map((m) => m.cols));
+      return Matrix.build(rows, cols, (r, c) => single(f.call(arrays.map((m) => m.at(r, c))), ctx));
+    },
+  },
+  REDUCE: {
+    min: 3,
+    max: 3,
+    fn: (a, ctx) => {
+      const f = lambdaOf(a[2], 2);
+      let total: Operand = a[0] ?? null;
+      for (const v of matrixOf(a[1], ctx).data) total = f.call([total, v]);
+      return total;
+    },
+  },
+  SCAN: {
+    min: 3,
+    max: 3,
+    fn: (a, ctx) => {
+      const f = lambdaOf(a[2], 2);
+      const m = matrixOf(a[1], ctx);
+      let total: Operand = a[0] ?? null;
+      return new Matrix(m.rows, m.cols, m.data.map((v) => single((total = f.call([total, v])), ctx)));
+    },
+  },
+  BYROW: {
+    min: 2,
+    max: 2,
+    fn: (a, ctx) => {
+      const f = lambdaOf(a[1], 1);
+      const rows = lines(a[0], ctx, false);
+      return new Matrix(rows.length, 1, rows.map((row) => single(f.call([row]), ctx)));
+    },
+  },
+  BYCOL: {
+    min: 2,
+    max: 2,
+    fn: (a, ctx) => {
+      const f = lambdaOf(a[1], 1);
+      const cols = lines(a[0], ctx, true);
+      return new Matrix(1, cols.length, cols.map((col) => single(f.call([col]), ctx)));
+    },
+  },
+  MAKEARRAY: {
+    min: 3,
+    max: 3,
+    fn: (a, ctx) => {
+      const rows = Math.trunc(num(scalarOf(a[0], ctx)));
+      const cols = Math.trunc(num(scalarOf(a[1], ctx)));
+      const f = lambdaOf(a[2], 2);
+      sized(rows, cols);
+      return Matrix.build(rows, cols, (r, c) => single(f.call([r + 1, c + 1]), ctx));
+    },
+  },
 
   // Binary, octal and hexadecimal
   BIN2DEC: convert(2, 10),

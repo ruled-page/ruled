@@ -243,7 +243,8 @@ describe('an array formula entered with Ctrl+Shift+Enter', () => {
   });
 
   it("keeps Excel's values, out of date once its inputs change, when its formula isn't calculated here", async () => {
-    const s = fresh(await arrays('=LAMBDA(x,x*10)(A1:A3)'));
+    // An add-in's function, which neither engine has.
+    const s = fresh(await arrays('=_xludf.TIMESTEN(A1:A3)'));
     expect(s.calcReport?.unsupported).toBe(1);
     const r = type(s, 'A2', '5');
     expect([s.current(0, 1, 3).content, s.current(0, 1, 4).content]).toEqual([
@@ -313,7 +314,8 @@ describe('edits around a spill', () => {
     expect(parts(deleted.save())['xl/worksheets/sheet1.xml']).not.toMatch(/<c r="E\d+"/);
   });
 
-  it('mark its values out of date with the formula, when it reads a value that is', () => {
+  // E4's LAMBDA is the one formula there HyperFormula can't calculate; the native engine calculates it.
+  it.skipIf(process.env.ENGINE === 'native')('mark its values out of date with the formula, when it reads a value that is', () => {
     const s = corpus();
     const arrays = sheetIndex(s, 'Arrays');
     // E4 holds a LAMBDA formula, which isn't calculated here; what it reads can't be told, so once anything changes it may be out of date.
