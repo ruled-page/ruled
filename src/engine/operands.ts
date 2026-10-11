@@ -22,6 +22,8 @@ export interface Host {
   isFormula(sheet: number, row: number, col: number): boolean;
   /** How many sheets the workbook has, for SHEETS. */
   sheetCount(): number;
+  /** A cell's formula as the formula bar shows it, for FORMULATEXT; undefined when it holds none. */
+  formulaText(sheet: number, row: number, col: number): string | undefined;
 }
 
 /** What a formula's cell notes as it is worked out. */

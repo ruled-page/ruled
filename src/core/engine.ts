@@ -136,13 +136,19 @@ export interface FormulaEngine {
   destroy(): void;
 }
 
+/** What the editor tells an engine about cells beyond their contents. */
+export interface EngineLookups {
+  /** A cell's formula as the formula bar shows it ("=SUM(A1:A3)"), for FORMULATEXT; undefined when it holds none. */
+  formulaText(sheet: number, row: number, col: number): string | undefined;
+}
+
 /** One kind of engine: what it can calculate, and a new one for a workbook. */
 export interface EngineKind {
   readonly id: string;
   readonly name: string;
   /** Why this engine can't calculate a formula (file form, without "="), or undefined when it can. */
   unsupportedReason(fileFormula: string): Unsupported | undefined;
-  create(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean): FormulaEngine;
+  create(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean, lookups?: EngineLookups): FormulaEngine;
 }
 
 let fallback: EngineKind | undefined;

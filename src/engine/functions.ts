@@ -3956,6 +3956,39 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const quoted = quoteSheetName(name.slice(book.length));
     return `${quoted.startsWith("'") ? `'${book}${quoted.slice(1)}` : book + quoted}!${ref}`;
   }),
+  FORMULATEXT: {
+    min: 1,
+    max: 1,
+    fn: ([r], ctx) => {
+      if (!(r instanceof Ref)) throw r instanceof Areas ? VALUE : NA;
+      const t = ctx.host.formulaText(r.sheet, r.r1, r.c1);
+      if (t === undefined) throw NA;
+      return t;
+    },
+  },
+  // Only what the cell itself gives: formats, widths and protection aren't known here (see CELL_INFO in native.ts).
+  CELL: {
+    min: 2,
+    max: 2,
+    fn: ([info, r], ctx) => {
+      if (!(r instanceof Ref)) throw VALUE;
+      const v = ctx.host.value(r.sheet, r.r1, r.c1);
+      switch (text(scalarOf(info, ctx)).toLowerCase()) {
+        case 'row':
+          return r.r1 + 1;
+        case 'col':
+          return r.c1 + 1;
+        case 'contents':
+          return v;
+        case 'type':
+          return v === null ? 'b' : typeof v === 'string' ? 'l' : 'v';
+        case 'address':
+          return `$${colToLetters(r.c1)}$${r.r1 + 1}`;
+        default:
+          throw VALUE;
+      }
+    },
+  },
   AREAS: { min: 1, max: 1, fn: ([r]) => (r instanceof Areas ? r.refs.length : r instanceof Ref ? 1 : (() => { throw VALUE; })()) },
   SHEET: {
     min: 0,

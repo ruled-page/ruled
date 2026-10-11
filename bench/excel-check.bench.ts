@@ -7,7 +7,7 @@ import { functionNames, isDynamicArrayFormula, toFileFormula } from '../src/core
 import { dynamicArrayMetadata } from '../src/core/writer';
 import { OoxmlPackage } from '../src/core/zip';
 import { nativeEngine } from '../src/engine/native';
-import { checkSheets, DATA, FAMILIES } from '../tests/excel-checks/cases';
+import { checkEngine, DATA, FAMILIES } from '../tests/excel-checks/cases';
 
 /**
  * Writes tests/excel-checks/<family>.xlsx for each family of check formulas:
@@ -24,7 +24,7 @@ type Answer = number | string | boolean | { error: string } | null;
 
 it('writes the Excel check workbooks', async () => {
   for (const [family, formulas] of Object.entries(FAMILIES)) {
-    const engine = nativeEngine.create(checkSheets(family), [], false);
+    const engine = checkEngine(family);
     const answers: Answer[] = formulas.map((_f, i) => engine.value(0, i, 0) as Answer);
     const missing = formulas.filter((f) => nativeEngine.unsupportedReason(toFileFormula(f).slice(1)));
     engine.destroy();

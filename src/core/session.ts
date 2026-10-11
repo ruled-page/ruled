@@ -888,6 +888,12 @@ export class WorkbookSession {
       // Names can use table references too; formulas see them as cells, as everywhere else.
       this.model.names.map((n) => ({ ...n, formula: this.engineText(n.formula, n.localSheet ?? 0, -1, -1) })),
       this.model.date1904,
+      {
+        formulaText: (s, row, col) => {
+          const c = this.current(s, row, col).content;
+          return c.kind === 'formula' ? displayFormula(c.formula) : undefined;
+        },
+      },
     );
     this.engine = engine;
 

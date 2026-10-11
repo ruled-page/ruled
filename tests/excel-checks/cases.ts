@@ -1,5 +1,6 @@
-import type { EngineSheet } from '../../src/core/engine';
+import type { EngineSheet, FormulaEngine } from '../../src/core/engine';
 import { engineFormula, toFileFormula } from '../../src/core/formula';
+import { nativeEngine } from '../../src/engine/native';
 
 /**
  * Formulas to check against Excel, by family: `npm run excel:check` writes
@@ -612,6 +613,35 @@ export const FAMILIES: Record<string, string[]> = {
     '=COUNTIF((Jan!A1:A2,Jan!B1),">5")',
     '=ROWS((Jan!A1:A2,Jan!B1))',
   ],
+  'formulatext-cell': [
+    // The formula a cell shows
+    '=FORMULATEXT(Data!A1)',
+    '=FORMULATEXT(Data!A2)',
+    '=FORMULATEXT(Data!A3)',
+    '=FORMULATEXT(Data!A5)',
+    '=FORMULATEXT(Data!A6)',
+    '=FORMULATEXT(Data!A7)',
+    '=FORMULATEXT(Data!A8)',
+    '=FORMULATEXT(Data!A9)',
+    '=FORMULATEXT(Data!A1:A2)',
+    '=LEN(FORMULATEXT(Data!A2))',
+    // CELL, for what the cell itself gives
+    '=CELL("row",Data!B2)',
+    '=CELL("col",Data!B2)',
+    '=CELL("ROW",Data!B5)',
+    '=CELL("row",Data!C3:D9)',
+    '=CELL("contents",Data!A3)',
+    '=CELL("contents",Data!A1)',
+    '=CELL("contents",Data!A5)',
+    '=CELL("type",Data!A3)',
+    '=CELL("type",Data!A4)',
+    '=CELL("type",Data!A5)',
+    '=CELL("type",Data!A6)',
+    '=CELL("type",Data!A10)',
+    '=CELL("address",A1)',
+    '=CELL("address",$C$7)',
+    '=CELL("address",AB100:AC200)',
+  ],
 };
 
 type DataCell = string | number | boolean | null;
@@ -623,6 +653,20 @@ type DataCell = string | number | boolean | null;
  * and beside it; the references read a quarter's months and a total sheet.
  */
 export const DATA: Record<string, Record<string, DataCell[][]>> = {
+  'formulatext-cell': {
+    Data: [
+      ['=1+1', 3],
+      ['=SUM(B1:B2)', 4],
+      ['text'],
+      [5],
+      [null],
+      ['=IF(TRUE,"yes","no")'],
+      ['=IFERROR(1/0,"x")'],
+      ['=B1*2+Data!B2'],
+      ['="quote ""x"""'],
+      [true],
+    ],
+  },
   references: {
     Jan: [
       [10, 'x'],
@@ -659,4 +703,15 @@ export function checkSheets(family: string): EngineSheet[] {
   const sheets = [{ name: 'Check', rows: FAMILIES[family].map((f) => [cell(f)]) }];
   for (const [name, rows] of Object.entries(DATA[family] ?? {})) sheets.push({ name, rows: rows.map((row) => row.map(cell)) });
   return sheets;
+}
+
+/** The native engine on a family's sheets, told each cell's formula as written, for FORMULATEXT. */
+export function checkEngine(family: string): FormulaEngine {
+  const written = [FAMILIES[family].map((f) => [f]), ...Object.values(DATA[family] ?? {})];
+  return nativeEngine.create(checkSheets(family), [], false, {
+    formulaText: (s, row, col) => {
+      const v = written[s]?.[row]?.[col];
+      return typeof v === 'string' && v.startsWith('=') ? v : undefined;
+    },
+  });
 }

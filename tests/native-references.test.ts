@@ -36,3 +36,12 @@ describe('a sheet that arrives after the formulas naming it', () => {
     e.destroy();
   });
 });
+
+describe('CELL in the native engine', () => {
+  it('is calculated for what the cell itself gives, and left to Excel for the rest', () => {
+    const calculated = (f: string) => nativeEngine.unsupportedReason(f) === undefined;
+    expect(['CELL("row",A1)', 'CELL( "Contents" , B2:C3)', 'CELL("type",Sheet2!A1)', 'CELL("address",A1)'].every(calculated)).toBe(true);
+    // Formats, widths and protection; the last cell changed (no reference); an address with a file name; a kind not written out.
+    expect(['CELL("format",A1)', 'CELL("width",A1)', 'CELL("protect",A1)', 'CELL("row")', 'CELL("address",Sheet2!A1)', 'CELL(B1,A1)'].some(calculated)).toBe(false);
+  });
+});

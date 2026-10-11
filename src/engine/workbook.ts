@@ -1,4 +1,4 @@
-import type { ArrayDims, EngineChange, EngineName, EngineSheet, EngineWrite, FormulaEngine, RawContent } from '../core/engine';
+import type { ArrayDims, EngineChange, EngineLookups, EngineName, EngineSheet, EngineWrite, FormulaEngine, RawContent } from '../core/engine';
 import type { EngineValue } from '../core/engineValue';
 import { engineFormula } from '../core/formula';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
@@ -150,7 +150,12 @@ export class NativeEngine implements FormulaEngine, Host {
   /** Values changed by the change being worked out, by "sheet:row:col"; none while the engine is built. */
   private changes?: Map<string, EngineChange>;
 
-  constructor(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean) {
+  constructor(
+    sheets: (EngineSheet | null)[],
+    names: EngineName[],
+    date1904: boolean,
+    private readonly lookups?: EngineLookups,
+  ) {
     this.date1904 = date1904;
     this.sheets = sheets.map((s, i) => {
       if (!s) return null;
@@ -391,6 +396,10 @@ export class NativeEngine implements FormulaEngine, Host {
 
   sheetCount(): number {
     return this.sheets.length;
+  }
+
+  formulaText(sheet: number, row: number, col: number): string | undefined {
+    return this.lookups?.formulaText(sheet, row, col);
   }
 
   isFormula(sheet: number, row: number, col: number): boolean {
