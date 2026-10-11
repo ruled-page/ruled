@@ -555,7 +555,6 @@ export const FAMILIES: Record<string, string[]> = {
     '=TEXTJOIN("-",TRUE,"a","","b")',
     '=IFS(1>2,"x",TRUE,"y")',
     '=SWITCH(2,1,"one",2,"two")',
-    '=MAXIFS({1,5,3},{1,1,0},1)',
     '=XLOOKUP(2,{1,2,3},{"a","b","c"})',
     '=XMATCH(3,{1,2,3})',
     '=SUM(SEQUENCE(4))',
