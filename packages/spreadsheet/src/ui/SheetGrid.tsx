@@ -46,7 +46,7 @@ import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
-import { drawDataBar, drawEdge, drawGridLine, drawIcon } from './paint';
+import { drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from './paint';
 import { useT } from '../i18n/react';
 
 /**
@@ -519,6 +519,9 @@ export function SheetGrid({
         ctx.stroke();
         ctx.restore();
       }
+      // A filter's headings have its buttons, as Excel draws them.
+      const filterButton = view.filterButtonAt(row, col);
+      if (filterButton) drawFilterButton(ctx, rect, filterButton.filtered, { bg: palette.bg, line: palette.headerLine, arrow: palette.dropdownArrow, filtered: palette.selection });
       const rec = view.get(row, col);
       if (rec && store.highlightEdits && rec.flags & CellFlag.Edited && styles[rec.style]?.fill) {
         const bottom = rect.y + rect.height - 1;
@@ -575,8 +578,8 @@ export function SheetGrid({
       }
       ctx.restore();
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen, rowStart, g, palette],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the filter's buttons follow the filter
+    [view, view.filter, schema, schemaVersion, sheetIndex, styles, overflowsFor, offsetBetween, frozen, rowStart, g, palette],
   );
 
   const drawHeader = useCallback<DrawHeaderCallback>(
@@ -1054,6 +1057,22 @@ export function SheetGrid({
     const down = y >= top - 4 && y <= bottom + 4;
     return (across && (near(y, top) || near(y, bottom))) || (down && (near(x, left) || near(x, right)));
   };
+  /**
+   * The filter button a cell's heading has, with where it is on screen: under
+   * the pointer at `x`, `y`, or, without them, on the cell itself.
+   */
+  const filterButtonOf = useCallback(
+    (row: number, col: number, x?: number, y?: number) => {
+      const button = view.filterButtonAt(row, col);
+      const grid = ref.current;
+      const cell = button && grid ? grid.getBounds(Math.max(0, view.gridCol(col)) + 1, view.gridRow(row) - rowStart) : undefined;
+      if (!button || !cell) return undefined;
+      const box = filterButtonBox(cell);
+      if (x !== undefined && y !== undefined && (x < box.x || x > box.x + box.size || y < box.y || y > box.y + box.size)) return undefined;
+      return { col, rect: button.rect, x: cell.x, y: cell.y + cell.height };
+    },
+    [view, rowStart, ref],
+  );
   /** The cell under the pointer, or the nearest in view past either end. */
   const cellUnder = (x: number, y: number) => {
     const row = lineLevelWith('rows', x, y);
@@ -1166,6 +1185,15 @@ export function SheetGrid({
     host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : onSelectionEdge(e.clientX, e.clientY) ? 'move' : '';
   };
   const onHostMouseDown = (e: ReactMouseEvent) => {
+    // A filter button opens its column's filter menu, leaving the selection where it is.
+    const under = e.button === 0 ? cellUnder(e.clientX, e.clientY) : undefined;
+    const button = under && filterButtonOf(under.row, under.col, e.clientX, e.clientY);
+    if (button) {
+      e.preventDefault();
+      e.stopPropagation();
+      store.set('filterPicker', button);
+      return;
+    }
     // A double-click on a column's edge fits it to its widest value, as in Excel.
     const edge = e.button === 0 && e.detail >= 2 && resizable ? columnEdgeAt(e.clientX, e.clientY) : undefined;
     if (edge !== undefined) {
@@ -1271,6 +1299,24 @@ export function SheetGrid({
         store.selectAll();
         return;
       }
+      // Alt+Down on a heading with a filter button opens its menu, as in Excel.
+      if (e.key === 'ArrowDown' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const button = filterButtonOf(sel.row, sel.col);
+        if (button) {
+          e.cancel();
+          e.preventDefault();
+          store.set('filterPicker', button);
+          return;
+        }
+      }
+      // Ctrl+Shift+L, or ⇧⌘F on a Mac, turns the filter buttons on or off, as in Excel.
+      const letter = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {
+        e.cancel();
+        e.preventDefault();
+        void store.toggleFilter();
+        return;
+      }
       // Ctrl++ (Ctrl+Shift+= on a US keyboard) inserts and Ctrl+- deletes, as in Excel, in place of the browser's zoom.
       const insert = e.key === '+' || (e.key === '=' && e.shiftKey);
       if ((insert || e.key === '-') && (e.ctrlKey || e.metaKey) && !e.altKey) {
@@ -1281,7 +1327,7 @@ export function SheetGrid({
       }
       onKeyDown?.(e);
     },
-    [store, onKeyDown],
+    [store, onKeyDown, filterButtonOf],
   );
 
   // Ctrl+click (⌘-click on a Mac) follows a cell's link; a plain click only selects it.

@@ -273,6 +273,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.change.filtered_one': 'Gefiltert, {{count, number}} Zeile ausgeblendet',
   'core.change.filtered_other': 'Gefiltert, {{count, number}} Zeilen ausgeblendet',
   'core.change.unfiltered': 'Filter gelöscht',
+  'core.change.filterOn': 'Filterschaltflächen hinzugefügt',
+  'core.change.filterOff': 'Filterschaltflächen entfernt',
   'core.change.unmerged': 'Zellverbund aufgehoben',
   'core.change.tableGrew_one': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeile',
   'core.change.tableGrew_other': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeilen',

@@ -20,6 +20,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Excel's Sort dialog, from "Custom sort…" in the cell menu: sort by
   several levels, by a custom list's order, with case mattering, or left to
   right.
+- Filter buttons on the headings of filters and tables, as in Excel: each
+  opens its column's filter menu (or Alt+↓ does), which can sort by the
+  column, and Ctrl+Shift+L (⇧⌘F on a Mac) turns them on and off. Clearing a
+  filter keeps its buttons.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

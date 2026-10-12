@@ -44,12 +44,14 @@ export class SheetView {
     this.indexMerges();
     this.indexLinks();
     for (const [c, w] of Object.entries(info.colWidths)) this.colWidths.set(Number(c), w);
-    // The file's own filter: the rows it hides are hidden by it, and showing them again clears it.
-    if (info.filter) {
-      const f = info.filter;
+    // The file's own filter, or only its buttons: the rows a filter hides are hidden by it, and showing them again clears it.
+    const f = info.filter ?? (info.autoFilter ? { rect: info.autoFilter, columns: {} } : undefined);
+    if (f) {
       this.filter = { rect: f.rect, columns: new Map(Object.entries(f.columns).map(([c, v]) => [Number(c), new Set(v)])), table: f.table };
-      for (const row of info.hiddenRows) if (row > f.rect.r1 && row <= f.rect.r2) this.filteredOut.add(row);
-      info.hiddenRows = info.hiddenRows.filter((row) => !this.filteredOut.has(row));
+      if (this.filter.columns.size) {
+        for (const row of info.hiddenRows) if (row > f.rect.r1 && row <= f.rect.r2) this.filteredOut.add(row);
+        info.hiddenRows = info.hiddenRows.filter((row) => !this.filteredOut.has(row));
+      }
     }
     for (const n of info.notes) this.notes.set(cellKey(n.row, n.col), n);
     this.extendTo(Math.max(info.maxRow, 0), Math.max(info.maxCol, 0));
@@ -200,6 +202,18 @@ export class SheetView {
     this.filteredOut.clear();
     for (const row of rows) this.filteredOut.add(row);
     this.layout();
+  }
+
+  /**
+   * The filter whose heading has a button on this cell: the sheet's filter,
+   * or a table that shows filter buttons; with whether this column is
+   * filtered.
+   */
+  filterButtonAt(row: number, col: number): { rect: Rect; filtered: boolean } | undefined {
+    const f = this.filter;
+    if (f && row === f.rect.r1 && col >= f.rect.c1 && col <= f.rect.c2) return { rect: f.rect, filtered: f.columns.has(col) };
+    const t = this.info.tables.find((x) => x.filterButtons && row === x.rect.r1 && col >= x.rect.c1 && col <= x.rect.c2);
+    return t && { rect: { ...t.rect, r2: t.rect.r2 - t.totalsRows }, filtered: false };
   }
 
   /** Rows the editor's filter hides. */

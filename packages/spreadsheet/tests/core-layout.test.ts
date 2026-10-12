@@ -178,12 +178,29 @@ describe('filters', () => {
     layout(s, 0, { kind: 'filter', filter: { rect, columns: { 0: ['South'] } }, rows: [1, 3, 4, 5] });
     const t = open(s.save());
     // Hidden by the filter, not by hand: clearing it shows them.
-    const r = layout(t, 0, { kind: 'filter', filter: null, rows: [] });
+    const r = layout(t, 0, { kind: 'filter', filter: { rect, columns: {} }, rows: [] });
     expect(r.layout!.undo).toEqual([{ sheet: 0, op: { kind: 'filter', filter: { rect, columns: { 0: ['South'] } }, rows: [1, 3, 4, 5] } }]);
     expect(sheetXml(t, 1)).toMatch(/<autoFilter ref="A1:B6"\/>/);
     const u = info(open(t.save()), 'Region');
     expect([u.hiddenRows, u.filter, u.autoFilter]).toEqual([[], undefined, rect]);
     expect(t.changes().map((c) => english.text(c.note!))).toEqual(['Cleared the filter']);
+  });
+
+  it('turned off, leave the file without one, and say so', async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 5, c2: 1 };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: {} }, rows: [] });
+    expect(sheetXml(s, 1)).toMatch(/<autoFilter ref="A1:B6"\/>/);
+    expect(s.changes().map((c) => english.text(c.note!))).toEqual(['Filter buttons added']);
+    expect(s.loadResult().sheets[0].autoFilter).toEqual(rect);
+    const t = open(s.save());
+    expect(info(t, 'Region').autoFilter).toEqual(rect);
+    layout(t, 0, { kind: 'filter', filter: null, rows: [] });
+    // As the editor now has it, before saving: no buttons, and none to bring back from the file.
+    expect(t.loadResult().sheets[0]).toMatchObject({ filter: undefined, autoFilter: undefined });
+    expect(sheetXml(t, 1)).not.toMatch(/<autoFilter/);
+    expect(t.changes().map((c) => english.text(c.note!))).toEqual(['Filter buttons removed']);
+    expect(info(open(t.save()), 'Region').autoFilter).toBeUndefined();
   });
 
   it("in a table, go in the table's part", async () => {
@@ -196,5 +213,8 @@ describe('filters', () => {
     expect(files['xl/worksheets/sheet2.xml']).not.toMatch(/<autoFilter/);
     const t = info(open(s.save()), 'Table');
     expect([t.filter, t.hiddenRows]).toEqual([{ rect, columns: { 0: ['Ann'] }, table: 'Sales' }, [2]]);
+    expect(t.tables[0].filterButtons).toBe(true);
+    // The sheet's own filter, which it hasn't, is left as it was.
+    expect(s.loadResult().sheets[1].autoFilter).toBeUndefined();
   });
 });

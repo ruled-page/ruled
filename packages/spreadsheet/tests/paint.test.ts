@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
-import { FREEZE_LINE, GRID_LINE, drawDataBar, drawEdge, drawGridLine, drawIcon } from '../src/ui/paint';
+import { FREEZE_LINE, GRID_LINE, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
 
 interface Gradient {
   from: number[];
@@ -439,5 +439,30 @@ describe('the grid palette', () => {
       lineHeight: 1.25,
     });
     expect(glideTheme(DEFAULT_PALETTE).headerFontStyle).toBe('500 12px');
+  });
+});
+
+describe('filter buttons', () => {
+  const colors = { bg: '#FFFFFF', line: '#CCCCCC', arrow: '#444444', filtered: '#2F6EBA' };
+  const cell = { x: 100, y: 20, width: 64, height: 20 };
+
+  it('sit at the right of the heading, shrinking to fit a small cell', () => {
+    expect(filterButtonBox(cell)).toEqual({ x: 146, y: 22, size: 16 });
+    expect(filterButtonBox({ x: 0, y: 0, width: 10, height: 30 })).toEqual({ x: 0, y: 11, size: 8 });
+  });
+
+  it('draw a framed arrow, or a funnel on a filtered column, and restore the context', () => {
+    const plain = new Recorder();
+    drawFilterButton(plain.ctx, cell, false, colors);
+    expect(plain.rects()).toEqual([
+      [146, 22, 16, 16, '#CCCCCC'],
+      [147, 23, 14, 14, '#FFFFFF'],
+    ]);
+    expect(plain.paints()).toEqual(['stroke #444444']);
+    const filtered = new Recorder();
+    drawFilterButton(filtered.ctx, cell, true, colors);
+    expect(filtered.paints()).toEqual(['fill #2F6EBA']);
+    expect(filtered.stack).toHaveLength(0);
+    expect(filtered.fillStyle).toBe('#000000');
   });
 });

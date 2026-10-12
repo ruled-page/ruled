@@ -106,8 +106,10 @@ export class SheetLayout {
     return { rows: axis('rows'), cols: axis('cols') };
   }
 
+  /** The filter now: none once turned off; the file's, with nothing picked when it has only the buttons. */
   get currentFilter(): FilterState | null {
-    return this.filter !== undefined ? this.filter : (this.file.filter ?? null);
+    if (this.filter !== undefined) return this.filter;
+    return this.file.filter ?? (this.file.autoFilter ? { rect: this.file.autoFilter, columns: {} } : null);
   }
 
   /** The rows the filter hides now. */
@@ -150,8 +152,8 @@ export class SheetLayout {
     return this.merges ?? this.file.merges;
   }
 
-  /** The sizes, hidden rows and columns, panes, merges and filter of `info` as they now are. */
-  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'outline'> {
+  /** The sizes, hidden rows and columns, panes, merges and filter (and its buttons) of `info` as they now are. */
+  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'> {
     const sizes = (file: Record<number, number>, edits: Map<number, number | null>) => {
       const out = { ...file };
       for (const [line, px] of edits) {
@@ -172,6 +174,8 @@ export class SheetLayout {
       frozenCols: f.cols,
       merges: this.mergeList,
       filter: this.currentFilter ?? undefined,
+      // The sheet's own filter's buttons: gone once turned off.
+      autoFilter: this.filter === null ? undefined : this.filter && !this.filter.table ? this.filter.rect : info.autoFilter,
       outline: this.outline,
     };
   }
@@ -240,10 +244,14 @@ export class SheetLayout {
     if (this.filter !== undefined) {
       const was = [...this.fileFiltered].sort((a, b) => a - b).join();
       const now = [...this.currentFiltered].sort((a, b) => a - b).join();
-      const rect = this.filter?.rect ?? this.file.filter?.rect;
+      const rect = this.filter?.rect ?? this.fileFilter.rect;
+      const picked = !!this.filter && Object.keys(this.filter.columns).length > 0;
       if (rect && (was !== now || JSON.stringify(this.filter?.columns ?? {}) !== JSON.stringify(this.file.filter?.columns ?? {}))) {
-        note(rangeToA1(rect), this.filter ? msg('core.change.filtered', { count: this.currentFiltered.size }) : msg('core.change.unfiltered'));
+        note(rangeToA1(rect), picked ? msg('core.change.filtered', { count: this.currentFiltered.size }) : msg('core.change.unfiltered'));
       }
+      // The buttons themselves, put on a block or taken off the sheet.
+      if (this.filter && !picked && !this.filter.table && !this.fileFilter.rect) note(rangeToA1(this.filter.rect), msg('core.change.filterOn'));
+      if (this.filter === null && this.fileFilter.rect && !this.fileFilter.table) note(rangeToA1(this.fileFilter.rect), msg('core.change.filterOff'));
     }
     if (this.merges) {
       for (const m of this.merges) if (!this.file.merges.some((x) => sameRect(x, m))) note(rangeToA1(m), msg('core.change.merged'));
@@ -311,10 +319,11 @@ export function writeLayout(xml: string, p: string, layout: SheetLayout): string
   if (layout.colWidths.size || layout.hiddenCols.size || layout.levels.cols.size || layout.collapsed.cols.size) xml = writeCols(xml, p, layout);
   if (layout.levels.rows.size || layout.levels.cols.size) xml = writeOutlineLevels(xml, p, layout);
   if (layout.frozen) xml = writePane(xml, p, layout.frozen);
-  // A table's filter is in the table's part (see writeTableFilter); the sheet's own is here.
+  // A table's filter is in the table's part (see writeTableFilter); the sheet's own is here, and goes once turned off.
   if (layout.filter !== undefined) {
     const sheetRect = layout.fileFilter.table ? undefined : layout.fileFilter.rect;
     if (layout.filter && !layout.filter.table) xml = writeAutoFilter(xml, p, layout.filter, sheetRect);
+    else if (layout.filter === null) xml = writeAutoFilter(xml, p, null, undefined);
     else if (sheetRect) xml = writeAutoFilter(xml, p, null, sheetRect);
   }
   if (layout.merges) xml = writeMerges(xml, p, layout.merges);
@@ -333,15 +342,22 @@ function filterColumnsXml(p: string, filter: FilterState): string {
     .join('');
 }
 
+/** The <autoFilter> element for a filter's range, with its values if any are picked. */
+function autoFilterXml(p: string, rect: Rect, filter: FilterState | null): string {
+  const picked = filter && Object.keys(filter.columns).length ? filterColumnsXml(p, filter) : '';
+  return `<${p}autoFilter ref="${rangeToA1(rect)}"${picked ? `>${picked}</${p}autoFilter>` : '/>'}`;
+}
+
 /**
- * The sheet's <autoFilter>: with the filter's values, or, once cleared,
- * with none but where the file had it, as Excel keeps the filter buttons.
+ * The sheet's <autoFilter>: with the filter's values, or with none but where
+ * the file had it, as Excel keeps the filter buttons; none at all when
+ * there's neither, once the filter is turned off.
  */
 function writeAutoFilter(xml: string, p: string, filter: FilterState | null, fileRect: Rect | undefined): string {
   const data = firstElement(xml, 'sheetData');
   if (!data) return xml;
   const rect = filter?.rect ?? fileRect;
-  const el = rect ? `<${p}autoFilter ref="${rangeToA1(rect)}"${filter ? `>${filterColumnsXml(p, filter)}</${p}autoFilter>` : '/>'}` : '';
+  const el = rect ? autoFilterXml(p, rect, filter) : '';
   const existing = firstElement(xml, 'autoFilter', data.end);
   if (existing) return xml.slice(0, existing.start) + el + xml.slice(existing.end);
   if (!el) return xml;
@@ -358,7 +374,7 @@ export function writeTableFilter(xml: string, filter: FilterState | null, rect: 
   const root = firstElement(xml, 'table');
   if (!root || root.inner === null) return xml;
   const p = /^(\w+:)?/.exec(root.qname)?.[1] ?? '';
-  const el = `<${p}autoFilter ref="${rangeToA1(rect)}"${filter ? `>${filterColumnsXml(p, filter)}</${p}autoFilter>` : '/>'}`;
+  const el = autoFilterXml(p, rect, filter);
   const innerStart = root.start + 1 + root.qname.length + root.attrs.length + 1;
   const existing = firstElement(xml, 'autoFilter', innerStart);
   if (existing) return xml.slice(0, existing.start) + el + xml.slice(existing.end);

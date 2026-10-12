@@ -246,3 +246,52 @@ export function drawIcon(ctx: CanvasRenderingContext2D, set: string, index: numb
   }
   ctx.restore();
 }
+
+/** Where a heading's filter button sits in its cell: a square at the right, as in Excel. */
+export function filterButtonBox(cell: { x: number; y: number; width: number; height: number }): { x: number; y: number; size: number } {
+  const size = Math.max(8, Math.min(16, cell.height - 4, cell.width - 4));
+  return { x: cell.x + cell.width - size - 2, y: cell.y + Math.round((cell.height - size) / 2), size };
+}
+
+/**
+ * A heading's filter button: a framed arrow, or for a column that is
+ * filtered, a funnel, as Excel draws them.
+ */
+export function drawFilterButton(
+  ctx: CanvasRenderingContext2D,
+  cell: { x: number; y: number; width: number; height: number },
+  filtered: boolean,
+  colors: { bg: string; line: string; arrow: string; filtered: string },
+): void {
+  const b = filterButtonBox(cell);
+  ctx.save();
+  try {
+    ctx.fillStyle = colors.line;
+    ctx.fillRect(b.x, b.y, b.size, b.size);
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(b.x + 1, b.y + 1, b.size - 2, b.size - 2);
+    const cx = b.x + b.size / 2;
+    const cy = b.y + b.size / 2;
+    ctx.beginPath();
+    if (filtered) {
+      ctx.moveTo(cx - 4, cy - 4);
+      ctx.lineTo(cx + 4, cy - 4);
+      ctx.lineTo(cx + 1, cy);
+      ctx.lineTo(cx + 1, cy + 4);
+      ctx.lineTo(cx - 1, cy + 3);
+      ctx.lineTo(cx - 1, cy);
+      ctx.closePath();
+      ctx.fillStyle = colors.filtered;
+      ctx.fill();
+    } else {
+      ctx.moveTo(cx - 3.5, cy - 1.5);
+      ctx.lineTo(cx, cy + 2);
+      ctx.lineTo(cx + 3.5, cy - 1.5);
+      ctx.strokeStyle = colors.arrow;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  } finally {
+    ctx.restore();
+  }
+}

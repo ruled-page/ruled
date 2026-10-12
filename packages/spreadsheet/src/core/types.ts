@@ -123,6 +123,8 @@ export interface TableInfo {
   rect: Rect;
   headerRows: number;
   totalsRows: number;
+  /** Whether its heading row shows filter buttons, as a table with an <autoFilter> does. */
+  filterButtons?: boolean;
   columns: string[];
   /** Each column's calculated formula, which Excel fills into every row of the column, in file form. */
   calculated?: (string | undefined)[];
@@ -694,7 +696,8 @@ export type BorderPlacement = 'all' | 'outside' | 'inside' | 'top' | 'bottom' | 
 /**
  * A filter by values on a range whose first row holds the headings: for
  * each filtered column (a sheet column), the values whose rows show, as the
- * cells show them ('' for blanks).
+ * cells show them ('' for blanks). With no columns, the filter's buttons are
+ * there but nothing is filtered, as after Excel's Filter command or Clear.
  */
 export interface FilterState {
   rect: Rect;

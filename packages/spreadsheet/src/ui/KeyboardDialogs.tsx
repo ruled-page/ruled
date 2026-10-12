@@ -32,6 +32,8 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [t('keys.accept'), t('shortcuts.complete')],
         [t('keys.f4'), t('shortcuts.absolute')],
         [m('+', '-'), t('shortcuts.insertDelete')],
+        [APPLE ? '⇧⌘F' : t('keys.filterToggle'), t('shortcuts.filterToggle')],
+        [APPLE ? '⌥↓' : t('keys.altDown'), t('shortcuts.filterMenu')],
       ],
     },
     {

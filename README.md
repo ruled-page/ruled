@@ -195,6 +195,12 @@ back as .xlsx without losing what the editor can't display.
   the reverse, or a custom list such as the months), whether the block has
   headings, a case-sensitive sort, and sorting left to right. Sorting by
   cell colour, font colour or icon isn't offered.
+  Filters have Excel's buttons on their headings, as do tables that have
+  them: a button (or Alt+↓ on the heading) opens the column's filter menu,
+  which sorts the range by the column or picks the values whose rows show,
+  and a funnel marks a filtered column. Ctrl+Shift+L (⇧⌘F on a Mac), or the
+  cell menu, puts the buttons on the block around the selection or takes
+  them off the sheet, showing every row; a table keeps its own.
   Cutting and pasting moves cells, and references to them follow. Rows
   inserted into an Excel table, or typed or pasted just below one without a
   totals row, become part of it with its calculated columns and formats.
@@ -1111,7 +1117,9 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
   only when it looks like headings (text over numbers, or bold over plain). Filtering by values is saved as
   Excel saves it, with the rows it hides; in a table it is the table's
   filter. A file's own filter by values can be changed and cleared; one by
-  condition, top ten or colour is kept as the file has it.
+  condition, top ten or colour is kept as the file has it. Clearing a
+  filter keeps its buttons, as Excel's Clear does. Only one filter is
+  active at a time: filtering another table or range replaces it.
 - Adding, renaming, deleting, moving, hiding and unhiding a sheet rebuild
   the workbook as inserting rows does. A new sheet is named "Sheet" (or
   "Tabelle" in German, following the editor's language) and numbered one

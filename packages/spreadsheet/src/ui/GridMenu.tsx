@@ -138,12 +138,18 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
               ]
             : [{ label: t('links.menu.insert'), onSelect: openDialog, disabled: locked }]),
         ];
-  const filtered = !!view.filter;
+  const filtered = !!view.filter?.columns.size;
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
     { label: t('sort.menu.custom'), onSelect: () => store.openSortDialog(), disabled: locked },
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
+    {
+      label: t(view.filter && !view.filter.table ? 'menu.filterOff' : 'menu.filterOn'),
+      hint: APPLE ? '⇧⌘F' : t('keys.filterToggle'),
+      onSelect: () => void store.toggleFilter(),
+      disabled: view.info.kind !== 'worksheet',
+    },
     ...(filtered ? [{ label: t('menu.clearFilter'), onSelect: () => void store.clearFilter() }] : []),
   ];
   const items: MenuItem[] = [

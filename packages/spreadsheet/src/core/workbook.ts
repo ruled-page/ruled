@@ -601,6 +601,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
             rect: range,
             headerRows,
             totalsRows: Number(attr(t, 'totalsRowCount') ?? 0),
+            filterButtons: headerRows > 0 && !!child(t, 'autoFilter'),
             columns: children(child(t, 'tableColumns'), 'tableColumn').map((c) => attr(c, 'name') ?? ''),
             calculated: children(child(t, 'tableColumns'), 'tableColumn').map((c) => child(c, 'calculatedColumnFormula')?.text || undefined),
             path: r.target,

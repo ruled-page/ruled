@@ -369,12 +369,57 @@ describe('filtering', () => {
     // Copying leaves out the rows the filter hides.
     expect(store.selectionText(choices.rect)).toBe('Region\tSales\nNorth\t3');
 
+    // Clearing shows every row and keeps the buttons, as Excel's Clear does.
     await store.clearFilter();
-    expect(view.filter).toBeUndefined();
+    expect(view.filter?.columns.size).toBe(0);
+    expect(view.filterButtonAt(0, 1)).toEqual({ rect: choices.rect, filtered: false });
     expect(view.filteredCount).toBe(0);
     const version = store.version;
     await store.clearFilter();
     expect(store.version).toBe(version);
+  });
+
+  it("shows the buttons of the file's filter, and of a table that has them, on their headings", async () => {
+    await open();
+    expect(store.sheets[2].filterButtonAt(0, 1)).toEqual({ rect: rect(0, 0, 3, 1), filtered: false });
+    expect(store.sheets[2].filterButtonAt(1, 1)).toBeUndefined();
+    // The table's range stops above its totals row.
+    expect(store.sheets[1].filterButtonAt(0, 0)).toEqual({ rect: rect(0, 0, 2, 1), filtered: false });
+  });
+
+  it('turns the buttons on and off with the Filter command, but leaves a table its own', async () => {
+    await open();
+    select(rect(2, 1));
+    await store.toggleFilter();
+    const view = store.view!;
+    expect(view.filterButtonAt(0, 3)).toEqual({ rect: rect(0, 0, 4, 3), filtered: false });
+    expect(actions()).toEqual(['Add filter buttons']);
+    await store.setFilter(rect(0, 0, 4, 3), 0, new Set(['Pear']));
+    expect(view.filterButtonAt(0, 0)?.filtered).toBe(true);
+    await store.toggleFilter();
+    expect([view.filter, view.filteredCount, view.filterButtonAt(0, 0)]).toEqual([undefined, 0, undefined]);
+    expect(actions()).toEqual(['Add filter buttons', 'Filter', 'Remove filter buttons']);
+
+    store.setSelection({ row: 10, col: 10, rects: [rect(10, 10)] });
+    await store.toggleFilter();
+    store.setActive(1);
+    select(rect(1, 0));
+    await store.toggleFilter();
+    expect(toasts()).toEqual(['Select a cell in a block of data with headings to filter it.', "A table's filter buttons stay as they are: turn them on or off in Excel."]);
+  });
+
+  it("filters the range of a heading's button, in place of the filter there was", async () => {
+    await open();
+    select(rect(1, 0));
+    await store.setFilter(rect(0, 0, 4, 3), 0, new Set(['Pear']));
+    expect(store.view!.filteredCount).toBe(3);
+    // Another range: its filter takes the old one's place.
+    const other = rect(0, 0, 2, 1);
+    expect(store.filterChoices(1, other)).toMatchObject({ rect: other, allowed: undefined });
+    await store.setFilter(other, 1, new Set(['3']));
+    expect(store.view!.filter).toMatchObject({ rect: other });
+    expect(store.view!.filter?.columns.has(0)).toBe(false);
+    expect(store.view!.filteredCount).toBe(1);
   });
 });
 

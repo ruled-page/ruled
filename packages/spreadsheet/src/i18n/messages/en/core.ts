@@ -266,6 +266,8 @@ export const core = {
   'core.change.filtered_one': 'Filtered, hiding {{count, number}} row',
   'core.change.filtered_other': 'Filtered, hiding {{count, number}} rows',
   'core.change.unfiltered': 'Cleared the filter',
+  'core.change.filterOn': 'Filter buttons added',
+  'core.change.filterOff': 'Filter buttons removed',
   'core.change.unmerged': 'Unmerged the cells',
   'core.change.tableGrew_one': 'Table {{table}} took in {{count, number}} more row',
   'core.change.tableGrew_other': 'Table {{table}} took in {{count, number}} more rows',

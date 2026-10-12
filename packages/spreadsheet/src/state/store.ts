@@ -480,6 +480,8 @@ function download(blob: Blob, fileName: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const sameRect = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
+
 const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
 
 export class WorkbookStore {
@@ -511,7 +513,7 @@ export class WorkbookStore {
   /** The grid's right-click menu, while open: where, and whether it was opened on a column or row heading. */
   menu?: { x: number; y: number; kind: 'cell' | 'column' | 'row' };
   /** The value picker for filtering a column, while open. */
-  filterPicker?: { col: number; x: number; y: number };
+  filterPicker?: { col: number; x: number; y: number; rect?: Rect };
   findOpen = false;
   /** The list of keyboard shortcuts. */
   shortcutsOpen = false;
@@ -2384,11 +2386,15 @@ export class WorkbookStore {
     return out;
   }
 
-  /** The values in a column of the filter range, with how many rows hold each, for picking what to show. */
-  filterChoices(col: number): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string> } | undefined {
+  /**
+   * The values in a column of a filter's range, with how many rows hold each,
+   * for picking what to show: `range` when a heading's button gives it, else
+   * the filter's, else the data around the selection.
+   */
+  filterChoices(col: number, range?: Rect): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string> } | undefined {
     const view = this.view;
     if (!view) return undefined;
-    const rect = view.filter?.rect ?? this.dataRegion();
+    const rect = range ?? view.filter?.rect ?? this.dataRegion();
     if (!rect || col < rect.c1 || col > rect.c2) return undefined;
     const counts = new Map<string, number>();
     for (let row = rect.r1 + 1; row <= rect.r2; row++) {
@@ -2397,23 +2403,27 @@ export class WorkbookStore {
     }
     const values = [...counts].map(([text, count]) => ({ text, count }));
     values.sort((a, b) => (a.text === '' ? 1 : b.text === '' ? -1 : a.text.localeCompare(b.text, undefined, { numeric: true })));
-    return { rect, values, allowed: view.filter?.columns.get(col) };
+    const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
+    return { rect, values, allowed: current?.columns.get(col) };
   }
 
   /**
    * Shows only rows whose value in `col` is one of `allowed`; undefined
-   * shows them all again. A filter in a table is the table's, as Excel
-   * keeps it; the file keeps the filter, and the rows it hides, when saved.
+   * shows them all again, keeping the filter's buttons. A filter in a table
+   * is the table's, as Excel keeps it; one on another range takes the place
+   * of the filter there was. The file keeps the filter, and the rows it
+   * hides, when saved.
    */
   async setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): Promise<void> {
     const view = this.view;
     if (!view) return;
-    const columns = new Map(view.filter?.columns ?? []);
+    const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
+    const columns = new Map(current?.columns ?? []);
     if (allowed) columns.set(col, allowed);
     else columns.delete(col);
-    let target = view.filter?.rect ?? rect;
-    let table = view.filter?.table;
-    if (!view.filter) {
+    let target = rect;
+    let table = current?.table;
+    if (!current) {
       const t = view.info.tables.find((x) => x.rect.r1 <= target.r2 && x.rect.r2 >= target.r1 && x.rect.c1 <= target.c2 && x.rect.c2 >= target.c1);
       if (t) {
         target = { ...t.rect, r2: t.rect.r2 - t.totalsRows };
@@ -2421,17 +2431,37 @@ export class WorkbookStore {
       }
     }
     const rows = columns.size ? SheetView.rowsFilteredBy(target, columns, (row, c) => this.shownText(view, row, c)) : [];
-    const filter: FilterState | null = columns.size
-      ? { rect: target, columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])), ...(table ? { table } : {}) }
-      : null;
+    const filter: FilterState = { rect: target, columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])), ...(table ? { table } : {}) };
     // How many rows the filter hides is said, as Excel's status bar shows how many it leaves.
-    const hidden = msg(filter ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
-    await this.changeLayout({ kind: 'filter', filter, rows }, msg(filter ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
+    const hidden = msg(columns.size ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
+    await this.changeLayout({ kind: 'filter', filter, rows }, msg(columns.size ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
   }
 
+  /** Shows every row again, as Excel's Clear does, keeping the filter's buttons. */
   async clearFilter(): Promise<void> {
-    if (!this.view?.filter) return;
-    await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.clearFilter'), [], msg('store.announce.filterCleared'));
+    const f = this.view?.filter;
+    if (!f?.columns.size) return;
+    const filter: FilterState = { rect: f.rect, columns: {}, ...(f.table ? { table: f.table } : {}) };
+    await this.changeLayout({ kind: 'filter', filter, rows: [] }, msg('store.history.clearFilter'), [], msg('store.announce.filterCleared'));
+  }
+
+  /**
+   * Excel's Filter command (Ctrl+Shift+L, or ⌘⇧F on a Mac): filter buttons
+   * on the heading row of the block around the selection, or, where the sheet
+   * has them, off again with every row shown. A table keeps its own buttons.
+   */
+  async toggleFilter(): Promise<void> {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return;
+    const { row, col } = this.selection;
+    if (view.tableAt(row, col) || view.filter?.table) return this.toast('info', msg('store.filter.table'));
+    if (view.filter) {
+      await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.filterOff'), [], msg('store.announce.filterOff'));
+      return;
+    }
+    const rect = this.dataRegion();
+    if (!rect) return this.toast('info', msg('filter.noData'));
+    await this.changeLayout({ kind: 'filter', filter: { rect, columns: {} }, rows: [] }, msg('store.history.filterOn'), [], msg('store.announce.filterOn'));
   }
 
   // ---------------------------------------------------------------------------

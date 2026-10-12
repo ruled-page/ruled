@@ -3477,6 +3477,18 @@
   font-weight: 600;
 }
 
+/* Sorting by the column, above its values, as in Excel's filter menu. */
+.wbe .wbe-filter-sort {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--wbe-border);
+}
+
+.wbe .wbe-filter-sort .wbe-btn {
+  justify-content: flex-start;
+}
+
 .wbe .wbe-find-panel .wbe-select > select {
   height: 28px;
   border-radius: var(--wbe-radius-sm);

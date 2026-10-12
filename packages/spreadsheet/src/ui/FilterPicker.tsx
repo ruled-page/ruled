@@ -6,14 +6,14 @@ import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
 
 /**
- * Picks which values of a column to show, like Excel's filter list. Rows are
- * hidden on screen only; the file's own filter is left as it was.
+ * Excel's filter menu for a column: sort the filter's range by it, or pick
+ * which of its values to show.
  */
 export function FilterPicker({ store }: { store: WorkbookStore }) {
   const t = useT();
   const id = useId();
   const at = store.filterPicker;
-  const choices = useMemo(() => (at ? store.filterChoices(at.col) : undefined), [store, at]);
+  const choices = useMemo(() => (at ? store.filterChoices(at.col, at.rect) : undefined), [store, at]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -60,6 +60,12 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     else next.add(text);
     setChecked(next);
   };
+  // Sorting the filter's range by this column, as the top of Excel's filter menu does.
+  const kind = store.sortLines(choices.rect, true, false).find((l) => l.index === at.col)?.kind ?? 'text';
+  const sort = (descending: boolean) => {
+    void store.sortBy({ rect: choices.rect, keys: [{ col: at.col, descending }], header: true, caseSensitive: false, across: false });
+    store.set('filterPicker', undefined);
+  };
   const apply = () => {
     const everything = choices.values.every((v) => checked.has(v.text));
     void store.setFilter(choices.rect, at.col, everything ? undefined : checked);
@@ -70,6 +76,14 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     <div className="wbe-filter-picker" ref={ref} style={pos} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
       <div id={`${id}-title`} className="wbe-filter-title">
         {heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}
+      </div>
+      <div className="wbe-filter-sort">
+        <button className="wbe-btn wbe-ghost" onClick={() => sort(false)}>
+          {t(kind === 'number' ? 'sort.ascNumber' : kind === 'date' ? 'sort.ascDate' : 'sort.ascText')}
+        </button>
+        <button className="wbe-btn wbe-ghost" onClick={() => sort(true)}>
+          {t(kind === 'number' ? 'sort.descNumber' : kind === 'date' ? 'sort.descDate' : 'sort.descText')}
+        </button>
       </div>
       <input className="wbe-filter-search" placeholder={t('filter.search')} aria-label={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
       <label className="wbe-filter-all">
