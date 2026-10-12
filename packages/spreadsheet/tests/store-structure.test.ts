@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { english } from '../src/i18n';
-import type { FindQuery, WorkbookStore } from '../src/state/store';
+import type { Answer, FindQuery, WorkbookStore } from '../src/state/store';
 import { sample } from './helpers';
 import { opened, testStore } from './storeHarness';
 
@@ -437,5 +437,61 @@ describe('find and replace', () => {
     expect(store.undoStack).toHaveLength(2);
     await store.undo();
     expect([cell(4, 0, 0)?.s, cell(0, 0, 2)?.s, cell(1, 0, 2)?.s]).toEqual(['Banana', 'Region', 'East']);
+  });
+});
+
+describe("dragging the selection's border", () => {
+  /** Waits for the store to ask something, and gives the answer. */
+  async function answer(reply: Answer): Promise<void> {
+    for (let i = 0; i < 200 && !store.confirmRequest; i++) await new Promise((r) => setTimeout(r, 5));
+    if (!store.confirmRequest) throw new Error('Nothing was asked');
+    store.confirmRequest.resolve(reply);
+  }
+
+  it('moves the cells, with references to them following, and selects where they went', async () => {
+    await open();
+    select(rect(1, 1));
+    expect(await store.dragSelection(1, 6, false)).toBe(true);
+    expect([cell(1, 1), cell(1, 6)?.n]).toEqual([null, 3]);
+    expect([cell(1, 3)?.f, cell(1, 3)?.n]).toEqual(['G2*C2', 6]);
+    expect(store.selection.rects).toEqual([rect(1, 6)]);
+  });
+
+  it('copies them with Ctrl, their formulas shifting as when pasted', async () => {
+    await open();
+    select(rect(1, 3));
+    expect(await store.dragSelection(1, 4, true)).toBe(true);
+    expect([cell(1, 3)?.f, cell(1, 4)?.f, cell(1, 4)?.n]).toEqual(['B2*C2', 'C2*D2', 12]);
+    expect(store.selection.rects).toEqual([rect(1, 4)]);
+  });
+
+  it('asks before replacing cells that hold something, as Excel does', async () => {
+    await open();
+    select(rect(1, 1));
+    const kept = store.dragSelection(1, 2, false);
+    await answer('cancel');
+    expect(await kept).toBe(false);
+    expect([cell(1, 1)?.n, cell(1, 2)?.n]).toEqual([3, 2]);
+    const replaced = store.dragSelection(1, 2, false);
+    await answer('confirm');
+    expect(await replaced).toBe(true);
+    expect([cell(1, 1), cell(1, 2)?.n]).toEqual([null, 3]);
+  });
+
+  it("doesn't ask when the only cells in the way are the ones moving", async () => {
+    await open();
+    select(rect(6, 0, 7, 0));
+    expect(await store.dragSelection(7, 0, false)).toBe(true);
+    expect(store.confirmRequest).toBeUndefined();
+    expect([cell(7, 0), cell(8, 0)?.s]).toEqual([null, 'Lone']);
+  });
+
+  it('turns down a drop off the sheet, or a selection of several areas', async () => {
+    await open();
+    select(rect(1, 1));
+    expect(await store.dragSelection(-1, 1, false)).toBe(false);
+    store.setSelection({ row: 1, col: 1, rects: [rect(1, 1), rect(3, 1)] });
+    expect(await store.dragSelection(1, 6, false)).toBe(false);
+    expect(cell(1, 1)?.n).toBe(3);
   });
 });

@@ -18,6 +18,12 @@ back as .xlsx without losing what the editor can't display.
   formats too (bold, colours, borders, alignment, number formats). Paste
   special pastes only the values, the formulas or the formats of cells
   copied in the workbook, or pastes them transposed.
+- Move cells by dragging the selection's border, as in Excel: references to
+  them follow, and holding Ctrl (Option on a Mac) copies them instead, their
+  formulas' references shifting as when pasted. A dashed outline shows where
+  they'll land, Escape gives up, and dropping them on cells that hold
+  something asks first. (Excel's Shift+drag, which inserts them between
+  cells, isn't there yet.)
 - Fill as in Excel. Dragging the fill handle continues numbers, dates,
   quarters, "Item 1" → "Item 2", and lists: day and month names, short and
   full, in the editor's language as well as English (Montag, Mo., Januar and

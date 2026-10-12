@@ -2704,6 +2704,34 @@ export class WorkbookStore {
     });
   }
 
+  /**
+   * Moves the selected cells so they start at another cell, as dragging the
+   * selection's border does in Excel, with every reference to them
+   * following; with `copy` (dragging with Ctrl, or Option on a Mac), copies
+   * them there, their formulas' references shifting as when pasted. Either
+   * asks first when cells there that aren't the ones being moved hold
+   * something, as Excel does. Resolves true if the cells were moved or copied.
+   */
+  async dragSelection(row: number, col: number, copy: boolean): Promise<boolean> {
+    const view = this.view;
+    const src = this.selection.rects[0];
+    if (!view || !src || this.selection.rects.length !== 1 || (row === src.r1 && col === src.c1)) return false;
+    const dst: Rect = { r1: row, c1: col, r2: row + src.r2 - src.r1, c2: col + src.c2 - src.c1 };
+    if (row < 0 || col < 0 || dst.r2 >= MAX_ROWS || dst.c2 >= MAX_COLS) return false;
+    let filled = false;
+    view.forEach(dst, (r, c, rec) => {
+      const moving = !copy && r >= src.r1 && r <= src.r2 && c >= src.c1 && c <= src.c2;
+      if (!moving && (rec.t !== VT.None || rec.flags & CellFlag.Formula)) filled = true;
+    });
+    if (filled && !(await this.confirm({ title: msg('store.drag.title'), body: msg('store.drag.body'), confirmLabel: msg('store.drag.confirm') }))) return false;
+    if (!copy) return this.restructure({ type: 'move', sheet: this.active, src, toSheet: this.active, row, col });
+    if (!(await this.growTableTo(dst))) return false;
+    const readOnly = this.schemaReadOnly(dst);
+    await this.edit({ type: 'copy', srcSheet: this.active, src, sheet: this.active, dst, ...(readOnly && { readOnly }) });
+    this.setSelection({ row: dst.r1, col: dst.c1, rects: [dst] });
+    return true;
+  }
+
   /** Typing still being checked before its edit is queued. */
   private readonly typing = new Set<Promise<void>>();
 

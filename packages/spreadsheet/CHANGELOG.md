@@ -5,6 +5,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Cells move by dragging the selection's border, and copy with Ctrl (Option
+  on a Mac) held, as in Excel; dropping them on cells that hold something
+  asks first.
+- A drag that ends off the grid no longer swallows the next click.
 - Dynamic array formulas, typed or from the file, spill their values into
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are

@@ -166,6 +166,18 @@ interface Props {
 
 type Highlights = NonNullable<DataEditorProps['highlightRegions']>[number][];
 
+
+/**
+ * Stops the click that follows a mouse button being let go, so a press or
+ * drag that ends on the grid isn't also taken as a click on a cell. If no
+ * click follows (the button was let go over something else), nothing later
+ * is stopped.
+ */
+function swallowNextClick(): void {
+  const stop = (c: MouseEvent) => c.stopPropagation();
+  window.addEventListener('click', stop, { capture: true, once: true });
+  setTimeout(() => window.removeEventListener('click', stop, true), 0);
+}
 export function SheetGrid({
   store,
   view,
@@ -207,6 +219,8 @@ export function SheetGrid({
   const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
+  /** Where the selection being dragged by its border would land, and whether it would be copied. */
+  const [cellDrag, setCellDrag] = useState<{ rect: Rect; copy: boolean } | null>(null);
   const styles = store.styles;
   const date1904 = store.date1904;
   const locale = store.locale;
@@ -613,6 +627,9 @@ export function SheetGrid({
     // A cut waiting to be pasted gets a dashed outline.
     const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
     const marks: Highlights = cut ? [{ color: palette.cutFill, range: cut, style: 'dashed' }] : [];
+    // Where the selection being dragged by its border would land.
+    const landing = cellDrag ? clip(cellDrag.rect) : undefined;
+    if (landing) marks.push({ color: palette.selectionFill, range: landing, style: 'dashed' });
     // The range the selected cell's formula spills into, or spills from, outlined as Excel does; dashed while it is blocked.
     const spill = view.get(selection.row, selection.col)?.spill;
     const spillSpan = spill && view.gridSpan(spill);
@@ -661,7 +678,7 @@ export function SheetGrid({
       highlights: marks.length ? marks : undefined,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the spill outline follows the cells' data
-  }, [view, dataVersion, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors]);
+  }, [view, dataVersion, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors, cellDrag]);
 
   // Mouse presses on the letters, numbers and corner are taken before Glide
   // sees them (below); touches on them, and Glide's keys for whole lines, come here.
@@ -984,7 +1001,7 @@ export function SheetGrid({
     e.stopPropagation();
     ref.current?.focus();
     // The click that ends the press isn't one on a cell.
-    window.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true });
+    window.addEventListener('mouseup', swallowNextClick, { capture: true, once: true });
     if (hit.axis === 'all') return store.selectAll();
     const { axis, line } = hit;
     const sel = store.selection;
@@ -1009,8 +1026,101 @@ export function SheetGrid({
     window.addEventListener('mouseup', up, true);
   };
 
+  /**
+   * Whether the pointer is on the selection's border, which can be dragged
+   * to move its cells, as in Excel: within a few pixels of its edge on this
+   * pane, but not on the fill handle at its bottom-right corner.
+   */
+  const onSelectionEdge = (x: number, y: number): boolean => {
+    const grid = ref.current;
+    const sel = store.selection;
+    const r = sel.rects[0];
+    if (!grid || !resizable || sel.rects.length !== 1 || sel.lines === 'all' || !r) return false;
+    const last = rowStart + rows - 1;
+    const y1 = Math.max(rowStart, view.gridRow(r.r1));
+    const y2 = Math.min(last, view.gridRow(r.r2));
+    if (y1 > y2) return false;
+    const x1 = Math.max(0, view.gridCol(r.c1)) + 1;
+    const x2 = Math.max(x1, view.gridCol(r.c2) + 1);
+    const a = grid.getBounds(x1, y1 - rowStart);
+    const b = grid.getBounds(x2, y2 - rowStart);
+    if (!a || !b) return false;
+    const [left, top, right, bottom] = [a.x, a.y, b.x + b.width, b.y + b.height];
+    const near = (p: number, edge: number) => Math.abs(p - edge) <= 4;
+    if (near(x, right) && near(y, bottom)) return false;
+    const across = x >= left - 4 && x <= right + 4;
+    const down = y >= top - 4 && y <= bottom + 4;
+    return (across && (near(y, top) || near(y, bottom))) || (down && (near(x, left) || near(x, right)));
+  };
+  /** The cell under the pointer, or the nearest in view past either end. */
+  const cellUnder = (x: number, y: number) => {
+    const row = lineLevelWith('rows', x, y);
+    const col = lineLevelWith('cols', x, y);
+    return row === undefined || col === undefined ? undefined : { row, col };
+  };
+  /**
+   * Drags the selection by its border: its cells move where it is dropped,
+   * or with Ctrl (Option on a Mac) held, are copied there, as in Excel. A
+   * dashed outline shows where they'll go; Escape gives up.
+   */
+  const dragSelection = (e: ReactMouseEvent) => {
+    const src = store.selection.rects[0];
+    const from = cellUnder(e.clientX, e.clientY);
+    if (!src || !from) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Where in the selection it was picked up, so it keeps that point under the pointer.
+    const off = { row: Math.min(Math.max(from.row - src.r1, 0), src.r2 - src.r1), col: Math.min(Math.max(from.col - src.c1, 0), src.c2 - src.c1) };
+    let drop: Rect | undefined;
+    let copy = false;
+    const copying = (m: MouseEvent | KeyboardEvent) => (APPLE ? m.altKey : m.ctrlKey);
+    const show = () => {
+      setCellDrag(drop ? { rect: drop, copy } : null);
+      if (host.current) host.current.style.cursor = copy ? 'copy' : 'move';
+    };
+    const move = (m: MouseEvent) => {
+      const at = cellUnder(m.clientX, m.clientY);
+      copy = copying(m);
+      if (at) {
+        const row = Math.max(0, at.row - off.row);
+        const col = Math.max(0, at.col - off.col);
+        drop = { r1: row, c1: col, r2: row + src.r2 - src.r1, c2: col + src.c2 - src.c1 };
+      }
+      show();
+    };
+    const key = (k: KeyboardEvent) => {
+      if (k.key === 'Escape') {
+        drop = undefined;
+        end();
+      } else {
+        copy = copying(k);
+        show();
+      }
+    };
+    const end = () => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      window.removeEventListener('keydown', key, true);
+      window.removeEventListener('keyup', key, true);
+      setCellDrag(null);
+      if (host.current) host.current.style.cursor = '';
+    };
+    const up = () => {
+      // The click that ends the drag isn't one on the grid.
+      swallowNextClick();
+      const to = drop;
+      end();
+      if (to && (to.r1 !== src.r1 || to.c1 !== src.c1)) void store.dragSelection(to.r1, to.c1, copy);
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('keyup', key, true);
+  };
+
   const onHostMouseMove = (e: ReactMouseEvent) => {
-    if (!rowDrag && host.current) host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : '';
+    if (rowDrag || cellDrag || !host.current) return;
+    host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : onSelectionEdge(e.clientX, e.clientY) ? 'move' : '';
   };
   const onHostMouseDown = (e: ReactMouseEvent) => {
     // A double-click on a column's edge fits it to its widest value, as in Excel.
@@ -1022,6 +1132,10 @@ export function SheetGrid({
       return;
     }
     const at = e.button === 0 ? rowEdgeAt(e.clientX, e.clientY) : undefined;
+    if (!at && e.button === 0 && e.detail < 2 && onSelectionEdge(e.clientX, e.clientY)) {
+      dragSelection(e);
+      return;
+    }
     if (!at) {
       const hit = e.button === 0 ? headingAt(e.clientX, e.clientY) : undefined;
       if (hit) pressHeading(e, hit);
@@ -1043,7 +1157,7 @@ export function SheetGrid({
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
       // The click that ends the drag isn't one on the grid.
-      window.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true });
+      swallowNextClick();
       setRowDrag(null);
       const px = Math.max(0, Math.round(start.px + m.clientY - start.from));
       if (px !== start.px) void store.resizedRow(start.row, px);
