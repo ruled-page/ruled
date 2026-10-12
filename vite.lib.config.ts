@@ -52,8 +52,8 @@ export default defineConfig(({ mode }) => {
         { find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) },
       ],
     },
-    // HyperFormula only, for now: the editor's own engine joins the library builds when it becomes the default.
-    define: { 'process.env.NODE_ENV': JSON.stringify('production'), __WBE_NATIVE_ENGINE__: 'false' },
+    // The editor's own engine only: HyperFormula stays in the demo and test sites, to compare them.
+    define: { 'process.env.NODE_ENV': JSON.stringify('production'), __WBE_NATIVE_ENGINE__: 'true', __WBE_HYPERFORMULA__: 'false' },
     build: {
       outDir: `dist-lib/${standalone ? 'standalone' : 'react'}`,
       emptyOutDir: true,

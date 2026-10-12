@@ -1,37 +1,21 @@
 import { readFileSync } from 'node:fs';
-import { HyperFormula } from 'hyperformula';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { registerExcelFunctions } from '../src/core/excelFunctions';
 import { FUTURE_FUNCTIONS } from '../src/core/formula';
 import { functionHelp, functionsStartingWith, knownFunctionNames } from '../src/core/functionCatalog';
-import { SPILL_FUNCTION } from '../src/core/functions/spill';
+import { FUNCTIONS } from '../src/engine/functions';
 
-/**
- * HyperFormula's own functions, which Excel doesn't have, so a formula using
- * one would be #NAME? in Excel; and the one spilling formulas are given to
- * the engine in.
- */
-const ENGINE_ONLY = new Set(
-  (
-    'ARRAYFORMULA ARRAY_CONSTRAIN CHIDISTRT CHIINVRT COUNTUNIQUE COVARIANCEP COVARIANCES FDISTRT FINVRT HF.ADD ' +
-    'HF.CONCAT HF.DIVIDE HF.EQ HF.GT HF.GTE HF.LT HF.LTE HF.MINUS HF.MULTIPLY HF.NE HF.POW HF.UMINUS ' +
-    'HF.UNARY_PERCENT HF.UPLUS INTERVAL ISBINARY LOGNORMINV MAXPOOL MEDIANPOOL POISSONDIST SKEWP SPLIT STDEVS ' +
-    'TDIST2T TDISTRT TINV2T VARS VERSION WEIBULLDIST ' +
-    SPILL_FUNCTION
-  ).split(' '),
-);
+/** The engine's own: the one spilling formulas are given to it in, and what A2# and @A1:A3 become in files. */
+const ENGINE_ONLY = new Set(['WBE.SPILL', 'ANCHORARRAY', 'SINGLE']);
 
-/** Excel functions the engine lacks that the editor writes out for it (expandLets). */
-const WRITTEN_OUT = new Set(['LET']);
+/** Excel functions the engine has no entry for: LET, which the editor writes out for it (expandLets), and LAMBDA, which it reads as part of the formula. */
+const WRITTEN_OUT = new Set(['LET', 'LAMBDA']);
 
 /** In Excel's file format but not offered by Excel as you type. */
 const NOT_OFFERED = new Set(['ECMA.CEILING', 'QUERYSTRING']);
 
 let registered: Set<string>;
 beforeAll(() => {
-  // As the worker's engine has them.
-  registerExcelFunctions();
-  registered = new Set(HyperFormula.getRegisteredFunctionNames('enGB'));
+  registered = new Set(Object.keys(FUNCTIONS));
 });
 
 describe('the functions offered while typing a formula', () => {
@@ -47,7 +31,8 @@ describe('the functions offered while typing a formula', () => {
 
   it("include every function Excel saves with the _xlfn. prefix, whether calculated or not", () => {
     expect([...FUTURE_FUNCTIONS].filter((n) => !NOT_OFFERED.has(n) && !functionHelp(n))).toEqual([]);
-    expect(functionHelp('LAMBDA')).toMatchObject({ calculated: false });
+    expect(functionHelp('LAMBDA')).toMatchObject({ calculated: true });
+    expect(functionHelp('CUBEVALUE')).toMatchObject({ calculated: false });
     expect(functionHelp('LET')).toMatchObject({ calculated: true });
     expect(functionHelp('xlookup')).toMatchObject({ name: 'XLOOKUP', calculated: true });
   });

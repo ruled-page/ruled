@@ -40,6 +40,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   are checked against Excel's. It is 34 kB to download against
   HyperFormula's 173 kB, and on the largest sample calculates in about a
   third of the time with about half the memory.
+- The library builds calculate with the editor's own engine alone. Their
+  worker is 155 kB gzipped where it was 297 kB, and they no longer contain
+  HyperFormula, so its licence no longer applies to them; HyperFormula is a
+  dev dependency, kept in the demo and test sites to compare the two.
 - Copying numbers as HTML gives them to 15 significant digits, as Excel does.
 
 ## 0.1.0 (2026-10-08)

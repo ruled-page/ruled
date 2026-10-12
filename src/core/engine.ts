@@ -1,4 +1,3 @@
-import type { RawCellContent } from 'hyperformula';
 import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import type { EngineValue } from './engineValue';
 import { engineFormula } from './formula';
@@ -6,13 +5,14 @@ import type { CellContent } from './types';
 
 /**
  * What the session needs from a calculation engine, whichever one works the
- * formulas out: HyperFormula (./calc), or another with the same contract.
+ * formulas out: the editor's own (src/engine), HyperFormula (./calc), or
+ * another with the same contract.
  * Engines are loaded only when chosen (see src/worker/engines.ts), so this
  * module holds what the session uses without loading any of them.
  */
 
 /** A cell's content as an engine takes it: a value, or a formula with "=". */
-export type RawContent = RawCellContent;
+export type RawContent = Date | string | number | boolean | null | undefined;
 
 /** The function a spilling formula is wrapped in for the engine (see spillFormula). */
 export const SPILL_FUNCTION = 'WBE.SPILL';
@@ -62,7 +62,7 @@ export function unsupportedExplanation(u: Unsupported): Message {
 
 export interface EngineSheet {
   name: string;
-  rows: RawCellContent[][];
+  rows: RawContent[][];
 }
 
 export interface EngineName {
@@ -76,7 +76,7 @@ export interface EngineWrite {
   sheet: number;
   row: number;
   col: number;
-  raw: RawCellContent;
+  raw: RawContent;
 }
 
 export interface EngineChange {
@@ -86,7 +86,7 @@ export interface EngineChange {
   value: EngineValue;
 }
 
-export function toRaw(content: CellContent): RawCellContent {
+export function toRaw(content: CellContent): RawContent {
   switch (content.kind) {
     case 'empty':
       return null;

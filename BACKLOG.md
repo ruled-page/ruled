@@ -5,11 +5,13 @@ editor is a client-side proof of concept; nothing here should add a server.
 
 ## Needs a decision first
 
-- **The calculation engine's licence.** HyperFormula is used under its GPLv3
-  licence key, which a closed-source product can't do. Before production:
-  buy its commercial licence and pass the key in through an option, or
-  replace the engine. The key is set in `src/core/calc.ts` and
-  `src/core/engineLimits.ts`.
+- **HyperFormula in the demo and test sites.** The library builds calculate
+  with the editor's own engine and have no HyperFormula in them (the bundle
+  check fails if it returns). The demo and test sites still offer it, under
+  its GPLv3 licence key, to compare the two engines. Before those sites are
+  shown outside the team, drop it from them (`__WBE_HYPERFORMULA__` in
+  vite.config.ts) or buy its commercial licence. The key is set in
+  `src/core/calc.ts` and `src/core/engineLimits.ts`.
 
 ## Needs a person
 
@@ -62,8 +64,9 @@ value without saying so.
 - **Deleting the rows that hold a sheet's last notes** leaves its comments
   part with no comments in it. It is valid, but Excel removes the part.
 - **The package lists the code it bundles as dependencies.** Everything but
-  React is bundled into the library builds, yet `dependencies` names
-  HyperFormula, Glide and the rest, so a host app installs them for nothing.
+  React is bundled into the library builds, yet `dependencies` names Glide
+  and the rest, so a host app installs them for nothing (HyperFormula, which
+  the library no longer has, is a dev dependency now).
   They can become devDependencies once the type declarations stop importing
   from them, for example by bundling the declarations into one file.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's

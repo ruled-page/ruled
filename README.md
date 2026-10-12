@@ -416,8 +416,8 @@ is decoded again when saving rather than kept in memory.
 
 Calculation engines: the session works formulas out through one interface
 (`FormulaEngine` in `src/core/engine.ts`), so engines can be swapped. The
-`engine` option chooses one (`'native'`, the default where the build has it,
-or `'hyperformula'`), and
+`engine` option chooses one (`'native'`, the default and the library builds'
+only one, or `'hyperformula'` in the demo and test sites), and
 `setEngine(id)` on the store opens the workbook again with another. Each
 engine is a chunk of the worker's own, downloaded only when chosen; the
 library builds inline it, keeping one worker file. With `diagnostics: true`
@@ -438,8 +438,9 @@ comparing and converting values. CELL gives what the cell itself holds
 protection, it keeps Excel's saved value, as any formula an engine can't
 calculate does. It is 34 kB gzipped against HyperFormula's 173 kB, and on
 `big.xlsx` calculates in about a third of the time with about half the
-memory. It is the default in the demo and test sites; the library builds
-have HyperFormula alone for now.
+memory. It is the only engine in the library builds, whose worker it makes
+155 kB gzipped where HyperFormula made it 297 kB, and the default in the
+demo and test sites, which keep HyperFormula to compare the two.
 
 Its answers are held to Excel's: `npm run excel:check` writes a workbook per
 family of functions to `tests/excel-checks/`, each formula beside the

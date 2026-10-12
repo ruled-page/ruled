@@ -55,6 +55,14 @@ for (const dir of PAGE_CODE) {
     }
   }
 }
+// The library builds have the editor's own engine alone: HyperFormula, under its GPLv3 key, must not reach a host app.
+for (const dir of ['dist-lib/react', 'dist-lib/react/assets', 'dist-lib/standalone']) {
+  const path = join(root, dir);
+  if (!existsSync(path)) continue;
+  for (const f of readdirSync(path)) {
+    if (f.endsWith('.js') && readFileSync(join(path, f), 'utf8').includes('gpl-v3')) problems.push(`${join(dir, f)}: has HyperFormula in it, which the library builds leave out`);
+  }
+}
 if (problems.length) {
   console.error(`\n${problems.join('\n')}`);
   process.exit(1);
