@@ -18,6 +18,12 @@ back as .xlsx without losing what the editor can't display.
   formats too (bold, colours, borders, alignment, number formats). Paste
   special pastes only the values, the formulas or the formats of cells
   copied in the workbook, or pastes them transposed.
+- AutoComplete, as in Excel: text typed into a cell, or into the formula bar
+  for it, is finished from the text above and below it in its column (as far
+  as the first empty cell) once what's typed starts just one entry. The rest
+  is added and selected, so typing on replaces it and Backspace takes it
+  away, and the entry goes in written as the column has it. Numbers, dates
+  and formulas aren't completed; `features.autoComplete` turns it off.
 - Move cells by dragging the selection's border, as in Excel: references to
   them follow, and holding Ctrl (Option on a Mac) copies them instead, their
   formulas' references shifting as when pasted. A dashed outline shows where
@@ -411,6 +417,7 @@ element with id `wbe-portal` that the editor adds to the page.
 | `charts` | Charts drawn from the workbook's current values. Off, they show as placeholders with their title, and the chart library (Chart.js, about 70 kB gzipped) is never loaded; on, it loads only when a workbook has a chart to draw |
 | `format` | The format bar, for fonts, colours, borders, alignment and number formats; hosts whose users only fill in values can leave it out |
 | `csv` | CSV files (.csv, .tsv and .txt) in the Open button and when dropped, and the button that downloads the sheet shown as CSV (shown when `download` is on too) |
+| `autoComplete` | Excel's AutoComplete: text typed into a cell is finished from the entries above and below it in its column |
 
 `onEvent` hears what the editor does, for a host's logging or analytics:
 `opened` (with how long it took), `openFailed`, `calculated` (how many

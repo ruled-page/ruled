@@ -14,6 +14,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Insert and delete cells, moving the others down or right (or up or left),
   or whole rows or columns, from Excel's keys (Ctrl++ and Ctrl+-) or the
   cell menu, through Excel's Insert and Delete dialogs.
+- AutoComplete: text typed into a cell, or the formula bar, is finished from
+  the entries above and below it in its column, as in Excel. Hosts can turn
+  it off with `features.autoComplete`.
 - Dynamic array formulas, typed or from the file, spill their values into
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are

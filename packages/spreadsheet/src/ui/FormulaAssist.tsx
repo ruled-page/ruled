@@ -12,6 +12,8 @@ import {
   type FormulaRef,
 } from '../core/formulaAssist';
 import type { FunctionHelp } from '../core/functionCatalog';
+import { autoComplete, columnEntries } from '../state/autoComplete';
+import type { WorkbookStore } from '../state/store';
 import { useT } from '../i18n/react';
 
 /**
@@ -232,4 +234,44 @@ export function AssistPopup({ assist, listId, hintId, style, className, onPick }
       )}
     </div>
   );
+}
+
+/** Excel's AutoComplete for the text typed into a cell, from the formula bar or the cell itself. */
+export interface AutoComplete {
+  /**
+   * After the field's text changes: when it was typed at the end and is now
+   * the start of just one entry in the cell's column, the text with the rest
+   * of that entry added, and the rest selected, so typing on replaces it.
+   */
+  changed(text: string, start: number, end: number, inputType: string | undefined): { text: string; sel: [number, number] } | undefined;
+  /** What goes into the cell for `text`: the entry as it is written in the column, when it was the one completed. */
+  final(text: string): string;
+}
+
+/**
+ * AutoComplete for the cell at `row` and `col`, reading its column the first
+ * time text is typed there. Only typing completes, not pasting or deleting,
+ * so Backspace takes away what was added.
+ */
+export function useAutoComplete(store: WorkbookStore, row: number, col: number, on: boolean): AutoComplete {
+  const entries = useRef<{ at: string; list: string[] }>(undefined);
+  const match = useRef<string>(undefined);
+  return {
+    changed(text, start, end, inputType) {
+      match.current = undefined;
+      const view = store.view;
+      if (!on || !view || inputType !== 'insertText' || start !== end || end !== text.length) return undefined;
+      // Read again for another cell, or once the sheet's cells change.
+      const at = `${view.info.index}:${row}:${col}:${view.version}`;
+      if (entries.current?.at !== at) entries.current = { at, list: columnEntries((r, c) => view.get(r, c), row, col) };
+      const entry = autoComplete(text, entries.current.list);
+      if (entry === undefined) return undefined;
+      match.current = entry;
+      return { text: text + entry.slice(text.length), sel: [text.length, entry.length] };
+    },
+    final(text) {
+      const entry = match.current;
+      return entry !== undefined && entry.toLowerCase() === text.toLowerCase() ? entry : text;
+    },
+  };
 }

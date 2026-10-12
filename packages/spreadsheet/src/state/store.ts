@@ -204,6 +204,11 @@ export interface EditorFeatures {
    * downloads are on). Default true.
    */
   csv: boolean;
+  /**
+   * Excel's AutoComplete: text typed into a cell is finished from the
+   * entries above and below it in its column. Default true.
+   */
+  autoComplete: boolean;
 }
 
 export interface StoreOptions {
@@ -611,7 +616,7 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, ...options.features };
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, ...options.features };
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }

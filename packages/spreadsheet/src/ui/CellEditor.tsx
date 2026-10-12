@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { toA1 } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
 import { useT } from '../i18n/react';
-import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useFormulaAssist } from './FormulaAssist';
+import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useAutoComplete, useFormulaAssist } from './FormulaAssist';
 import { GLIDE_CLICK_OUTSIDE_IGNORE, PORTAL_ID } from './glideDom';
 
 /**
@@ -12,7 +12,8 @@ import { GLIDE_CLICK_OUTSIDE_IGNORE, PORTAL_ID } from './glideDom';
  * (a text area that grows with its text; Shift+Enter starts a new line),
  * with the formula bar's help while a formula is typed: functions offered as
  * their names are typed, argument hints, references coloured here and
- * outlined on the grid, and F4.
+ * outlined on the grid, and F4. Text is finished from the column as it is
+ * typed, as Excel's AutoComplete does.
  */
 export function textCellEditor(store: WorkbookStore): ProvideEditorComponent<GridCell> {
   return (props) => <CellEntry store={store} {...props} />;
@@ -20,7 +21,7 @@ export function textCellEditor(store: WorkbookStore): ProvideEditorComponent<Gri
 
 type EditorProps = Parameters<ProvideEditorComponent<GridCell>>[0];
 
-function CellEntry({ store, value, onChange, isHighlighted, validatedSelection }: EditorProps & { store: WorkbookStore }) {
+function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, isHighlighted, validatedSelection }: EditorProps & { store: WorkbookStore }) {
   const t = useT();
   const cell = value as TextCell;
   const text = cell.data;
@@ -35,6 +36,7 @@ function CellEntry({ store, value, onChange, isHighlighted, validatedSelection }
   const assist = useFormulaAssist(text, sel[0], sel[1], editable);
   const colored = editable && text.startsWith('=');
   const { row, col } = store.selection;
+  const auto = useAutoComplete(store, row, col, editable && store.features.autoComplete);
   const apply = (next: string, start: number, end: number) => {
     onChange({ ...cell, data: next });
     setSel([start, end]);
@@ -42,11 +44,14 @@ function CellEntry({ store, value, onChange, isHighlighted, validatedSelection }
   };
 
   // Opens focused, with the text selected or the caret at its end, as Glide's own editor does.
+  // Opened by typing, it holds the key typed, which AutoComplete can already finish.
   useEffect(() => {
     const el = area.current;
     if (!el || el.disabled) return;
     el.focus();
-    el.setSelectionRange(isHighlighted ? 0 : el.value.length, el.value.length);
+    const completed = initialValue !== undefined ? auto.changed(text, text.length, text.length, 'insertText') : undefined;
+    if (completed) apply(completed.text, ...completed.sel);
+    else el.setSelectionRange(isHighlighted ? 0 : el.value.length, el.value.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useLayoutEffect(() => {
@@ -88,8 +93,13 @@ function CellEntry({ store, value, onChange, isHighlighted, validatedSelection }
         aria-describedby={assist.hint && !assist.completion ? `${id}-hint` : undefined}
         onChange={(e) => {
           const start = e.target.selectionStart;
-          onChange({ ...cell, data: e.target.value });
-          setSel([start, e.target.selectionEnd]);
+          const completed = auto.changed(e.target.value, start, e.target.selectionEnd, (e.nativeEvent as InputEvent).inputType);
+          if (completed) {
+            apply(completed.text, ...completed.sel);
+          } else {
+            onChange({ ...cell, data: e.target.value });
+            setSel([start, e.target.selectionEnd]);
+          }
           assist.typed(e.target.value, start);
         }}
         onSelect={(e) => setSel([e.currentTarget.selectionStart, e.currentTarget.selectionEnd])}
@@ -99,6 +109,14 @@ function CellEntry({ store, value, onChange, isHighlighted, validatedSelection }
           if (assistKey(e, assist, text, el.selectionStart, el.selectionEnd, apply)) {
             e.preventDefault();
             e.stopPropagation();
+            return;
+          }
+          // An entry AutoComplete finished goes in written as it is in the column, where Glide would take the text as typed.
+          const entry = auto.final(text);
+          if (entry !== text && ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab')) {
+            e.preventDefault();
+            e.stopPropagation();
+            onFinishedEditing({ ...cell, data: entry }, e.key === 'Tab' ? [e.shiftKey ? -1 : 1, 0] : [0, 1]);
           }
         }}
       />

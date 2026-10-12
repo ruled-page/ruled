@@ -8,7 +8,7 @@ import { displayText, editText } from '../state/format';
 import { nameBoxEnter, nameBoxNames, selectionName } from '../state/names';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
-import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useFormulaAssist } from './FormulaAssist';
+import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useAutoComplete, useFormulaAssist } from './FormulaAssist';
 import { Icon } from './icons';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
@@ -248,6 +248,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const [popupX, setPopupX] = useState(0);
   const pendingSel = useRef<[number, number]>(undefined);
   const assist = useFormulaAssist(draft, sel[0], sel[1], focused && !readOnly);
+  const auto = useAutoComplete(store, selection.row, selection.col, focused && !readOnly && store.features.autoComplete);
   const colored = focused && draft.startsWith('=');
   const apply = (text: string, start: number, end: number) => {
     setDraft(text);
@@ -290,7 +291,8 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
 
   // Back to the grid, at the cell, as the keyboard was before the formula bar took it.
   const commit = () => {
-    if (draft !== value) void store.input(selection.row, selection.col, draft);
+    const text = auto.final(draft);
+    if (text !== value) void store.input(selection.row, selection.col, text);
     store.focusGrid();
   };
 
@@ -322,8 +324,13 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
           }}
           onChange={(e) => {
             const start = e.target.selectionStart ?? e.target.value.length;
-            setDraft(e.target.value);
-            setSel([start, e.target.selectionEnd ?? start]);
+            const completed = auto.changed(e.target.value, start, e.target.selectionEnd ?? start, (e.nativeEvent as InputEvent).inputType);
+            if (completed) {
+              apply(completed.text, ...completed.sel);
+            } else {
+              setDraft(e.target.value);
+              setSel([start, e.target.selectionEnd ?? start]);
+            }
             assist.typed(e.target.value, start);
           }}
           onSelect={(e) => setSel([e.currentTarget.selectionStart ?? 0, e.currentTarget.selectionEnd ?? 0])}
