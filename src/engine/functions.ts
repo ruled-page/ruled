@@ -7,7 +7,7 @@ import { estimate, prepare, project, RegressionError } from '../core/regressionM
 import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
-import { scalarOf, valuesOf, type Ctx } from './operands';
+import { apply, scalarOf, valuesOf, type Ctx } from './operands';
 import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseDateText, parseNumber, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
@@ -971,9 +971,13 @@ const textsOf = (op: Operand, ctx: Ctx) => {
 /** TEXTBEFORE and TEXTAFTER. */
 function textAround(a: Operand[], ctx: Ctx, after: boolean): Scalar {
   const t = text(scalarOf(a[0], ctx));
-  const n = Math.trunc(optNum(a, 2, ctx, 1));
+  // A fraction of an instance counts towards the end: -1.2 is the second from last.
+  const n = Math.floor(optNum(a, 2, ctx, 1));
   if (n === 0 || Math.abs(n) > Math.max(t.length, 1)) throw VALUE;
-  const at = findNth(t, textsOf(a[1], ctx), n, flag(a, 3, ctx), flag(a, 4, ctx));
+  const delims = textsOf(a[1], ctx);
+  // Asked for an instance, a delimiter longer than the text is #VALUE! rather than not found.
+  if (given(a, 2) && delims.length && delims.every((d) => d.length > t.length)) throw VALUE;
+  const at = findNth(t, delims, n, flag(a, 3, ctx), flag(a, 4, ctx));
   if (!at) return given(a, 5) ? scalarOf(a[5], ctx) : NA;
   return after ? t.slice(at[0] + at[1]) : t.slice(0, at[0]);
 }
@@ -2031,8 +2035,10 @@ const workday = (serial: number, weekend: boolean[], holidays: Set<number>, ctx:
 
 /** DAYS360: days between dates on a 360-day year, by the US (NASD) method or the European one. */
 function days360(start: number, end: number, european: boolean, ctx: Ctx): number {
-  let { y: y1, m: m1, d: d1 } = dateOf(start, ctx.host.date1904);
-  let { y: y2, m: m2, d: d2 } = dateOf(end, ctx.host.date1904);
+  // Day zero of the 1900 system is 0 January 1900.
+  const parts = (serial: number) => (serial === 0 && !ctx.host.date1904 ? { y: 1900, m: 1, d: 0 } : dateOf(serial, ctx.host.date1904));
+  let { y: y1, m: m1, d: d1 } = parts(start);
+  let { y: y2, m: m2, d: d2 } = parts(end);
   const last = (y: number, m: number, d: number) => dateOf(serialOf(y, m + 1, 0, ctx.host.date1904), ctx.host.date1904).d === d;
   if (european) {
     if (d1 === 31) d1 = 30;
@@ -2188,6 +2194,21 @@ function arabic(t: string): number {
 
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+/** A number that can't be TRUE or FALSE. */
+function notBool(v: Scalar): number {
+  if (typeof v === 'boolean') throw VALUE;
+  return num(v);
+}
+
+const MROUND = scalar(2, 2, ([x, m]) => {
+  if (typeof x === 'boolean' || typeof m === 'boolean') throw VALUE;
+  const n = num(x);
+  const k = num(m);
+  if (k === 0) return 0;
+  if (Math.sign(n) * Math.sign(k) < 0) throw NUM;
+  return excelRound(Math.round(n / k) * k, 10, 'half');
+});
+
 /**
  * n rounded to a multiple of k, up or down by `to`, as FLOOR and CEILING do:
  * the quotient to 15 digits first, so 7.1 / 0.1 counts as the 71 it is
@@ -2286,6 +2307,7 @@ function dbNumbers(a: Operand[], ctx: Ctx): number[] {
 
 /** Days from a Treasury bill's settlement to its maturity, which must come after it and within a year. */
 function billDays(s: Scalar, m: Scalar, ctx: Ctx): number {
+  if (typeof s === 'boolean' || typeof m === 'boolean') throw VALUE;
   const settle = Math.trunc(dateArg(s, ctx));
   const mature = Math.trunc(dateArg(m, ctx));
   if (settle >= mature || mature > eomonth(settle, 12, ctx, false)) throw NUM;
@@ -2795,13 +2817,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ROUNDUP: scalar(2, 2, ([x, d]) => excelRound(num(x), num(d), 'up')),
   ROUNDDOWN: scalar(2, 2, ([x, d]) => excelRound(num(x), num(d), 'down')),
   TRUNC: scalar(1, 2, ([x, d]) => excelRound(num(x), optional(d, 0), 'down')),
-  MROUND: scalar(2, 2, ([x, m]) => {
-    const n = num(x);
-    const k = num(m);
-    if (k === 0) return 0;
-    if (Math.sign(n) * Math.sign(k) < 0) throw NUM;
-    return excelRound(Math.round(n / k) * k, 10, 'half');
-  }),
+  // An argument left out is #N/A, and TRUE or FALSE #VALUE!.
+  MROUND: { min: 2, max: 2, fn: (a, ctx) => (a.includes(null) ? NA : apply(MROUND, a, ctx)) },
   CEILING: scalar(2, 2, ([x, s]) => {
     const n = num(x);
     const k = num(s);
@@ -3285,7 +3302,12 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return weekday(dateArg(v, ctx), type, ctx);
   }),
   EOMONTH: scalar(2, 2, ([v, m], ctx) => eomonth(dateArg(v, ctx), num(m), ctx, true)),
-  EDATE: scalar(2, 2, ([v, m], ctx) => eomonth(dateArg(v, ctx), num(m), ctx, false)),
+  EDATE: scalar(2, 2, ([v, m], ctx) => {
+    if (typeof v === 'boolean' || typeof m === 'boolean') throw VALUE;
+    const d = eomonth(dateArg(v, ctx), num(m), ctx, false);
+    if (d < 0 || d > serialOf(9999, 12, 31, ctx.host.date1904)) throw NUM;
+    return d;
+  }),
   DAYS: scalar(2, 2, ([e, s], ctx) => Math.floor(dateArg(e, ctx)) - Math.floor(dateArg(s, ctx))),
   // Only text naming a day that exists; a number, even one written as text, is #VALUE!.
   DATEVALUE: scalar(1, 1, ([t], ctx) => {
@@ -3715,10 +3737,14 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   } },
 
   // The error function and the normal distribution
-  ERF: scalar(1, 2, ([lo, hi]) => (hi === undefined || hi === null ? erf(num(lo)) : erf(num(hi)) - erf(num(lo)))),
-  'ERF.PRECISE': scalar(1, 1, ([x]) => erf(num(x))),
-  ERFC: scalar(1, 1, ([x]) => erf(num(x), true)),
-  'ERFC.PRECISE': scalar(1, 1, ([x]) => erf(num(x), true)),
+  // An empty upper limit is 0, not left out.
+  ERF: scalar(1, 2, ([lo, hi]) => {
+    if (typeof hi === 'boolean') throw VALUE;
+    return hi === undefined ? erf(notBool(lo)) : erf(num(hi)) - erf(notBool(lo));
+  }),
+  'ERF.PRECISE': scalar(1, 1, ([x]) => erf(notBool(x))),
+  ERFC: scalar(1, 1, ([x]) => erf(notBool(x), true)),
+  'ERFC.PRECISE': scalar(1, 1, ([x]) => erf(notBool(x), true)),
   'NORM.S.DIST': scalar(2, 2, ([z, c]) => (bool(c) ? normalCdf(num(z)) : normalPdf(num(z)))),
   NORMSDIST: scalar(1, 1, ([z]) => normalCdf(num(z))),
   'NORM.DIST': scalar(4, 4, ([x, m, sd, c]) => {
@@ -4122,7 +4148,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return Math.floor((dayOfYear + offset) / 7) + 1;
   }),
   ISOWEEKNUM: scalar(1, 1, ([v], ctx) => isoWeek(dateArg(v, ctx), ctx)),
-  DAYS360: scalar(2, 3, ([s, e, m], ctx) => days360(Math.floor(dateArg(s, ctx)), Math.floor(dateArg(e, ctx)), m !== undefined && m !== null && bool(m), ctx)),
+  // Each date to the nearest second first, so a moment before midnight is the next day.
+  DAYS360: scalar(2, 3, ([s, e, m], ctx) => {
+    const day = (v: Scalar) => Math.floor(Math.round(dateArg(v, ctx) * 86400) / 86400);
+    return days360(day(s), day(e), m !== undefined && m !== null && bool(m), ctx);
+  }),
   'NETWORKDAYS.INTL': {
     min: 2,
     max: 4,
@@ -4332,6 +4362,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Treasury bills
   TBILLPRICE: scalar(3, 3, ([s, m, d], ctx) => {
     const days = billDays(s, m, ctx);
+    if (typeof d === 'boolean') throw VALUE;
     const discount = num(d);
     if (discount <= 0) throw NUM;
     const price = 100 * (1 - (discount * days) / 360);
@@ -4340,18 +4371,21 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   }),
   TBILLYIELD: scalar(3, 3, ([s, m, p], ctx) => {
     const days = billDays(s, m, ctx);
+    if (typeof p === 'boolean') throw VALUE;
     const price = num(p);
     if (price <= 0) throw NUM;
     return ((100 - price) / price) * (360 / days);
   }),
   TBILLEQ: scalar(3, 3, ([s, m, d], ctx) => {
     const days = billDays(s, m, ctx);
+    if (typeof d === 'boolean') throw VALUE;
     const discount = num(d);
     if (discount <= 0) throw NUM;
     if (days <= 182) return (365 * discount) / (360 - discount * days);
     const price = 100 * (1 - (discount * days) / 360);
     if (price <= 0) throw NUM;
-    const t = days / 365;
+    // A bill of 366 days is a year's.
+    const t = days / Math.max(days, 365);
     return (-t + Math.sqrt(t * t - (2 * t - 1) * (1 - 100 / price))) / (t - 0.5);
   }),
 

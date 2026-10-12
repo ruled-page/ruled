@@ -8,28 +8,6 @@
   "DATE_AND_TIME/DATEVALUE_issue_1380.xlsx": [
     "DATEVALUE!B2"
   ],
-  "DATE_AND_TIME/DATE_DAY_MONTH_YEAR.xlsx": [
-    "Sheet1!I15"
-  ],
-  "DATE_AND_TIME/DAYS_DAYS360.xlsx": [
-    "Sheet1!D24",
-    "Sheet1!D29",
-    "Sheet1!D40",
-    "Sheet1!D44",
-    "Sheet1!D64",
-    "Sheet1!D68",
-    "Sheet1!D77",
-    "Sheet1!D78",
-    "Sheet1!D82"
-  ],
-  "DATE_AND_TIME/EDATE.xlsx": [
-    "Sheet1!C17",
-    "Sheet1!C32",
-    "Sheet1!C34",
-    "Sheet1!C41",
-    "Sheet1!C42",
-    "Sheet1!C46"
-  ],
   "DATE_AND_TIME/EOMONTH.xlsx": [
     "Sheet1!C11",
     "Sheet1!C12",
@@ -58,14 +36,6 @@
     "BESSELJ!C19",
     "BESSELJ!E14",
     "BESSELJ!E19"
-  ],
-  "ENGINEERING/ERFs.xlsx": [
-    "Sheet1!C15",
-    "Sheet1!C20",
-    "Sheet1!D15",
-    "Sheet1!E15",
-    "Sheet1!F15",
-    "Sheet1!G15"
   ],
   "ENGINEERING/GESTEP_DELTA.xlsx": [
     "Sheet1!C7",
@@ -163,14 +133,6 @@
     "PRICE_YIELD!H11",
     "PRICE_YIELD!H29",
     "PRICE_YIELD!H4"
-  ],
-  "FINANCIAL/TBILLs.xlsx": [
-    "Sheet1!D12",
-    "Sheet1!D17",
-    "Sheet1!D6",
-    "Sheet1!N12",
-    "Sheet1!N17",
-    "Sheet1!R12"
   ],
   "FINANCIAL/accrint_cases.xlsx": [
     "accrint_cases!I101",
@@ -462,16 +424,6 @@
     "DATEVALUE!D39",
     "DATEVALUE!D40"
   ],
-  "MATH_AND_TRIGONOMETRY/MROUND_TRUNC_INT.xlsx": [
-    "MROUND!C34",
-    "MROUND!C36",
-    "MROUND!C51",
-    "MROUND!C52",
-    "MROUND!C53",
-    "MROUND!C54",
-    "MROUND!C55",
-    "MROUND!C56"
-  ],
   "MATH_AND_TRIGONOMETRY/MULTINOMIAL.xlsx": [
     "Sheet1!B27",
     "Sheet1!F20",
@@ -558,17 +510,6 @@
   ],
   "TEXT/TEXT.xlsx": [
     "NUMBERS!K12"
-  ],
-  "TEXT/TEXTBEFORE_TEXTAFTER.xlsx": [
-    "Sheet1!G16",
-    "Sheet1!G17",
-    "Sheet1!G19",
-    "Sheet1!G20",
-    "Sheet1!I16",
-    "Sheet1!I17",
-    "Sheet1!I19",
-    "Sheet1!I20",
-    "Sheet1!K19"
   ],
   "TEXT/TEXTSPLIT.xlsx": [
     "Sheet1!B26",
