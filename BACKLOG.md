@@ -3,16 +3,6 @@
 Work that is deliberately not being done yet, with what it would take. The
 editor is a client-side proof of concept; nothing here should add a server.
 
-## Needs a decision first
-
-- **HyperFormula in the demo and test sites.** The library builds calculate
-  with the editor's own engine and have no HyperFormula in them (the bundle
-  check fails if it returns). The demo and test sites still offer it, under
-  its GPLv3 licence key, to compare the two engines. Before those sites are
-  shown outside the team, drop it from them (`__WBE_HYPERFORMULA__` in
-  vite.config.ts) or buy its commercial licence. The key is set in
-  `src/core/calc.ts` and `src/core/engineLimits.ts`.
-
 ## Needs a person
 
 - **Screen-reader testing.** The editor works from the keyboard and passes
@@ -65,8 +55,7 @@ value without saying so.
   part with no comments in it. It is valid, but Excel removes the part.
 - **The package lists the code it bundles as dependencies.** Everything but
   React is bundled into the library builds, yet `dependencies` names Glide
-  and the rest, so a host app installs them for nothing (HyperFormula, which
-  the library no longer has, is a dev dependency now).
+  and the rest, so a host app installs them for nothing.
   They can become devDependencies once the type declarations stop importing
   from them, for example by bundling the declarations into one file.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's

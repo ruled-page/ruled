@@ -145,13 +145,14 @@ describe('Excel validation rules', () => {
       kind, operator: 'greaterThan', formula1, rects: [{ r1: 0, c1: 0, r2: 9, c2: 0 }], allowBlank: true, showError: true, errorStyle: 'stop',
     });
     const ev = {
-      calculate: (f: string) => (f.includes('LAMBDA') ? { error: '#NAME?', message: 'Function name LAMBDA not recognized.' } : f.includes('1/0') ? { error: '#DIV/0!' } : 0),
+      // The session's answer for a formula the engine can't calculate, as an add-in's function.
+      calculate: (f: string) => (f.includes('MYFN') ? { error: '#ERROR!' } : f.includes('1/0') ? { error: '#DIV/0!' } : 0),
       withValue: <T,>(_s: number, _r: number, _c: number, _v: unknown, fn: () => T) => fn(),
     };
     const typed = { kind: 'number', value: 5 } as const;
-    expect(checkRule(rule('LAMBDA(x,x)(A1)'), 0, 0, 0, typed, '5', ev)).toBe(true);
+    expect(checkRule(rule('MYFN(A1)'), 0, 0, 0, typed, '5', ev)).toBe(true);
     expect(checkRule(rule('1/0'), 0, 0, 0, typed, '5', ev)).toBe(false);
-    expect(checkRule(rule('LAMBDA(x,x)(1)', 'whole'), 0, 0, 0, typed, '5', ev)).toBe(true);
+    expect(checkRule(rule('MYFN(1)', 'whole'), 0, 0, 0, typed, '5', ev)).toBe(true);
     // An empty bound cell is zero.
     expect(checkRule(rule('B1', 'whole'), 0, 0, 0, typed, '5', { ...ev, calculate: () => null })).toBe(true);
   });

@@ -56,7 +56,7 @@ import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
-import type { EngineId, EngineInfo, WorkStats } from '../core/engineIds';
+import type { EngineInfo, WorkStats } from '../core/engineIds';
 import { SheetView } from './sheetView';
 import { cellLink, type CellLink, type LinkClick } from './links';
 import { clearOutline, collapseGroup, expandGroup, groupToHide, groupToShow, regroup, showLevel, summaryLine, type Axis, type OutlineChange, type OutlineGroup } from './outline';
@@ -261,8 +261,6 @@ export interface StoreOptions {
    * to recalculate quickly, where the user can turn it on; 'on' and 'off' force it.
    */
   recalc?: OpenOptions['recalc'];
-  /** The calculation engine workbooks are worked out with (see ENGINES); HyperFormula by default. Change it with setEngine. */
-  engine?: EngineId;
   /**
    * Show in the status bar which engine is calculating, how large it is,
    * and how long opening, calculating and the last edit took, for comparing engines.
@@ -662,27 +660,8 @@ export class WorkbookStore {
   /** The last edit, in the worker. */
   editStats?: WorkStats;
 
-  /** The engine calculating: the one chosen, else the one the worker opened with, else the default. */
-  get engine(): EngineId {
-    return this.options.engine ?? this.engineInfo?.id ?? 'native';
-  }
-
   get diagnostics(): boolean {
     return !!this.options.diagnostics;
-  }
-
-  /** Works the open workbook out with another engine, opening it again from its file at the same sheet and cells. */
-  async setEngine(engine: EngineId): Promise<void> {
-    if (engine === this.engine) return;
-    this.options.engine = engine;
-    const source = this.source;
-    if (!source) return this.notify();
-    const sheet = this.active;
-    const selection = this.selection;
-    await this.load(source.fileName, source.bytes);
-    if (!this.sheets[sheet]) return;
-    this.setActive(sheet);
-    this.setSelection(selection);
   }
 
   setTheme(theme: EditorTheme | undefined): void {
@@ -1017,7 +996,7 @@ export class WorkbookStore {
     try {
       const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc }, engine: this.options.engine } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
         [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');

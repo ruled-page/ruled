@@ -1633,8 +1633,11 @@ export class WorkbookSession {
     }
     return {
       calculate: (formula, sheet) => {
+        const file = formula.replace(/^=/, '');
+        // A rule the engine can't calculate is left for Excel to judge.
+        if (this.unsupported(file, sheet, -1, -1)) return { error: '#ERROR!' };
         this.ensureSheetsFor(formula, sheet);
-        return engine.calculate(engineFormula(formula.replace(/^=/, '')), sheet);
+        return engine.calculate(engineFormula(file), sheet);
       },
       withValue: (sheet, row, col, content, fn) => {
         this.ensureSheetsFor('', sheet);

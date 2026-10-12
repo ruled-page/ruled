@@ -94,13 +94,13 @@ function handle(req: WorkerRequest): Promise<void> | undefined {
   try {
     switch (req.type) {
       case 'open': {
-        // An open that names no engine keeps the one this worker already calculates with.
-        const ready = req.engine === undefined ? chosenEngine() : undefined;
+        // Once the engine is loaded, opens go straight to it.
+        const ready = chosenEngine();
         if (ready) {
           openWorkbook(req, { id: ready.id as EngineId, name: ready.name, loadMs: 0, transferBytes: 0, decodedBytes: 0 });
           break;
         }
-        return loadEngine(req.engine)
+        return loadEngine()
           .then(({ kind, info }) => {
             chooseEngine(kind);
             openWorkbook(req, info);

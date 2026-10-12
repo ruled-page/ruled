@@ -5,7 +5,6 @@ export const de: Record<keyof typeof en, string> = {
   'page.title': 'Arbeitsmappen-Editor (Prototyp)',
 
   'toolbar.samples': 'Beispiele',
-  'picker.engine': 'Berechnungsmodul',
   'picker.theme': 'Design',
   'picker.language': 'Sprache',
   'theme.default': 'Standard',

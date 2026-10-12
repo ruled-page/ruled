@@ -6,7 +6,6 @@ export const en = {
   'page.title': 'Workbook Editor POC',
 
   'toolbar.samples': 'Samples',
-  'picker.engine': 'Calculation engine',
   'picker.theme': 'Theme',
   'picker.language': 'Language',
   'theme.default': 'Default',

@@ -26,9 +26,7 @@ export async function testStore(options: StoreOptions = {}): Promise<WorkbookSto
   (globalThis as { self?: unknown }).self = scope;
   vi.resetModules();
   await import('../src/worker/workbook.worker');
-  // The worker's modules are fresh, so the store names the engine ENGINE asks for; by default the worker's own default.
-  const engine = process.env.ENGINE === 'hyperformula' ? ({ engine: 'hyperformula' } as const) : {};
-  return new WorkbookStore({ drafts: false, warnOnUnload: false, locale: 'en-US', ...engine, ...options, createWorker: () => client as unknown as Worker });
+  return new WorkbookStore({ drafts: false, warnOnUnload: false, locale: 'en-US', ...options, createWorker: () => client as unknown as Worker });
 }
 
 /** Resolves once the store has opened a workbook and its engine report has arrived. */

@@ -19,7 +19,7 @@ export default defineConfig({
       fileName: (_format, name) => `${name}.js`,
     },
     rollupOptions: {
-      external: [...builtinModules, ...builtinModules.map((m) => `node:${m}`), 'hyperformula', 'fflate', '@borgar/fx', 'numfmt'],
+      external: [...builtinModules, ...builtinModules.map((m) => `node:${m}`), 'fflate', '@borgar/fx', 'numfmt'],
       output: { banner: '#!/usr/bin/env node' },
     },
   },

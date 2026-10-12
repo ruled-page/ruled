@@ -18,9 +18,7 @@ const BUDGETS = [
   // The demo page, before a workbook is opened.
   ['dist/assets', /^sites-.*\.js$/, 275],
   ['dist/assets', /^workbook\.worker-.*\.js$/, 300],
-  // HyperFormula, which the worker loads when a workbook is opened with it.
-  ['dist/assets', /^worker-calc-.*\.js$/, 210],
-  // The editor's own engine, which the worker loads in HyperFormula's place when chosen.
+  // The calculation engine, which the worker loads when a workbook is first opened.
   ['dist/assets', /^worker-native-.*\.js$/, 60],
   // Loaded only for workbooks with charts.
   ['dist/assets', /^ChartView-.*\.js$/, 75],
@@ -49,18 +47,10 @@ for (const dir of PAGE_CODE) {
   const path = join(root, dir);
   if (!existsSync(path)) continue;
   for (const f of readdirSync(path)) {
-    // Its licence check's key, which only the engine's own code holds (the page may still name it, in the engine picker).
-    if (f.endsWith('.js') && !f.includes('worker') && readFileSync(join(path, f), 'utf8').includes('gpl-v3')) {
+    // A constant only the engine's own code holds (the first of its gamma function's coefficients).
+    if (f.endsWith('.js') && !f.includes('worker') && readFileSync(join(path, f), 'utf8').includes('9999999999999971')) {
       problems.push(`${join(dir, f)}: has the calculation engine in it, which belongs in the worker only`);
     }
-  }
-}
-// The library builds have the editor's own engine alone: HyperFormula, under its GPLv3 key, must not reach a host app.
-for (const dir of ['dist-lib/react', 'dist-lib/react/assets', 'dist-lib/standalone']) {
-  const path = join(root, dir);
-  if (!existsSync(path)) continue;
-  for (const f of readdirSync(path)) {
-    if (f.endsWith('.js') && readFileSync(join(path, f), 'utf8').includes('gpl-v3')) problems.push(`${join(dir, f)}: has HyperFormula in it, which the library builds leave out`);
   }
 }
 if (problems.length) {

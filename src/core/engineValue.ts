@@ -1,11 +1,9 @@
-// Kept apart from calc.ts so that code on the page can read engine values
+// Kept apart from the engine so that code on the page can read engine values
 // without loading the calculation engine itself, which runs in the worker.
 
 export type EngineValue = number | string | boolean | { error: string; message?: string } | null;
 
-/** Errors the engine reports when it cannot interpret a formula at all. */
+/** The editor's mark for a formula the engine can't calculate, left for Excel to judge: #ERROR!, an error Excel never shows. */
 export function isUnsupportedError(v: EngineValue): v is { error: string; message?: string } {
-  if (!v || typeof v !== 'object') return false;
-  if (v.error === '#ERROR!') return true;
-  return v.error === '#NAME?' && /not recognized|not supported/i.test(v.message ?? '');
+  return !!v && typeof v === 'object' && v.error === '#ERROR!';
 }

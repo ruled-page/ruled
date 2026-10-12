@@ -6,8 +6,6 @@ import { glidePatches } from './vite.glide.ts';
 // Babel 8 peer, so JSX is compiled by Vite's built-in Oxc transform instead.
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  // The demo and test sites have HyperFormula as well as the editor's own engine, to compare them.
-  define: { __WBE_NATIVE_ENGINE__: 'true', __WBE_HYPERFORMULA__: 'true' },
   // The worker's own chunks (each calculation engine is one) are named for it, so the bundle check tells them from the page's.
   worker: { format: 'es', rolldownOptions: { output: { chunkFileNames: 'assets/worker-[name]-[hash].js' } } },
   plugins: [glidePatches()],

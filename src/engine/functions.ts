@@ -116,9 +116,9 @@ const AGGREGATES: Record<number, (xs: number[], counted: Operand[], ctx: Ctx) =>
   1: (xs) => (xs.length ? sum(xs) / xs.length : (() => { throw DIV0; })()),
   2: (xs) => xs.length,
   3: (_xs, args, ctx) => counta(args, ctx, true),
-  4: (xs) => (xs.length ? Math.max(...xs) : 0),
-  5: (xs) => (xs.length ? Math.min(...xs) : 0),
-  6: (xs) => xs.reduce((p, x) => p * x, 1),
+  4: (xs) => (xs.length ? xs.reduce((m, x) => (x > m ? x : m), -Infinity) : 0),
+  5: (xs) => (xs.length ? xs.reduce((m, x) => (x < m ? x : m), Infinity) : 0),
+  6: (xs) => (xs.length ? xs.reduce((p, x) => p * x, 1) : 0),
   7: (xs) => Math.sqrt(variance(xs, true)),
   8: (xs) => Math.sqrt(variance(xs, false)),
   9: sum,
@@ -208,7 +208,7 @@ function ifs(kind: 'sum' | 'avg' | 'min' | 'max', target: Operand, pairs: Operan
     return sum(xs) / xs.length;
   }
   if (!xs.length) return 0;
-  return kind === 'min' ? Math.min(...xs) : Math.max(...xs);
+  return xs.reduce((m, x) => (kind === 'min' ? (x < m ? x : m) : x > m ? x : m));
 }
 
 /**
@@ -306,9 +306,10 @@ function lookupIn(values: Scalar[], target: Scalar, mode: number, last = false):
     } else for (let i = 0; i < values.length; i++) if (eq(values[i])) return i;
     return -1;
   }
-  // XLOOKUP's -1 and 1: an exact match, else the next smaller or larger.
+  // XLOOKUP's -1 and 1: an exact match, else the next smaller or larger; searching from the last, the last of equals.
   let best = -1;
-  for (let i = 0; i < values.length; i++) {
+  for (let k = 0; k < values.length; k++) {
+    const i = last ? values.length - 1 - k : k;
     const v = values[i];
     if (v === null || isError(v) || typeof v !== typeof target) continue;
     const d = compare(v, target);
@@ -319,6 +320,79 @@ function lookupIn(values: Scalar[], target: Scalar, mode: number, last = false):
   }
   return best;
 }
+
+/**
+ * XMATCH's and XLOOKUP's binary search (search mode 2, or -2 for a list
+ * sorted descending): an exact match (mode 0), else the next smaller (-1)
+ * or larger (1).
+ */
+function binaryMatch(values: Scalar[], target: Scalar, mode: number, descending: boolean): number {
+  // Ascending, the last value not above it; descending, the last not below.
+  const at = approximate(values, target, descending);
+  if (at >= 0 && compare(values[at], target) === 0) return at;
+  if (mode === 0 || mode === 2) return -1;
+  if (descending ? mode > 0 : mode < 0) return at;
+  return at + 1 < values.length ? at + 1 : -1;
+}
+
+/** A key for a value, for finding exact matches by it: numbers to 15 digits, text without regard to case. */
+function matchKey(v: Scalar): string | undefined {
+  if (typeof v === 'number') return `n${round15(v)}`;
+  if (typeof v === 'string') return `s${v.toLowerCase()}`;
+  if (typeof v === 'boolean') return `b${v}`;
+  return undefined;
+}
+
+/**
+ * How to find a value among others by a match mode and search mode: for
+ * many values looked up at once, exact matches go through an index built
+ * once, so the list is read once rather than once per value.
+ */
+function finder(values: Scalar[], mode: number, search: number, many: boolean): (target: Scalar) => number {
+  if (Math.abs(search) === 2) return (target) => binaryMatch(values, target, mode, search < 0);
+  if (!many || (mode !== 0 && mode !== 2)) return (target) => lookupIn(values, target, mode, search < 0);
+  const index = new Map<string, number>();
+  for (let k = 0; k < values.length; k++) {
+    const i = search < 0 ? values.length - 1 - k : k;
+    const key = matchKey(values[i]);
+    if (key !== undefined && !index.has(key)) index.set(key, i);
+  }
+  return (target) => {
+    if (mode === 2 && typeof target === 'string' && hasWildcards(target)) return lookupIn(values, target, mode, search < 0);
+    const key = matchKey(target);
+    return key === undefined ? lookupIn(values, target, mode, search < 0) : (index.get(key) ?? -1);
+  };
+}
+
+/**
+ * Runs `f` on the value given or, given a range or array, on each of its
+ * values, as Excel lifts a function over an argument that takes one value.
+ * A formula from before dynamic arrays meets a range at its row or column.
+ */
+function eachValue(op: Operand, ctx: Ctx, f: (v: Scalar) => Scalar): Operand {
+  const many = (op instanceof Ref && !op.single && !ctx.legacy) || (op instanceof Matrix && op.data.length > 1);
+  if (!many) return f(scalarOf(op, ctx));
+  const m = matrixOf(op, ctx);
+  return Matrix.build(m.rows, m.cols, (r, c) => {
+    try {
+      return f(m.get(r, c));
+    } catch (e) {
+      if (isError(e)) return e;
+      throw e;
+    }
+  });
+}
+
+/** A function lifted over its first argument (see eachValue); a result of more than one value gives its first. */
+const liftFirst = (spec: FunctionSpec): FunctionSpec => ({
+  ...spec,
+  fn: (a, ctx) =>
+    eachValue(a[0], ctx, (v) => {
+      const out = spec.fn!([v, ...a.slice(1)], ctx);
+      if (isError(out)) throw out;
+      return out instanceof Matrix ? out.get(0, 0) : out instanceof Ref ? scalarOf(out, ctx) : (out as Scalar);
+    }),
+});
 
 function vlookup(args: Operand[], ctx: Ctx, horizontal: boolean): Scalar {
   const target = scalarOf(args[0], ctx);
@@ -389,7 +463,7 @@ function xlookup(args: Operand[], ctx: Ctx): Operand {
   const mode = args[4] === undefined || args[4] === null ? 0 : num(scalarOf(args[4], ctx));
   const search = args[5] === undefined || args[5] === null ? 1 : num(scalarOf(args[5], ctx));
   let at: number;
-  if (Math.abs(search) === 2) at = approximate(look.values, target, search < 0);
+  if (Math.abs(search) === 2) at = binaryMatch(look.values, target, mode, search < 0);
   else at = lookupIn(look.values, target, mode, search < 0);
   if (at < 0) {
     if (args[3] !== undefined) return valuesOf(args[3], ctx);
@@ -458,9 +532,9 @@ function sortRows(m: Matrix, keys: { index: number; order: number }[], byCol: bo
     for (const { index, order } of keys) {
       const x = at(a, index);
       const y = at(b, index);
-      // Blanks and errors sort last, either way.
-      const xb = x === null || isError(x);
-      const yb = y === null || isError(y);
+      // Numbers, text, TRUE and FALSE, then errors (reversed when descending); blanks last either way.
+      const xb = x === null;
+      const yb = y === null;
       if (xb || yb) {
         if (xb !== yb) return xb ? 1 : -1;
         continue;
@@ -717,7 +791,7 @@ function wrapLine(a: Operand[], ctx: Ctx, rows: boolean): Matrix {
   const m = matrixOf(a[0], ctx);
   if (m.rows > 1 && m.cols > 1) throw VALUE;
   const n = Math.trunc(num(scalarOf(a[1], ctx)));
-  if (n < 1) throw NUM;
+  if (n < 1 || n > (rows ? MAX_COLS : MAX_ROWS)) throw NUM;
   const pad = given(a, 2) ? scalarOf(a[2], ctx) : NA;
   const values = m.data.map((v) => v ?? 0);
   const lines = Math.ceil(values.length / n);
@@ -770,7 +844,7 @@ function textAround(a: Operand[], ctx: Ctx, after: boolean): Scalar {
   const t = text(scalarOf(a[0], ctx));
   const n = Math.trunc(optNum(a, 2, ctx, 1));
   if (n === 0 || Math.abs(n) > Math.max(t.length, 1)) throw VALUE;
-  const at = findNth(t, textsOf(a[1], ctx), n, optNum(a, 3, ctx, 0) === 1, optNum(a, 4, ctx, 0) === 1);
+  const at = findNth(t, textsOf(a[1], ctx), n, flag(a, 3, ctx), flag(a, 4, ctx));
   if (!at) return given(a, 5) ? scalarOf(a[5], ctx) : NA;
   return after ? t.slice(at[0] + at[1]) : t.slice(0, at[0]);
 }
@@ -806,6 +880,33 @@ function valueText(v: Scalar, strict: boolean): string {
 }
 
 const groupThousands = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+/** A number at or above 0 to 15 significant digits, written out without an exponent: 1E+21 as 1000000000000000000000. */
+function writtenOut(n: number): string {
+  if (n === 0) return '0';
+  const [mantissa, e] = n.toExponential(14).split('e');
+  const digits = mantissa.replace('.', '').replace(/0+$/, '');
+  const exp = Number(e);
+  if (exp >= digits.length - 1) return digits + '0'.repeat(exp - digits.length + 1);
+  if (exp >= 0) return `${digits.slice(0, exp + 1)}.${digits.slice(exp + 1)}`;
+  return `0.${'0'.repeat(-exp - 1)}${digits}`;
+}
+
+/** An argument that is 0 or 1 (FALSE or TRUE), as TEXTSPLIT's and VALUETOTEXT's switches are; anything else is #VALUE!. */
+function flag(a: Operand[], i: number, ctx: Ctx): boolean {
+  if (!given(a, i)) return false;
+  const n = num(scalarOf(a[i], ctx));
+  if (n !== 0 && n !== 1) throw VALUE;
+  return n === 1;
+}
+
+/** The longest text a cell holds; longer is #VALUE!. */
+const MAX_TEXT = 32767;
+
+function cellText(t: string): string {
+  if (t.length > MAX_TEXT) throw VALUE;
+  return t;
+}
 
 /** Excel's present value relations: payment, future and present value, at rate r over n periods, paid at the start (type 1) or end. */
 function payment(r: number, n: number, pv: number, fv: number, type: number): number {
@@ -992,6 +1093,12 @@ function slopeOf(ys: Operand, xs: Operand, ctx: Ctx): { slope: number; intercept
   if (l.sxx === 0) throw DIV0;
   const slope = l.sxy / l.sxx;
   return { slope, intercept: l.my - slope * l.mx };
+}
+
+/** FORECAST: the line through the pairs, at x, or at each x of an array. */
+function forecast(a: Operand[], ctx: Ctx): Operand {
+  const { slope, intercept } = slopeOf(a[1], a[2], ctx);
+  return eachValue(a[0], ctx, (x) => intercept + slope * num(x));
 }
 
 function correl(ys: Operand, xs: Operand, ctx: Ctx): number {
@@ -1579,7 +1686,7 @@ function square(op: Operand, ctx: Ctx): number[][] {
 }
 
 // -----------------------------------------------------------------------------
-// Bonds, accrued interest, discounted securities and depreciation (shared with the HyperFormula add-on)
+// Bonds, accrued interest, discounted securities and depreciation (src/core/bondMath.ts)
 
 const calendarOf = (ctx: Ctx) => new Calendar(ctx.host.date1904 ? { year: 1904, month: 1, day: 1 } : { year: 1899, month: 12, day: 30 });
 
@@ -1612,7 +1719,7 @@ const couponFn = (pick: (b: Bonds, s: number, m: number, f: number, basis: numbe
 const discountedFn = (pick: (b: Bonds, s: number, m: number, x: number, y: number, basis: number) => number) => bond(4, [0, 1], { 4: 0 }, (b, [s, m, x, y, basis]) => pick(b, s, m, x, y, basis));
 
 // -----------------------------------------------------------------------------
-// Least-squares regression (shared with the HyperFormula add-on)
+// Least-squares regression (src/core/regressionMath.ts)
 
 /** Runs shared regression code, with the error it refuses arguments with. */
 function regression<T>(f: () => T): T {
@@ -2364,7 +2471,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
 
   // Arithmetic and rounding
   SUM: { min: 1, max: MANY, fn: (a, ctx) => sum(list(a, ctx)) },
-  PRODUCT: { min: 1, max: MANY, fn: (a, ctx) => list(a, ctx).reduce((p, x) => p * x, 1) },
+  // Of no numbers, 0.
+  PRODUCT: { min: 1, max: MANY, fn: (a, ctx) => {
+    const xs = list(a, ctx);
+    return xs.length ? xs.reduce((p, x) => p * x, 1) : 0;
+  } },
   SUMSQ: { min: 1, max: MANY, fn: (a, ctx) => sum(list(a, ctx).map((x) => x * x)) },
   ABS: math1(Math.abs),
   INT: math1(Math.floor),
@@ -2573,13 +2684,18 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 4,
     fn: (a, ctx) => {
-      const target = scalarOf(a[0], ctx);
-      const { values } = flat(a[1], ctx);
-      const mode = a[2] === undefined || a[2] === null ? 0 : num(scalarOf(a[2], ctx));
-      const search = a[3] === undefined || a[3] === null ? 1 : num(scalarOf(a[3], ctx));
-      const at = Math.abs(search) === 2 ? approximate(values, target, search < 0) : lookupIn(values, target, mode, search < 0);
-      if (at < 0) throw NA;
-      return at + 1;
+      const { values, rows, cols } = flat(a[1], ctx);
+      if (rows > 1 && cols > 1) throw VALUE;
+      const mode = given(a, 2) ? Math.trunc(num(scalarOf(a[2], ctx))) : 0;
+      const search = given(a, 3) ? Math.trunc(num(scalarOf(a[3], ctx))) : 1;
+      if (![-1, 0, 1, 2].includes(mode) || ![-2, -1, 1, 2].includes(search)) throw VALUE;
+      const find = finder(values, mode, search, a[0] instanceof Matrix || (a[0] instanceof Ref && !a[0].single));
+      return eachValue(a[0], ctx, (target) => {
+        if (isError(target)) throw target;
+        const at = find(target);
+        if (at < 0) throw NA;
+        return at + 1;
+      });
     },
   },
   XLOOKUP: { min: 3, max: 6, fn: (a, ctx) => xlookup(a, ctx) },
@@ -2661,10 +2777,17 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const keys: Matrix[] = [];
       const orders: number[] = [];
       for (let i = 1; i < a.length; i += 2) {
-        keys.push(matrixOf(a[i], ctx));
-        orders.push(a[i + 1] === undefined ? 1 : num(scalarOf(a[i + 1], ctx)));
+        const key = matrixOf(a[i], ctx);
+        // Each key is one row or column; its order 1 or -1.
+        if (key.rows > 1 && key.cols > 1) throw VALUE;
+        keys.push(key);
+        const order = given(a, i + 1) ? Math.trunc(num(scalarOf(a[i + 1], ctx))) : 1;
+        if (order !== 1 && order !== -1) throw VALUE;
+        orders.push(order);
       }
-      const byCol = keys[0].rows === 1 && keys[0].cols === m.cols && m.rows !== keys[0].rows;
+      // Keys that are rows sort the columns.
+      const byCol = keys[0].rows === 1 && keys[0].cols > 1;
+      if (keys.some((k) => (k.rows === 1 && k.cols > 1) !== byCol)) throw VALUE;
       const lines = byCol ? m.cols : m.rows;
       if (keys.some((k) => (byCol ? k.cols : k.rows) !== lines)) throw VALUE;
       const joined = byCol
@@ -2715,7 +2838,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   },
 
   // Text
-  CONCATENATE: scalar(1, MANY, (a) => a.map((v) => text(v)).join('')),
+  CONCATENATE: scalar(1, MANY, (a) => cellText(a.map((v) => text(v)).join(''))),
   CONCAT: {
     min: 1,
     max: MANY,
@@ -2725,7 +2848,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         if (x instanceof Ref || x instanceof Matrix) for (const v of matrixOf(x, ctx).data) out += text(v);
         else out += text(scalarOf(x, ctx));
       }
-      return out;
+      return cellText(out);
     },
   },
   TEXTJOIN: {
@@ -2905,7 +3028,6 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 3,
     fn: (a, ctx) => {
-      const target = scalarOf(a[0], ctx);
       const look = matrixOf(a[1], ctx);
       let keys: Scalar[];
       let results: Scalar[];
@@ -2915,12 +3037,17 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         keys = across ? look.data.slice(0, look.cols) : Array.from({ length: look.rows }, (_, r) => look.get(r, 0));
         results = across ? look.data.slice((look.rows - 1) * look.cols) : Array.from({ length: look.rows }, (_, r) => look.get(r, look.cols - 1));
       } else {
+        const result = matrixOf(a[2], ctx);
+        // The vector form returns from a single row or column.
+        if (result.rows > 1 && result.cols > 1) throw NA;
         keys = look.data;
-        results = matrixOf(a[2], ctx).data;
+        results = result.data;
       }
-      const at = approximate(keys, target);
-      if (at < 0 || at >= results.length) throw NA;
-      return results[at];
+      return eachValue(a[0], ctx, (target) => {
+        const at = approximate(keys, target);
+        if (at < 0 || at >= results.length) throw NA;
+        return results[at];
+      });
     },
   },
   TAKE: { min: 2, max: 3, fn: (a, ctx) => takeOrDrop(a, ctx, true) },
@@ -2948,30 +3075,34 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   },
 
   // Text, split and joined
-  TEXTBEFORE: { min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, false) },
-  TEXTAFTER: { min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, true) },
+  TEXTBEFORE: liftFirst({ min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, false) }),
+  TEXTAFTER: liftFirst({ min: 2, max: 6, fn: (a, ctx) => textAround(a, ctx, true) }),
   TEXTSPLIT: {
     min: 2,
     max: 6,
     fn: (a, ctx) => {
+      // Given several texts, each gives its first piece.
+      if (a[0] instanceof Matrix || (a[0] instanceof Ref && !a[0].single)) return liftFirst(FUNCTIONS.TEXTSPLIT).fn!(a, ctx);
       const t = text(scalarOf(a[0], ctx));
-      const insensitive = optNum(a, 4, ctx, 0) === 1;
+      const insensitive = flag(a, 4, ctx);
+      if (given(a, 1) && textsOf(a[1], ctx).every((d) => d === '')) throw VALUE;
       const skip = optBool(a, 3, ctx, false);
       const pad = given(a, 5) ? scalarOf(a[5], ctx) : NA;
       const keep = (parts: string[]) => (skip ? parts.filter((p) => p !== '') : parts);
       const lines = keep(given(a, 2) ? splitOn(t, textsOf(a[2], ctx), insensitive) : [t]).map((line) => keep(given(a, 1) ? splitOn(line, textsOf(a[1], ctx), insensitive) : [line]));
-      if (!lines.length) throw err('#CALC!');
+      // Nothing left once empty pieces are left out.
+      if (lines.every((l) => !l.length)) throw err('#CALC!');
       const cols = Math.max(1, ...lines.map((l) => l.length));
       return Matrix.build(lines.length, cols, (r, c) => (c < lines[r].length ? lines[r][c] : pad));
     },
   },
-  VALUETOTEXT: { min: 1, max: 2, fn: (a, ctx) => valueText(scalarOf(a[0], ctx), optNum(a, 1, ctx, 0) === 1) },
+  VALUETOTEXT: liftFirst({ min: 1, max: 2, fn: (a, ctx) => valueText(scalarOf(a[0], ctx), flag(a, 1, ctx)) }),
   ARRAYTOTEXT: {
     min: 1,
     max: 2,
     fn: (a, ctx) => {
       const m = matrixOf(a[0], ctx);
-      const strict = optNum(a, 1, ctx, 0) === 1;
+      const strict = flag(a, 1, ctx);
       if (!strict) return m.data.map((v) => valueText(v, false)).join(', ');
       return `{${m.rowsOf().map((row) => row.map((v) => valueText(v, true)).join(',')).join(';')}}`;
     },
@@ -2979,16 +3110,19 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   FIXED: scalar(1, 3, ([x, d, plain]) => {
     const digits = Math.trunc(optional(d, 2));
     if (digits > 127) throw VALUE;
+    // Rounded, then written out in full from its 15 significant digits, as Excel writes it.
     const n = excelRound(num(x), digits, 'half');
-    const [whole, frac] = Math.abs(n).toFixed(Math.max(0, digits)).split('.');
-    const body = (plain !== undefined && plain !== null && bool(plain) ? whole : groupThousands(whole)) + (frac ? `.${frac}` : '');
+    const [whole, frac = ''] = writtenOut(Math.abs(n)).split('.');
+    const decimals = Math.max(0, digits);
+    const body = (plain !== undefined && plain !== null && bool(plain) ? whole : groupThousands(whole)) + (decimals ? `.${frac.padEnd(decimals, '0').slice(0, decimals)}` : '');
     return n < 0 ? `-${body}` : body;
   }),
   NUMBERVALUE: scalar(1, 3, ([t, dec, group]) => {
     let s = text(t).replace(/\s/g, '');
     if (!s) return 0;
     const d = dec === undefined || dec === null ? '.' : text(dec).charAt(0);
-    const g = group === undefined || group === null ? ',' : text(group).charAt(0);
+    // Without a group separator, the one the decimal separator isn't.
+    const g = group === undefined || group === null ? (d === ',' ? '.' : ',') : text(group).charAt(0);
     if (!d || d === g) throw VALUE;
     let percent = 0;
     while (s.endsWith('%')) {
@@ -3112,9 +3246,20 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       }
       const f = code === 3 ? undefined : AGGREGATE_LISTS[code];
       const rest = a.slice(2);
-      if (code === 3) return counta(rest, ctx, skipSubtotals);
+      if (code === 3) {
+        // COUNTA, leaving out errors when asked.
+        let n = 0;
+        const count = (v: Scalar) => void (v !== null && !(skipErrors && isError(v)) && n++);
+        for (const x of rest) {
+          if (x instanceof Ref) ctx.host.each(x, count, skipSubtotals);
+          else if (x instanceof Matrix) x.data.forEach(count);
+          else if (x !== undefined) count(scalarOf(x, ctx));
+        }
+        return n;
+      }
       if (!f) throw VALUE;
-      return f(aggregateValues(rest, ctx, skipErrors, skipSubtotals), rest, ctx);
+      // COUNT passes over errors whatever the option.
+      return f(aggregateValues(rest, ctx, skipErrors || code === 2, skipSubtotals), rest, ctx);
     },
   },
   MODE: { min: 1, max: MANY, fn: (a, ctx) => {
@@ -3208,7 +3353,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       let all = 0;
       xs.forEach((x, i) => {
         const p = ps[i];
-        if (typeof p !== 'number' || p <= 0 || p > 1) throw NUM;
+        if (isError(x)) throw x;
+        if (isError(p)) throw p;
+        // A pair without a number for its chance is left out.
+        if (typeof p !== 'number') return;
+        if (p <= 0 || p > 1) throw NUM;
         all += p;
         if (typeof x === 'number' && x >= lo && x <= hi) total += p;
       });
@@ -3226,14 +3375,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   }),
   SLOPE: { min: 2, max: 2, fn: (a, ctx) => slopeOf(a[0], a[1], ctx).slope },
   INTERCEPT: { min: 2, max: 2, fn: (a, ctx) => slopeOf(a[0], a[1], ctx).intercept },
-  FORECAST: { min: 3, max: 3, fn: (a, ctx) => {
-    const { slope, intercept } = slopeOf(a[1], a[2], ctx);
-    return intercept + slope * num(scalarOf(a[0], ctx));
-  } },
-  'FORECAST.LINEAR': { min: 3, max: 3, fn: (a, ctx) => {
-    const { slope, intercept } = slopeOf(a[1], a[2], ctx);
-    return intercept + slope * num(scalarOf(a[0], ctx));
-  } },
+  FORECAST: { min: 3, max: 3, fn: (a, ctx) => forecast(a, ctx) },
+  'FORECAST.LINEAR': { min: 3, max: 3, fn: (a, ctx) => forecast(a, ctx) },
   CORREL: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) },
   PEARSON: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) },
   RSQ: { min: 2, max: 2, fn: (a, ctx) => correl(a[0], a[1], ctx) ** 2 },

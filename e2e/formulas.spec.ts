@@ -87,11 +87,11 @@ test.describe('typing a formula in the formula bar', () => {
   });
 
   test('marks the functions it leaves for Excel to calculate, and inserts a function clicked', async ({ page }) => {
-    await page.keyboard.type('=LA');
-    await expect(page.getByRole('option', { name: 'LAMBDA Not calculated here' })).toBeVisible();
-    await expect(page.getByRole('option', { name: 'LARGE', exact: true })).toBeVisible();
-    await page.getByRole('option', { name: 'LARGE', exact: true }).click();
-    await expect(formulaBar(page)).toHaveValue('=LARGE(');
+    await page.keyboard.type('=IMA');
+    await expect(page.getByRole('option', { name: 'IMAGE Not calculated here' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'IMABS', exact: true })).toBeVisible();
+    await page.getByRole('option', { name: 'IMABS', exact: true }).click();
+    await expect(formulaBar(page)).toHaveValue('=IMABS(');
     await expect(formulaBar(page)).toBeFocused();
   });
 

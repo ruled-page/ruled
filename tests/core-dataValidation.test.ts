@@ -99,7 +99,6 @@ describe('text length and custom rules', () => {
       [0, false],
       [false, false],
       [{ error: '#ERROR!' }, true],
-      [{ error: '#NAME?', message: 'Function MYFN is not recognized' }, true],
       [{ error: '#VALUE!' }, false],
     ];
     for (const [answer, ok] of results) {

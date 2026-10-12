@@ -5,8 +5,7 @@ import type { OpenOptions } from '../core/session';
 import type { CalcReport, CellChange, CellUpdate, CfResult, EditOp, EditResult, ListSource, LoadResult } from '../core/types';
 
 export type WorkerRequest =
-  /** `engine`: which calculation engine to work the workbook out with (see ENGINES); HyperFormula by default. */
-  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions; engine?: string }
+  | { id: number; type: 'open'; bytes: ArrayBuffer; fileName: string; locale: string; options?: OpenOptions }
   | { id: number; type: 'edit'; op: EditOp }
   | { id: number; type: 'save'; properties?: Record<string, string> }
   | { id: number; type: 'changes' }

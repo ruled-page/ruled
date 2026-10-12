@@ -1,16 +1,10 @@
 /**
- * The calculation engines a workbook can be worked out with. Each is loaded
- * into the worker only when a workbook is opened with it, so this list is
- * all the page itself knows of them.
+ * The calculation engine, as the page knows it: the engine itself is loaded
+ * into the worker only when a workbook is opened.
  */
-export const ENGINES = [
-  { id: 'native', name: 'Native' },
-  { id: 'hyperformula', name: 'HyperFormula' },
-] as const;
+export type EngineId = 'native';
 
-export type EngineId = (typeof ENGINES)[number]['id'];
-
-/** How an engine was loaded: how long it took, and how much was downloaded for it (0 once it was cached). */
+/** How the engine was loaded: how long it took, and how much was downloaded for it (0 once it was cached). */
 export interface EngineInfo {
   id: EngineId;
   name: string;

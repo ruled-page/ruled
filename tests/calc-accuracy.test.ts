@@ -297,7 +297,7 @@ const CASES: [string, Expected][] = [
 ];
 
 /**
- * Where this editor's engine (HyperFormula) is known to differ from Excel.
+ * Where the editor's engine is known to differ from Excel.
  * Opening a real file keeps Excel's saved value for these and marks them.
  */
 const KNOWN_DIFFERENCES = new Set<string>([]);

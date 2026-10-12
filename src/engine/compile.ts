@@ -78,9 +78,10 @@ function compileR1C1(r1c1: string): Template {
   const t: Template = { run: () => null, refs: [], names: [], calls: new Set(), volatile: false, subtotal: false };
   t.run = node(ast as AstNode, t);
   const top = ast as AstNode;
+  // A cell whose formula has a subtotal anywhere in it is one other subtotals leave out.
+  if (t.calls.has('SUBTOTAL') || t.calls.has('AGGREGATE')) t.subtotal = true;
   if (top.type === 'CallExpression') {
     const name = callName(top);
-    if (name === 'SUBTOTAL' || name === 'AGGREGATE') t.subtotal = true;
     if (name === 'WBE.SPILL') {
       const lit = (a: AstNode | null | undefined) => (a && a.type === 'Literal' && typeof a.value === 'number' ? a.value : undefined);
       const rows = lit(top.arguments[0]);

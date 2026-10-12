@@ -264,14 +264,12 @@ describe('editing operations', () => {
 });
 
 describe('engine verdicts reach the UI', () => {
-  // Arrays!E4's LAMBDA is the one formula there HyperFormula can't calculate; the native engine calculates it.
-  it.skipIf(process.env.ENGINE !== 'hyperformula')('sends flags for formulas the engine cannot calculate', () => {
+  it('sends flags for formulas the engine cannot calculate', () => {
     const s = WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'templates.xlsx'))), 'templates.xlsx', 'en-US', { recalc: 'on' });
-    const report = s.ensureEngine();
-    // A LAMBDA called where it is written.
-    const e4 = updateAt(report.updates, s, 'Arrays', 'E4');
-    expect(has(e4?.flags, CellFlag.Unsupported)).toBe(true);
-    expect(english.text(report.cellReasons.get(`${sheetIndex(s, 'Arrays')}:3:4`))).toMatch(/LAMBDA/);
+    s.ensureEngine();
+    // An add-in's function, which the engine doesn't have.
+    const r = s.apply({ type: 'input', sheet: sheetIndex(s, 'Arrays'), ...at('K1'), text: '=_xludf.MYFN(1)' });
+    expect(has(updateAt(r.updates, s, 'Arrays', 'K1')?.flags, CellFlag.Unsupported)).toBe(true);
   });
 
   it('calculates array formulas entered with Ctrl+Shift+Enter, filling the range they were entered in', () => {

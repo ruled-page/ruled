@@ -5,8 +5,8 @@ import type { CellContent } from './types';
 
 /**
  * What the session needs from a calculation engine, whichever one works the
- * formulas out: the editor's own (src/engine), HyperFormula (./calc), or
- * another with the same contract.
+ * formulas out: the editor's own (src/engine), or another with the same
+ * contract, as the tests use.
  * Engines are loaded only when chosen (see src/worker/engines.ts), so this
  * module holds what the session uses without loading any of them.
  */
@@ -28,12 +28,11 @@ export interface ArrayDims {
 /** Why the engine can't calculate a formula. */
 export type Unsupported =
   | { kind: 'function'; name: string }
-  | { kind: 'tableRefs' | 'externalLinks' | 'threeD' | 'syntax' | 'array' | 'sharedFormula' | 'tooLarge' };
+  | { kind: 'tableRefs' | 'externalLinks' | 'syntax' | 'array' | 'sharedFormula' | 'tooLarge' };
 
 const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
   tableRefs: 'core.unsupported.tableRefs',
   externalLinks: 'core.unsupported.externalLinks',
-  threeD: 'core.unsupported.threeD',
   syntax: 'core.unsupported.syntax',
   array: 'core.unsupported.array',
   sharedFormula: 'core.unsupported.sharedFormula',
@@ -43,7 +42,6 @@ const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
 const EXPLANATIONS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {
   tableRefs: 'core.cellReason.tableRefs',
   externalLinks: 'core.cellReason.externalLinks',
-  threeD: 'core.cellReason.threeD',
   syntax: 'core.cellReason.syntax',
   array: 'core.cellReason.array',
   sharedFormula: 'core.cellReason.sharedFormula',

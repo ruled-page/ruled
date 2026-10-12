@@ -299,8 +299,9 @@ export class NativeEngine implements FormulaEngine, Host {
     }
     if (out instanceof Ref) out = out.single ? this.value(out.sheet, out.r1, out.c1) : this.read(out);
     if (out instanceof Lambda || out instanceof Areas) return out instanceof Areas ? VALUE : CALC;
-    if (out instanceof Matrix) return out.rows === 1 && out.cols === 1 ? out.get(0, 0) : out.rowsOf();
-    return out;
+    if (out instanceof Matrix) return out.rows === 1 && out.cols === 1 ? out.get(0, 0) ?? 0 : out.rowsOf();
+    // A formula showing an empty cell shows 0.
+    return out ?? 0;
   }
 
   dependentsOf(cells: { sheet: number; row: number; col: number }[], limit = 200_000): { sheet: number; row: number; col: number }[] {

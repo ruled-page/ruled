@@ -2,7 +2,6 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { it } from 'vitest';
-import { hyperFormulaEngine } from '../src/core/calc';
 import { nativeEngine } from '../src/engine/native';
 import { chooseEngine, type EngineKind } from '../src/core/engine';
 import { findCell } from '../src/core/sheetScanner';
@@ -10,18 +9,16 @@ import { WorkbookSession } from '../src/core/session';
 import { CellFlag, VT } from '../src/core/types';
 
 /**
- * Compares the calculation engines on the sample workbooks and the test
- * corpus, headless: `npm run engine:bench` (after `npm run build` for the
- * engines' download sizes). For each file and engine: opening, building the
- * engine and calculating, the time a typical edit takes, the heap the engine
- * adds, and how its results compare with the values Excel saved.
+ * Measures the calculation engine on the sample workbooks and the test
+ * corpus, headless: `npm run engine:bench` (after `npm run build` for its
+ * download size). For each file: opening, building the engine and
+ * calculating, the time a typical edit takes, the heap the engine adds, and
+ * how its results compare with the values Excel saved. The interface lets
+ * another engine be measured beside it, by adding it here.
  */
 
-/** The engines to compare, with the name of each one's chunk in the build. */
-const ENGINES: { kind: EngineKind; chunk: RegExp }[] = [
-  { kind: hyperFormulaEngine, chunk: /^worker-calc-.*\.js$/ },
-  { kind: nativeEngine, chunk: /^worker-native-.*\.js$/ },
-];
+/** The engines to measure, with the name of each one's chunk in the build. */
+const ENGINES: { kind: EngineKind; chunk: RegExp }[] = [{ kind: nativeEngine, chunk: /^worker-native-.*\.js$/ }];
 
 const root = join(__dirname, '..');
 const FILES = [
@@ -66,7 +63,7 @@ function numberCells(session: WorkbookSession): { sheet: number; row: number; co
 
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
 
-it('compares the calculation engines', { timeout: 900_000 }, () => {
+it('measures the calculation engine', { timeout: 900_000 }, () => {
   const rows: Record<string, string | number>[] = [];
   for (const { kind, chunk } of ENGINES) {
     chooseEngine(kind);

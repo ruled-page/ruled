@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CalcEngine, describeValue, toRaw, unsupportedExplanation, unsupportedLabel, unsupportedReason, valuesMatch, type EngineSheet } from '../src/core/calc';
+import { describeValue, toRaw, unsupportedExplanation, unsupportedLabel, valuesMatch, type EngineSheet } from '../src/core/engine';
+import { nativeEngine } from '../src/engine/native';
+import { NativeEngine as CalcEngine } from '../src/engine/workbook';
+
+const unsupportedReason = (f: string) => nativeEngine.unsupportedReason(f);
 import { isUnsupportedError } from '../src/core/engineValue';
 import { english } from '../src/i18n';
 
@@ -23,7 +27,6 @@ describe('formulas the engine cannot calculate', () => {
     };
     expect(why('SUM(A1:A3)')).toBeUndefined();
     expect(why('[1]Prices!A1*2')?.[1]).toBe("Uses links to other workbooks, which this editor can't calculate.");
-    expect(why('SUM(Jan:Mar!B2)')?.[1]).toBe("Uses 3-D references (Sheet1:Sheet3!A1), which this editor can't calculate.");
     expect(why('Sales[Amount]')?.[1]).toBe("Uses table references (Table[Column]), which this editor can't calculate.");
     expect(why('_xludf.MYFN(1)')?.[1]).toBe("Uses the MYFN function, which this editor can't calculate.");
     expect(why('SUM(1,')?.[1]).toBe("Uses formula syntax this editor can't read.");
@@ -39,8 +42,9 @@ describe('formulas written as Excel writes them', () => {
     e.destroy();
   });
 
-  it('leave a doubled quote in an array constant for the engine to refuse', () => {
-    expect(unsupportedReason('INDEX({"a""b"},1)')).toEqual({ kind: 'syntax' });
+  it('read a doubled quote in an array constant', () => {
+    expect(unsupportedReason('INDEX({"a""b"},1)')).toBeUndefined();
+    expect(calc('INDEX({"a""b"},1)')).toBe('a"b');
   });
 });
 
@@ -77,13 +81,14 @@ describe('the engine', () => {
     e.destroy();
   });
 
-  it('holds a formula it cannot read as an error that marks it unsupported', () => {
+  it('gives #VALUE! for a formula it cannot read, which the session marks unsupported before it gets there', () => {
     const e = new CalcEngine([sheet('S', [[1]])], [], false);
     const [change] = e.write([{ sheet: 0, row: 0, col: 1, raw: '=SUM(1,' }]);
-    expect(change).toMatchObject({ sheet: 0, row: 0, col: 1, value: { error: '#ERROR!' } });
-    expect(isUnsupportedError(change.value)).toBe(true);
-    expect(isUnsupportedError({ error: '#NAME?', message: 'Function FOO is not recognized' })).toBe(true);
-    expect(isUnsupportedError({ error: '#NAME?', message: 'Named expression X not found' })).toBe(false);
+    expect(change).toMatchObject({ sheet: 0, row: 0, col: 1, value: { error: '#VALUE!' } });
+    expect(unsupportedReason('SUM(1,')).toEqual({ kind: 'syntax' });
+    // The session's mark for what is left to Excel.
+    expect(isUnsupportedError({ error: '#ERROR!' })).toBe(true);
+    expect(isUnsupportedError({ error: '#NAME?' })).toBe(false);
     e.destroy();
   });
 
@@ -152,12 +157,12 @@ describe('functions that follow Excel rather than the engine', () => {
 });
 
 describe('precision', () => {
-  it('works to 15 significant digits, as Excel does, while hiding float noise', () => {
+  it('keeps the doubles Excel keeps, comparing them to 15 significant digits as Excel does', () => {
     const e = new CalcEngine([sheet('S', [[2234567890.12, 0.1, 0.2]])], [], false);
     expect(e.calculate('=A1*1', 0)).toBe(2234567890.12);
     expect(e.calculate('=ROUND(88765432.1234567,4)', 0)).toBe(88765432.1235);
     expect(e.calculate('=123456789012345*1', 0)).toBe(123456789012345);
-    expect(e.calculate('=B1+C1', 0)).toBe(0.3);
+    expect(e.calculate('=B1+C1', 0)).toBe(0.1 + 0.2);
     expect(e.calculate('=B1+C1=0.3', 0)).toBe(true);
     expect(e.calculate('=1/3', 0)).toBeCloseTo(1 / 3, 14);
     e.destroy();

@@ -37,9 +37,8 @@ describe("the editor's view of dynamic arrays", () => {
     expect(rangeToA1(cell('A3')!.spill!)).toBe('A2:A4');
     expect(rangeToA1(cell('A2')!.spill!)).toBe('A2:A4');
     expect(view.readOnlyReason(2, 0)).toBeUndefined();
-    // B2:B4 reads the spill as A2#, which HyperFormula can't calculate (the native engine can).
-    const b4 = view.readOnlyReason(3, 1);
-    expect(b4 ? english.text(b4) : 'editable').toMatch(process.env.ENGINE === 'hyperformula' ? /array formula/ : /^editable$/);
+    // B2:B4 reads the spill as A2#, and spills as it does.
+    expect(view.readOnlyReason(3, 1)).toBeUndefined();
     expect(english.text(view.readOnlyReason(6, 6)!)).toMatch(/array formula/);
     // A spilled cell holds nothing to edit.
     expect(editText(cell('A3'), store.styles[0], false)).toBe('');
