@@ -423,16 +423,16 @@ describe('dynamic array functions', () => {
       [`TAKE(${GRID},1.9)`, [[1, 2, 3]]],
       ['TAKE(B1:B5,-1)', 'blue'],
       ['TAKE(5,1)', 5],
-      [`TAKE(${GRID},0)`, CALC],
-      [`TAKE(${GRID},1,0)`, CALC],
+      [`TAKE(${GRID},0)`, VALUE],
+      [`TAKE(${GRID},1,0)`, VALUE],
       ['TAKE(1/0,1)', DIV0],
       [`DROP(${GRID},2)`, [[7, 8, 9]]],
       [`DROP(${GRID},,2)`, [[3], [6], [9]]],
       [`DROP(${GRID},-2)`, [[1, 2, 3]]],
       [`DROP(${GRID},2,2)`, 9],
       [`DROP(${GRID},0)`, [[1, 2, 3], [4, 5, 6], [7, 8, 9]]],
-      [`DROP(${GRID},3)`, CALC],
-      [`DROP(${GRID},,-5)`, CALC],
+      [`DROP(${GRID},3)`, VALUE],
+      [`DROP(${GRID},,-5)`, VALUE],
     ]);
   });
 
@@ -561,8 +561,8 @@ describe('dynamic array functions', () => {
     expect(column(spill('=CHOOSEROWS(A2:A3,SEQUENCE(B2))', [[1, 2], [3]]))).toEqual([1, 3, null, null]);
     expect(spill('=EXPAND({1,2},1,1)').values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=WRAPROWS({1,2;3,4},2)').values[0][0]).toMatchObject({ error: '#VALUE!' });
-    expect(spill('=DROP({1;2},2)').values[0][0]).toMatchObject({ error: '#CALC!' });
-    expect(spill('=TAKE({1;2},0)').values[0][0]).toMatchObject({ error: '#CALC!' });
+    expect(spill('=DROP({1;2},2)').values[0][0]).toMatchObject({ error: '#VALUE!' });
+    expect(spill('=TAKE({1;2},0)').values[0][0]).toMatchObject({ error: '#VALUE!' });
     expect(spill('=CHOOSEROWS({1;2})').values[0][0]).toMatchObject({ error: '#VALUE!' });
     for (const f of ['=TOCOL()', '=TOROW()', '=SORTBY()', '=WRAPROWS()', '=WRAPCOLS()', '=EXPAND()', '=TAKE()', '=DROP()']) {
       expect(spill(f).values[0][0]).toMatchObject({ error: expect.stringMatching(/^#/) });

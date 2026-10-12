@@ -54,9 +54,10 @@ interface Collect {
 
 /** Each number among the arguments: from ranges and arrays, only numbers; typed values read as numbers; errors stop it. */
 function numbers(args: Operand[], ctx: Ctx, f: (n: number) => void, how: Collect = { typed: 'coerce' }): void {
+  // COUNT passes over errors; everything else stops at one.
   const fromCells = (v: Scalar) => {
     if (typeof v === 'number') f(v);
-    else if (isError(v)) throw v;
+    else if (isError(v) && how.typed !== 'count') throw v;
   };
   for (const a of args) {
     if (a === undefined) continue;
@@ -825,13 +826,13 @@ function lazyEach(args: ((ctx: Ctx) => Operand)[], ctx: Ctx, test: (v: Scalar) =
     const pick = test(first);
     return pick === undefined ? first : branch(pick);
   }
-  const cache = new Map<number, Scalar | Matrix>();
-  const get = (i: number) => {
-    if (!cache.has(i)) cache.set(i, branch(i));
-    return cache.get(i)!;
-  };
-  return Matrix.build(first.rows, first.cols, (r, c) => {
-    const v = first.get(r, c);
+  // Against an array, every branch is worked out: the result is as large as the largest, #N/A where one runs short.
+  const branches = args.map((_, i) => (i ? branch(i) : first));
+  const get = (i: number) => branches[i] ?? branch(i);
+  const rows = Math.max(...branches.map((b) => (b instanceof Matrix ? b.rows : 1)));
+  const cols = Math.max(...branches.map((b) => (b instanceof Matrix ? b.cols : 1)));
+  return Matrix.build(rows, cols, (r, c) => {
+    const v = first.at(r, c);
     const pick = test(v);
     if (pick === undefined) return v;
     const b = get(pick);
@@ -862,7 +863,7 @@ function takeOrDrop(a: Operand[], ctx: Ctx, take: boolean): Matrix {
   };
   const [r1, r2] = span(m.rows, 1);
   const [c1, c2] = span(m.cols, 2);
-  if (r2 <= r1 || c2 <= c1) throw err('#CALC!');
+  if (r2 <= r1 || c2 <= c1) throw VALUE;
   return Matrix.build(r2 - r1, c2 - c1, (r, c) => m.get(r1 + r, c1 + c));
 }
 
@@ -3292,9 +3293,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   YEAR: scalar(1, 1, ([v], ctx) => dateOf(dateArg(v, ctx), ctx.host.date1904).y),
   MONTH: scalar(1, 1, ([v], ctx) => dateOf(dateArg(v, ctx), ctx.host.date1904).m),
   DAY: scalar(1, 1, ([v], ctx) => dateOf(dateArg(v, ctx), ctx.host.date1904).d),
-  HOUR: scalar(1, 1, ([v], ctx) => Math.floor(round15((dateArg(v, ctx) % 1) * 24))),
-  MINUTE: scalar(1, 1, ([v], ctx) => Math.floor(round15((dateArg(v, ctx) * 1440) % 60))),
-  SECOND: scalar(1, 1, ([v], ctx) => Math.round((dateArg(v, ctx) * 86400) % 60) % 60),
+  // Each to the nearest second of the day: 12:29:59.9999 is 12:30.
+  HOUR: scalar(1, 1, ([v], ctx) => Math.floor(secondOfDay(dateArg(v, ctx)) / 3600)),
+  MINUTE: scalar(1, 1, ([v], ctx) => Math.floor(secondOfDay(dateArg(v, ctx)) / 60) % 60),
+  SECOND: scalar(1, 1, ([v], ctx) => secondOfDay(dateArg(v, ctx)) % 60),
   WEEKDAY: scalar(1, 2, ([v, t], ctx) => {
     // An error in the date comes first, then a kind of week that isn't a number, then a date out of range.
     if (isError(v)) throw v;
@@ -3345,8 +3347,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   ISERROR: scalar(1, 1, ([v]) => isError(v)),
   ISERR: scalar(1, 1, ([v]) => isError(v) && v.error !== '#N/A'),
   ISNA: scalar(1, 1, ([v]) => isError(v) && v.error === '#N/A'),
-  ISEVEN: scalar(1, 1, ([v]) => Math.trunc(num(v)) % 2 === 0),
-  ISODD: scalar(1, 1, ([v]) => Math.abs(Math.trunc(num(v)) % 2) === 1),
+  ISEVEN: scalar(1, 1, ([v]) => Math.trunc(notBool(v)) % 2 === 0),
+  ISODD: scalar(1, 1, ([v]) => Math.abs(Math.trunc(notBool(v)) % 2) === 1),
   ISREF: { min: 1, max: 1, fn: ([r]) => r instanceof Ref },
   ISFORMULA: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? ctx.host.isFormula(r.sheet, r.r1, r.c1) : (() => { throw VALUE; })()) },
   NA: { min: 0, max: 0, fn: () => NA },
@@ -3548,7 +3550,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (all === 0) throw DIV0;
     return sum(list([a[0]], ctx)) / all;
   } },
-  GESTEP: scalar(1, 2, ([x, s]) => (num(x) >= optional(s, 0) ? 1 : 0)),
+  GESTEP: scalar(1, 2, ([x, s]) => (notBool(x) >= (s === undefined ? 0 : notBool(s)) ? 1 : 0)),
   PERMUT: scalar(2, 2, ([n, k]) => {
     const a = Math.trunc(num(n));
     const b = Math.trunc(num(k));
@@ -4472,7 +4474,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   BITXOR: bitwise((a, b) => a ^ b),
   BITLSHIFT: bitShift(true),
   BITRSHIFT: bitShift(false),
-  DELTA: scalar(1, 2, ([a, b]) => (num(a) === optional(b, 0) ? 1 : 0)),
+  DELTA: scalar(1, 2, ([a, b]) => (notBool(a) === (b === undefined ? 0 : notBool(b)) ? 1 : 0)),
 
   // Bessel functions
   BESSELJ: dist(2, 2, ([x, n]) => besselJ(...besselArgs(x, n, false))),
@@ -4658,10 +4660,20 @@ function logical(args: Operand[], ctx: Ctx, f: (xs: boolean[]) => boolean): bool
         if (isError(v)) throw v;
         if (typeof v === 'number' || typeof v === 'boolean') xs.push(Boolean(v));
       }
-    } else xs.push(bool(scalarOf(a, ctx)));
+    } else {
+      // Empty text typed in is passed over.
+      const v = scalarOf(a, ctx);
+      if (v !== '') xs.push(bool(v));
+    }
   }
   if (!xs.length) throw VALUE;
   return f(xs);
+}
+
+/** The second of the day a date and time falls in, rounded to the nearest. */
+function secondOfDay(serial: number): number {
+  const s = Math.round(serial * 86400) % 86400;
+  return s < 0 ? s + 86400 : s;
 }
 
 function rank(a: Operand[], ctx: Ctx): number {

@@ -119,14 +119,15 @@ export class Lambda {
 export type Operand = Scalar | Matrix | Ref | Areas | Lambda;
 
 /** Numbers as Excel types them: 1,000.50, 12%, $5, 1.5E3. */
-const NUMBER_TEXT = /^[+-]?\$?(?:\d{1,3}(?:,\d{3})+|\d*)(?:\.\d*)?(?:e[+-]?\d+)?%?$/i;
+// A currency sign may come before the number ($100, €100) or, for the euro, pound and yen, after it (100€).
+const NUMBER_TEXT = /^[+-]?(?:[$€£¥]\s*)?(?:\d{1,3}(?:,\d{3})+|\d*)(?:\.\d*)?(?:e[+-]?\d+)?(?:\s*[€£¥])?%?$/i;
 
 /** Text read as a number, as Excel reads "12" or "1,000" in arithmetic; undefined when it doesn't read as one. */
 export function parseNumber(text: string): number | undefined {
   const s = text.trim();
   if (!s || !/\d/.test(s) || !NUMBER_TEXT.test(s)) return undefined;
   const percent = s.endsWith('%');
-  const n = Number(s.replace(/[$,%]/g, ''));
+  const n = Number(s.replace(/[$€£¥,%\s]/g, ''));
   if (!Number.isFinite(n)) return undefined;
   return percent ? n / 100 : n;
 }

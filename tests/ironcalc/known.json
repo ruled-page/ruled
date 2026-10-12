@@ -21,12 +21,6 @@
   "DATE_AND_TIME/TIMEVALUE_issue_1402.xlsx": [
     "Sheet1!B2"
   ],
-  "DATE_AND_TIME/TIME_HOUR_MINUTE_SECOND.xlsx": [
-    "Sheet1!G52",
-    "Sheet1!G53",
-    "Sheet1!G54",
-    "Sheet1!G55"
-  ],
   "DATE_AND_TIME/YEARFRAC_DATEDIF.xlsx": [
     "YEARFRAC_DATEDIF!D12",
     "YEARFRAC_DATEDIF!G8"
@@ -36,12 +30,6 @@
     "BESSELJ!C19",
     "BESSELJ!E14",
     "BESSELJ!E19"
-  ],
-  "ENGINEERING/GESTEP_DELTA.xlsx": [
-    "Sheet1!C7",
-    "Sheet1!D7",
-    "Sheet1!E7",
-    "Sheet1!F6"
   ],
   "FINANCIAL/ACCRINT.xlsx": [
     "Sheet1!B23",
@@ -324,40 +312,10 @@
     "Sheet1!D7",
     "Sheet1!D9"
   ],
-  "INFORMATION/ISREF_ISFORMULA_ISODD_ISEVEN.xlsx": [
-    "ISODD_ISEVEN!B15",
-    "ISODD_ISEVEN!B16",
-    "ISODD_ISEVEN!C15",
-    "ISODD_ISEVEN!C16"
-  ],
   "INFORMATION/error_broadcast.xlsx": [
     "Sheet1!E22",
     "Sheet1!E26",
     "Sheet1!E54"
-  ],
-  "LOGICAL/AND_OR_XOR.xlsx": [
-    "AND XOR OR!C52",
-    "AND XOR OR!C53",
-    "AND XOR OR!D52",
-    "AND XOR OR!D53",
-    "AND XOR OR!E52",
-    "AND XOR OR!E53"
-  ],
-  "LOGICAL/IFERROR.xlsx": [
-    "Sheet1!C53"
-  ],
-  "LOGICAL/IF_ARRAY.xlsx": [
-    "Sheet1!A28",
-    "Sheet1!E10",
-    "Sheet1!E12",
-    "Sheet1!E8"
-  ],
-  "LOOKUP_AND_REFERENCE/DROP_TAKE.xlsx": [
-    "Sheet1!C2",
-    "Sheet1!E2",
-    "Sheet1!F2",
-    "Sheet1!I2",
-    "Sheet1!L2"
   ],
   "LOOKUP_AND_REFERENCE/FILTER_ERRORS.xlsx": [
     "Sheet1!E1"
@@ -404,14 +362,6 @@
     "COMBIN_COMBINA!D4",
     "COMBIN_COMBINA!D6"
   ],
-  "MATH_AND_TRIGONOMETRY/EXP_SIGN.xlsx": [
-    "EXP_SIGN!B31",
-    "EXP_SIGN!B49",
-    "EXP_SIGN!B54",
-    "EXP_SIGN!C31",
-    "EXP_SIGN!C49",
-    "EXP_SIGN!C54"
-  ],
   "MATH_AND_TRIGONOMETRY/MAX_MIN.xlsx": [
     "Sheet1!H42"
   ],
@@ -453,21 +403,10 @@
     "SIN_COS_TAN!D45",
     "SIN_COS_TAN!D46"
   ],
-  "STATISTICAL/AVERAGE.xlsx": [
-    "Sheet1!E23"
-  ],
   "STATISTICAL/BETADIST_BETAINV.xlsx": [
     "Sheet1!H10",
     "Sheet1!H69",
     "Sheet1!H8"
-  ],
-  "STATISTICAL/COUNT.xlsx": [
-    "Sheet1!B11",
-    "Sheet1!B16",
-    "Sheet1!E11",
-    "Sheet1!E16",
-    "Sheet1!E23",
-    "Sheet1!F11"
   ],
   "STATISTICAL/GAMMA.xlsx": [
     "GAMMA.DIST GAMMA.INV!F18",
