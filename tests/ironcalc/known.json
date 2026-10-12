@@ -301,79 +301,15 @@
     "Sheet2!K8",
     "Sheet2!K9"
   ],
-  "FINANCIAL/CUMPRINC_CUMIPMT.xlsx": [
-    "Sheet1!G18",
-    "Sheet1!G27",
-    "Sheet1!G28",
-    "Sheet1!G7",
-    "Sheet1!H10",
-    "Sheet1!H12",
-    "Sheet1!H18",
-    "Sheet1!H27",
-    "Sheet1!H28",
-    "Sheet1!H6",
-    "Sheet1!H7"
-  ],
-  "FINANCIAL/FV.xlsx": [
-    "Sheet2!A1",
-    "Sheet2!B1"
-  ],
-  "FINANCIAL/IPMT_PPMT.xlsx": [
-    "Sheet1!G17",
-    "Sheet1!H17",
-    "Sheet1!I17",
-    "Sheet1!J17"
-  ],
   "FINANCIAL/IRR.xlsx": [
     "FullRow!Q1",
-    "General!L10",
-    "General!L17",
-    "General!L18",
-    "General!L5",
-    "General!L8",
-    "General!N2",
-    "General!N3",
-    "General!N5",
-    "General!N8",
-    "Three Parameters!D2",
-    "Two Values!C6",
-    "Two Values!C7"
-  ],
-  "FINANCIAL/MIRR.xlsx": [
-    "Sheet2!N15",
-    "Sheet2!O15",
-    "Sheet2!P15",
-    "Three parameters!F18",
-    "Three parameters!F19",
-    "Three parameters!F31",
-    "Two Parameters!E7"
-  ],
-  "FINANCIAL/NOMINAL_EFFECT.xlsx": [
-    "Sheet1!C20",
-    "Sheet1!C21",
-    "Sheet1!D20",
-    "Sheet1!D21"
-  ],
-  "FINANCIAL/PMT.xlsx": [
-    "Sheet1!F17",
-    "Sheet1!F24",
-    "Sheet1!F29",
-    "Sheet1!F30",
-    "Sheet1!F8",
-    "Sheet1!G17",
-    "Sheet1!G24",
-    "Sheet1!G29",
-    "Sheet1!G30",
-    "Sheet1!G8"
+    "Three Parameters!D2"
   ],
   "FINANCIAL/PRICE_YIELD.xlsx": [
     "PRICE_YIELD!H10",
     "PRICE_YIELD!H11",
     "PRICE_YIELD!H29",
     "PRICE_YIELD!H4"
-  ],
-  "FINANCIAL/SLN_SYD.xlsx": [
-    "Sheet1!F14"
   ],
   "FINANCIAL/TBILLs.xlsx": [
     "Sheet1!D12",
@@ -382,33 +318,6 @@
     "Sheet1!N12",
     "Sheet1!N17",
     "Sheet1!R12"
-  ],
-  "FINANCIAL/XIRR.xlsx": [
-    "Sheet1!Q11",
-    "Sheet1!Q13",
-    "Sheet1!Q14",
-    "Sheet1!Q20",
-    "Sheet1!Q7",
-    "Sheet1!Q8",
-    "Sheet1!Q9",
-    "Sheet1!R11",
-    "Sheet1!R13",
-    "Sheet1!R15",
-    "Sheet1!R17",
-    "Sheet1!R20",
-    "Sheet1!R4",
-    "Sheet1!R5",
-    "Sheet1!R7"
-  ],
-  "FINANCIAL/XNPV.xlsx": [
-    "Sheet1!Q11",
-    "Sheet1!Q7",
-    "Sheet1!Q8",
-    "Sheet1!Q9",
-    "Sheet1!R11",
-    "Sheet1!R4",
-    "Sheet1!R5",
-    "Sheet1!R7"
   ],
   "FINANCIAL/accrint_cases.xlsx": [
     "accrint_cases!I101",
@@ -738,9 +647,6 @@
     "Sheet1!F7",
     "Sheet1!G7",
     "Sheet1!H7"
-  ],
-  "MATH_AND_TRIGONOMETRY/SUMSQ.xlsx": [
-    "SUMSQ!B25"
   ],
   "MATH_AND_TRIGONOMETRY/TRIGONOMETRIC.xlsx": [
     "COT_CSC_SEC!B44",

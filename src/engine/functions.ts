@@ -1018,6 +1018,7 @@ function payment(r: number, n: number, pv: number, fv: number, type: number): nu
 
 function futureValue(r: number, n: number, pmt: number, pv: number, type: number): number {
   if (r === 0) return -(pv + pmt * n);
+  if (r === -1 && n < 0) throw DIV0;
   const g = (1 + r) ** n;
   return -(pv * g + (pmt * (1 + r * type) * (g - 1)) / r);
 }
@@ -1029,7 +1030,12 @@ function presentValue(r: number, n: number, pmt: number, fv: number, type: numbe
 }
 
 /** Newton's method from a guess, as Excel's RATE and IRR search; #NUM! when it doesn't settle. */
-function solve(f: (x: number) => number, guess: number): number {
+/**
+ * A rate above -1 where f is zero: by Newton's method from the guess or,
+ * where that strays and `search` is set (as IRR and XIRR do, not RATE), by
+ * halving the interval nearest the guess over which f changes sign.
+ */
+function solve(f: (x: number) => number, guess: number, search = true): number {
   let x = guess;
   for (let i = 0; i < 100; i++) {
     const y = f(x);
@@ -1042,8 +1048,28 @@ function solve(f: (x: number) => number, guess: number): number {
     if (Math.abs(next - x) < 1e-12) return next;
     x = next;
   }
-  throw NUM;
+  if (!search) throw NUM;
+  let best: [number, number] | undefined;
+  for (let i = 1; i < RATE_GRID.length; i++) {
+    const [lo, hi] = [RATE_GRID[i - 1], RATE_GRID[i]];
+    const [a, b] = [f(lo), f(hi)];
+    if (!Number.isFinite(a) || !Number.isFinite(b) || Math.sign(a) === Math.sign(b)) continue;
+    const away = guess < lo ? lo - guess : guess > hi ? guess - hi : 0;
+    if (!best || away < Math.min(Math.abs(guess - best[0]), Math.abs(guess - best[1]))) best = [lo, hi];
+  }
+  if (!best) throw NUM;
+  let [lo, hi] = best;
+  const rising = f(hi) > 0;
+  for (let i = 0; i < 200 && hi - lo > 1e-16 * Math.max(1, Math.abs(lo)); i++) {
+    const mid = (lo + hi) / 2;
+    if (f(mid) > 0 === rising) hi = mid;
+    else lo = mid;
+  }
+  return (lo + hi) / 2;
 }
+
+/** Rates to look between for a change of sign, closer together towards -1. */
+const RATE_GRID = [-0.9999999, -0.99999, -0.999, -0.99, -0.95, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3, 5, 10, 20, 50, 100, 1000];
 
 const ERROR_NUMBERS: Record<string, number> = {
   '#NULL!': 1,
@@ -1893,7 +1919,8 @@ function estimation(a: Operand[], ctx: Ctx, log: boolean): Matrix {
 
 /** IPMT: the interest in one period of a loan or annuity. */
 function interestIn(r: number, per: number, n: number, pv: number, fv: number, type: number): number {
-  if (per < 1 || per > n) throw NUM;
+  // A period can be a fraction, up to the start of one past the last.
+  if (per < 1 || per >= n + 1) throw NUM;
   if (type === 1 && per === 1) return 0;
   const pmt = payment(r, n, pv, fv, type);
   const interest = futureValue(r, per - 1, pmt, pv, type) * r;
@@ -1902,9 +1929,11 @@ function interestIn(r: number, per: number, n: number, pv: number, fv: number, t
 
 /** CUMIPMT and CUMPRINC: interest (or principal) paid from one period to another. */
 function cumulative(a: Scalar[], principal: boolean): number {
+  if (a.some((v) => typeof v === 'boolean')) throw VALUE;
   const [r, n, pv, s, e] = a.slice(0, 5).map(num);
   const type = num(a[5]);
-  const start = Math.trunc(s);
+  // Only whole periods between the two count.
+  const start = Math.ceil(s);
   const end = Math.trunc(e);
   if (r <= 0 || n <= 0 || pv <= 0 || start < 1 || end < start || end > n || (type !== 0 && type !== 1) || end - start > MAX_STEPS) throw NUM;
   const pmt = payment(r, n, pv, 0, type);
@@ -1916,12 +1945,17 @@ function cumulative(a: Scalar[], principal: boolean): number {
   return total;
 }
 
-/** Cash flows and their dates for XNPV and XIRR: numbers, as many dates as values, none before the first. */
-function datedFlows(a: Operand[], ctx: Ctx): { values: number[]; days: number[] } {
-  const values = numberMatrix(a[0], ctx).flat();
+/** Payments and their dates: XIRR counts an empty payment as none, XNPV takes only numbers. */
+function datedFlows(a: Operand[], ctx: Ctx, emptyIsNone: boolean): { values: number[]; days: number[] } {
+  const values = matrixOf(a[0], ctx).data.map((v) => {
+    if (isError(v)) throw v;
+    if (typeof v === 'number') return v;
+    if (v === null && emptyIsNone) return 0;
+    throw emptyIsNone ? VALUE : NUM;
+  });
   const dates = numberMatrix(a[1], ctx).flat().map(Math.trunc);
   if (values.length !== dates.length || !values.length) throw NUM;
-  if (dates.some((d) => d < dates[0])) throw NUM;
+  if (dates.some((d) => d < 0 || d < dates[0])) throw NUM;
   return { values, days: dates.map((d) => d - dates[0]) };
 }
 
@@ -3365,7 +3399,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   'ERROR.TYPE': scalar(1, 1, ([v]) => (isError(v) && ERROR_NUMBERS[v.error] ? ERROR_NUMBERS[v.error] : NA)),
 
   // Money over time
-  PMT: scalar(3, 5, ([r, n, pv, fv, t]) => payment(num(r), num(n), num(pv), optional(fv, 0), optional(t, 0) ? 1 : 0)),
+  PMT: scalar(3, 5, ([r, n, pv, fv, t]) => {
+    const rate = num(r);
+    if (rate <= -1) throw NUM;
+    return payment(rate, num(n), num(pv), optional(fv, 0), optional(t, 0) ? 1 : 0);
+  }),
   FV: scalar(3, 5, ([r, n, p, pv, t]) => futureValue(num(r), num(n), num(p), optional(pv, 0), optional(t, 0) ? 1 : 0)),
   PV: scalar(3, 5, ([r, n, p, fv, t]) => presentValue(num(r), num(n), num(p), optional(fv, 0), optional(t, 0) ? 1 : 0)),
   NPER: scalar(3, 5, ([r, p, pv, fv, t]) => {
@@ -3387,7 +3425,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const present = num(pv);
     const future = optional(fv, 0);
     const type = optional(t, 0) ? 1 : 0;
-    return solve((r) => (r === 0 ? present + pay * periods + future : present * (1 + r) ** periods + (pay * (1 + r * type) * ((1 + r) ** periods - 1)) / r + future), optional(g, 0.1));
+    return solve((r) => (r === 0 ? present + pay * periods + future : present * (1 + r) ** periods + (pay * (1 + r * type) * ((1 + r) ** periods - 1)) / r + future), optional(g, 0.1), false);
   }),
   NPV: {
     min: 2,
@@ -3405,8 +3443,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     max: 2,
     fn: (a, ctx) => {
       const flows = list([a[0]], ctx);
+      const guess = optNum(a, 1, ctx, 0.1);
+      if (guess <= -1) throw VALUE;
       if (!flows.some((v) => v > 0) || !flows.some((v) => v < 0)) throw NUM;
-      return solve((r) => flows.reduce((s, v, i) => s + v / (1 + r) ** i, 0), optNum(a, 1, ctx, 0.1));
+      return solve((r) => flows.reduce((s, v, i) => s + v / (1 + r) ** i, 0), guess);
     },
   },
   YEARFRAC: scalar(2, 3, ([s, e, b], ctx) => {
@@ -3887,10 +3927,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return (num(c) - num(s)) / num(l);
   }),
   SYD: scalar(4, 4, ([c, s, l, p]) => {
-    const life = num(l);
-    const per = num(p);
+    const [cost, salvage, life, per] = [num(c), num(s), num(l), num(p)];
     if (life <= 0 || per <= 0 || per > life) throw NUM;
-    return ((num(c) - num(s)) * (life - per + 1) * 2) / (life * (life + 1));
+    return ((cost - salvage) * (life - per + 1) * 2) / (life * (life + 1));
   }),
   DDB: scalar(4, 5, ([c, s, l, p, f]) => {
     const [cost, salvage, life, period, factor] = [num(c), num(s), num(l), num(p), optional(f, 2)];
@@ -3914,15 +3953,15 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     max: 3,
     fn: (a, ctx) => {
       const r = num(scalarOf(a[0], ctx));
-      if (r <= -1) throw NUM;
-      return xnpv(r, datedFlows(a.slice(1), ctx));
+      if (r < 0) throw NUM;
+      return xnpv(r, datedFlows(a.slice(1), ctx, false));
     },
   },
   XIRR: {
     min: 2,
     max: 3,
     fn: (a, ctx) => {
-      const flows = datedFlows(a, ctx);
+      const flows = datedFlows(a, ctx, true);
       if (!flows.values.some((v) => v > 0) || !flows.values.some((v) => v < 0)) throw NUM;
       return solve((r) => xnpv(r, flows), optNum(a, 2, ctx, 0.1));
     },
@@ -3941,17 +3980,21 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         if (v < 0) negative += v / (1 + finance) ** i;
         else positive += v * (1 + reinvest) ** (n - 1 - i);
       });
+      // Nothing coming back loses everything.
+      if (positive === 0 && negative < 0) return -1;
       if (negative === 0 || positive === 0) throw DIV0;
       return (positive / -negative) ** (1 / (n - 1)) - 1;
     },
   },
   EFFECT: scalar(2, 2, ([r, n]) => {
+    if (typeof r === 'boolean' || typeof n === 'boolean') throw VALUE;
     const rate = num(r);
     const periods = Math.trunc(num(n));
     if (rate <= 0 || periods < 1) throw NUM;
     return (1 + rate / periods) ** periods - 1;
   }),
   NOMINAL: scalar(2, 2, ([r, n]) => {
+    if (typeof r === 'boolean' || typeof n === 'boolean') throw VALUE;
     const rate = num(r);
     const periods = Math.trunc(num(n));
     if (rate <= 0 || periods < 1) throw NUM;

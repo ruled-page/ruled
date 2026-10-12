@@ -112,9 +112,11 @@ export function each(v: Scalar | Matrix, f: (x: Scalar) => Scalar): Scalar | Mat
   return v instanceof Matrix ? Matrix.build(v.rows, v.cols, (r, c) => safe(v.get(r, c))) : safe(v);
 }
 
+/** Runs a function; an error thrown is its result, as is #NUM! for a number past what Excel holds. */
 export function attempt(f: () => Operand): Operand {
   try {
-    return f();
+    const out = f();
+    return typeof out === 'number' && !Number.isFinite(out) ? err('#NUM!') : out;
   } catch (e) {
     if (isError(e)) return e;
     throw e;
