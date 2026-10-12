@@ -1095,6 +1095,14 @@ function slopeOf(ys: Operand, xs: Operand, ctx: Ctx): { slope: number; intercept
   return { slope, intercept: l.my - slope * l.mx };
 }
 
+/** ROWS or COLUMNS: of a range or array; a union is #REF!, an error passes on. */
+function lineCount(r: Operand, ctx: Ctx, rows: boolean): number {
+  if (r instanceof Areas) throw REF;
+  if (isError(r)) throw r;
+  const m = r instanceof Ref ? r : matrixOf(r, ctx);
+  return rows ? m.rows : m.cols;
+}
+
 /** FORECAST: the line through the pairs, at x, or at each x of an array. */
 function forecast(a: Operand[], ctx: Ctx): Operand {
   const { slope, intercept } = slopeOf(a[1], a[2], ctx);
@@ -2720,8 +2728,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return r.cols === 1 || ctx.legacy ? r.c1 + 1 : Matrix.build(1, r.cols, (_i, j) => r.c1 + j + 1);
     },
   },
-  ROWS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.rows : r instanceof Areas ? (() => { throw REF; })() : matrixOf(r, ctx).rows) },
-  COLUMNS: { min: 1, max: 1, fn: ([r], ctx) => (r instanceof Ref ? r.cols : r instanceof Areas ? (() => { throw REF; })() : matrixOf(r, ctx).cols) },
+  ROWS: { min: 1, max: 1, fn: ([r], ctx) => lineCount(r, ctx, true) },
+  COLUMNS: { min: 1, max: 1, fn: ([r], ctx) => lineCount(r, ctx, false) },
   TRANSPOSE: {
     min: 1,
     max: 1,

@@ -674,6 +674,50 @@ export const FAMILIES: Record<string, string[]> = {
     '=SUM(MAKEARRAY(2,2,LAMBDA(r,c,r+c)))',
     '=SUM(MAKEARRAY(0,1,LAMBDA(r,c,1)))',
   ],
+  'edge-cases': [
+    // A blank cell looked up
+    '=LOOKUP(Data!A1,{0,1},{"zero","one"})',
+    '=XMATCH(Data!A1,{1,0})',
+    '=MATCH(Data!A1,{1,0},0)',
+    '=VLOOKUP(Data!A1,{0,"zero";1,"one"},2,FALSE)',
+    '=AVERAGEIFS(Data!B1,Data!B1,Data!A1)',
+    '=COUNTIF(Data!B1:B2,Data!A1)',
+    // Edges of statistics and aggregates
+    '=TRIMMEAN("a",0)',
+    '=BINOM.DIST.RANGE(20000000,0.5,1)',
+    '=PRODUCT(Data!A1)',
+    '=AGGREGATE(6,6,{"a"})',
+    '=AGGREGATE(2,4,{1,2,#N/A})',
+    '=AGGREGATE(3,6,{1,2,#N/A},"a")',
+    '=AGGREGATE(9,0,Data!C1:C5)',
+    '=SUBTOTAL(9,Data!C1:C5)',
+    '=PROB({0,1,"x"},{0.5,0.5,"y"},0,1)',
+    // Sorting and searching
+    '=TEXTJOIN(",",,SORTBY({1;2;3;4;5},Data!D1:D5))',
+    '=TEXTJOIN(",",,SORTBY({1;2;3;4;5},Data!D1:D5,-1))',
+    '=TEXTJOIN(",",,SORTBY({1,2,3},{"c","b","a"}))',
+    '=XMATCH(5.5,{4.14,4.19,5.17,5.77,6.39},1,2)',
+    '=XMATCH(5.5,{4.14,4.19,5.17,5.77,6.39},0,2)',
+    '=XMATCH(2.5,{3,4,3},1,-1)',
+    '=XMATCH(4.5,{5,4,3,2,1},-1,-2)',
+    '=XLOOKUP(5.5,{4.14,4.19,5.17,5.77,6.39},{1,2,3,4,5},,1,2)',
+    '=SUM(XMATCH({4.19,6.39},{4.14,4.19,5.17,5.77,6.39}))',
+    // Text
+    '=FIXED(0.1+0.2,20)',
+    '=FIXED(1234567890123456789,0)',
+    '=FIXED(10^21,0,TRUE)',
+    '=LEN(FIXED(1,127))',
+    '=LEN(CONCAT(REPT("a",20000),REPT("b",20000)))',
+    '=LEN(REPT("a",40000))',
+    '=LEN("a"&REPT("b",32767))',
+    '=NUMBERVALUE("3,14",",")',
+    '=TEXTJOIN(",",,TEXTSPLIT({"a,b",",x"},",",,TRUE))',
+    '=TEXTJOIN(",",,TEXTBEFORE({"red","orange"},"e"))',
+    '=TEXTJOIN("|",,VALUETOTEXT({4.14,"x"},1))',
+    '=TEXTSPLIT(",",",",,TRUE)',
+    '=SUM(FORECAST({4,5},{1;2},{1;2}))',
+    '=ROWS(WRAPROWS({1,2},2000000))',
+  ],
 };
 
 type DataCell = string | number | boolean | null;
@@ -685,6 +729,15 @@ type DataCell = string | number | boolean | null;
  * and beside it; the references read a quarter's months and a total sheet.
  */
 export const DATA: Record<string, Record<string, DataCell[][]>> = {
+  'edge-cases': {
+    Data: [
+      [null, 5, 1, 1],
+      [null, null, 2, 'two'],
+      [null, null, '=SUBTOTAL(9,C1:C2)', true],
+      [null, null, 4, null],
+      [null, null, '=1+AGGREGATE(9,4,C1:C2)', '=1/0'],
+    ],
+  },
   lambda: {
     Data: [
       [2, 1],

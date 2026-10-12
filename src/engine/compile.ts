@@ -299,7 +299,11 @@ function binary(op: string, left: Node, right: Node): Node {
     const test = COMPARISON[op];
     f = (x, y) => (isError(x) ? x : isError(y) ? y : test(compare(x, y)));
   } else if (op === '&') {
-    f = guard((x, y) => text(x) + text(y));
+    // No longer than a cell holds.
+    f = guard((x, y) => {
+      const t = text(x) + text(y);
+      return t.length > 32767 ? VALUE : t;
+    });
   } else {
     return () => err('#NAME?');
   }
