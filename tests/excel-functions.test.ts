@@ -992,7 +992,7 @@ describe('bond and depreciation functions', () => {
     ]);
   });
 
-  it('ACCRINT accrues over each coupon period, from issue or from the first interest date', () => {
+  it('ACCRINT accrues by coupon periods as Excel counts them', () => {
     const DOC = 'DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2';
     check([
       [`ACCRINT(${DOC},0)`, 16.666666666666668],
@@ -1004,7 +1004,11 @@ describe('bond and depreciation functions', () => {
       [`ACCRINT(${DOC},4)`, 16.666666666666668],
       ['ACCRINT(DATE(2008,3,1),DATE(2008,8,31),DATE(2008,5,1),0.1,,2)', 16.666666666666668],
       ['ACCRINT(DATE(2020,1,1),DATE(2020,7,1),DATE(2021,3,1),0.1,1000,2,0,TRUE())', 116.66666666666667],
-      ['ACCRINT(DATE(2020,1,1),DATE(2020,7,1),DATE(2021,3,1),0.1,1000,2,0,FALSE())', 66.66666666666667],
+      // FALSE leaves out whole periods before the first interest date, not interest from the issue: none here, so as TRUE.
+      ['ACCRINT(DATE(2020,1,1),DATE(2020,7,1),DATE(2021,3,1),0.1,1000,2,0,FALSE())', 116.66666666666667],
+      // Settled before the coupon ahead of the first interest date, FALSE gives less than nothing.
+      ['ACCRINT(DATE(2017,1,1),DATE(2017,12,1),DATE(2017,4,1),0.33,3000,4,1,FALSE)', -253.8763736263736],
+      ['ACCRINT(DATE(2017,1,1),DATE(2017,12,1),DATE(2017,4,1),0.33,3000,4,1)', 241.12362637362637],
       ['ACCRINT(DATE(2019,10,1),DATE(2020,7,1),DATE(2020,3,1),0.1,1000,2,0)', 41.666666666666664],
       ['ACCRINT(DATE(2009,3,15),DATE(2008,8,31),DATE(2009,5,15),0.1,1000,2,0)', 16.666666666666668],
       ['ACCRINT(DATE(2008,5,1),DATE(2008,8,31),DATE(2008,5,1),0.1,1000,2)', NUM],

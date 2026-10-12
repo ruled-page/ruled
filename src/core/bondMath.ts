@@ -174,6 +174,27 @@ export function yearFrac(calendar: Calendar, start: number, end: number, basis: 
   }
 }
 
+/**
+ * 30/360 days from one date to another in that order (negative going back):
+ * by US (NASD) rules, the last day of February and a 31st at the start
+ * count as the 30th, as do a 31st at the end after a start on the 30th or
+ * later and February's last day after another; or, `european`, every 31st
+ * as the 30th.
+ */
+function thirty(calendar: Calendar, from: number, to: number, european: boolean): number {
+  const [y1, m1, d1] = calendar.ymd(from);
+  const [y2, m2, d2] = calendar.ymd(to);
+  let [a, z] = [d1, d2];
+  if (european) [a, z] = [Math.min(a, 30), Math.min(z, 30)];
+  else {
+    const febEnd1 = m1 === 2 && d1 === daysInMonth(2, y1);
+    if (febEnd1 && m2 === 2 && d2 === daysInMonth(2, y2)) z = 30;
+    if (z === 31 && a >= 30) z = 30;
+    if (a === 31 || febEnd1) a = 30;
+  }
+  return (y2 - y1) * 360 + (m2 - m1) * 30 + (z - a);
+}
+
 export const validFrequency = (f: number) => f === 1 || f === 2 || f === 4;
 export const validBasis = (b: number) => b >= 0 && b <= 4;
 
@@ -296,27 +317,34 @@ export class Bonds {
     return modified ? d / (1 + yld / f) : d;
   }
 
+  /**
+   * ACCRINT as Excel counts it, in coupon periods (stepping from the first
+   * interest date) from a starting coupon back to the issue. The starting
+   * coupon is the one before the first interest date or, with calc_method
+   * TRUE once settlement has passed that date, the last before settlement.
+   * The days from it (or from the issue, if later) to settlement are a share
+   * of a period (for actual/actual, the one ending on the first interest
+   * date), less than nothing when settlement comes first. Each whole period
+   * before it counts 1 with calc_method TRUE and nothing with FALSE, and the
+   * period the issue falls in counts its share from the issue.
+   */
   accrint(issue: number, firstInterest: number, settlement: number, rate: number, par: number, frequency: number, basis: number, fromIssue: boolean): number {
     const [i, first, s, f, b] = [issue, firstInterest, settlement, frequency, basis].map(Math.trunc);
     if (i >= s || rate <= 0 || par <= 0 || !validFrequency(f) || !validBasis(b) || !this.validDates(i, first, s)) refuse();
     const calendar = this.calendar;
-    // Coupon dates run from the first interest date in steps of 12/f months, back and forward.
-    const anchor = new CouponDate(calendar, first, b);
-    const at = (k: number) => anchor.copy().addMonths((k * 12) / f).serial(calendar);
-    // From the issue date, or with calc_method FALSE from the first interest date once that has passed.
-    const start = !fromIssue && s > first ? first : i;
-    let k = 0;
-    while (at(k) > start) k--;
-    while (at(k + 1) <= start) k++;
-    // Each coupon period counts its share of a coupon: days accrued over the period's length.
-    let periods = 0;
-    for (; at(k) < s; k++) {
-      const [lo, hi] = [at(k), at(k + 1)];
-      const [from, to] = [Math.max(start, lo), Math.min(s, hi)];
-      const days = b === 0 || b === 4 ? CouponDate.diff(new CouponDate(calendar, from, b), new CouponDate(calendar, to, b)) : to - from;
-      periods += days / (b === 1 ? hi - lo : (b === 3 ? 365 : 360) / f);
+    const months = 12 / f;
+    const coupon = (k: number) => new CouponDate(calendar, first, b).addMonths(k * months).serial(calendar);
+    // Days from one date to another as the basis counts them, negative going back.
+    const days = (from: number, to: number) => (b === 0 || b === 4 ? thirty(calendar, from, to, b === 4) : to - from);
+    const period = (lo: number, hi: number) => (b === 1 ? hi - lo : (b === 3 ? 365 : 360) / f);
+    let k = -1;
+    if (fromIssue && s > first) for (k = 0; coupon(k + 1) < s; k++);
+    let share = days(Math.max(i, coupon(k)), s) / period(coupon(-1), first);
+    for (; coupon(k) > i; k--) {
+      const [lo, hi] = [coupon(k - 1), coupon(k)];
+      share += lo >= i ? (fromIssue ? 1 : 0) : days(i, hi) / period(lo, hi);
     }
-    return ((par * rate) / f) * periods;
+    return ((par * rate) / f) * share;
   }
 
   accrintm(issue: number, settlement: number, rate: number, par: number, basis: number): number {
