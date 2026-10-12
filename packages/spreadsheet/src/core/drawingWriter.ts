@@ -18,6 +18,7 @@ const DRAWING_TYPE = 'application/vnd.openxmlformats-officedocument.drawing+xml'
 const CHART_TYPE = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
 const XDR_NS = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
 const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const EMU_PER_PX = 9525;
 
 /** The first free path like xl/charts/chart7.xml. */
 function freePath(pkg: OoxmlPackage, dir: string, base: string): string {
@@ -74,12 +75,15 @@ export function writeObjects(pkg: OoxmlPackage, sheetPath: string, sheetXml: str
     if (!is) {
       removeChart(pkg, drawing, anchor);
       out = out.slice(0, span.start) + out.slice(span.end);
-    } else if (!sameAnchor(was.from, is.from) || !sameAnchor(was.to, is.to)) {
+    } else if (!sameAnchor(was.from, is.from) || !sameAnchor(was.to, is.to) || was.sizePx?.w !== is.sizePx?.w || was.sizePx?.h !== is.sizePx?.h) {
       let moved = anchor;
       for (const [tag, at] of [['from', is.from], ['to', is.to]] as const) {
         const el = at && firstElement(moved, tag);
         if (el && at) moved = moved.slice(0, el.start) + anchorXml(p, tag, at) + moved.slice(el.end);
       }
+      // One anchored at one cell keeps its size in the <ext> after its <from>.
+      const ext = !is.to && is.sizePx ? firstElement(moved, 'ext') : undefined;
+      if (ext && is.sizePx) moved = moved.slice(0, ext.start) + `<${p}ext cx="${is.sizePx.w * EMU_PER_PX}" cy="${is.sizePx.h * EMU_PER_PX}"/>` + moved.slice(ext.end);
       out = out.slice(0, span.start) + moved + out.slice(span.end);
     }
   }

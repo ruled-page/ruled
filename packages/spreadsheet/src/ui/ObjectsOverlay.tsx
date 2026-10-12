@@ -1,5 +1,5 @@
 import type { DataEditorRef } from '@glideapps/glide-data-grid';
-import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject, type WheelEvent as ReactWheelEvent } from 'react';
 import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
@@ -8,10 +8,12 @@ import { GLIDE_SCROLLER } from './glideDom';
 import { Icon } from './icons';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
-import { objectSize, rowsHeight } from './objectGeometry';
+import { objectEditable, objectKey, objectSize, rowsHeight } from './objectGeometry';
 
 interface Box {
   key: string;
+  /** The object's own key, the same in every pane and as it moves. */
+  id: string;
   obj: SheetObject;
   left: number;
   top: number;
@@ -21,6 +23,8 @@ interface Box {
   clipLeft: number;
   /** The lower part of an object anchored in the frozen rows above; that pane has the object itself. */
   continued: boolean;
+  /** It can be moved, resized and deleted. */
+  editable: boolean;
 }
 
 const LABEL: Record<SheetObject['kind'], MessageKey> = {
@@ -54,10 +58,38 @@ function Placeholder({ box, style }: { box: Box; style: CSSProperties }) {
   );
 }
 
+/** A handle on a selected object's frame: the edges it moves, and where it sits. */
+type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+const HANDLES: Edge[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+/** Smallest an object is dragged down to, in pixels. */
+const MIN_SIZE = 16;
+
+/** A drag in progress: of an object's frame (`move`) or one of its handles, so far. */
+interface Drag {
+  key: string;
+  mode: 'move' | Edge;
+  x0: number;
+  y0: number;
+  dx: number;
+  dy: number;
+}
+
+/** How far each edge of a box moves for a drag of `dx`, `dy`, keeping it at least MIN_SIZE across. */
+function edgesFor(mode: Drag['mode'], dx: number, dy: number, width: number, height: number) {
+  if (mode === 'move') return { left: dx, top: dy, right: dx, bottom: dy };
+  const west = mode.includes('w') ? Math.min(dx, width - MIN_SIZE) : 0;
+  const east = mode.includes('e') ? Math.max(dx, MIN_SIZE - width) : 0;
+  const north = mode.includes('n') ? Math.min(dy, height - MIN_SIZE) : 0;
+  const south = mode.includes('s') ? Math.max(dy, MIN_SIZE - height) : 0;
+  return { left: west, top: north, right: east, bottom: south };
+}
+
 /**
  * The workbook's charts, pictures and shapes where they sit over the grid:
  * charts drawn from the cells as they are now (when the editor draws
  * charts), and placeholders for the rest, which are kept but not drawn.
+ * Clicking one selects it, as in Excel: its frame then moves it, its handles
+ * resize it, and Delete removes it.
  */
 export function ObjectsOverlay({
   store,
@@ -81,9 +113,13 @@ export function ObjectsOverlay({
   /** Height of the column header above the cells. */
   top: number;
 }) {
+  const t = useT();
+  const id = useId();
   const host = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [bars, setBars] = useState({ right: 0, bottom: 0 });
+  const [drag, setDrag] = useState<Drag>();
 
   useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -131,6 +167,7 @@ export function ObjectsOverlay({
       const left = a.x + obj.from.colOffPx;
       out.push({
         key: `${i}`,
+        id: objectKey(obj),
         obj,
         left: left - origin.left,
         top: a.y - rowsHeight(view, obj.from.row, refRow) + obj.from.rowOffPx - origin.top,
@@ -138,21 +175,86 @@ export function ObjectsOverlay({
         height: size.height,
         clipLeft: obj.from.col >= view.info.frozenCols ? Math.max(0, freezeX - left) : 0,
         continued: gr < 0,
+        editable: objectEditable(view.info, obj),
       });
     });
     setBoxes(out);
   }, [view, gridRef, tick, rowStart, rowCount, scrollRow]);
 
+  const selected = boxes.find((b) => b.id === store.selectedObject);
+  // A newly selected object's frame takes the keyboard, in the pane that draws the object itself.
+  useEffect(() => {
+    if (selected && !selected.continued && !frame.current?.contains(document.activeElement)) frame.current?.focus({ preventScroll: true });
+  }, [selected?.id, selected?.continued]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Starts moving (or, from a handle, resizing) an object, selecting it; a drag shorter than a few pixels only selects. */
+  const begin = (e: ReactMouseEvent, b: Box, mode: Drag['mode']) => {
+    if (e.button !== 0 || !b.editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    store.selectObject(b.id);
+    const start: Drag = { key: b.id, mode, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0 };
+    let now = start;
+    setDrag(start);
+    const move = (ev: MouseEvent) => {
+      now = { ...start, dx: ev.clientX - start.x0, dy: ev.clientY - start.y0 };
+      setDrag(now);
+    };
+    const end = (ev: Event) => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', end, true);
+      window.removeEventListener('keydown', cancel, true);
+      setDrag(undefined);
+      if (ev.type === 'mouseup' && Math.abs(now.dx) + Math.abs(now.dy) > 2) {
+        void store.placeObject(b.id, edgesFor(mode, now.dx, now.dy, b.width, b.height));
+      }
+      frame.current?.focus({ preventScroll: true });
+    };
+    // Esc lets go without moving it.
+    const cancel = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      end(ev);
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', end, true);
+    window.addEventListener('keydown', cancel, true);
+  };
+
+  /** The wheel scrolls the sheet under an object, as it does elsewhere on the grid. */
+  const wheel = (e: ReactWheelEvent) => host.current?.parentElement?.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`)?.scrollBy({ left: e.deltaX, top: e.deltaY });
+
+  /** Keys on a selected object, as Excel has them: arrows move it, Shift and arrows resize it, Delete removes it, Tab goes on to the next and Esc back to the cells. */
+  const onKey = (e: ReactKeyboardEvent, b: Box) => {
+    const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (step) {
+      const [x, y] = step;
+      void store.placeObject(b.id, e.shiftKey ? { left: 0, top: 0, right: x, bottom: y } : { left: x, top: y, right: x, bottom: y });
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      void store.deleteObject(b.id).then(() => store.focusGrid());
+    } else if (e.key === 'Escape') {
+      store.selectObject(undefined);
+      store.focusGrid();
+    } else if (e.key === 'Tab') {
+      const list = store.editableObjects().map(objectKey);
+      const at = list.indexOf(b.id);
+      store.selectObject(list[(at + (e.shiftKey ? list.length - 1 : 1)) % list.length]);
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const placed = (b: Box): CSSProperties => {
+    if (drag?.key !== b.id) return { left: b.left, top: b.top, width: b.width, height: b.height };
+    const d = edgesFor(drag.mode, drag.dx, drag.dy, b.width, b.height);
+    return { left: b.left + d.left, top: b.top + d.top, width: b.width + d.right - d.left, height: b.height + d.bottom - d.top };
+  };
+
   return (
     <div className="wbe-objects-overlay" ref={host} style={{ top, right: bars.right, bottom: bars.bottom }}>
       {boxes.map((b) => {
-        const style: CSSProperties = {
-          left: b.left,
-          top: b.top,
-          width: b.width,
-          height: b.height,
-          clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined,
-        };
+        const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined };
         const placeholder = <Placeholder box={b} style={style} />;
         return b.obj.kind === 'chart' ? (
           <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
@@ -160,6 +262,39 @@ export function ObjectsOverlay({
           <Placeholder key={b.key} box={b} style={style} />
         );
       })}
+      {boxes
+        .filter((b) => b.editable && b !== selected)
+        .map((b) => (
+          <div
+            key={`hit-${b.key}`}
+            className="wbe-object-hit"
+            style={{ ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined }}
+            onMouseDown={(e) => begin(e, b, 'move')}
+            onWheel={wheel}
+            aria-hidden="true"
+          />
+        ))}
+      {selected && (
+        <div
+          ref={selected.continued ? undefined : frame}
+          className="wbe-object-frame"
+          style={placed(selected)}
+          tabIndex={selected.continued ? -1 : 0}
+          role="group"
+          aria-label={t('objects.selected', { name: selected.obj.name })}
+          aria-describedby={`${id}-hint`}
+          onMouseDown={(e) => begin(e, selected, 'move')}
+          onWheel={wheel}
+          onKeyDown={(e) => onKey(e, selected)}
+        >
+          {HANDLES.map((h) => (
+            <span key={h} className={`wbe-object-handle wbe-handle-${h}`} onMouseDown={(e) => begin(e, selected, h)} aria-hidden="true" />
+          ))}
+          <span id={`${id}-hint`} className="wbe-sr-only">
+            {t('objects.selectedHint')}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

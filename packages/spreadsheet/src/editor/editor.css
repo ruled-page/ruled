@@ -1347,6 +1347,46 @@
   color: var(--wbe-placeholder-text-muted);
 }
 
+/* Where a click selects an object, over its drawing. */
+.wbe .wbe-object-hit {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+}
+
+/* A selected object's frame, which moves it, and its handles, which resize it. */
+.wbe .wbe-object-frame {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+  outline: 1.5px solid var(--wbe-accent);
+  outline-offset: 0;
+}
+
+.wbe .wbe-object-frame:focus-visible {
+  outline-width: 2.5px;
+}
+
+.wbe .wbe-object-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--wbe-accent);
+  border-radius: 50%;
+  background: var(--wbe-surface);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.wbe .wbe-handle-nw { left: 0; top: 0; cursor: nwse-resize; }
+.wbe .wbe-handle-n { left: 50%; top: 0; cursor: ns-resize; }
+.wbe .wbe-handle-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.wbe .wbe-handle-e { left: 100%; top: 50%; cursor: ew-resize; }
+.wbe .wbe-handle-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.wbe .wbe-handle-s { left: 50%; top: 100%; cursor: ns-resize; }
+.wbe .wbe-handle-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.wbe .wbe-handle-w { left: 0; top: 50%; cursor: ew-resize; }
+
 /* Charts are drawn on a canvas sized to their box; Chart.js needs the box to hold nothing else. */
 .wbe .wbe-object-box.wbe-drawn,
 .wbe .wbe-chart-sheet {

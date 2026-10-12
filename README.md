@@ -175,6 +175,12 @@ back as .xlsx without losing what the editor can't display.
   gives the categories, and series run down the columns unless the data is
   wider than it is tall. The chart is drawn at once and saved as a chart
   part Excel opens and edits.
+- Move, resize and delete charts, pictures and shapes, as in Excel: click
+  one to select it, drag its frame to move it or a handle to resize it, and
+  press Delete to remove it. With one selected, the arrow keys nudge it,
+  Shift and the arrow keys resize it, Tab goes to the next and Esc back to
+  the cells; Ctrl+Alt+5 selects them from the keyboard. Each change is one
+  undoable step, saved as new anchors in the sheet's drawing.
 - Notes and threaded comments are marked in the corner of their cell and
   shown when you point at the cell or select it. From the cell menu, or with
   Shift+F2 as in Excel, you can add, edit and delete a note, and read a

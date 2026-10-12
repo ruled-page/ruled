@@ -56,6 +56,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Charts, pictures and shapes can be selected by clicking them, moved by
+  dragging, resized by their handles and deleted with Delete, or worked
+  from the keyboard (Ctrl+Alt+5, arrows, Shift+arrows, Tab, Esc); each is
+  saved as new anchors in the sheet's drawing.
 - Insert Chart: "Insert chart" in the cell menu, or Alt+F1, charts the
   selection (or the data around the active cell) as a column, bar, line,
   area, pie, doughnut or scatter chart, working out the series and

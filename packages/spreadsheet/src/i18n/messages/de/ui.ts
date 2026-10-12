@@ -223,6 +223,7 @@ export const ui: Record<keyof typeof en, string> = {
   'shortcuts.insertDelete': 'Zellen, Zeilen oder Spalten einfügen oder löschen',
   'shortcuts.filterToggle': 'Filterschaltflächen hinzufügen oder entfernen',
   'shortcuts.insertChart': 'Säulendiagramm der Daten einfügen',
+  'shortcuts.selectObjects': 'Diagramme, Bilder und Formen auswählen; Tab geht sie durch',
   'shortcuts.filterMenu': 'Filtermenü einer Überschrift öffnen',
   'shortcuts.undoRedo': 'Rückgängig, Wiederholen',
   'shortcuts.clipboard': 'Ausschneiden, Kopieren, Einfügen',
@@ -251,6 +252,7 @@ export const ui: Record<keyof typeof en, string> = {
   'keys.shiftF2': 'Umschalt+F2',
   'keys.filterToggle': 'Strg+Umschalt+L',
   'keys.altF1': 'Alt+F1',
+  'keys.ctrlAlt5': 'Strg+Alt+5',
   'keys.altDown': 'Alt+Nach-unten',
 
   'columnWidth.title': 'Breite von Spalte {{column}}',
@@ -549,6 +551,11 @@ export const ui: Record<keyof typeof en, string> = {
   'objects.typedChart': 'Diagramm ({{type}})',
   'objects.title': '{{name}}: in der Datei erhalten, hier nicht angezeigt',
   'objects.kept': 'In der Datei erhalten, hier nicht angezeigt',
+  'objects.history.move': '{{name}} verschieben',
+  'objects.history.resize': 'Größe von {{name}} ändern',
+  'objects.history.delete': '{{name}} löschen',
+  'objects.selected': '{{name}}, ausgewählt',
+  'objects.selectedHint': 'Pfeiltasten verschieben es, Umschalt und Pfeiltasten ändern die Größe, Entf löscht es, Tab geht zum nächsten und Esc zurück zu den Zellen.',
 
   'grid.empty': 'Leer',
   'grid.label': 'Zellen von {{name}}',

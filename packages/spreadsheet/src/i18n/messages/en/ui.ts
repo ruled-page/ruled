@@ -225,6 +225,7 @@ export const ui = {
   'shortcuts.insertDelete': 'Insert or delete cells, rows or columns',
   'shortcuts.filterToggle': 'Add or remove filter buttons',
   'shortcuts.insertChart': 'Insert a column chart of the data',
+  'shortcuts.selectObjects': 'Select the charts, pictures and shapes; Tab goes through them',
   'shortcuts.filterMenu': "Open a heading's filter menu",
   'shortcuts.undoRedo': 'Undo, redo',
   'shortcuts.clipboard': 'Cut, copy, paste',
@@ -253,6 +254,7 @@ export const ui = {
   'keys.shiftF2': 'Shift+F2',
   'keys.filterToggle': 'Ctrl+Shift+L',
   'keys.altF1': 'Alt+F1',
+  'keys.ctrlAlt5': 'Ctrl+Alt+5',
   'keys.altDown': 'Alt+Down arrow',
 
   'columnWidth.title': 'Width of column {{column}}',
@@ -554,6 +556,11 @@ export const ui = {
   'objects.typedChart': '{{type}} chart',
   'objects.title': '{{name}}: kept in the file, not shown here',
   'objects.kept': 'Kept in file, not shown here',
+  'objects.history.move': 'Move {{name}}',
+  'objects.history.resize': 'Resize {{name}}',
+  'objects.history.delete': 'Delete {{name}}',
+  'objects.selected': '{{name}}, selected',
+  'objects.selectedHint': 'Arrow keys move it, Shift and the arrow keys resize it, Delete removes it, Tab goes to the next one and Esc back to the cells.',
 
   'grid.empty': 'Empty',
   'grid.label': 'Cells of {{name}}',

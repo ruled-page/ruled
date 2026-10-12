@@ -138,3 +138,50 @@ test('inserts a chart of the selection from the cell menu or Alt+F1, saves it as
   await expect(page.getByRole('img', { name: 'Column chart “Total”' })).toHaveCount(0);
   await expect(chart).toBeVisible();
 });
+
+test('selects a chart by clicking it, moves and resizes it by dragging, and deletes it, each a step undone on its own', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  await goTo(page, 'D1:D3');
+  await page.keyboard.press('Alt+F1');
+  const chart = page.getByRole('img', { name: 'Column chart “Total”' });
+  await expect(chart).toBeVisible();
+  const box = async () => (await chart.boundingBox())!;
+  const start = await box();
+
+  // A click selects it: a frame with handles, holding the keyboard.
+  await page.mouse.click(start.x + start.width / 2, start.y + start.height / 2);
+  const frame = page.getByRole('group', { name: 'Chart 1, selected' });
+  await expect(frame).toBeFocused();
+
+  // Dragged 64 pixels right and 40 down.
+  await page.mouse.move(start.x + 100, start.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 140, start.y + 120, { steps: 4 });
+  await page.mouse.move(start.x + 164, start.y + 140, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => [Math.round((await box()).x - start.x), Math.round((await box()).y - start.y)]).toEqual([64, 40]);
+
+  // Its bottom-right handle dragged 50 pixels further out.
+  const moved = await box();
+  await page.mouse.move(moved.x + moved.width, moved.y + moved.height);
+  await page.mouse.down();
+  await page.mouse.move(moved.x + moved.width + 50, moved.y + moved.height + 50, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => Math.round((await box()).width - moved.width)).toBe(50);
+
+  // Arrow keys nudge it; Delete removes it, and back to the cells.
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => Math.round((await box()).x - moved.x)).toBe(-1);
+  await page.keyboard.press('Delete');
+  await expect(chart).toHaveCount(0);
+  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(chart).toBeVisible();
+
+  // Ctrl+Alt+5 selects it from the keyboard; Esc goes back to the cells.
+  await goTo(page, 'A1');
+  await page.keyboard.press('Control+Alt+5');
+  await expect(frame).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(frame).toHaveCount(0);
+});

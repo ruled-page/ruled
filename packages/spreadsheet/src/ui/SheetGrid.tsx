@@ -45,6 +45,7 @@ import { APPLE } from './keys';
 import { LinkTip } from './LinkTip';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
+import { objectKey } from './objectGeometry';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
 import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from './paint';
@@ -1298,6 +1299,9 @@ export function SheetGrid({
     host.current.style.cursor = rowEdgeAt(e.clientX, e.clientY) ? 'row-resize' : onSelectionEdge(e.clientX, e.clientY) ? 'move' : '';
   };
   const onHostMouseDown = (e: ReactMouseEvent) => {
+    // Charts, pictures and shapes take their own clicks; a click on the cells lets go of a selected one.
+    if ((e.target as Element).closest?.('.wbe-objects-overlay')) return;
+    store.selectObject(undefined);
     // A filter button opens its column's filter menu, leaving the selection where it is.
     const under = e.button === 0 ? cellUnder(e.clientX, e.clientY) : undefined;
     const button = under && filterButtonOf(under.row, under.col, e.clientX, e.clientY);
@@ -1428,6 +1432,16 @@ export function SheetGrid({
           e.cancel();
           e.preventDefault();
           store.set('filterPicker', button);
+          return;
+        }
+      }
+      // Ctrl+Alt+5 selects the sheet's first chart, picture or shape; Tab then goes through them, as in Excel.
+      if (e.keyCode === 53 && e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey) {
+        const first = store.editableObjects()[0];
+        if (first) {
+          e.cancel();
+          e.preventDefault();
+          store.selectObject(objectKey(first));
           return;
         }
       }

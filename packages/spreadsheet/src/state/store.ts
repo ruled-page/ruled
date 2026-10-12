@@ -36,6 +36,7 @@ import {
   type PastePart,
   type LayoutOp,
   type Anchor,
+  type SheetObject,
   type ReadOnlyCells,
   type SeriesOptions,
   type SortKey,
@@ -57,6 +58,7 @@ import { csvFileName, sheetCsv } from './csv';
 import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit';
 import { checkboxState } from './checkbox';
 import type { NewChartKind } from '../core/chartWriter';
+import { objectEditable, objectKey, objectSize, shiftAnchor } from '../ui/objectGeometry';
 import { displayText, editText, exactText, isDateStyle } from './format';
 import { excelTextWidth } from './overflow';
 import { builtInLists, cleanLists, loadUserLists, saveUserLists } from './fillLists';
@@ -834,6 +836,7 @@ export class WorkbookStore {
 
   setActive(i: number): void {
     this.active = i;
+    this.selectedObject = undefined;
     this.refreshConditionalFormats(i);
     this.notify();
   }
@@ -3159,6 +3162,50 @@ export class WorkbookStore {
     await this.changeLayout({ kind: 'insertChart', chart: kind, rect, from, to: anchorAfter(view, from, 480, 288), title }, msg('charts.history.insert'));
   }
 
+  /** The chart, picture or shape selected on the active sheet, by its key, as clicking one selects it in Excel. */
+  selectedObject?: string;
+
+  /** Selects an object (or, without a key, none), leaving the cells' selection as it is. */
+  selectObject(key: string | undefined): void {
+    if (this.selectedObject !== key) this.set('selectedObject', key);
+  }
+
+  /** The active sheet's objects that can be moved, resized and deleted, in the order Tab goes through them. */
+  editableObjects(): SheetObject[] {
+    const view = this.view;
+    return view ? view.info.objects.filter((o) => objectEditable(view.info, o)) : [];
+  }
+
+  /**
+   * Moves or resizes an object by how far its edges have moved, in pixels,
+   * as dragging it or one of its handles does in Excel. One undoable step.
+   */
+  async placeObject(key: string, edges: { left: number; top: number; right: number; bottom: number }): Promise<void> {
+    const view = this.view;
+    const objects = view?.info.objects ?? [];
+    const i = objects.findIndex((o) => objectKey(o) === key);
+    const obj = objects[i];
+    if (!view || !obj?.from || !objectEditable(view.info, obj)) return;
+    const from = shiftAnchor(view, obj.from, edges.left, edges.top);
+    const size = objectSize(view, obj);
+    const next: SheetObject = obj.to
+      ? { ...obj, from, to: shiftAnchor(view, obj.to, edges.right, edges.bottom) }
+      : { ...obj, from, ...(size && { sizePx: { w: Math.max(8, size.width + edges.right - edges.left), h: Math.max(8, size.height + edges.bottom - edges.top) } }) };
+    if (JSON.stringify([next.from, next.to, next.sizePx]) === JSON.stringify([obj.from, obj.to, obj.sizePx])) return;
+    const moved = edges.left === edges.right && edges.top === edges.bottom;
+    await this.changeLayout({ kind: 'objects', objects: objects.map((o, j) => (j === i ? next : o)) }, msg(moved ? 'objects.history.move' : 'objects.history.resize', { name: obj.name }));
+  }
+
+  /** Deletes an object, as Delete does with one selected in Excel. One undoable step. */
+  async deleteObject(key: string): Promise<void> {
+    const view = this.view;
+    const objects = view?.info.objects ?? [];
+    const obj = objects.find((o) => objectKey(o) === key);
+    if (!view || !obj || !objectEditable(view.info, obj)) return;
+    this.selectObject(undefined);
+    await this.changeLayout({ kind: 'objects', objects: objects.filter((o) => o !== obj) }, msg('objects.history.delete', { name: obj.name }));
+  }
+
   // ---------------------------------------------------------------------------
   // Checkboxes, as Excel 365 has them in cells
 
@@ -4075,6 +4122,7 @@ export class WorkbookStore {
       | 'cfGallery'
       | 'validationDialog'
       | 'sortDialog'
+      | 'selectedObject'
       | 'numberFormatOpen'
       | 'cellsDialog'
       | 'customListsOpen'
