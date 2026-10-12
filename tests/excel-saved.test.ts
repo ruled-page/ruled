@@ -7,12 +7,12 @@ import { WorkbookSession } from '../src/core/session';
 import { english } from '../src/i18n';
 
 /**
- * IronCalc's calculation workbooks (tests/ironcalc, see its README), graded
- * against the values Excel saved in them. Disagreements are held to the list
- * in tests/ironcalc/known.json, which only shrinks.
+ * Calculation workbooks saved by Excel (tests/excel-saved, see its README),
+ * graded against the values Excel saved in them. Disagreements are held to
+ * the list in tests/excel-saved/known.json, which only shrinks.
  */
 
-const dir = join(__dirname, 'ironcalc');
+const dir = join(__dirname, 'excel-saved');
 const knownFile = join(dir, 'known.json');
 
 function workbooks(d = dir): string[] {
@@ -41,7 +41,7 @@ function disagreements(bytes: Uint8Array, name: string): string[] {
   return out.sort();
 }
 
-describe("IronCalc's workbooks", () => {
+describe('workbooks saved by Excel', () => {
   it('give the answers Excel saved in them, apart from the known disagreements', { timeout: 60_000 }, () => {
     const found: Record<string, string[]> = {};
     for (const file of workbooks().sort()) {
@@ -51,7 +51,7 @@ describe("IronCalc's workbooks", () => {
       const cells = disagreements(bytes, name);
       if (cells.length) found[name] = cells;
     }
-    if (process.env.UPDATE_IRONCALC) writeFileSync(knownFile, `${JSON.stringify(found, null, 2)}\n`);
+    if (process.env.UPDATE_EXCEL_SAVED) writeFileSync(knownFile, `${JSON.stringify(found, null, 2)}\n`);
     const known = JSON.parse(readFileSync(knownFile, 'utf8')) as Record<string, string[]>;
     expect(found).toEqual(known);
   });
