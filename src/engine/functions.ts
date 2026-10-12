@@ -598,7 +598,8 @@ export function dateOf(serial: number, date1904: boolean): { y: number; m: numbe
 
 function dateArg(v: Scalar, ctx: Ctx): number {
   const n = typeof v === 'string' ? dateValue(v, ctx) : num(v);
-  if (n < 0) throw NUM;
+  // Excel's dates run to the end of 31 December 9999.
+  if (n < 0 || n >= serialOf(9999, 12, 31, ctx.host.date1904) + 1) throw NUM;
   return n;
 }
 
@@ -648,6 +649,25 @@ function weekday(serial: number, type: number, ctx: Ctx): number {
     default:
       throw NUM;
   }
+}
+
+/**
+ * The date `left` working days from `start`, a day at a time: #NUM! once it
+ * passes the first or last date there is (31 December 9999), as Excel
+ * gives, and at once for more working days than that span holds.
+ */
+function stepWorkdays(start: number, left: number, isWorkday: (d: number) => boolean, ctx: Ctx): number {
+  const first = ctx.host.date1904 ? 0 : 1;
+  const last = serialOf(9999, 12, 31, ctx.host.date1904);
+  if (Math.abs(left) > last) throw NUM;
+  const step = left >= 0 ? 1 : -1;
+  let d = start;
+  while (left !== 0) {
+    d += step;
+    if (d < first || d > last) throw NUM;
+    if (isWorkday(d)) left -= step;
+  }
+  return d;
 }
 
 function workdays(start: number, end: number, holidays: Set<number>, ctx: Ctx): number {
@@ -1197,11 +1217,29 @@ function logFactorial(n: number): number {
   return s;
 }
 
+/**
+ * The most steps a function takes one at a time (periods, terms of a sum):
+ * beyond it, #NUM!, rather than a calculation that doesn't finish.
+ */
+const MAX_STEPS = 10_000_000;
+
+/** Up to this many trials the binomial terms are summed exactly; beyond, they come from the gamma and beta functions. */
+const SUMMED_TRIALS = 10_000;
+
+/** P(X <= k) for X binomial with n trials and success chance p, from the incomplete beta function. */
+const binomialCdf = (n: number, p: number, k: number) => (k < 0 ? 0 : k >= n ? 1 : betaI(1 - p, p, n - k, k + 1));
+
 /** P(lo <= X <= hi) for X binomial with n trials and success chance p. */
 function binomialRange(n: number, p: number, lo: number, hi: number): number {
+  // Past whole numbers a double holds exactly, as Excel's #NUM! for 1E+30 trials.
+  if (n > 2 ** 53) throw NUM;
   if (p === 0 || p === 1) {
     const certain = p === 0 ? 0 : n;
     return certain >= lo && certain <= hi ? 1 : 0;
+  }
+  if (n > SUMMED_TRIALS) {
+    if (lo === hi) return Math.exp(logChoose(n, lo) + lo * Math.log(p) + (n - lo) * Math.log1p(-p));
+    return Math.max(0, binomialCdf(n, p, hi) - binomialCdf(n, p, lo - 1));
   }
   let lnChoose = logFactorial(n) - logFactorial(lo) - logFactorial(n - lo);
   let total = 0;
@@ -1465,6 +1503,18 @@ function betaInverse(p: Scalar, alpha: Scalar, beta: Scalar, lo: Scalar | undefi
 function binomialInverse(n: number, p: number, alpha: number): number {
   if (p === 0) return 0;
   if (p === 1) return n;
+  if (n > 2 ** 53) throw NUM;
+  if (n > SUMMED_TRIALS) {
+    // The cumulative probability only rises with k: halve the range it could be in.
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (binomialCdf(n, p, mid) >= alpha * (1 - 1e-14)) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
+  }
   let lnChoose = 0;
   let total = 0;
   for (let k = 0; k < n; k++) {
@@ -1492,6 +1542,7 @@ function hypergeometric(args: Scalar[], cumulative: boolean): number {
   if (k > Math.min(n, big)) return 1;
   const term = (i: number) => Math.exp(logChoose(big, i) + logChoose(total - big, n - i) - logChoose(total, n));
   if (!cumulative) return term(k);
+  if (k - least > MAX_STEPS) throw NUM;
   let s = 0;
   for (let i = least; i <= k; i++) s += term(i);
   return Math.min(1, s);
@@ -1774,7 +1825,7 @@ function cumulative(a: Scalar[], principal: boolean): number {
   const type = num(a[5]);
   const start = Math.trunc(s);
   const end = Math.trunc(e);
-  if (r <= 0 || n <= 0 || pv <= 0 || start < 1 || end < start || end > n || (type !== 0 && type !== 1)) throw NUM;
+  if (r <= 0 || n <= 0 || pv <= 0 || start < 1 || end < start || end > n || (type !== 0 && type !== 1) || end - start > MAX_STEPS) throw NUM;
   const pmt = payment(r, n, pv, 0, type);
   let total = 0;
   for (let per = start; per <= end; per++) {
@@ -1864,10 +1915,13 @@ function factorial(n: number): number {
   return f;
 }
 
-/** n choose k, exact for the whole numbers Excel gives. */
+/** n choose k, exact for the whole numbers Excel gives; #NUM! once too large for a number. */
 function choose(n: number, k: number): number {
   let r = 1;
-  for (let i = 1; i <= Math.min(k, n - k); i++) r = (r * (n - k + i)) / i;
+  for (let i = 1; i <= Math.min(k, n - k); i++) {
+    r = (r * (n - k + i)) / i;
+    if (!Number.isFinite(r)) throw NUM;
+  }
   return Math.round(r);
 }
 
@@ -2312,7 +2366,8 @@ function besselArgs(x: Scalar, n: Scalar, positiveX: boolean): [number, number] 
   if (typeof x === 'boolean' || typeof n === 'boolean') throw VALUE;
   const v = num(x);
   const order = Math.trunc(num(n));
-  if (order < 0 || (positiveX && v <= 0)) throw NUM;
+  // The recurrences take a step per order: beyond a million, #NUM! rather than a wait.
+  if (order < 0 || order > 1_000_000 || (positiveX && v <= 0)) throw NUM;
   return [v, order];
 }
 
@@ -3004,15 +3059,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 3,
     fn: (a, ctx) => {
-      let s = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
-      let left = Math.trunc(num(scalarOf(a[1], ctx)));
+      const s = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
+      const left = Math.trunc(num(scalarOf(a[1], ctx)));
       const holidays = holidaysOf(a[2], ctx);
-      const step = left >= 0 ? 1 : -1;
-      while (left !== 0) {
-        s += step;
-        if (weekday(s, 2, ctx) <= 5 && !holidays.has(s)) left -= step;
-      }
-      return s;
+      return stepWorkdays(s, left, (d) => weekday(d, 2, ctx) <= 5 && !holidays.has(d), ctx);
     },
   },
 
@@ -3228,7 +3278,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const b = Math.trunc(num(k));
     if (a <= 0 || b < 0 || a < b) throw NUM;
     let p = 1;
-    for (let i = 0; i < b; i++) p *= a - i;
+    for (let i = 0; i < b; i++) {
+      p *= a - i;
+      if (!Number.isFinite(p)) throw NUM;
+    }
     return p;
   }),
   PERMUTATIONA: scalar(2, 2, ([n, k]) => {
@@ -3698,7 +3751,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   DB: scalar(4, 5, ([c, s, l, p, mo]) => {
     const [cost, salvage, life, period] = [num(c), num(s), num(l), Math.trunc(num(p))];
     const months = Math.trunc(optional(mo, 12));
-    if (cost < 0 || salvage < 0 || life <= 0 || months < 1 || months > 12 || period < 1 || period > life + (months < 12 ? 1 : 0)) throw NUM;
+    if (cost < 0 || salvage < 0 || life <= 0 || months < 1 || months > 12 || period < 1 || period > life + (months < 12 ? 1 : 0) || period > MAX_STEPS) throw NUM;
     if (cost === 0) return 0;
     const rate = Math.round((1 - (salvage / cost) ** (1 / life)) * 1000) / 1000;
     let total = (cost * rate * months) / 12;
@@ -3828,17 +3881,12 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 4,
     fn: (a, ctx) => {
-      let d = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
-      let left = Math.trunc(num(scalarOf(a[1], ctx)));
+      const d = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
+      const left = Math.trunc(num(scalarOf(a[1], ctx)));
       const weekend = weekendOf(a[2], ctx);
       if (weekend.every(Boolean)) throw VALUE;
       const holidays = holidaysOf(a[3], ctx);
-      const step = left >= 0 ? 1 : -1;
-      while (left !== 0) {
-        d += step;
-        if (workday(d, weekend, holidays, ctx)) left -= step;
-      }
-      return d;
+      return stepWorkdays(d, left, (day) => workday(day, weekend, holidays, ctx), ctx);
     },
   },
   TIMEVALUE: scalar(1, 1, ([t]) => {
