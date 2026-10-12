@@ -34,6 +34,8 @@ export interface ScanResult {
   sheetDataEnd: number;
   rowStyles: Map<number, number>;
   rowHeightsPt: Map<number, number>;
+  /** Rows with a height Excel fitted to their contents, not one set by hand. */
+  fittedRows: number[];
   hiddenRows: number[];
   /** Row → its outline level, for rows in a group; and the rows marked as a collapsed group's summary. */
   rowLevels: Map<number, number>;
@@ -179,6 +181,7 @@ export function scanSheet(
   const rowEnd: number[] = [];
   const rowStyles = new Map<number, number>();
   const rowHeightsPt = new Map<number, number>();
+  const fittedRows: number[] = [];
   const hiddenRows: number[] = [];
   const rowLevels = new Map<number, number>();
   const collapsedRows: number[] = [];
@@ -229,7 +232,10 @@ export function scanSheet(
       if (ra.customFormat === '1' && ra.s) rowStyles.set(row, Number(ra.s));
       // Excel saves the height of rows it sized to fit wrapped or large text as well as of rows
       // sized by hand (customHeight), and draws both at that height.
-      if (ra.ht && Number(ra.ht) > 0) rowHeightsPt.set(row, Number(ra.ht));
+      if (ra.ht && Number(ra.ht) > 0) {
+        rowHeightsPt.set(row, Number(ra.ht));
+        if (ra.customHeight !== '1' && ra.customHeight !== 'true') fittedRows.push(row);
+      }
       if (ra.hidden === '1' || ra.hidden === 'true') hiddenRows.push(row);
       // Excel's outlines go seven levels deep.
       if (Number(ra.outlineLevel) > 0) rowLevels.set(row, Math.min(7, Number(ra.outlineLevel)));
@@ -468,6 +474,7 @@ export function scanSheet(
     sheetDataEnd,
     rowStyles,
     rowHeightsPt,
+    fittedRows,
     hiddenRows,
     rowLevels,
     collapsedRows,

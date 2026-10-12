@@ -26,6 +26,8 @@ function setEach<T>(values: Record<number, T>, get: (k: number) => T, set: (k: n
 export class SheetLayout {
   readonly colWidths = new Map<number, number | null>();
   readonly rowHeights = new Map<number, number | null>();
+  /** Whether each row whose height changed was fitted to its contents (true) or set by hand. */
+  readonly fitted = new Map<number, boolean>();
   readonly hiddenCols = new Map<number, boolean>();
   readonly hiddenRows = new Map<number, boolean>();
   frozen?: { rows: number; cols: number };
@@ -38,7 +40,7 @@ export class SheetLayout {
   readonly collapsed: Record<Axis, Map<number, boolean>> = { rows: new Map(), cols: new Map() };
   readonly defaultColWidthPx: number;
   /** The file's layout, copied, as what changes are measured against. */
-  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'filterKept' | 'outline'>;
+  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'fittedRows' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'filterKept' | 'outline'>;
   private readonly fileHidden: Record<'rows' | 'cols', Set<number>>;
   /** The rows the file's filter hides, which are hidden by it rather than by hand. */
   private readonly fileFiltered: Set<number>;
@@ -47,6 +49,7 @@ export class SheetLayout {
     this.file = {
       colWidths: { ...info.colWidths },
       rowHeights: { ...info.rowHeights },
+      fittedRows: { ...info.fittedRows },
       frozenRows: info.frozenRows,
       frozenCols: info.frozenCols,
       merges: [...info.merges],
@@ -145,6 +148,12 @@ export class SheetLayout {
     return this.rowHeights.has(row) ? this.rowHeights.get(row)! : (this.file.rowHeights[row] ?? null);
   }
 
+  /** Whether a row's height was fitted to its contents, rather than set by hand; a row with no height of its own is. */
+  rowFitted(row: number): boolean {
+    if (this.rowHeight(row) === null) return true;
+    return this.fitted.has(row) ? this.fitted.get(row)! : !!this.file.fittedRows?.[row];
+  }
+
   hidden(axis: 'rows' | 'cols', line: number): boolean {
     const set = axis === 'rows' ? this.hiddenRows : this.hiddenCols;
     return set.has(line) ? set.get(line)! : this.fileHidden[axis].has(line);
@@ -159,7 +168,7 @@ export class SheetLayout {
   }
 
   /** The sizes, hidden rows and columns, panes, merges and filter (and its buttons) of `info` as they now are. */
-  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'> {
+  infoNow(info: SheetInfo): Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'fittedRows' | 'hiddenRows' | 'hiddenCols' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'> {
     const sizes = (file: Record<number, number>, edits: Map<number, number | null>) => {
       const out = { ...file };
       for (const [line, px] of edits) {
@@ -174,6 +183,12 @@ export class SheetLayout {
     return {
       colWidths: sizes(info.colWidths, this.colWidths),
       rowHeights: sizes(info.rowHeights, this.rowHeights),
+      fittedRows: Object.fromEntries(
+        Object.keys(sizes(info.rowHeights, this.rowHeights))
+          .map(Number)
+          .filter((r) => this.rowFitted(r))
+          .map((r) => [r, true as const]),
+      ),
       hiddenRows: [...rows].filter((r) => this.rowHidden(r)).sort((a, b) => a - b),
       hiddenCols: [...cols].filter((c) => this.hidden('cols', c)).sort((a, b) => a - b),
       frozenRows: f.rows,
@@ -191,8 +206,21 @@ export class SheetLayout {
     switch (op.kind) {
       case 'colWidths':
         return { kind: 'colWidths', widths: setEach(op.widths, (c) => this.colWidth(c), (c, px) => this.colWidths.set(c, px)) };
-      case 'rowHeights':
-        return { kind: 'rowHeights', heights: setEach(op.heights, (r) => this.rowHeight(r), (r, px) => this.rowHeights.set(r, px)) };
+      case 'rowHeights': {
+        const wasFitted = Object.keys(op.heights)
+          .map(Number)
+          .filter((r) => this.rowFitted(r) && this.rowHeight(r) !== null);
+        const fitted = new Set(op.fitted);
+        const heights = setEach(
+          op.heights,
+          (r) => this.rowHeight(r),
+          (r, px) => {
+            this.rowHeights.set(r, px);
+            this.fitted.set(r, fitted.has(r));
+          },
+        );
+        return { kind: 'rowHeights', heights, ...(wasFitted.length && { fitted: wasFitted }) };
+      }
       case 'hidden': {
         const set = op.axis === 'rows' ? this.hiddenRows : this.hiddenCols;
         return { kind: 'hidden', axis: op.axis, lines: setEach(op.lines, (l) => this.hidden(op.axis, l), (l, h) => set.set(l, h)) };
@@ -311,7 +339,8 @@ const characters = (px: number) => Math.round((px / 7) * 256) / 256;
 export function rowAttributes(layout: SheetLayout): Map<number, Record<string, string | null>> {
   const out = new Map<number, Record<string, string | null>>();
   const set = (row: number, attrs: Record<string, string | null>) => out.set(row, { ...out.get(row), ...attrs });
-  for (const [row, px] of layout.rowHeights) set(row, px === null ? { ht: null, customHeight: null } : { ht: String(points(px)), customHeight: '1' });
+  // Excel fits rows again as their cells change, unless their height was set by hand.
+  for (const [row, px] of layout.rowHeights) set(row, px === null ? { ht: null, customHeight: null } : { ht: String(points(px)), customHeight: layout.rowFitted(row) ? null : '1' });
   for (const [row, v] of layout.levels.rows) set(row, { outlineLevel: v ? String(v) : null });
   for (const [row, c] of layout.collapsed.rows) set(row, { collapsed: c ? '1' : null });
   // Rows whose visibility changed, by hand or by the filter, are hidden in the file either way.

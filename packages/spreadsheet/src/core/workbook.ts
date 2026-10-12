@@ -434,6 +434,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     if (attr(fmt, 'defaultColWidth')) info.defaultColWidthPx = colWidthPx(Number(attr(fmt, 'defaultColWidth')));
     if (attr(fmt, 'defaultRowHeight')) info.defaultRowHeightPx = Math.round((Number(attr(fmt, 'defaultRowHeight')) * 4) / 3);
     for (const [row, pt] of scan.rowHeightsPt) info.rowHeights[row] = Math.round((pt * 4) / 3);
+    if (scan.fittedRows.length) info.fittedRows = Object.fromEntries(scan.fittedRows.map((r) => [r, true as const]));
     info.hiddenRows = scan.hiddenRows;
     for (const [row, style] of scan.rowStyles) info.rowStyles[row] = style;
 

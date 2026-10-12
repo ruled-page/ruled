@@ -51,6 +51,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   over the rows around it. A row too short for its text shows the last
   lines, or the first when top-aligned, and AutoFit counts the same lines.
   A wrapped cell is edited at its column's width, the editor growing down.
+- Rows fit their contents as Excel's do: typing into a wrapped cell,
+  turning wrap on or off, or changing a wrapped cell's column width makes
+  its row taller or shorter in the same undoable step. Rows sized by hand
+  keep their height until AutoFit fits them again, and fitted rows are
+  saved without Excel's custom height mark, so Excel keeps fitting them.
 - Custom number formats: "More number formats…" in the format bar opens
   Excel's Custom list, to type a format code or pick one of Excel's or the
   workbook's own, with the active cell shown in it as it is typed. Codes

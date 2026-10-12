@@ -155,7 +155,7 @@ test('fits a row to its wrapped text when the edge of its number is double-click
   expect(height).toBeGreaterThan(30);
 });
 
-test('edits a wrapped cell at its column\'s width, growing down as Excel does', async ({ page }) => {
+test('edits a wrapped cell at its column\'s width, growing down, and fits the row to it as Excel does', async ({ page }) => {
   await goTo(page, 'A2');
   await page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Wrap text' }).click();
   await goTo(page, 'A2');
@@ -166,4 +166,10 @@ test('edits a wrapped cell at its column\'s width, growing down as Excel does', 
   // Column A is 64 pixels wide: the editor stays inside it and takes several lines.
   expect(box.width).toBeLessThan(64);
   expect(box.height).toBeGreaterThan(50);
+  // Entered, the row grows to fit it, as Excel's rows do unless set by hand.
+  await page.keyboard.press('Enter');
+  await goTo(page, 'A2');
+  await choose(page, 'Row height…', 'Rows');
+  const height = Number(await page.getByRole('dialog', { name: 'Height of row 2' }).getByRole('textbox').inputValue());
+  expect(height).toBeGreaterThan(45);
 });

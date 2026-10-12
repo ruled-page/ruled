@@ -65,6 +65,42 @@ describe('AutoFit', () => {
     expect(store.history).toHaveLength(0);
   });
 
+  it('fits a row as its wrapped text changes, wrap is turned on or its column narrows, in the same step, as Excel does; rows set by hand stay', async () => {
+    await open();
+    const settled = () => (store as unknown as { queue: Promise<unknown> }).queue;
+    const line = Math.round(store.styles[0].fontSizePx * 1.36);
+    const lines = (text: string, width = 64) => wrappedLines(text, width - 9, seven);
+    store.setSelection({ row: 0, col: 2, rects: [{ r1: 0, c1: 2, r2: 0, c2: 2 }] });
+    await store.formatCells({ wrap: true });
+    await settled();
+    expect(store.view!.rowHeight(0)).toBe(lines('a much longer piece of text') * line);
+    expect(store.history).toHaveLength(1);
+    // One undo takes the wrap and the height back, and redo both again.
+    await store.undo();
+    expect(store.view!.rowHeight(0)).toBe(20);
+    await store.redo();
+    expect(store.view!.rowHeight(0)).toBe(lines('a much longer piece of text') * line);
+    // Shorter text takes one line: back to the sheet's own height.
+    await store.input(0, 2, 'short');
+    await settled();
+    expect(store.view!.rowHeight(0)).toBe(20);
+    // A narrower column takes more lines.
+    await store.input(0, 2, 'one two three four');
+    await settled();
+    await store.resizedColumn(2, 30);
+    await settled();
+    expect(store.view!.rowHeight(0)).toBe(lines('one two three four', 30) * line);
+    // A row set by hand keeps its height, until AutoFit fits it again.
+    await store.resizedRow(0, 25);
+    await store.input(0, 2, 'one two three four five six');
+    await settled();
+    expect(store.view!.rowHeight(0)).toBe(25);
+    await store.autofit('rows', 0);
+    await store.input(0, 2, 'one');
+    await settled();
+    expect(store.view!.rowHeight(0)).toBe(20);
+  });
+
   it('fits a row to the lines its wrapped text takes, and an empty one back to the sheet’s height', async () => {
     await open();
     store.setSelection({ row: 0, col: 2, rects: [{ r1: 0, c1: 2, r2: 0, c2: 2 }] });

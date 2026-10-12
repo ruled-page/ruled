@@ -93,12 +93,17 @@ export class SheetView {
           else this.colWidths.set(Number(c), px);
         }
         break;
-      case 'rowHeights':
+      case 'rowHeights': {
+        const fitted = new Set(op.fitted);
+        info.fittedRows ??= {};
         for (const [r, px] of Object.entries(op.heights)) {
           if (px === null) delete info.rowHeights[Number(r)];
           else info.rowHeights[Number(r)] = px;
+          if (fitted.has(Number(r))) info.fittedRows[Number(r)] = true;
+          else delete info.fittedRows[Number(r)];
         }
         break;
+      }
       case 'hidden': {
         const key = op.axis === 'rows' ? 'hiddenRows' : 'hiddenCols';
         const hidden = new Set(info[key]);
@@ -414,6 +419,11 @@ export class SheetView {
 
   rowHeight(row: number): number {
     return this.info.rowHeights[row] ?? this.info.defaultRowHeightPx;
+  }
+
+  /** Whether a row's height follows its contents, as Excel fits it: no height of its own, or one fitted rather than set by hand. */
+  rowFitted(row: number): boolean {
+    return this.info.rowHeights[row] === undefined || !!this.info.fittedRows?.[row];
   }
 }
 

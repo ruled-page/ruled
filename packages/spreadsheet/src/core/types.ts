@@ -408,8 +408,14 @@ export interface SheetInfo {
   defaultRowHeightPx: number;
   /** Column index → width in pixels, for columns with a custom width. */
   colWidths: Record<number, number>;
-  /** Row index → height in pixels, for rows with a custom height. */
+  /** Row index → height in pixels, for rows with a height of their own. */
   rowHeights: Record<number, number>;
+  /**
+   * Rows whose height Excel fitted to their contents rather than one set by
+   * hand (no customHeight), which are fitted again as their cells change,
+   * as are rows with no height of their own.
+   */
+  fittedRows?: Record<number, true>;
   hiddenCols: number[];
   hiddenRows: number[];
   frozenCols: number;
@@ -673,7 +679,8 @@ export type EditOp =
  */
 export type LayoutOp =
   | { kind: 'colWidths'; widths: Record<number, number | null> }
-  | { kind: 'rowHeights'; heights: Record<number, number | null> }
+  /** `fitted`: the rows among `heights` fitted to their contents, as AutoFit sizes them, rather than set by hand. */
+  | { kind: 'rowHeights'; heights: Record<number, number | null>; fitted?: number[] }
   | { kind: 'hidden'; axis: 'rows' | 'cols'; lines: Record<number, boolean> }
   /** Rows above and columns left of the panes that scroll; 0 and 0 unfreezes. */
   | { kind: 'freeze'; rows: number; cols: number }

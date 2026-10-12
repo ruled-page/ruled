@@ -1362,7 +1362,7 @@ export class WorkbookStore {
   private edit(
     op: EditOp,
     record: 'undo' | 'none' | 'merge' = 'undo',
-    opts: { label?: Text; replay?: boolean; announce?: Text } = {},
+    opts: { label?: Text; replay?: boolean; announce?: Text; history?: false } = {},
   ): Promise<EditResult | undefined> {
     const run = async () => {
       this.busy = true;
@@ -1394,8 +1394,9 @@ export class WorkbookStore {
             this.undoStack.push(merged);
           }
         }
+        if (record === 'undo' && changed && !opts.replay) this.refitAfter(op, r);
         if (changed) {
-          this.recordHistory(op, record, r, opts.label);
+          if (opts.history !== false) this.recordHistory(op, record, r, opts.label);
           // A new comment's id and time are made in the worker: the draft keeps the comment as made.
           this.draftOps.push(op.type === 'comment' ? { type: 'restore', cells: [], notes: r.noteRedo } : op);
           this.scheduleDraft();
@@ -1417,6 +1418,49 @@ export class WorkbookStore {
     const p = this.queue.then(run, run);
     this.queue = p;
     return p;
+  }
+
+  /**
+   * Fits the rows an edit changed to what they now hold, as Excel does: the
+   * rows of the cells it changed, or, for new column widths, the rows with
+   * wrapped text in those columns. Rows sized by hand keep their height.
+   */
+  private refitAfter(op: EditOp, r: EditResult): void {
+    const rows = new Map<number, Set<number>>();
+    const add = (sheet: number, row: number) => {
+      let set = rows.get(sheet);
+      if (!set) rows.set(sheet, (set = new Set()));
+      set.add(row);
+    };
+    if (op.type === 'layout') {
+      const view = this.sheets[op.sheet];
+      if (op.op.kind !== 'colWidths' || !view) return;
+      for (const col of Object.keys(op.op.widths).map(Number)) {
+        view.forEach({ r1: 0, c1: col, r2: Math.max(view.info.maxRow, 0), c2: col }, (row, _c, rec) => {
+          if (this.styles[rec.style]?.wrap) add(op.sheet, row);
+        });
+      }
+    } else if (op.type !== 'restore' && op.type !== 'sort' && op.type !== 'comment') {
+      for (const c of r.redo) add(c.sheet, c.row);
+    }
+    for (const [sheet, set] of rows) this.refitRows(sheet, set);
+  }
+
+  /** Fits rows whose height follows their contents to what they hold, in the step just made. */
+  private refitRows(sheet: number, rows: Set<number>): void {
+    const view = this.sheets[sheet];
+    // Thousands of rows at once (a whole column pasted) are left for AutoFit.
+    if (!view || rows.size > 5000) return;
+    const measure = this.measureText ?? excelTextWidth;
+    const heights: Record<number, number | null> = {};
+    for (const row of rows) {
+      if (!view.rowFitted(row)) continue;
+      const px = Math.min(546, fittedRowHeight(view, this.styles, row, this.date1904, this.locale, measure));
+      const next = px === view.info.defaultRowHeightPx ? null : px;
+      if (next !== (view.info.rowHeights[row] ?? null)) heights[row] = next;
+    }
+    const fitted = Object.keys(heights).map(Number);
+    if (fitted.length) void this.edit({ type: 'layout', sheet, op: { kind: 'rowHeights', heights, fitted } }, 'merge', { history: false });
   }
 
   private recordHistory(op: EditOp, record: 'undo' | 'none' | 'merge', r: EditResult, label?: Text): void {
@@ -2707,11 +2751,13 @@ export class WorkbookStore {
         axis === 'cols'
           ? fittedColumnWidth(view, this.styles, l, this.date1904, this.locale, measure)
           : Math.min(546, fittedRowHeight(view, this.styles, l, this.date1904, this.locale, measure));
-      if (px !== undefined && px !== (axis === 'cols' ? view.colWidth(l) : view.rowHeight(l))) sizes[l] = px;
+      // A row fitted by AutoFit follows its contents from then on, as in Excel.
+      if (px !== undefined && (px !== (axis === 'cols' ? view.colWidth(l) : view.rowHeight(l)) || (axis === 'rows' && !view.rowFitted(l)))) sizes[l] = px;
     }
     const count = Object.keys(sizes).length;
     if (!count) return;
-    const op: LayoutOp = axis === 'cols' ? { kind: 'colWidths', widths: sizes } : { kind: 'rowHeights', heights: sizes };
+    const fitted = Object.keys(sizes).map(Number);
+    const op: LayoutOp = axis === 'cols' ? { kind: 'colWidths', widths: sizes } : { kind: 'rowHeights', heights: sizes, fitted };
     await this.changeLayout(op, msg(axis === 'cols' ? 'store.history.autofitColumns' : 'store.history.autofitRows', { count }));
   }
 

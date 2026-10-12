@@ -79,7 +79,9 @@ back as .xlsx without losing what the editor can't display.
   column or the tallest cell in the row as Excel's AutoFit does, or set them
   from the menu, which has AutoFit too), hide and unhide rows
   and columns, freeze panes, merge and unmerge cells. Merging asks first when
-  it would clear values, as Excel does.
+  it would clear values, as Excel does. Rows not sized by hand fit their
+  contents as they change, as Excel's do: wrapped text typed in, wrap turned
+  on, or a wrapped cell's column made narrower makes the row taller.
 - Outlines, as in Excel: a sheet with grouped rows or columns gets outline
   bars beside the row numbers and above the column letters, kept in line
   with the grid as it scrolls and with frozen panes. Each group's − or +

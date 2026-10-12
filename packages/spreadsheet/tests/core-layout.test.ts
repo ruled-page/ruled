@@ -107,6 +107,31 @@ describe('layout changes', () => {
     expect([t.colWidths[1], t.frozenRows, t.merges, t.hiddenRows]).toEqual([140, 1, [{ r1: 0, c1: 0, r2: 0, c2: 1 }], [3]]);
   });
 
+  it('save rows fitted to their contents without a custom height, so Excel fits them again, and undo puts back how each was sized', () => {
+    const s = open();
+    const fit = layout(s, 0, { kind: 'rowHeights', heights: { 1: 40, 2: 52 }, fitted: [1] });
+    const xml = sheetXml(s, 1);
+    expect(xml).toMatch(/<row r="2"[^>]*ht="30"/);
+    expect(xml.match(/<row r="2"[^>]*>/)![0]).not.toContain('customHeight');
+    expect(xml).toMatch(/<row r="3"[^>]*customHeight="1"/);
+    const t = info(reopen(s), 'Plain');
+    expect([t.rowHeights[1], t.rowHeights[2], t.fittedRows]).toEqual([40, 52, { 1: true }]);
+    // Set by hand over a fitted height, and back again.
+    const byHand = layout(s, 0, { kind: 'rowHeights', heights: { 1: 60 } });
+    expect(byHand.layout!.undo[0].op).toEqual({ kind: 'rowHeights', heights: { 1: 40 }, fitted: [1] });
+    expect(info(reopen(s), 'Plain').fittedRows).toBeUndefined();
+    s.apply({ type: 'restore', cells: [], layout: byHand.layout!.undo });
+    expect(info(reopen(s), 'Plain').fittedRows).toEqual({ 1: true });
+    s.apply({ type: 'restore', cells: [], layout: fit.layout!.undo });
+    expect(sheetXml(s, 1)).not.toMatch(/<row r="2"[^>]*ht=/);
+    // A height Excel fitted in the file is read as fitted; ExcelJS's heights are set by hand.
+    const excel = parts(bytes);
+    excel['xl/worksheets/sheet1.xml'] = excel['xl/worksheets/sheet1.xml'].replace('<row r="2"', '<row r="2" ht="45" ');
+    const fromExcel = info(open(zipSync(Object.fromEntries(Object.entries(excel).map(([k, v]) => [k, strToU8(v)])))), 'Plain');
+    expect([fromExcel.rowHeights[1], fromExcel.fittedRows]).toEqual([60, { 1: true }]);
+    expect(info(open(), 'Laid').fittedRows).toBeUndefined();
+  });
+
   it('merge cells only once the others are cleared, and undo puts both back', () => {
     const s = open();
     const r = s.apply({

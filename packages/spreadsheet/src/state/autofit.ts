@@ -37,10 +37,12 @@ export function fittedColumnWidth(view: SheetView, styles: DisplayStyle[], col: 
  * The height that fits a row's tallest cell, as Excel's AutoFit
  * (double-clicking the bottom edge of its number) makes it: a line of each
  * cell's font, and as many lines as wrapped text takes in its column. A row
- * with nothing in it goes back to the sheet's own height.
+ * with nothing in it, or only a line of the workbook's own font or a smaller
+ * one, goes back to the sheet's own height.
  */
 export function fittedRowHeight(view: SheetView, styles: DisplayStyle[], row: number, date1904: boolean, locale: string, measure: MeasureText): number {
   let tallest = view.info.defaultRowHeightPx;
+  const normal = styles[0]?.fontSizePx ?? 0;
   view.forEach({ r1: row, c1: 0, r2: row, c2: Math.max(view.info.maxCol, 0) }, (_r, col, rec) => {
     if (rec.t === VT.None || view.mergeAt(row, col)) return;
     const style = effectiveStyle(view, styles, row, col, rec.style);
@@ -49,6 +51,7 @@ export function fittedRowHeight(view: SheetView, styles: DisplayStyle[], row: nu
       const { text } = displayText(rec, style, date1904, false, locale);
       lines = wrappedLines(text, view.colWidth(col) - CELL_PADDING * 2, (s) => measure(s, style));
     }
+    if (lines === 1 && style.fontSizePx <= normal) return;
     tallest = Math.max(tallest, lines * lineHeight(style));
   });
   return tallest;
