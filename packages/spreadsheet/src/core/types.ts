@@ -285,6 +285,8 @@ export type ListSource =
 /** Alert behaviour shared by every Excel data validation rule. */
 export interface ValidationAlert {
   allowBlank: boolean;
+  /** Whether Excel shows the input message when the cell is selected (unset: it does, where there is one). */
+  showPrompt?: boolean;
   /** Whether Excel shows an alert for values that break the rule. */
   showError: boolean;
   errorStyle: 'stop' | 'warning' | 'information';
@@ -294,10 +296,13 @@ export interface ValidationAlert {
   prompt?: string;
 }
 
-/** A non-list Excel data validation rule: number, date, time, text length or custom formula. */
+/**
+ * A non-list Excel data validation rule: number, date, time, text length or
+ * custom formula, or "any value", which only shows an input message.
+ */
 export interface RuleValidation extends ValidationAlert {
   rects: Rect[];
-  kind: 'whole' | 'decimal' | 'date' | 'time' | 'textLength' | 'custom';
+  kind: 'any' | 'whole' | 'decimal' | 'date' | 'time' | 'textLength' | 'custom';
   operator: 'between' | 'notBetween' | 'equal' | 'notEqual' | 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual';
   /** Bounds or the custom formula, relative to the rule's top-left cell. */
   formula1: string;
@@ -308,6 +313,8 @@ export interface RuleValidation extends ValidationAlert {
 export interface ListValidation extends ValidationAlert {
   rects: Rect[];
   source: ListSource;
+  /** The source as the file writes it (`"a,b"`, `$A$1:$A$5`, a name or a formula), relative to the rule's top-left cell. */
+  formula?: string;
   /** False when Excel's "In-cell dropdown" option is off. */
   inCellDropdown: boolean;
 }
@@ -406,6 +413,8 @@ export interface SheetInfo {
   merges: MergeRange[];
   listValidations: ListValidation[];
   ruleValidations: RuleValidation[];
+  /** The sheet has validation rules the editor can't read, so its rules are kept as the file has them and can't be changed. */
+  validationsKept?: boolean;
   blocked: BlockedRegion[];
   objects: SheetObject[];
   notes: CellNote[];
@@ -667,7 +676,9 @@ export type LayoutOp =
   /** Rows' or columns' outline levels (0: in no group), and whether each is marked as a collapsed group's summary. */
   | { kind: 'outline'; axis: 'rows' | 'cols'; levels: Record<number, number>; collapsed: Record<number, boolean> }
   /** Hyperlinks added and removed; the same change the other way round undoes it. */
-  | { kind: 'links'; add: Hyperlink[]; remove: Hyperlink[] };
+  | { kind: 'links'; add: Hyperlink[]; remove: Hyperlink[] }
+  /** The sheet's data validation rules, all of them, as Excel's Data Validation dialog leaves them; the ones before undo it. */
+  | { kind: 'validations'; lists: ListValidation[]; rules: RuleValidation[] };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

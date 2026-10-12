@@ -127,6 +127,10 @@ export class SheetView {
         info.links = applyLinkChange(info.links, op).links;
         this.indexLinks();
         break;
+      case 'validations':
+        info.listValidations = op.lists;
+        info.ruleValidations = op.rules;
+        break;
       case 'outline': {
         const was = info.outline?.[op.axis];
         const levels = { ...was?.levels };

@@ -50,6 +50,7 @@ export function Tabs<T extends string>({
           ref={(el) => {
             refs.current[i] = el;
           }}
+          type="button"
           role="tab"
           id={`${id}-${t.id}`}
           aria-controls={`${id}-panel`}

@@ -195,6 +195,15 @@ back as .xlsx without losing what the editor can't display.
   the reverse, or a custom list such as the months), whether the block has
   headings, a case-sensitive sort, and sorting left to right. Sorting by
   cell colour, font colour or icon isn't offered.
+  "Data validation…" opens Excel's Data Validation dialog for the
+  selection: what its cells allow (any value, whole numbers, decimals, a
+  list, dates, times, a text length or a custom formula, with bounds typed
+  as numbers, dates and times in the locale, or as formulas), the input
+  message shown when one is selected, and the error alert (Stop, Warning or
+  Information); Clear all takes their rule away. As in Excel, it asks
+  before erasing several rules in the selection, or taking one to cells
+  without it. Rules are saved as Excel saves them; a sheet with a rule the
+  editor can't read keeps its rules as they are.
   Filters have Excel's buttons on their headings, as do tables that have
   them: a button (or Alt+↓ on the heading) opens the column's filter menu,
   which sorts the range by the column, picks the values whose rows show, or

@@ -93,6 +93,15 @@ describe("a sheet's cells", () => {
   });
 });
 
+describe("a file's filter", () => {
+  it("counts the rows a file's filter hides as filtered, not hidden by hand", () => {
+    const info = sheetInfo({ maxRow: 4, maxCol: 1, hiddenRows: [2, 8], filter: { rect: { r1: 0, c1: 0, r2: 4, c2: 1 }, columns: { 0: ['North'] } } });
+    const view = new SheetView(info, null);
+    expect([view.filteredCount, info.hiddenRows, view.filtering]).toEqual([1, [8], true]);
+  });
+
+});
+
 describe('the scrollable area', () => {
   it('leaves room beyond the used range, and at least 500 rows by 26 columns', () => {
     expect(new SheetView(sheetInfo(), null)).toMatchObject({ rowCount: 500, colCount: 26 });

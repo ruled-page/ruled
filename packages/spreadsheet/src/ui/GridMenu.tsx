@@ -144,6 +144,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
     { label: t('sort.menu.custom'), onSelect: () => store.openSortDialog(), disabled: locked },
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
+    { label: t('validation.menu'), onSelect: () => void store.openValidationDialog(), disabled: locked },
     {
       label: t(view.filter && !view.filter.table ? 'menu.filterOff' : 'menu.filterOn'),
       hint: APPLE ? '⇧⌘F' : t('keys.filterToggle'),

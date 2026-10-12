@@ -48,14 +48,14 @@ function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Sel
   const dv = describe ? undefined : store.listAt(store.active, sel.row, sel.col);
   if (dv) {
     const options = store.listOptions(dv, sel.row, sel.col);
-    describe = dv.prompt
+    describe = dv.prompt && dv.showPrompt !== false
       ? prompt(t, dv.promptTitle, dv.prompt)
       : options
         ? t('formulaBar.chooseFromList', { options: `${options.slice(0, 8).join(', ')}${options.length > 8 ? '…' : ''}` })
         : t('formulaBar.restrictedList');
   } else if (!describe) {
     const rule = store.ruleAt(store.active, sel.row, sel.col)?.rule;
-    if (rule) describe = rule.prompt ? prompt(t, rule.promptTitle, rule.prompt) : t.text(describeRule(rule));
+    if (rule) describe = rule.prompt && rule.showPrompt !== false ? prompt(t, rule.promptTitle, rule.prompt) : t.text(describeRule(rule)) || undefined;
   }
   const rec = view.get(sel.row, sel.col);
   const comment = view.noteAt(sel.row, sel.col);

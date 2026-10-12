@@ -111,7 +111,7 @@ export function checkRule(
   typed: string,
   ev: Evaluator,
 ): boolean {
-  if (content.kind === 'empty' || content.kind === 'formula') return true;
+  if (content.kind === 'empty' || content.kind === 'formula' || rule.kind === 'any') return true;
   const anchor = rule.rects[0];
   const bound = (f: string | undefined) => {
     if (f === undefined) return NaN;
@@ -145,7 +145,7 @@ function boundText(rule: RuleValidation, formula: string): string {
   return formula;
 }
 
-const KINDS: Record<Exclude<RuleValidation['kind'], 'custom'>, MessageKey> = {
+const KINDS: Record<Exclude<RuleValidation['kind'], 'custom' | 'any'>, MessageKey> = {
   whole: 'core.validation.kind.whole',
   decimal: 'core.validation.kind.decimal',
   date: 'core.validation.kind.date',
@@ -166,6 +166,8 @@ const OPERATORS: Record<RuleValidation['operator'], MessageKey> = {
 
 /** One-line description of a rule, for the formula bar: "Whole number between 1 and 10". */
 export function describeRule(rule: RuleValidation): Text {
+  // "Any value" takes anything; there is nothing to say.
+  if (rule.kind === 'any') return '';
   if (rule.kind === 'custom') return msg('core.validation.custom', { formula: rule.formula1 });
   return msg(OPERATORS[rule.operator], {
     what: msg(KINDS[rule.kind]),

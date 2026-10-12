@@ -1,50 +1,10 @@
-import { parseA1Ref } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS, parseRange } from '@sitepen/formula-engine/refs';
+import { parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { resolveListSource, type ListContext } from './validationRules';
+import { placeSheetElement } from './hyperlinks';
 import type { ListSource, ListValidation, RuleValidation, ValidationAlert } from './types';
+
+export { resolveListSource, subtractRect, withoutRects, type ListContext } from './validationRules';
 import { attr, child, descendants, type XmlNode } from './xml';
-
-export interface ListContext {
-  /** Lower-cased sheet name → sheet index. */
-  sheetIndex: Map<string, number>;
-  ownSheet: number;
-  names: { name: string; formula: string; localSheet?: number }[];
-}
-
-/** Values of an inline list, e.g. "North,South" or "Say ""hi"",Bye". */
-function inlineValues(text: string): string[] {
-  const body = text.slice(1, text.endsWith('"') ? -1 : undefined).replace(/""/g, '"');
-  return body
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v !== '');
-}
-
-export function resolveListSource(formula: string, ctx: ListContext): ListSource {
-  let text = formula.trim().replace(/^=/, '');
-  if (text.startsWith('"')) return { kind: 'values', values: inlineValues(text) };
-  // A defined name: prefer one scoped to this sheet over a workbook-wide one.
-  const lower = text.toLowerCase();
-  const name =
-    ctx.names.find((n) => n.name.toLowerCase() === lower && n.localSheet === ctx.ownSheet) ??
-    ctx.names.find((n) => n.name.toLowerCase() === lower && n.localSheet === undefined);
-  if (name) text = name.formula.trim().replace(/^=/, '');
-  const ref = parseA1Ref(text, { allowTernary: false });
-  if (!ref || !('range' in ref) || (ref.context?.length ?? 0) > 1) return { kind: 'formula', formula: formula.trim().replace(/^=/, '') };
-  const sheetName = ref.context?.[0];
-  const sheet = sheetName === undefined ? ctx.ownSheet : ctx.sheetIndex.get(sheetName.toLowerCase());
-  if (sheet === undefined) return { kind: 'formula', formula: formula.trim().replace(/^=/, '') };
-  const r = ref.range;
-  return {
-    kind: 'range',
-    sheet,
-    rect: {
-      r1: r.top ?? 0,
-      c1: r.left ?? 0,
-      r2: r.bottom ?? (r.top === null ? MAX_ROWS - 1 : r.top),
-      c2: r.right ?? (r.left === null ? MAX_COLS - 1 : r.left),
-    },
-  };
-}
 
 const KINDS = new Set(['whole', 'decimal', 'date', 'time', 'textLength', 'custom']);
 const OPERATORS = new Set(['between', 'notBetween', 'equal', 'notEqual', 'greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual']);
@@ -76,6 +36,7 @@ export function parseValidations(meta: XmlNode, ctx: ListContext): { lists: List
     const style = attr(dv, 'errorStyle');
     const alert: ValidationAlert = {
       allowBlank: flag('allowBlank', false),
+      showPrompt: flag('showInputMessage', false),
       showError: flag('showErrorMessage', false),
       errorStyle: style === 'warning' || style === 'information' ? style : 'stop',
       errorTitle: attr(dv, 'errorTitle') || undefined,
@@ -90,6 +51,7 @@ export function parseValidations(meta: XmlNode, ctx: ListContext): { lists: List
         ...alert,
         rects,
         source: resolveListSource(formula1, ctx),
+        formula: formula1.replace(/^=/, ''),
         // Excel's showDropDown attribute is inverted: "1" hides the in-cell dropdown.
         inCellDropdown: !flag('showDropDown', false),
       });
@@ -103,10 +65,62 @@ export function parseValidations(meta: XmlNode, ctx: ListContext): { lists: List
         formula1: formula1.replace(/^=/, ''),
         formula2: formulaOf('formula2').replace(/^=/, '') || undefined,
       });
+    } else if (type === 'none') {
+      // "Any value": nothing is checked, but an input message may show.
+      rules.push({ ...alert, rects, kind: 'any', operator: 'between', formula1: '' });
     } else {
       other++;
     }
   }
   return { lists, rules, other };
 }
+
+const quoteAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '&#10;');
+const escapeText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** One rule as Excel writes it in a worksheet's <dataValidations>. */
+function validationXml(p: string, v: ListValidation | RuleValidation): string {
+  const list = 'source' in v;
+  const type = list ? 'list' : v.kind === 'any' ? 'none' : v.kind;
+  const attrs: string[] = [`type="${type}"`];
+  if (!list && v.kind !== 'any' && v.kind !== 'custom' && v.operator !== 'between') attrs.push(`operator="${v.operator}"`);
+  if (v.errorStyle !== 'stop') attrs.push(`errorStyle="${v.errorStyle}"`);
+  if (v.allowBlank) attrs.push('allowBlank="1"');
+  // Excel's showDropDown is the other way round: "1" hides the in-cell dropdown.
+  if (list && !v.inCellDropdown) attrs.push('showDropDown="1"');
+  if (v.showPrompt ?? !!v.prompt) attrs.push('showInputMessage="1"');
+  if (v.showError) attrs.push('showErrorMessage="1"');
+  for (const [name, value] of [['errorTitle', v.errorTitle], ['error', v.error], ['promptTitle', v.promptTitle], ['prompt', v.prompt]] as const) {
+    if (value) attrs.push(`${name}="${quoteAttr(value)}"`);
+  }
+  attrs.push(`sqref="${v.rects.map(rangeToA1).join(' ')}"`);
+  const formula1 = list ? (v.formula ?? listFormula(v.source)) : v.formula1;
+  const formula2 = list ? undefined : v.formula2;
+  const formulas =
+    (formula1 ? `<${p}formula1>${escapeText(formula1)}</${p}formula1>` : '') + (formula2 && (list || v.kind !== 'custom') ? `<${p}formula2>${escapeText(formula2)}</${p}formula2>` : '');
+  return formulas ? `<${p}dataValidation ${attrs.join(' ')}>${formulas}</${p}dataValidation>` : `<${p}dataValidation ${attrs.join(' ')}/>`;
+}
+
+/** A list's source as a formula, where the file's own isn't known: its values quoted, or its range. */
+function listFormula(source: ListSource): string {
+  if (source.kind === 'values') return `"${source.values.map((v) => v.replace(/"/g, '""')).join(',')}"`;
+  if (source.kind === 'formula') return source.formula;
+  return rangeToA1(source.rect);
+}
+
+/**
+ * The worksheet with its <dataValidations> as `lists` and `rules` have them:
+ * in its place among the worksheet's elements, gone when there are none, and
+ * the copies Excel 2010 keeps in the sheet's extensions taken out, as the
+ * rules now in <dataValidations> stand in for them.
+ */
+export function writeValidations(xml: string, p: string, lists: readonly ListValidation[], rules: readonly RuleValidation[]): string {
+  // Excel 2010's copies, in their own extension.
+  xml = xml.replace(/<(\w+:)?ext\b[^>]*\buri="\{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF\}"[^>]*>[\s\S]*?<\/\1?ext>/, '');
+  xml = xml.replace(/<(\w+:)?extLst>\s*<\/\1?extLst>/, '');
+  const all = [...lists, ...rules].filter((v) => v.rects.length);
+  const el = all.length ? `<${p}dataValidations count="${all.length}">${all.map((v) => validationXml(p, v)).join('')}</${p}dataValidations>` : '';
+  return placeSheetElement(xml, 'dataValidations', el);
+}
+
 

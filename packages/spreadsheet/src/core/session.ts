@@ -52,6 +52,7 @@ import {
   type Rect,
   type SheetGrid,
   type SheetInfo,
+  type LayoutOp,
 } from './types';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
@@ -350,6 +351,8 @@ export class WorkbookSession {
   private readonly fileNames: DefinedName[];
   /** Per sheet: its hyperlinks, once one has been added, changed or removed. */
   private links: (SheetLinks | undefined)[] = [];
+  /** Per sheet whose validation rules have been changed, the rules the file had. */
+  private fileValidations = new Map<number, Pick<SheetInfo, 'listValidations' | 'ruleValidations'>>();
   /**
    * Per sheet: where each HYPERLINK formula's link went when the screen was
    * last told, so a link that changes while its value doesn't is told too.
@@ -455,7 +458,12 @@ export class WorkbookSession {
 
   /** How each sheet's layout and hyperlinks differ from the file's. */
   private layoutNotes(): CellChange[] {
-    return this.model.sheets.flatMap((m, s) => [...(this.layouts[s]?.notes(m.info.name) ?? []), ...(this.links[s]?.notes(m.info.name) ?? [])]);
+    const validations = new Set(this.validationsChanged());
+    return this.model.sheets.flatMap((m, s) => [
+      ...(this.layouts[s]?.notes(m.info.name) ?? []),
+      ...(this.links[s]?.notes(m.info.name) ?? []),
+      ...(validations.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.validations') }] : []),
+    ]);
   }
 
   /** How the names differ from the file's, for the change list. */
@@ -1906,6 +1914,7 @@ export class WorkbookSession {
       // showing and grouping rows or columns where it lets them be formatted.
       const allowed = op.kind === 'freeze' || ((op.kind === 'hidden' || op.kind === 'outline') && info.formatAllowed?.[op.axis]);
       if (info.protected && !allowed) return this.emptyResult(msg('core.reason.protected'));
+      if (op.kind === 'validations' && info.validationsKept) return this.emptyResult(msg('core.validation.kept'));
       if (op.kind === 'outline' && Object.values(op.levels).some((v) => !(v >= 0 && v <= 7))) return this.emptyResult(msg('outline.refuse.tooDeep'));
       if (op.kind === 'merges') {
         const table = info.tables.find((t) => op.add.some((r) => r.r1 <= t.rect.r2 && r.r2 >= t.rect.r1 && r.c1 <= t.rect.c2 && r.c2 >= t.rect.c1));
@@ -1913,8 +1922,28 @@ export class WorkbookSession {
       }
     }
     const undo: LayoutChange[] = [];
-    for (const { sheet, op } of changes) undo.unshift({ sheet, op: op.kind === 'links' ? this.linksOf(sheet).apply(op) : this.layoutOf(sheet).apply(op) });
+    for (const { sheet, op } of changes) {
+      undo.unshift({ sheet, op: op.kind === 'links' ? this.linksOf(sheet).apply(op) : op.kind === 'validations' ? this.applyValidations(sheet, op) : this.layoutOf(sheet).apply(op) });
+    }
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
+  }
+
+  /** Sets a sheet's validation rules, returning the change that puts back the ones before. */
+  private applyValidations(sheet: number, op: Extract<LayoutOp, { kind: 'validations' }>): LayoutOp {
+    const info = this.sheet(sheet).info;
+    if (!this.fileValidations.has(sheet)) this.fileValidations.set(sheet, { listValidations: info.listValidations, ruleValidations: info.ruleValidations });
+    const undo: LayoutOp = { kind: 'validations', lists: info.listValidations, rules: info.ruleValidations };
+    info.listValidations = op.lists;
+    info.ruleValidations = op.rules;
+    return undo;
+  }
+
+  /** The sheets whose validation rules differ from the file's. */
+  private validationsChanged(): number[] {
+    return [...this.fileValidations].flatMap(([s, file]) => {
+      const info = this.sheet(s).info;
+      return JSON.stringify([file.listValidations, file.ruleValidations]) === JSON.stringify([info.listValidations, info.ruleValidations]) ? [] : [s];
+    });
   }
 
   /**
@@ -2341,6 +2370,7 @@ export class WorkbookSession {
       people: this.people,
       ...(this.nameNotes().length && { names: { file: this.fileNames, now: this.model.names } }),
       links: this.links,
+      validations: new Set(this.validationsChanged()),
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

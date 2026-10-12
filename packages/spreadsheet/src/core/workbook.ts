@@ -539,12 +539,16 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     const validations = parseValidations(meta, { sheetIndex: sheetIndexByName, ownSheet: index, names });
     info.listValidations = validations.lists;
     info.ruleValidations = validations.rules;
-    const dvCount = validations.lists.length + validations.rules.length + validations.other;
+    if (validations.other) info.validationsKept = true;
+    // "Any value" rules only show a message; like rules the editor can't read, nothing is checked.
+    const checked = validations.rules.filter((r) => r.kind !== 'any').length;
+    const unchecked = validations.rules.length - checked + validations.other;
+    const dvCount = validations.lists.length + checked + unchecked;
     if (dvCount) {
       const parts: Message[] = [];
       if (validations.lists.length) parts.push(msg('core.finding.dataValidation.lists', { count: validations.lists.length }));
-      if (validations.rules.length) parts.push(msg('core.finding.dataValidation.rules', { count: validations.rules.length }));
-      if (validations.other) parts.push(msg('core.finding.dataValidation.other', { count: validations.other }));
+      if (checked) parts.push(msg('core.finding.dataValidation.rules', { count: checked }));
+      if (unchecked) parts.push(msg('core.finding.dataValidation.other', { count: unchecked }));
       findings.push({
         kind: 'dataValidation',
         severity: 'info',

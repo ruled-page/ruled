@@ -29,6 +29,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   above or below the average, saved as Excel saves them. A file's filter by
   dates in a period, colour or icon is kept as it is, and other filters on
   its sheet no longer replace it.
+- Excel's Data Validation dialog, from "Data validation…" in the cell menu:
+  set, change and clear the rules of the selected cells, with their input
+  messages and error alerts. An input message now shows only where the file
+  says to show it, as in Excel.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

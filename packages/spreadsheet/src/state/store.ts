@@ -60,6 +60,8 @@ import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { averageOf, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
+import type { DraftPlace } from './validationDraft';
+import { withoutRects, type ListContext } from '../core/validationRules';
 import type { EngineInfo, WorkStats } from '../core/engineIds';
 import { SheetView } from './sheetView';
 import { cellLink, type CellLink, type LinkClick } from './links';
@@ -548,6 +550,8 @@ export class WorkbookStore {
   linkDialog = false;
   /** Excel's Fill Series dialog, for the selection. */
   seriesDialog = false;
+  /** Excel's Data Validation dialog, open for the selection's ranges, starting on the rule they have. */
+  validationDialog?: { rects: Rect[]; rule?: ListValidation | RuleValidation };
   /** Excel's Sort dialog, open for the block the selection's sort applies to. */
   sortDialog?: { rect: Rect; header: boolean };
   /** Excel's Insert or Delete dialog, open for the selection. */
@@ -3472,6 +3476,62 @@ export class WorkbookStore {
     return index < 0 ? undefined : { rule: rules[index], index };
   }
 
+  /** Where the Data Validation dialog reads and writes, for the selection. */
+  validationPlace(rects = this.selection.rects): DraftPlace {
+    return { active: { row: this.selection.row, col: this.selection.col }, rects, locale: this.locale, date1904: this.date1904 };
+  }
+
+  /** What resolves a list's source: the sheets by name, and the names. */
+  listContext(): ListContext {
+    return {
+      sheetIndex: new Map(this.sheets.map((v, i) => [v.info.name.toLowerCase(), i])),
+      ownSheet: this.active,
+      names: this.names.map((n) => ({ name: n.name, formula: n.formula, ...(n.localSheet !== undefined && { localSheet: n.localSheet }) })),
+    };
+  }
+
+  /**
+   * Opens Excel's Data Validation dialog for the selection. As Excel does, it
+   * asks first where the selection holds more than one rule, starting afresh
+   * if so, or a rule and cells without one, taking the rule to them too.
+   */
+  async openValidationDialog(): Promise<void> {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return;
+    if (view.info.protected) return this.toast('warn', msg('core.reason.protected'));
+    if (view.info.validationsKept) return this.toast('warn', msg('core.validation.kept'));
+    const rects = this.selection.rects.map((r) => ({ ...r }));
+    const touches = (v: { rects: Rect[] }) => v.rects.some((r) => rects.some((s) => r.r1 <= s.r2 && r.r2 >= s.r1 && r.c1 <= s.c2 && r.c2 >= s.c1));
+    const there = [...view.info.listValidations, ...view.info.ruleValidations].filter(touches);
+    if (there.length > 1) {
+      const sure = await this.confirm({ title: msg('validation.several.title'), body: msg('validation.several.body'), confirmLabel: msg('validation.several.confirm') });
+      if (sure) this.set('validationDialog', { rects });
+      return;
+    }
+    const rule = there[0];
+    if (rule && rects.some((s) => withoutRects([s], rule.rects).length)) {
+      const sure = await this.confirm({ title: msg('validation.extend.title'), body: msg('validation.extend.body'), confirmLabel: msg('validation.extend.confirm') });
+      if (!sure) return;
+    }
+    this.set('validationDialog', { rects, rule });
+  }
+
+  /**
+   * Gives the cells in `rects` a validation rule, or with none, takes their
+   * rules away, as Excel's Data Validation dialog and its Clear All do. Other
+   * cells keep theirs.
+   */
+  async setValidation(rects: Rect[], rule: ListValidation | RuleValidation | undefined): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const cut = <T extends { rects: Rect[] }>(list: T[]) => list.map((v) => ({ ...v, rects: withoutRects(v.rects, rects) })).filter((v) => v.rects.length);
+    const lists = cut(view.info.listValidations);
+    const rules = cut(view.info.ruleValidations);
+    if (rule && 'source' in rule) lists.push({ ...rule, rects });
+    else if (rule) rules.push({ ...rule, rects });
+    await this.changeLayout({ kind: 'validations', lists, rules }, msg(rule ? 'validation.history.set' : 'validation.history.clear'));
+  }
+
   /** Applies a rule's alert as Excel does; resolves false when the value is rejected. */
   private async alert(dv: ValidationAlert, fallbackTitle: Text): Promise<boolean> {
     // The workbook's own title and message are shown as written.
@@ -3727,6 +3787,7 @@ export class WorkbookStore {
       | 'nameManagerOpen'
       | 'linkDialog'
       | 'seriesDialog'
+      | 'validationDialog'
       | 'sortDialog'
       | 'cellsDialog'
       | 'customListsOpen'

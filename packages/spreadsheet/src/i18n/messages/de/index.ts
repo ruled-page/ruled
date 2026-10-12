@@ -10,6 +10,7 @@ import { sheets } from './sheets';
 import { sort } from './sort';
 import { store } from './store';
 import { ui } from './ui';
+import { validation } from './validation';
 
 /** Every message, in German. */
-export const de = { ...ui, ...designer, ...store, ...schema, ...core, ...charts, ...sheets, ...names, ...links, ...fill, ...outline, ...sort };
+export const de = { ...ui, ...designer, ...store, ...schema, ...core, ...charts, ...sheets, ...names, ...links, ...fill, ...outline, ...sort, ...validation };

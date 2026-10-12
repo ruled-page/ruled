@@ -3,6 +3,7 @@ import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
 import { isDynamicArrayFormula } from '@sitepen/formula-engine/formula';
 import { writeHyperlinks, type SheetLinks } from './hyperlinks';
+import { writeValidations } from './validations';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import type { CellState } from './session';
@@ -48,6 +49,8 @@ export interface SaveInput {
   names?: { file: DefinedName[]; now: DefinedName[] };
   /** Per sheet: its hyperlinks, where they have been edited. */
   links?: (SheetLinks | undefined)[];
+  /** The sheets whose data validation rules have been changed, to be written as they now are. */
+  validations?: ReadonlySet<number>;
 }
 
 type Patch =
@@ -79,6 +82,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     if (layout?.changed) xml = writeLayout(xml, m.scan.prefix, layout);
     const links = input.links?.[s];
     if (links?.changed) xml = writeHyperlinks(pkg, m.path, xml, m.scan.prefix, links.list);
+    if (input.validations?.has(s)) xml = writeValidations(xml, m.scan.prefix, m.info.listValidations, m.info.ruleValidations);
     if (xml !== m.xml) pkg.setText(m.path, xml);
     // A table's filter is kept in the table's own part: the new one set, a table's that went cleared.
     if (layout?.filter !== undefined) {

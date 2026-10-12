@@ -1757,6 +1757,43 @@
   overflow-y: auto;
 }
 
+.wbe .wbe-validation-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  min-height: 220px;
+  align-content: start;
+}
+
+.wbe .wbe-validation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.wbe .wbe-validation-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wbe .wbe-validation-panel textarea {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  resize: vertical;
+}
+
+/* Clear All sits apart from OK and Cancel, as in Excel. */
+.wbe .wbe-validation-clear {
+  margin-inline-end: auto;
+}
+
+.wbe .wbe-modal.wbe-validation-dialog {
+  width: 520px;
+}
+
 .wbe .wbe-sort-levels {
   display: grid;
   gap: 6px;

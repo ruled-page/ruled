@@ -32,6 +32,7 @@ const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
 const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
 const fillDialogs = lazyModule(() => import('../ui/FillDialogs'));
 const sortDialog = lazyModule(() => import('../ui/SortDialog'));
+const validationDialog = lazyModule(() => import('../ui/ValidationDialog'));
 // The cell menu, the filter menu, Find, and the dialogs for sizes, inserting cells and the shortcuts.
 const gridMenu = lazyModule(() => import('../ui/GridMenu'));
 const filterPicker = lazyModule(() => import('../ui/FilterPicker'));
@@ -252,6 +253,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Links = linkDialog.useModule(store.linkDialog);
   const Fill = fillDialogs.useModule(store.seriesDialog || store.customListsOpen);
   const Sort = sortDialog.useModule(!!store.sortDialog);
+  const Validation = validationDialog.useModule(!!store.validationDialog);
   const Menu = gridMenu.useModule(!!store.menu);
   const Filter = filterPicker.useModule(!!store.filterPicker);
   const Condition = conditionDialog.useModule(!!store.conditionDialog);
@@ -267,7 +269,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog]) m.preload();
+      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog, validationDialog]) m.preload();
     });
   }, [opened]);
 
@@ -379,6 +381,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.seriesDialog && Fill && <Fill.SeriesDialog store={store} />}
       {ready && store.customListsOpen && Fill && <Fill.CustomListsDialog store={store} />}
       {ready && store.sortDialog && Sort && <Sort.SortDialog store={store} />}
+      {ready && store.validationDialog && Validation && <Validation.ValidationDialog store={store} />}
       {Keys && <Keys.ShortcutsDialog store={store} />}
       <ConfirmDialog store={store} />
       <Toasts store={store} />

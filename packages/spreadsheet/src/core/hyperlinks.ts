@@ -115,6 +115,36 @@ function siblings(xml: string, from: number): Sibling[] {
   return out;
 }
 
+/** A worksheet's elements after <sheetData>, in the order Excel's schema sets for them. */
+const SHEET_ORDER = [
+  'sheetCalcPr', 'sheetProtection', 'protectedRanges', 'scenarios', 'autoFilter', 'sortState', 'dataConsolidate', 'customSheetViews', 'mergeCells',
+  'phoneticPr', 'conditionalFormatting', 'dataValidations', 'hyperlinks', 'printOptions', 'pageMargins', 'pageSetup', 'headerFooter', 'rowBreaks',
+  'colBreaks', 'customProperties', 'cellWatches', 'ignoredErrors', 'smartTags', 'drawing', 'legacyDrawing', 'legacyDrawingHF', 'drawingHF',
+  'picture', 'oleObjects', 'controls', 'webPublishItems', 'tableParts', 'extLst',
+];
+
+/**
+ * The worksheet with its `name` elements replaced by `el` (none, when it is
+ * empty), or `el` added in its place among the worksheet's elements.
+ */
+export function placeSheetElement(xml: string, name: string, el: string): string {
+  const data = firstElement(xml, 'sheetData');
+  if (!data) return xml;
+  const after = siblings(xml, data.end);
+  const own = after.filter((e) => e.name === name);
+  if (own.length) {
+    // The first takes the new element, the rest go; from the end, so the earlier places stay put.
+    let next = xml;
+    for (let i = own.length - 1; i >= 0; i--) next = next.slice(0, own[i].start) + (i === 0 ? el : '') + next.slice(own[i].end);
+    return next;
+  }
+  if (!el) return xml;
+  const later = new Set(SHEET_ORDER.slice(SHEET_ORDER.indexOf(name) + 1));
+  const before = after.find((e) => later.has(e.name));
+  const at = before ? before.start : after.length ? after[after.length - 1].end : data.end;
+  return xml.slice(0, at) + el + xml.slice(at);
+}
+
 /** Elements that come after <hyperlinks> in a worksheet, so a new one goes before the first of them. */
 const AFTER = new Set([
   'printOptions', 'pageMargins', 'pageSetup', 'headerFooter', 'rowBreaks', 'colBreaks', 'customProperties', 'cellWatches', 'ignoredErrors',
