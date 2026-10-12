@@ -2074,6 +2074,17 @@ function arabic(t: string): number {
 
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+/**
+ * n rounded to a multiple of k, up or down by `to`, as FLOOR and CEILING do:
+ * the quotient to 15 digits first, so 7.1 / 0.1 counts as the 71 it is
+ * meant to be; #NUM! when the multiple is too large for a number.
+ */
+function multiple(n: number, k: number, to: (x: number) => number): number {
+  const r = excelRound(to(round15(n / k)) * k, 10, 'half');
+  if (!Number.isFinite(r)) throw NUM;
+  return r;
+}
+
 /** A trigonometric function of one number, #NUM! outside its domain, #DIV/0! where it is infinite. */
 const trig = (f: (x: number) => number, divides = false): FunctionSpec =>
   scalar(1, 1, ([x]) => {
@@ -2657,7 +2668,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const k = num(s);
     if (k === 0) return 0;
     if (n > 0 && k < 0) throw NUM;
-    return excelRound(Math.ceil(n / k) * k, 10, 'half');
+    return multiple(n, k, Math.ceil);
   }),
   FLOOR: scalar(2, 2, ([x, s]) => {
     const n = num(x);
@@ -2668,21 +2679,21 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       throw DIV0;
     }
     if (n > 0 && k < 0) throw NUM;
-    return excelRound(Math.floor(n / k) * k, 10, 'half');
+    return multiple(n, k, Math.floor);
   }),
   'CEILING.MATH': scalar(1, 3, ([x, s, mode]) => {
     const n = num(x);
     const k = Math.abs(optional(s, 1));
+    const m = optional(mode, 0);
     if (k === 0) return 0;
-    const away = n < 0 && optional(mode, 0) !== 0;
-    return excelRound((away ? Math.floor(n / k) : Math.ceil(n / k)) * k, 10, 'half');
+    return multiple(n, k, n < 0 && m !== 0 ? Math.floor : Math.ceil);
   }),
   'FLOOR.MATH': scalar(1, 3, ([x, s, mode]) => {
     const n = num(x);
     const k = Math.abs(optional(s, 1));
+    const m = optional(mode, 0);
     if (k === 0) return 0;
-    const toward = n < 0 && optional(mode, 0) !== 0;
-    return excelRound((toward ? Math.ceil(n / k) : Math.floor(n / k)) * k, 10, 'half');
+    return multiple(n, k, n < 0 && m !== 0 ? Math.ceil : Math.floor);
   }),
   EVEN: math1((x) => {
     const r = Math.ceil(Math.abs(x) / 2) * 2;
@@ -4044,17 +4055,17 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   'CEILING.PRECISE': scalar(1, 2, ([x, s]) => {
     const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.ceil(n / k) * k, 10, 'half');
+    return k === 0 ? 0 : multiple(n, k, Math.ceil);
   }),
   'ISO.CEILING': scalar(1, 2, ([x, s]) => {
     const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.ceil(n / k) * k, 10, 'half');
+    return k === 0 ? 0 : multiple(n, k, Math.ceil);
   }),
   'FLOOR.PRECISE': scalar(1, 2, ([x, s]) => {
     const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.floor(n / k) * k, 10, 'half');
+    return k === 0 ? 0 : multiple(n, k, Math.floor);
   }),
 
   // Number bases and Roman numerals
