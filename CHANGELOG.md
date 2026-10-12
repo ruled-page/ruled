@@ -33,10 +33,14 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - The calculation engine can be swapped: an `engine` option and
   `setEngine`, each engine downloaded only when chosen, `diagnostics` in the
   status bar to compare them, and `npm run engine:bench`.
-- The editor's own calculation engine, in the demo and test sites: 148
-  of Excel's functions so far, dynamic arrays and Ctrl+Shift+Enter arrays,
-  15 kB to download, and on the largest sample twice as fast to calculate
-  with 40% less memory than HyperFormula.
+- The editor's own calculation engine, now the default in the demo and
+  test sites (HyperFormula stays a choice): every function the editor
+  offers, 3-D references (Jan:Mar!B2), unions, FORMULATEXT, CELL, LAMBDA
+  and its helpers, dynamic arrays and Ctrl+Shift+Enter arrays. Its answers
+  are checked against Excel's. It is 34 kB to download against
+  HyperFormula's 173 kB, and on the largest sample calculates in about a
+  third of the time with about half the memory.
+- Copying numbers as HTML gives them to 15 significant digits, as Excel does.
 
 ## 0.1.0 (2026-10-08)
 

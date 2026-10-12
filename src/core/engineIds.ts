@@ -4,8 +4,8 @@
  * all the page itself knows of them.
  */
 export const ENGINES = [
-  { id: 'hyperformula', name: 'HyperFormula' },
   { id: 'native', name: 'Native' },
+  { id: 'hyperformula', name: 'HyperFormula' },
 ] as const;
 
 export type EngineId = (typeof ENGINES)[number]['id'];

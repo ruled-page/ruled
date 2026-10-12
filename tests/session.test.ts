@@ -265,7 +265,7 @@ describe('editing operations', () => {
 
 describe('engine verdicts reach the UI', () => {
   // Arrays!E4's LAMBDA is the one formula there HyperFormula can't calculate; the native engine calculates it.
-  it.skipIf(process.env.ENGINE === 'native')('sends flags for formulas the engine cannot calculate', () => {
+  it.skipIf(process.env.ENGINE !== 'hyperformula')('sends flags for formulas the engine cannot calculate', () => {
     const s = WorkbookSession.open(new Uint8Array(readFileSync(join(__dirname, 'corpus', 'templates.xlsx'))), 'templates.xlsx', 'en-US', { recalc: 'on' });
     const report = s.ensureEngine();
     // A LAMBDA called where it is written.

@@ -416,7 +416,8 @@ is decoded again when saving rather than kept in memory.
 
 Calculation engines: the session works formulas out through one interface
 (`FormulaEngine` in `src/core/engine.ts`), so engines can be swapped. The
-`engine` option chooses one (`'hyperformula'`, the default), and
+`engine` option chooses one (`'native'`, the default where the build has it,
+or `'hyperformula'`), and
 `setEngine(id)` on the store opens the workbook again with another. Each
 engine is a chunk of the worker's own, downloaded only when chosen; the
 library builds inline it, keeping one worker file. With `diagnostics: true`
@@ -425,18 +426,27 @@ and how long opening, calculating and the last edit took, with the worker's
 heap where the browser reports it (Chrome). The demo turns this on and has an
 engine picker, which `?engine=` in its address also sets.
 
-The editor's own engine (`'native'`, in `src/engine`) is the alternative: it
-reads formulas with the parser the editor already uses, compiles each
-distinct formula once (in its relative R1C1 form, so a column of copied
-formulas shares one), and recalculates only what an edit affects. It has
-148 of Excel's functions so far, dynamic arrays and spills, array formulas
-entered with Ctrl+Shift+Enter, `A2#` and `@`, defined names and Excel's
-rules for comparing and converting values; a formula using a function it
-doesn't have yet keeps Excel's saved value, as any formula an engine can't
-calculate does. It is 15 kB gzipped against HyperFormula's 176 kB, and on
-`big.xlsx` calculates in half the time with 40% less memory. It is in the
-demo and test sites for now, not the library builds. `ENGINE=native npx
-vitest run` runs the unit tests on it.
+The editor's own engine (`'native'`, in `src/engine`) reads formulas with
+the parser the editor already uses, compiles each distinct formula once (in
+its relative R1C1 form, so a column of copied formulas shares one), and
+recalculates only what an edit affects. It has every function the editor
+offers, dynamic arrays and spills, array formulas entered with
+Ctrl+Shift+Enter, `A2#` and `@`, 3-D references and unions, defined names,
+LAMBDA (written in place, in LET or as a name) and Excel's rules for
+comparing and converting values. CELL gives what the cell itself holds
+(address, row, column, contents, type); asked for a format, width or
+protection, it keeps Excel's saved value, as any formula an engine can't
+calculate does. It is 34 kB gzipped against HyperFormula's 173 kB, and on
+`big.xlsx` calculates in about a third of the time with about half the
+memory. It is the default in the demo and test sites; the library builds
+have HyperFormula alone for now.
+
+Its answers are held to Excel's: `npm run excel:check` writes a workbook per
+family of functions to `tests/excel-checks/`, each formula beside the
+engine's answer and a cell Excel fills on opening with whether they agree.
+The answers Excel agreed with are kept as `<family>.json`, which
+`tests/excel-checks.test.ts` holds the engine to. `ENGINE=hyperformula npx
+vitest run` runs the unit tests on HyperFormula.
 
 **Saving to the host.** Edits are kept locally as a draft until saved; with
 `onSave` (or the element's `save-handler="event"`), the Save button (labelled

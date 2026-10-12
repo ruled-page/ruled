@@ -662,8 +662,9 @@ export class WorkbookStore {
   /** The last edit, in the worker. */
   editStats?: WorkStats;
 
+  /** The engine calculating: the one chosen, else the one the worker opened with, else the default. */
   get engine(): EngineId {
-    return this.options.engine ?? 'hyperformula';
+    return this.options.engine ?? this.engineInfo?.id ?? 'native';
   }
 
   get diagnostics(): boolean {
@@ -1016,7 +1017,7 @@ export class WorkbookStore {
     try {
       const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc }, engine: this.engine } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc }, engine: this.options.engine } as Omit<WorkerRequest, 'id'>,
         [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
@@ -2565,7 +2566,8 @@ export class WorkbookStore {
   selectionHtml(rect: Rect): string {
     const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
     const rows = this.selectionCells(rect).map(
-      (cells) => `<tr>${cells.map(({ text, value }) => `<td${value !== undefined ? ` x:num="${value}"` : ''}>${escape(text).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`,
+      // Numbers to 15 significant digits, as Excel puts them there.
+      (cells) => `<tr>${cells.map(({ text, value }) => `<td${value !== undefined ? ` x:num="${Number(value.toPrecision(15))}"` : ''}>${escape(text).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`,
     );
     return `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><body><table>${rows.join('')}</table></body></html>`;
   }

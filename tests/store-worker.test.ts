@@ -12,7 +12,7 @@ async function worker() {
   await import('../src/worker/workbook.worker');
   // The fresh modules need the engine the setup file chose for the old ones.
   const [{ chooseEngine }, { hyperFormulaEngine }, { nativeEngine }] = await Promise.all([import('../src/core/engine'), import('../src/core/calc'), import('../src/engine/native')]);
-  chooseEngine(process.env.ENGINE === 'native' ? nativeEngine : hyperFormulaEngine);
+  chooseEngine(process.env.ENGINE === 'hyperformula' ? hyperFormulaEngine : nativeEngine);
   let id = 0;
   /** Sends a request and returns what the worker answered to it. */
   const send = (req: Omit<WorkerRequest, 'id'>): WorkerResponse => {

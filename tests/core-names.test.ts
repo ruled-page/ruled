@@ -252,7 +252,7 @@ describe('defining a name', () => {
   });
 
   // HyperFormula can't take a name like Year2026, which Excel and the native engine can.
-  it.skipIf(process.env.ENGINE === 'native')('warns when the engine can’t take it, and keeps it for Excel', () => {
+  it.skipIf(process.env.ENGINE !== 'hyperformula')('warns when the engine can’t take it, and keeps it for Excel', () => {
     const s = open();
     const r = define(s, { name: 'Year2026', formula: 'Data!$A$1' });
     expect(r.warnings.map((w) => english.text(w))).toEqual(["Formulas that use Year2026 aren't calculated here; Excel calculates them when it opens the file."]);

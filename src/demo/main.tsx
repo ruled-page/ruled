@@ -28,7 +28,7 @@ function firstEngine(): EngineId {
   } catch {
     // No stored choice.
   }
-  return 'hyperformula';
+  return 'native';
 }
 
 /** The samples, by file name, which the address names so a reload opens the same one. */

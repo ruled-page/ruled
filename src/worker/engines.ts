@@ -13,11 +13,12 @@ if (__WBE_NATIVE_ENGINE__) LOADERS.native = () => import('../engine/native').the
 const loaded = new Map<EngineId, { kind: EngineKind; info: EngineInfo }>();
 
 /**
- * Loads an engine (HyperFormula for one this build doesn't have), noting
- * how long that took and what was downloaded for it the first time.
+ * Loads an engine: the one asked for, else the editor's own where this build
+ * has it, else HyperFormula. Notes how long that took and what was
+ * downloaded for it the first time.
  */
 export async function loadEngine(requested: string | undefined): Promise<{ kind: EngineKind; info: EngineInfo }> {
-  const id: EngineId = requested && LOADERS[requested as EngineId] ? (requested as EngineId) : 'hyperformula';
+  const id: EngineId = requested && LOADERS[requested as EngineId] ? (requested as EngineId) : LOADERS.native ? 'native' : 'hyperformula';
   const known = loaded.get(id);
   if (known) return known;
   const seen = performance.getEntriesByType('resource').length;

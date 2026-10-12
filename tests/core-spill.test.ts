@@ -138,7 +138,7 @@ describe("a file's own dynamic array", () => {
     const arrays = sheetIndex(s, 'Arrays');
     const info = s.model.sheets[arrays].info;
     // B2:B4 reads the spill as A2#, which HyperFormula can't calculate (the native engine can); G6:G8 is the older kind, calculated but changed only as a whole.
-    const native = process.env.ENGINE === 'native';
+    const native = process.env.ENGINE !== 'hyperformula';
     expect(s.calcReport?.liveArrays?.map((a) => rangeToA1(a.rect))).toEqual(native ? ['A2:A4', 'B2:B4', 'G2:I3', 'E5:E6'] : ['A2:A4', 'G2:I3', 'E5:E6']);
     expect(info.blocked.map((b) => rangeToA1(b))).toEqual(native ? ['G6:G8'] : ['B2:B4', 'G6:G8']);
     expect(column(s, ['A2', 'A3', 'A4'], arrays)).toEqual(['Electrical', 'Hardware', 'Safety']);
@@ -315,7 +315,7 @@ describe('edits around a spill', () => {
   });
 
   // E4's LAMBDA is the one formula there HyperFormula can't calculate; the native engine calculates it.
-  it.skipIf(process.env.ENGINE === 'native')('mark its values out of date with the formula, when it reads a value that is', () => {
+  it.skipIf(process.env.ENGINE !== 'hyperformula')('mark its values out of date with the formula, when it reads a value that is', () => {
     const s = corpus();
     const arrays = sheetIndex(s, 'Arrays');
     // E4 holds a LAMBDA formula, which isn't calculated here; what it reads can't be told, so once anything changes it may be out of date.
