@@ -3893,7 +3893,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const arrays = a.slice(0, -1).map((x) => matrixOf(x, ctx));
       const rows = Math.max(...arrays.map((m) => m.rows));
       const cols = Math.max(...arrays.map((m) => m.cols));
-      return Matrix.build(rows, cols, (r, c) => single(f.call(arrays.map((m) => m.at(r, c))), ctx));
+      // Arrays of other sizes aren't stretched: where one has no value, it gives #N/A.
+      return Matrix.build(rows, cols, (r, c) => single(f.call(arrays.map((m) => (r < m.rows && c < m.cols ? m.get(r, c) : NA))), ctx));
     },
   },
   REDUCE: {

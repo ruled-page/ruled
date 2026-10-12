@@ -1,0 +1,44 @@
+{
+  "=LAMBDA(x,x+1)(2)": 3,
+  "=LAMBDA(x,y,x*y)(3,4)": 12,
+  "=LAMBDA(x,x)(1,2)": {
+    "error": "#VALUE!"
+  },
+  "=LAMBDA(x,x+1)": {
+    "error": "#CALC!"
+  },
+  "=LAMBDA(x,LAMBDA(y,x+y))(1)(2)": 3,
+  "=LET(f,LAMBDA(x,x^2),f(5))": 25,
+  "=LAMBDA(r,SUM(r))(Data!A1:A3)": 9,
+  "=DOUBLE(4)": 8,
+  "=DOUBLE(DOUBLE(3))": 12,
+  "=FACTORIAL(5)": 120,
+  "=DOUBLE": {
+    "error": "#CALC!"
+  },
+  "=SUM(MAP({1,2,3},LAMBDA(x,x*10)))": 60,
+  "=INDEX(MAP({1,2;3,4},{10,20;30,40},LAMBDA(a,b,a+b)),2,2)": 44,
+  "=SUM(MAP({1,2,3},{10;20},LAMBDA(a,b,a+b)))": {
+    "error": "#N/A"
+  },
+  "=SUM(MAP({1,2},LAMBDA(x,y,x)))": {
+    "error": "#VALUE!"
+  },
+  "=REDUCE(0,{1,2,3,4},LAMBDA(a,v,a+v))": 10,
+  "=REDUCE(,{1,2,3},LAMBDA(a,v,a+v))": 6,
+  "=REDUCE(1,Data!A1:A3,LAMBDA(a,v,a*v))": 24,
+  "=INDEX(SCAN(0,{1,2,3},LAMBDA(a,v,a+v)),3)": 6,
+  "=SUM(SCAN(1,{1,2,3},LAMBDA(a,v,a*v)))": 9,
+  "=INDEX(BYROW({1,2;3,4},LAMBDA(r,SUM(r))),2)": 7,
+  "=INDEX(BYCOL({1,2;3,4},LAMBDA(c,MAX(c))),2)": 4,
+  "=SUM(BYROW(Data!A1:B3,LAMBDA(r,SUM(r))))": 12,
+  "=INDEX(BYROW(Data!A1:B3,LAMBDA(r,ROW(r))),3)": 3,
+  "=INDEX(BYROW({1,2;3,4},LAMBDA(r,r*2)),1)": {
+    "error": "#CALC!"
+  },
+  "=INDEX(MAKEARRAY(3,3,LAMBDA(r,c,r*c)),2,3)": 6,
+  "=SUM(MAKEARRAY(2,2,LAMBDA(r,c,r+c)))": 12,
+  "=SUM(MAKEARRAY(0,1,LAMBDA(r,c,1)))": {
+    "error": "#VALUE!"
+  }
+}

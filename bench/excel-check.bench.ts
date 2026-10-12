@@ -22,6 +22,24 @@ const dir = join(__dirname, '..', 'tests', 'excel-checks');
 
 type Answer = number | string | boolean | { error: string } | null;
 
+/** ERROR.TYPE's number for each error; the file can hold only the first seven as error values, the rest as text. */
+const ERROR_TYPES: Record<string, number> = {
+  '#NULL!': 1,
+  '#DIV/0!': 2,
+  '#VALUE!': 3,
+  '#REF!': 4,
+  '#NAME?': 5,
+  '#NUM!': 6,
+  '#N/A': 7,
+  '#GETTING_DATA': 8,
+  '#SPILL!': 9,
+  '#CONNECT!': 10,
+  '#BLOCKED!': 11,
+  '#UNKNOWN!': 12,
+  '#FIELD!': 13,
+  '#CALC!': 14,
+};
+
 it('writes the Excel check workbooks', async () => {
   for (const [family, formulas] of Object.entries(FAMILIES)) {
     const engine = checkEngine(family);
@@ -56,7 +74,7 @@ it('writes the Excel check workbooks', async () => {
             : typeof ours === 'boolean'
               ? `AND(ISLOGICAL(B${r}),B${r}=C${r})`
               : ours && typeof ours === 'object'
-                ? `AND(ISERROR(B${r}),IFERROR(ERROR.TYPE(B${r})=ERROR.TYPE(C${r}),FALSE))`
+                ? `AND(ISERROR(B${r}),IFERROR(ERROR.TYPE(B${r})=${ERROR_TYPES[ours.error]},FALSE))`
                 : 'FALSE';
       ws.getCell(`D${r}`).value = { formula: `IF(IFERROR(${same},FALSE),"✓","✗")` };
       ws.getCell(`E${r}`).value = { formula: `IF(D${r}="✓","",IF(ISERROR(B${r}),B${r},B${r}&""))` };
