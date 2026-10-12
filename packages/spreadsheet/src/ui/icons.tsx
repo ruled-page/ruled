@@ -38,6 +38,7 @@ const PATHS = {
   alignCenter: 'M4 6h16M7 10h10M4 14h16M7 18h10',
   alignRight: 'M4 6h16M10 10h10M4 14h16M10 18h10',
   wrap: 'M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h5',
+  checkbox: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 12l3 3 5-6',
   decimalsMore: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 20V8M15 11l3-3 3 3',
   decimalsFewer: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 8v12M15 17l3 3 3-3',
   clearFormat: 'M4 7V4h13v3M10.5 4v16M8 20h5M15 15l5 5M20 15l-5 5',

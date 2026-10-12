@@ -11,7 +11,8 @@ import type { CellState } from './session';
 import { findCell, type ScanResult } from './sheetScanner';
 import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid } from './types';
 import type { Person } from './comments';
-import { writeComments } from './commentWriter';
+import { BAGS_CONTENT_TYPE, BAGS_PART, BAGS_REL } from './checkboxes';
+import { addRel, setOverride, writeComments } from './commentWriter';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, setAttributes } from './xml';
 import { setCustomProperties } from './properties';
@@ -131,6 +132,17 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     const stylesRel = pkg.rels(model.workbookPath).find((r) => r.type === 'styles');
     const xml = stylesRel ? pkg.text(stylesRel.target) : undefined;
     if (stylesRel && xml) pkg.setText(stylesRel.target, appendStyles(xml, model));
+  }
+  // The feature property bags that make formats checkboxes, when the first was added.
+  const bags = model.styles.checkboxBags;
+  if (bags) {
+    const rel = pkg.rels(model.workbookPath).find((r) => r.type === 'FeaturePropertyBag');
+    if (rel) pkg.setText(rel.target, bags);
+    else {
+      pkg.setText(BAGS_PART, bags);
+      addRel(pkg, model.workbookPath, BAGS_REL, BAGS_PART);
+      setOverride(pkg, BAGS_PART, BAGS_CONTENT_TYPE);
+    }
   }
 
   return pkg;

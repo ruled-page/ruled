@@ -1,4 +1,5 @@
-import type { BorderEdge } from '../core/types';
+import type { BorderEdge, DisplayStyle } from '../core/types';
+import { CELL_PADDING, textTop } from '../state/overflow';
 
 export const GRID_LINE = '#E1E3E3';
 /** The line Excel draws where frozen columns meet the scrolling ones. */
@@ -308,4 +309,48 @@ export function drawFilterButton(
   } finally {
     ctx.restore();
   }
+}
+
+/** Space between a checkbox and its cell's top or bottom edge, when aligned there. */
+const CHECKBOX_PAD = 3;
+
+/**
+ * Where a cell's checkbox sits: as big as its font, placed by the cell's
+ * alignment, centred across unless set otherwise, as Excel centres TRUE and
+ * FALSE, and at the bottom unless set.
+ */
+export function checkboxBox(
+  cell: { x: number; y: number; width: number; height: number },
+  style: Pick<DisplayStyle, 'fontSizePx' | 'hAlign' | 'vAlign'>,
+): { x: number; y: number; size: number } {
+  const size = Math.round(Math.max(8, Math.min(style.fontSizePx * 0.9, cell.height - 4, cell.width - 4)));
+  const x =
+    style.hAlign === 'left' ? cell.x + CELL_PADDING : style.hAlign === 'right' ? cell.x + cell.width - CELL_PADDING - size : cell.x + Math.round((cell.width - size) / 2);
+  return { x: Math.round(x), y: cell.y + Math.round(textTop(style.vAlign, cell.height, size, CHECKBOX_PAD)), size };
+}
+
+/** Excel 365's checkbox in a cell: a box in the font's colour, filled with a tick in the cell's own colour once ticked. */
+export function drawCheckbox(ctx: CanvasRenderingContext2D, box: { x: number; y: number; size: number }, ticked: boolean, color: string, ground: string): void {
+  const { x, y, size } = box;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x + 0.5, y + 0.5, size - 1, size - 1, Math.max(2, size * 0.18));
+  if (ticked) {
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x + size * 0.25, y + size * 0.52);
+    ctx.lineTo(x + size * 0.43, y + size * 0.7);
+    ctx.lineTo(x + size * 0.76, y + size * 0.31);
+    ctx.strokeStyle = ground;
+    ctx.lineWidth = Math.max(1.5, size / 8);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
 }

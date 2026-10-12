@@ -313,6 +313,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     relOfType('styles')[0] ? pkg.text(relOfType('styles')[0].target) : undefined,
     relOfType('theme')[0] ? pkg.text(relOfType('theme')[0].target) : undefined,
     locale,
+    relOfType('FeaturePropertyBag').map((r) => pkg.text(r.target)).find((x) => x),
   );
 
   const findings: Finding[] = [];

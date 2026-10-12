@@ -74,6 +74,12 @@ back as .xlsx without losing what the editor can't display.
   change makes only the formats it needs, keeping everything else about the
   cell's format, and is undone in one step. Hosts can turn the bar off with
   `features.format`.
+- Excel 365's checkboxes in cells: a cell with the checkbox format shows a
+  ticked box for TRUE and an empty one for FALSE or nothing. Clicking the box
+  or pressing Space ticks or unticks it (Space sets the whole selection the
+  other way from the active cell), Delete unticks ticked boxes first and then
+  takes the checkboxes away, and the format bar's Checkbox button inserts
+  them, making empty cells FALSE. They are saved as Excel 365 saves them.
 - Change the layout and save it: column widths and row heights (drag a
   column's or row's edge, double-click it to fit the widest value in the
   column or the tallest cell in the row as Excel's AutoFit does, or set them

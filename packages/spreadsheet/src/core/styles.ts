@@ -1,4 +1,5 @@
 import type { BorderEdge, CellBorders, DiffStyle, DisplayStyle, FormatChange, TableElement, TableLook } from './types';
+import { withCheckboxBags, withCheckboxExt, withoutCheckboxExt, checkboxComplement, xfComplement } from './checkboxes';
 import { attr, child, children, descendants, elements, escapeXml, findTagEnd, firstElement, parseAttrs, parseXml, setAttributes, type XmlNode } from './xml';
 
 /** Excel's built-in number formats (en-US). Ids 14 and 22 follow the user's locale. */
@@ -298,14 +299,20 @@ export class StyleBook {
   /** Fonts, fills and borders added during the session, to append to the file's. */
   readonly addedParts: Record<PartKind, string[]> = { font: [], fill: [], border: [] };
   private readonly partIds = new Map<string, number>();
+  /** The xfComplement that makes a format a checkbox, once the workbook has one. */
+  private checkboxIndex: number | undefined;
+  /** The workbook's feature property bags, with a checkbox's added when a format first needed one: to save. */
+  checkboxBags?: string;
 
   constructor(
     stylesXml: string | undefined,
     themeXml: string | undefined,
     private readonly locale: string,
+    private bagsXml?: string,
   ) {
     const theme = parseThemeColors(themeXml);
     this.theme = theme;
+    this.checkboxIndex = checkboxComplement(bagsXml);
     if (!stylesXml) {
       this.display.push(defaultStyle());
       this.xfRaw.push('<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>');
@@ -385,6 +392,7 @@ export class StyleBook {
         ...(['0', 'false'].includes(attr(protection, 'locked') ?? '') ? { unlocked: true } : {}),
         ...(['1', 'true'].includes(attr(protection, 'hidden') ?? '') ? { formulaHidden: true } : {}),
         ...(font?.link ? { linkFont: true } : {}),
+        ...(this.checkboxIndex !== undefined && xfComplement(xf) === this.checkboxIndex ? { checkbox: true } : {}),
       });
     }
     if (this.display.length === 0) this.display.push(defaultStyle());
@@ -475,6 +483,14 @@ export class StyleBook {
     if (change.hAlign !== undefined || change.vAlign !== undefined || change.wrap !== undefined || change.indent !== undefined) {
       inner = changedAlignment(inner, change, p);
       set.applyAlignment = '1';
+    }
+    if (change.checkbox !== undefined) {
+      if (change.checkbox && this.checkboxIndex === undefined) {
+        const made = withCheckboxBags(this.bagsXml);
+        this.checkboxIndex = made.index;
+        this.bagsXml = this.checkboxBags = made.xml;
+      }
+      inner = change.checkbox ? withCheckboxExt(inner, this.checkboxIndex!, p) : withoutCheckboxExt(inner);
     }
 
     const xf = inner ? setAttributes(open.endsWith('/>') ? open.slice(0, -2) + '>' : open, set) + inner + `</${p}xf>` : setAttributes(open.endsWith('/>') ? open : open.slice(0, -1) + '/>', set);
@@ -673,6 +689,7 @@ function changedStyle(s: DisplayStyle, c: FormatChange): DisplayStyle {
   if (c.hAlign !== undefined) next.hAlign = c.hAlign ?? undefined;
   if (c.vAlign !== undefined) next.vAlign = c.vAlign === 'bottom' ? undefined : (c.vAlign ?? undefined);
   if (c.indent !== undefined) next.indent = c.indent;
+  if (c.checkbox !== undefined) next.checkbox = c.checkbox || undefined;
   if (c.border) {
     const b: CellBorders = { ...s.border };
     for (const [side, edge] of Object.entries(c.border) as [keyof CellBorders, BorderEdge | null | undefined][]) {

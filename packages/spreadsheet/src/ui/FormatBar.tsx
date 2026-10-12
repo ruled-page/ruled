@@ -184,6 +184,17 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
       <button className="wbe-btn wbe-icon" aria-pressed={s.wrap} disabled={disabled} onClick={() => void store.formatCells({ wrap: !s.wrap })} title={t('format.wrap')} aria-label={t('format.wrap')}>
         <Icon name="wrap" />
       </button>
+      {/* Excel's Insert Checkbox; pressed again, Clear Formats' taking the checkboxes off and leaving TRUE and FALSE. */}
+      <button
+        className="wbe-btn wbe-icon"
+        aria-pressed={!!s.checkbox}
+        disabled={disabled}
+        onClick={() => void (s.checkbox ? store.formatCells({ checkbox: false }) : store.insertCheckboxes())}
+        title={t('format.checkbox')}
+        aria-label={t('format.checkbox')}
+      >
+        <Icon name="checkbox" />
+      </button>
       <Select
         className="wbe-format-number"
         value={kind ?? 'custom'}

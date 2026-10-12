@@ -220,6 +220,8 @@ export interface DisplayStyle {
   formulaHidden?: boolean;
   /** Its font is in the theme's hyperlink colour, as Excel's Hyperlink cell style has it. */
   linkFont?: boolean;
+  /** Excel 365's checkbox: TRUE shows ticked, FALSE or nothing unticked. */
+  checkbox?: boolean;
 }
 
 export interface Anchor {
@@ -716,6 +718,8 @@ export interface FormatChange {
   wrap?: boolean;
   indent?: number;
   border?: Partial<Record<'left' | 'right' | 'top' | 'bottom', BorderEdge | null>>;
+  /** Excel 365's checkbox format on (or off). */
+  checkbox?: boolean;
 }
 
 /** What a paste takes from what was copied, as Excel's Paste Special offers. */

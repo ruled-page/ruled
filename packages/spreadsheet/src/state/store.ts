@@ -54,6 +54,7 @@ import { pasteRisks } from './pasteRisks';
 import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
 import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit';
+import { checkboxState } from './checkbox';
 import { displayText, editText, exactText, isDateStyle } from './format';
 import { excelTextWidth } from './overflow';
 import { builtInLists, cleanLists, loadUserLists, saveUserLists } from './fillLists';
@@ -3099,10 +3100,116 @@ export class WorkbookStore {
   async clear(rects: Rect[]): Promise<void> {
     const view = this.view;
     if (!view) return;
+    // Excel's Delete unticks ticked checkboxes first; with none ticked, it takes the checkboxes away too.
+    // A Delete pressed again before the first is done sees what the first did.
+    await this.queue;
+    const boxes = this.checkboxCells(rects);
+    const ticked = boxes.filter((b) => b.ticked && b.editable);
+    if (ticked.length) {
+      const cells = ticked.map(({ row, col }) => ({ row, col, text: 'FALSE' }));
+      await this.edit({ type: 'inputs', sheet: this.active, cells }, 'undo', { label: msg('checkbox.history.untick', { count: cells.length }) });
+      return;
+    }
     if (!(await this.okToReplace(this.formulasLost(view, rects)))) return;
     // A schema's read-only cells are left as they are, as a protected sheet's locked ones are.
     const readOnly = rects.flatMap((r) => this.schemaReadOnly(r) ?? []);
-    await this.edit({ type: 'clear', sheet: this.active, rects, ...(readOnly.length && { readOnly }) });
+    const clear: EditOp = { type: 'clear', sheet: this.active, rects, ...(readOnly.length && { readOnly }) };
+    if (!boxes.length) {
+      await this.edit(clear);
+      return;
+    }
+    const unbox: EditOp = { type: 'format', sheet: this.active, rects, change: { checkbox: false } };
+    await this.edit({ type: 'batch', ops: [clear, unbox] }, 'undo', { label: msg('checkbox.history.remove') });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checkboxes, as Excel 365 has them in cells
+
+  /** Whether a cell shows a checkbox, and ticked or not; undefined for a cell without one. A merge's is its top-left cell's. */
+  checkboxAt(row: number, col: number): boolean | undefined {
+    const view = this.view;
+    if (!view) return undefined;
+    const merge = view.mergeAt(row, col);
+    const r = merge?.r1 ?? row;
+    const c = merge?.c1 ?? col;
+    const rec = view.get(r, c);
+    return checkboxState(rec, this.styles[view.styleAt(r, c, rec)]);
+  }
+
+  /** The checkboxes among `rects`' cells, and the active cell's, up to 10,000; editable unless a formula's or read-only. */
+  private checkboxCells(rects: Rect[]): { row: number; col: number; ticked: boolean; editable: boolean }[] {
+    const view = this.view;
+    if (!view) return [];
+    const out: { row: number; col: number; ticked: boolean; editable: boolean }[] = [];
+    const seen = new Set<string>();
+    const add = (row: number, col: number) => {
+      const merge = view.mergeAt(row, col);
+      const r = merge?.r1 ?? row;
+      const c = merge?.c1 ?? col;
+      const key = `${r}:${c}`;
+      if (seen.has(key) || out.length >= 10000) return;
+      seen.add(key);
+      const rec = view.get(r, c);
+      const ticked = checkboxState(rec, this.styles[view.styleAt(r, c, rec)]);
+      if (ticked === undefined) return;
+      const formula = !!rec && (rec.flags & CellFlag.Formula) !== 0;
+      out.push({ row: r, col: c, ticked, editable: !formula && !view.readOnlyReason(r, c) && !this.schemaReadOnly({ r1: r, c1: c, r2: r, c2: c })?.length });
+    };
+    const { row, col } = this.selection;
+    if (rects.some((r) => inRect(r, row, col))) add(row, col);
+    for (const r of rects) view.forEach(r, (rr, cc) => add(rr, cc));
+    return out;
+  }
+
+  /**
+   * Ticks or unticks checkboxes, as clicking one or pressing Space does in
+   * Excel: the one at `at`, or the selection's, all set the other way from
+   * the active cell's. False when the cell isn't a checkbox.
+   */
+  async toggleCheckboxes(at?: { row: number; col: number }): Promise<boolean> {
+    const view = this.view;
+    if (!view) return false;
+    const from = at ?? { row: this.selection.row, col: this.selection.col };
+    const ticked = this.checkboxAt(from.row, from.col);
+    if (ticked === undefined) return false;
+    const rects = at ? [{ r1: at.row, c1: at.col, r2: at.row, c2: at.col }] : this.selection.rects;
+    const text = ticked ? 'FALSE' : 'TRUE';
+    const cells = this.checkboxCells(rects.length ? rects : [{ r1: from.row, c1: from.col, r2: from.row, c2: from.col }])
+      .filter((b) => b.editable)
+      .map(({ row, col }) => ({ row, col, text }));
+    if (cells.length) {
+      await this.edit({ type: 'inputs', sheet: this.active, cells }, 'undo', { label: msg(ticked ? 'checkbox.history.untick' : 'checkbox.history.tick', { count: cells.length }) });
+    }
+    return true;
+  }
+
+  /**
+   * Excel's Insert Checkbox: the selection's cells become checkboxes as one
+   * step, the empty ones FALSE (unticked). A selection of more than 10,000
+   * cells gets the format only.
+   */
+  async insertCheckboxes(): Promise<void> {
+    const view = this.view;
+    if (!view) return;
+    const s = this.selection;
+    const rects = s.rects.length ? s.rects : [{ r1: s.row, c1: s.col, r2: s.row, c2: s.col }];
+    const cells: { row: number; col: number; text: string }[] = [];
+    const area = rects.reduce((n, r) => n + (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1), 0);
+    if (area <= 10000) {
+      for (const r of rects) {
+        for (let row = r.r1; row <= r.r2; row++) {
+          for (let col = r.c1; col <= r.c2; col++) {
+            const merge = view.mergeAt(row, col);
+            if (merge && (merge.r1 !== row || merge.c1 !== col)) continue;
+            const rec = view.get(row, col);
+            if ((!rec || rec.t === VT.None) && !view.readOnlyReason(row, col)) cells.push({ row, col, text: 'FALSE' });
+          }
+        }
+      }
+    }
+    const ops: EditOp[] = [{ type: 'format', sheet: this.active, rects, change: { checkbox: true } }];
+    if (cells.length) ops.push({ type: 'inputs', sheet: this.active, cells });
+    await this.edit({ type: 'batch', ops }, 'undo', { label: msg('checkbox.history.insert') });
   }
 
   /** Records what was copied (or cut) so a paste back into the workbook can carry formulas, or move the cells. */

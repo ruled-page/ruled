@@ -47,7 +47,8 @@ import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
-import { drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from './paint';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from './paint';
+import { checkboxState } from '../state/checkbox';
 import { useT } from '../i18n/react';
 
 /**
@@ -431,17 +432,23 @@ export function SheetGrid({
       if (!rec) {
         const baseStyle = merge ? effectiveStyle(view, styles, merge.r1, merge.c1) : effectiveStyle(view, styles, row, col, view.styleAt(row, col, null));
         const bg = baseStyle?.fill ?? (locked ? palette.lockedFill : label ? palette.labelFill : undefined);
-        return asEnum({
-          kind: GridCellKind.Text,
-          data: '',
-          displayData: '',
-          allowOverlay: !readOnly,
-          span,
-          themeOverride: bg ? { bgCell: bg } : undefined,
-        });
+        return asEnum(
+          {
+            kind: GridCellKind.Text,
+            data: '',
+            displayData: '',
+            allowOverlay: !readOnly,
+            span,
+            themeOverride: bg ? { bgCell: bg } : undefined,
+          },
+          baseStyle?.checkbox ? t('checkbox.unticked') : '',
+        );
       }
       let { text, color } = displayText(rec, style, date1904, numbers.display === 'full', locale);
-      const full = text;
+      // A checkbox is drawn in place of TRUE or FALSE, and said as ticked or not.
+      const box = checkboxState(rec, style);
+      if (box !== undefined) text = '';
+      const full = box === undefined ? text : t(box ? 'checkbox.ticked' : 'checkbox.unticked');
       let drawStyle = style;
       if (rec.t === VT.Number && !style.wrap) {
         // Numbers never spill into neighbours; Excel shortens them or shows ####.
@@ -471,7 +478,7 @@ export function SheetGrid({
               : g.cellTheme(drawStyle, color, highlight && !!(rec.flags & CellFlag.Edited), locked),
         },
         // A number too wide for its cell is said as it is drawn, with fewer digits, but in full where it is drawn as ####.
-        /^#+$/.test(text) ? full : text,
+        /^#+$/.test(text) || box !== undefined ? full : text,
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -532,6 +539,8 @@ export function SheetGrid({
       const cf = view.cfAt(merge?.r1 ?? row, merge?.c1 ?? col);
       if (cf?.bar) drawDataBar(ctx, rect, cf.bar);
       if (cf?.icon) drawIcon(ctx, cf.icon.set, cf.icon.index, rect.x + 3, rect.y + (rect.height - 14) / 2);
+      const ticked = style.checkbox ? checkboxState(view.get(merge?.r1 ?? row, merge?.c1 ?? col), style) : undefined;
+      if (ticked !== undefined) drawCheckbox(ctx, checkboxBox(rect, style), ticked, args.theme.textDark, args.theme.bgCell);
       if (!own && !cf?.hideValue) {
         const text = args.cell.kind === GridCellKind.Text ? args.cell.displayData : '';
         const align = args.cell.kind === GridCellKind.Text ? (args.cell.contentAlign ?? 'left') : 'left';
@@ -1168,6 +1177,15 @@ export function SheetGrid({
     },
     [view, rowStart, ref],
   );
+  /** Whether the pointer is on a cell's checkbox. */
+  const onCheckbox = (row: number, col: number, x: number, y: number) => {
+    const grid = ref.current;
+    if (store.checkboxAt(row, col) === undefined || !grid) return false;
+    const cell = grid.getBounds(Math.max(0, view.gridCol(col)) + 1, view.gridRow(row) - rowStart);
+    if (!cell) return false;
+    const b = checkboxBox(cell, styles[view.styleAt(row, col)] ?? styles[0]);
+    return x >= b.x - 2 && x <= b.x + b.size + 2 && y >= b.y - 2 && y <= b.y + b.size + 2;
+  };
   /** The cell under the pointer, or the nearest in view past either end. */
   const cellUnder = (x: number, y: number) => {
     const row = lineLevelWith('rows', x, y);
@@ -1289,6 +1307,8 @@ export function SheetGrid({
       store.set('filterPicker', button);
       return;
     }
+    // Clicking a checkbox ticks or unticks it, and selects its cell, as in Excel.
+    if (under && !e.shiftKey && !e.ctrlKey && !e.metaKey && onCheckbox(under.row, under.col, e.clientX, e.clientY)) void store.toggleCheckboxes(under);
     // A double-click on a column's edge fits it to its widest value, as in Excel.
     const edge = e.button === 0 && e.detail >= 2 && resizable ? columnEdgeAt(e.clientX, e.clientY) : undefined;
     if (edge !== undefined) {
@@ -1367,6 +1387,13 @@ export function SheetGrid({
   // Alt+Shift+Right and Left group and ungroup the selection, as in Excel.
   const onGridKeyDown = useCallback(
     (e: GridKeyEventArgs) => {
+      // Space ticks or unticks the selection's checkboxes, as in Excel.
+      if (e.key === ' ' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && store.checkboxAt(store.selection.row, store.selection.col) !== undefined) {
+        e.cancel();
+        e.preventDefault();
+        void store.toggleCheckboxes();
+        return;
+      }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         e.cancel();
         e.preventDefault();

@@ -56,6 +56,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Excel 365 checkboxes: cells with the checkbox format show a box, ticked
+  for TRUE. Click it or press Space to tick or untick, Delete unticks and
+  then removes them, and the format bar's Checkbox button inserts them.
+  Files' checkboxes are read, and new ones saved as Excel 365 saves them.
 - Charts stay where they are anchored as the sheet scrolls past rows of
   different heights, rather than dropping back into view, and stop at the
   scrollbars rather than covering them.

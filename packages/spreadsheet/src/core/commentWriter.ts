@@ -527,7 +527,7 @@ function relativeTarget(from: string, to: string): string {
 }
 
 /** Adds a relationship from one part to another, returning its new id. */
-function addRel(pkg: OoxmlPackage, from: string, type: string, to: string): string {
+export function addRel(pkg: OoxmlPackage, from: string, type: string, to: string): string {
   const path = relsPathFor(from);
   const xml = pkg.text(path) ?? `${XML_HEAD}<Relationships xmlns="${PACKAGE_RELS_NS}"></Relationships>`;
   const ids = new Set(elements(xml, 'Relationship').map((el) => parseAttrs(el.attrs).Id));
@@ -550,7 +550,7 @@ function removePart(pkg: OoxmlPackage, from: string, rel: Relationship): void {
 }
 
 /** Sets a part's content type, or (undefined) removes its override. */
-function setOverride(pkg: OoxmlPackage, part: string, type: string | undefined): void {
+export function setOverride(pkg: OoxmlPackage, part: string, type: string | undefined): void {
   const xml = pkg.text('[Content_Types].xml');
   if (xml === undefined) return;
   const name = `/${part}`.toLowerCase();

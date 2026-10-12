@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { strFromU8, unzipSync } from 'fflate';
 import { goTo, openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
 
 async function save(page: Page) {
@@ -74,6 +75,48 @@ test('types a custom number format, shows the active cell in it, and saves it', 
 
   const lines = (await save(page)).getWorksheet('Lines')!;
   expect(lines.getCell('C3').numFmt).toBe('0.0 "kg"');
+});
+
+test('inserts Excel 365 checkboxes, ticks them by click and Space, unticks then removes them with Delete, and saves them', async ({ page }) => {
+  const bar = page.getByRole('group', { name: 'Format' });
+  const checkbox = bar.getByRole('button', { name: 'Checkbox' });
+  await goTo(page, 'E2:E3');
+  await checkbox.click();
+  await expect(checkbox).toHaveAttribute('aria-pressed', 'true');
+  await expect(shown(page, 'E2')).toHaveAttribute('aria-label', /^E2, Checkbox, not ticked/);
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('FALSE');
+
+  // A click on E2's box ticks it; Space ticks the selected E3.
+  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  await page.mouse.click(grid.x + 40 + 64 * 4 + 32, grid.y + 24 + 20 + 10);
+  await expect(shown(page, 'E2')).toHaveAttribute('aria-label', /^E2, Checkbox, ticked/);
+  await goTo(page, 'E3');
+  await page.keyboard.press('Space');
+  await expect(shown(page, 'E3')).toHaveAttribute('aria-label', /^E3, Checkbox, ticked/);
+
+  // Delete unticks them first.
+  await goTo(page, 'E2:E3');
+  await page.keyboard.press('Delete');
+  await expect(shown(page, 'E2')).toHaveAttribute('aria-label', /^E2, Checkbox, not ticked/);
+  await expect(shown(page, 'E3')).toHaveAttribute('aria-label', /^E3, Checkbox, not ticked/);
+  await goTo(page, 'E2');
+  await page.keyboard.press('Space');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Save as Excel/ }).click();
+  const bytes = await readFile(await (await download).path());
+  const files = unzipSync(new Uint8Array(bytes));
+  expect(strFromU8(files['xl/featurePropertyBag/featurePropertyBag.xml'])).toContain('<bag type="Checkbox"/>');
+  expect(strFromU8(files['xl/styles.xml'])).toContain('<xfpb:xfComplement i="0"/>');
+  const lines = (await readWorkbook(bytes)).getWorksheet('Lines')!;
+  expect([lines.getCell('E2').value, lines.getCell('E3').value]).toEqual([true, false]);
+
+  // With none ticked, Delete takes them away.
+  await goTo(page, 'E2:E3');
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('Delete');
+  await expect(checkbox).toHaveAttribute('aria-pressed', 'false');
+  await expect(shown(page, 'E2')).not.toHaveAttribute('aria-label', /Checkbox/);
 });
 
 test('undoes a format change, and clears formats', async ({ page }) => {

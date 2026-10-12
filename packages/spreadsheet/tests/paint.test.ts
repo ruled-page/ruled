@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
-import { FREEZE_LINE, GRID_LINE, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
+import { FREEZE_LINE, GRID_LINE, checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
 
 interface Gradient {
   from: number[];
@@ -62,6 +62,7 @@ class Recorder {
   moveTo = (...a: unknown[]) => this.record('moveTo', a);
   lineTo = (...a: unknown[]) => this.record('lineTo', a);
   arc = (...a: unknown[]) => this.record('arc', a);
+  roundRect = (...a: unknown[]) => this.record('roundRect', a);
   translate = (...a: unknown[]) => this.record('translate', a);
   rotate = (...a: unknown[]) => this.record('rotate', a);
   clip = (...a: unknown[]) => this.record('clip', a);
@@ -487,5 +488,30 @@ describe('filter buttons', () => {
     expect(filtered.paints()).toEqual(['fill #2F6EBA']);
     expect(filtered.stack).toHaveLength(0);
     expect(filtered.fillStyle).toBe('#000000');
+  });
+});
+
+describe('checkboxes', () => {
+  const cell = { x: 100, y: 20, width: 64, height: 20 };
+  const font = { fontSizePx: 14.7 };
+
+  it('are as big as their font, centred across and at the bottom unless the cell is aligned otherwise', () => {
+    expect(checkboxBox(cell, font)).toEqual({ x: 126, y: 24, size: 13 });
+    expect(checkboxBox(cell, { ...font, hAlign: 'left', vAlign: 'top' })).toEqual({ x: 105, y: 23, size: 13 });
+    expect(checkboxBox(cell, { ...font, hAlign: 'right', vAlign: 'center' })).toEqual({ x: 147, y: 24, size: 13 });
+    // A short row makes them smaller, never under 8 pixels.
+    expect(checkboxBox({ ...cell, height: 6 }, font).size).toBe(8);
+  });
+
+  it('draw an empty box, or a filled one with a tick in the cell\'s colour, and restore the context', () => {
+    const box = { x: 125, y: 24, size: 13 };
+    const empty = new Recorder();
+    drawCheckbox(empty.ctx, box, false, '#222222', '#FFFFFF');
+    expect(empty.paints()).toEqual(['stroke #222222']);
+    const ticked = new Recorder();
+    drawCheckbox(ticked.ctx, box, true, '#222222', '#FFFFFF');
+    expect(ticked.paints()).toEqual(['fill #222222', 'stroke #FFFFFF']);
+    expect(ticked.stack).toHaveLength(0);
+    expect(ticked.strokeStyle).toBe('#000000');
   });
 });
