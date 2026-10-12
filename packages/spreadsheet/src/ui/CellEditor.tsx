@@ -21,7 +21,7 @@ export function textCellEditor(store: WorkbookStore): ProvideEditorComponent<Gri
 
 type EditorProps = Parameters<ProvideEditorComponent<GridCell>>[0];
 
-function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, isHighlighted, validatedSelection }: EditorProps & { store: WorkbookStore }) {
+function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, isHighlighted, validatedSelection, target }: EditorProps & { store: WorkbookStore }) {
   const t = useT();
   const cell = value as TextCell;
   const text = cell.data;
@@ -78,7 +78,12 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
 
   const portal = document.getElementById(PORTAL_ID);
   return (
-    <div className={`wbe-cell-entry ${colored ? 'wbe-colored' : ''}`} ref={box}>
+    <div
+      className={`wbe-cell-entry ${colored ? 'wbe-colored' : ''}`}
+      ref={box}
+      // A wrapped cell is edited at its column's width, growing down as Excel's does, less the editor's padding.
+      style={cell.allowWrapping ? { width: Math.max(16, target.width - 17) } : undefined}
+    >
       <textarea
         ref={area}
         className="wbe-cell-entry-input"

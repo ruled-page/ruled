@@ -34,8 +34,8 @@ import { clipboardFormats } from '../state/clipboardFormats';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText } from '../state/format';
 import { cellLink, type CellLink } from '../state/links';
-import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, verticalShift, type Overflow } from '../state/overflow';
-import { wrappedLines } from '../state/autofit';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, verticalShift, type Overflow } from '../state/overflow';
+import { wrapLines } from '../state/autofit';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { textCellEditor } from './CellEditor';
@@ -142,6 +142,58 @@ function gridStyles(p: GridPalette) {
     if (style.underline) ctx.fillRect(x, mid + style.fontSizePx * 0.45, width, thickness);
     ctx.restore();
   };
+  // Wrapped text's lines, kept while the same text is drawn at the same width.
+  const wraps = new Map<string, string[]>();
+  /**
+   * Wrapped text, drawn line by line where Excel's vertical alignment puts it
+   * and cut at the cell's edges. Glide's own wrapping stops at the bottom of
+   * the cell it centres text in, so text moved up for bottom alignment would
+   * lose its last lines.
+   */
+  const drawWrapped = (
+    ctx: CanvasRenderingContext2D,
+    rect: Rectangle,
+    text: string,
+    align: 'left' | 'right' | 'center',
+    style: DisplayStyle,
+    theme: Pick<Theme, 'lineHeight' | 'cellVerticalPadding' | 'textDark'>,
+  ) => {
+    const font = fontFor(style);
+    const indent = indentPx(style, align);
+    const width = rect.width - CELL_PADDING * 2 - indent;
+    const key = `${font}\u0000${width}\u0000${text}`;
+    let lines = wraps.get(key);
+    if (!lines) {
+      if (wraps.size > 2000) wraps.clear();
+      lines = wrapLines(text, width, (s) => measure(s, style));
+      wraps.set(key, lines);
+    }
+    const em = emHeight(style);
+    const step = theme.lineHeight * em;
+    const top = rect.y + textTop(style.vAlign, rect.height, em + step * (lines.length - 1), theme.cellVerticalPadding);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.width, rect.height);
+    ctx.clip();
+    ctx.font = font;
+    ctx.fillStyle = theme.textDark;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    const bias = getMiddleCenterBias(ctx, font);
+    const x = align === 'right' ? rect.x + rect.width - CELL_PADDING - indent : align === 'center' ? rect.x + rect.width / 2 : rect.x + CELL_PADDING + indent;
+    const thickness = style.bold ? 1.5 : 1;
+    lines.forEach((line, i) => {
+      const mid = top + i * step + em / 2;
+      if (mid + em < rect.y || mid - em > rect.y + rect.height) return;
+      ctx.fillText(line, x, mid + bias);
+      if (!style.strike && !style.underline) return;
+      const w = measure(line, style);
+      const left = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
+      if (style.strike) ctx.fillRect(left, mid, w, thickness);
+      if (style.underline) ctx.fillRect(left, mid + style.fontSizePx * 0.45, w, thickness);
+    });
+    ctx.restore();
+  };
   return {
     theme: glideTheme(p),
     rowHeader: { bgCell: p.headerBg, textDark: p.rowHeaderText, baseFontStyle: p.headerFontSize, fontFamily: p.headerFont } as Partial<Theme>,
@@ -150,6 +202,7 @@ function gridStyles(p: GridPalette) {
     emHeight,
     cellTheme,
     decorate,
+    drawWrapped,
   };
 }
 
@@ -480,33 +533,35 @@ export function SheetGrid({
       if (cf?.bar) drawDataBar(ctx, rect, cf.bar);
       if (cf?.icon) drawIcon(ctx, cf.icon.set, cf.icon.index, rect.x + 3, rect.y + (rect.height - 14) / 2);
       if (!own && !cf?.hideValue) {
-        // Glide centres text; Excel's vertical alignment (bottom unless set) and indent move it.
         const text = args.cell.kind === GridCellKind.Text ? args.cell.displayData : '';
         const align = args.cell.kind === GridCellKind.Text ? (args.cell.contentAlign ?? 'left') : 'left';
-        let dx = 0;
-        let dy = 0;
-        let clip = false;
-        if (text) {
-          dx = align === 'right' ? -indentPx(style, 'right') : indentPx(style, align);
-          const em = g.emHeight(style);
-          const lines = style.wrap ? wrappedLines(text, rect.width - CELL_PADDING * 2 - Math.abs(dx), (s) => g.measure(s, style)) : 1;
-          const content = em + args.theme.lineHeight * em * (lines - 1);
-          dy = verticalShift(style.vAlign, rect.height, content, args.theme.cellVerticalPadding, style.wrap);
-          // Text moved past an edge of its cell is cut there, as Excel cuts it.
-          const top = rect.height / 2 - content / 2 + dy;
-          clip = top < 0 || top + content > rect.height;
+        if (text && args.cell.kind === GridCellKind.Text && args.cell.allowWrapping) {
+          g.drawWrapped(ctx, rect, text, align, style, args.theme);
+        } else {
+          // Glide centres text; Excel's vertical alignment (bottom unless set) and indent move it.
+          let dx = 0;
+          let dy = 0;
+          let clip = false;
+          if (text) {
+            dx = align === 'right' ? -indentPx(style, 'right') : indentPx(style, align);
+            const em = g.emHeight(style);
+            dy = verticalShift(style.vAlign, rect.height, em, args.theme.cellVerticalPadding);
+            // Text moved past an edge of its cell is cut there, as Excel cuts it.
+            const top = rect.height / 2 - em / 2 + dy;
+            clip = top < 0 || top + em > rect.height;
+          }
+          if (clip) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(rect.x, rect.y, rect.width, rect.height);
+            ctx.clip();
+          }
+          ctx.translate(dx, dy);
+          drawContent();
+          if ((style.strike || style.underline) && text) g.decorate(ctx, rect, text, align, style);
+          ctx.translate(-dx, -dy);
+          if (clip) ctx.restore();
         }
-        if (clip) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(rect.x, rect.y, rect.width, rect.height);
-          ctx.clip();
-        }
-        ctx.translate(dx, dy);
-        drawContent();
-        if ((style.strike || style.underline) && text) g.decorate(ctx, rect, text, align, style);
-        ctx.translate(-dx, -dy);
-        if (clip) ctx.restore();
       }
       if (through) {
         const font = g.fontFor(through.style);
@@ -515,7 +570,7 @@ export function SheetGrid({
         ctx.fillStyle = through.color ?? through.style.color ?? (through.style.fill ? palette.textOnFill : palette.text);
         ctx.textAlign = 'left';
         const x = rect.x - offsetBetween(through.col, col) + overflowTextX(through, view.colWidth(through.col));
-        const lift = verticalShift(through.style.vAlign, rect.height, g.emHeight(through.style), args.theme.cellVerticalPadding, false);
+        const lift = verticalShift(through.style.vAlign, rect.height, g.emHeight(through.style), args.theme.cellVerticalPadding);
         ctx.fillText(through.text, x, rect.y + rect.height / 2 + lift + getMiddleCenterBias(ctx, font));
         // Underlined text, such as a link's, keeps its line as it runs on into the next cells.
         if (through.style.underline || through.style.strike) {
@@ -1393,7 +1448,7 @@ export function SheetGrid({
       enumOptionsOf(cell)
         ? { editor: EnumEditor, disablePadding: true }
         : cell.kind === GridCellKind.Text
-          ? { editor: textEditor, disablePadding: cell.allowWrapping === true }
+          ? { editor: textEditor }
           : undefined,
     [textEditor],
   );

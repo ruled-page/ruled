@@ -54,21 +54,42 @@ export function fittedRowHeight(view: SheetView, styles: DisplayStyle[], row: nu
   return tallest;
 }
 
-/** How many lines text takes when wrapped at word breaks into a width, as Excel wraps it. */
-export function wrappedLines(text: string, width: number, measure: (s: string) => number): number {
-  let lines = 0;
+/**
+ * Text wrapped into a width as Excel wraps it: at its line breaks, then
+ * between words, and a word wider than the width where it reaches the edge.
+ */
+export function wrapLines(text: string, width: number, measure: (s: string) => number): string[] {
+  const lines: string[] = [];
   for (const paragraph of text.split('\n')) {
-    lines++;
     let line = '';
     for (const word of paragraph.split(' ')) {
       const next = line ? `${line} ${word}` : word;
-      if (line && measure(next) > width) {
-        lines++;
-        line = word;
-      } else {
+      if (measure(next) <= width) {
         line = next;
+        continue;
       }
+      if (line) lines.push(line);
+      let rest = word;
+      while (rest.length > 1 && measure(rest) > width) {
+        // The most of the word that fits, and at least a character.
+        let lo = 1;
+        let hi = rest.length - 1;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2);
+          if (measure(rest.slice(0, mid)) <= width) lo = mid;
+          else hi = mid - 1;
+        }
+        lines.push(rest.slice(0, lo));
+        rest = rest.slice(lo);
+      }
+      line = rest;
     }
+    lines.push(line);
   }
-  return Math.max(1, lines);
+  return lines;
+}
+
+/** How many lines text takes when wrapped into a width. */
+export function wrappedLines(text: string, width: number, measure: (s: string) => number): number {
+  return wrapLines(text, width, measure).length;
 }

@@ -45,6 +45,12 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   set the line borders are drawn with, from Excel's thirteen styles; files'
   dash-dot, dash-dot-dot, slanted dash-dot and hair borders are drawn and
   kept as themselves rather than as dashes and dots.
+- Wrapped text is drawn as Excel draws it. A word longer than its column
+  breaks at the column's edge, each line sits where the cell's vertical
+  alignment puts it, and text is cut at the cell's edges rather than drawn
+  over the rows around it. A row too short for its text shows the last
+  lines, or the first when top-aligned, and AutoFit counts the same lines.
+  A wrapped cell is edited at its column's width, the editor growing down.
 - Custom number formats: "More number formats…" in the format bar opens
   Excel's Custom list, to type a format code or pick one of Excel's or the
   workbook's own, with the active cell shown in it as it is typed. Codes

@@ -14,18 +14,20 @@ export function indentPx(style: Pick<DisplayStyle, 'indent'>, align: 'left' | 'r
 }
 
 /**
- * How far to move text down from where Glide puts it, centred in its cell
- * (wrapped text that's too tall at the top instead), to sit where Excel's
- * vertical alignment puts it: at the top, in the middle, or at the bottom,
- * Excel's default. `content` is the text's height and `pad` the cell's
- * padding.
+ * Where text starts down its cell for Excel's vertical alignment: at the
+ * top, in the middle, or at the bottom, Excel's default. `content` is the
+ * text's height and `pad` the cell's padding. Text taller than its cell
+ * starts above it when bottom-aligned, so its last lines show.
  */
-export function verticalShift(vAlign: string | undefined, height: number, content: number, pad: number, wrapped: boolean): number {
-  const centred = height / 2 - content / 2;
-  const glide = wrapped ? Math.max(pad, centred) : centred;
-  const middle = vAlign === 'center' || vAlign === 'justify' || vAlign === 'distributed';
-  const want = vAlign === 'top' ? pad : middle ? height / 2 - content / 2 : height - pad - content;
-  return want - glide;
+export function textTop(vAlign: string | undefined, height: number, content: number, pad: number): number {
+  if (vAlign === 'top') return pad;
+  if (vAlign === 'center' || vAlign === 'justify' || vAlign === 'distributed') return height / 2 - content / 2;
+  return height - pad - content;
+}
+
+/** How far to move a line of text down from where Glide puts it, centred in its cell, to sit where Excel's vertical alignment puts it. */
+export function verticalShift(vAlign: string | undefined, height: number, content: number, pad: number): number {
+  return textTop(vAlign, height, content, pad) - (height / 2 - content / 2);
 }
 
 /** Text that spills out of its cell into empty neighbours, as Excel draws it. */

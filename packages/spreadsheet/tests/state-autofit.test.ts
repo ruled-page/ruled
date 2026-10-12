@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { wrappedLines } from '../src/state/autofit';
+import { wrapLines, wrappedLines } from '../src/state/autofit';
 import type { WorkbookStore } from '../src/state/store';
 import { opened, testStore } from './storeHarness';
 
@@ -14,9 +14,15 @@ describe('wrapping text into lines', () => {
     expect(wrappedLines('one two three', 7 * 7, seven)).toBe(2);
     expect(wrappedLines('one two three', 7 * 13, seven)).toBe(1);
     expect(wrappedLines('one\ntwo three four', 7 * 9, seven)).toBe(3);
-    // A word longer than the width keeps its own line.
-    expect(wrappedLines('extraordinarily', 7 * 3, seven)).toBe(1);
     expect(wrappedLines('', 50, seven)).toBe(1);
+  });
+
+  it('breaks a word wider than the width where it reaches the edge, as Excel does', () => {
+    expect(wrapLines('extraordinarily', 7 * 6, seven)).toEqual(['extrao', 'rdinar', 'ily']);
+    expect(wrapLines('see extraordinarily long', 7 * 6, seven)).toEqual(['see', 'extrao', 'rdinar', 'ily', 'long']);
+    // However narrow the cell, each line has a character.
+    expect(wrapLines('abc', 2, seven)).toEqual(['a', 'b', 'c']);
+    expect(wrapLines('one\n\ntwo', 50, seven)).toEqual(['one', '', 'two']);
   });
 });
 

@@ -154,3 +154,16 @@ test('fits a row to its wrapped text when the edge of its number is double-click
   const height = Number(await page.getByRole('dialog', { name: 'Height of row 2' }).getByRole('textbox').inputValue());
   expect(height).toBeGreaterThan(30);
 });
+
+test('edits a wrapped cell at its column\'s width, growing down as Excel does', async ({ page }) => {
+  await goTo(page, 'A2');
+  await page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Wrap text' }).click();
+  await goTo(page, 'A2');
+  await page.keyboard.type('A long item name that wraps over several lines');
+  const editor = page.locator('.wbe-cell-entry');
+  await expect(editor).toBeVisible();
+  const box = (await editor.boundingBox())!;
+  // Column A is 64 pixels wide: the editor stays inside it and takes several lines.
+  expect(box.width).toBeLessThan(64);
+  expect(box.height).toBeGreaterThan(50);
+});
