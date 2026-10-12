@@ -86,8 +86,8 @@ test.describe('with only a keyboard', () => {
     await page.keyboard.press('Shift+F10');
     const menu = page.getByRole('menu');
     await expect(menu.getByRole('menuitem', { name: 'Cut' })).toBeFocused();
-    // Cut, Copy, Paste, Paste special, Fill down, Fill right, Fill series, New note, New comment, then the rows' submenu.
-    for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowDown');
+    // Cut, Copy, Paste, Paste special, Fill down, Fill right, Fill series, New note, New comment, Insert cells, Delete cells, then the rows' submenu.
+    for (let i = 0; i < 11; i++) await page.keyboard.press('ArrowDown');
     const rows = page.getByRole('menuitem', { name: 'Rows', exact: true });
     await expect(rows).toBeFocused();
     await page.keyboard.press('ArrowRight');

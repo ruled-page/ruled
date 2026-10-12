@@ -55,7 +55,7 @@ test('moves cells in between others with Shift held, a line showing where they g
   await expect(page.locator('.wbe-insert-guide')).toHaveCount(0);
   await expect(shown(page, 'A2')).toHaveText('Nuts');
   await expect(shown(page, 'A3')).toHaveText('Bolts');
-  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('A2');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('A2:D2');
   await goTo(page, 'D2');
   await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('=B2*C2');
   // The grand total still takes in both rows.

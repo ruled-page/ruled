@@ -539,6 +539,11 @@ describe('inserting and deleting cells', () => {
     store.selectLines('cols', [[0, 0]], { row: 0, col: 0 });
     store.changeCells('delete');
     await vi.waitFor(() => expect(actions()).toEqual(['Inserted 1 row', 'Deleted 1 column']));
+    // The column that took its place is selected, so the keys go on working on whole columns.
+    expect(store.selection.lines).toBe('cols');
+    store.selectLines('rows', [[1, 1]], { row: 1, col: 0 });
+    store.changeCells('delete');
+    await vi.waitFor(() => expect(store.selection).toMatchObject({ lines: 'rows', row: 1 }));
     select(rect(2, 1, 3, 1));
     store.changeCells('delete');
     expect(store.cellsDialog).toBe('delete');

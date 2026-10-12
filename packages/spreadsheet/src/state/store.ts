@@ -1640,8 +1640,11 @@ export class WorkbookStore {
     } else if (op.type === 'insertCols') {
       return this.selectLines('cols', [[op.at, op.at + op.count - 1]], { row: sel.row, col: op.at });
     } else if (op.type === 'deleteRows') {
+      // Whole rows deleted stay selected, the rows that took their place now, as in Excel.
+      if (sel.lines === 'rows') return this.selectLines('rows', [[op.at, op.at + op.count - 1]], { row: op.at, col: sel.col });
       rect = { r1: op.at, r2: op.at, c1: sel.col, c2: sel.col };
     } else {
+      if (sel.lines === 'cols') return this.selectLines('cols', [[op.at, op.at + op.count - 1]], { row: sel.row, col: op.at });
       rect = { r1: sel.row, r2: sel.row, c1: op.at, c2: op.at };
     }
     this.setSelection({ row: rect.r1, col: rect.c1, rects: [rect] });
