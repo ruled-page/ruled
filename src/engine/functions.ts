@@ -456,6 +456,8 @@ const liftFirst = (spec: FunctionSpec): FunctionSpec => ({
 function vlookup(args: Operand[], ctx: Ctx, horizontal: boolean): Scalar {
   const target = scalarOf(args[0], ctx);
   if (isError(target)) throw target;
+  // Text can't be a table; a number or TRUE is a table of one.
+  if (typeof args[1] === 'string') throw VALUE;
   const table = matrixOf(args[1], ctx);
   const index = Math.trunc(num(scalarOf(args[2], ctx)));
   const approx = args[3] === undefined ? true : bool(scalarOf(args[3], ctx));
@@ -1638,7 +1640,7 @@ function betaInverse(p: Scalar, alpha: Scalar, beta: Scalar, lo: Scalar | undefi
   const [a, b] = betaShape(alpha, beta);
   const from = optional(lo, 0);
   const to = optional(hi, 1);
-  if (q <= 0 || q > 1 || from >= to) throw NUM;
+  if (q <= 0 || q >= 1 || from >= to) throw NUM;
   return from + (to - from) * bisect((x) => betaI(x, 1 - x, a, b), q, true);
 }
 
@@ -1824,6 +1826,7 @@ function gammaInverse(p: Scalar, a: Scalar, b: Scalar): number {
   const q = probability(p);
   const alpha = positive(a);
   const beta = positive(b);
+  if (q === 1) throw NUM;
   return inverseFrom0((x) => gammaP(alpha, x / beta), q);
 }
 
@@ -3175,15 +3178,17 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return parts.join(delim);
     },
   },
+  // The text is read first, so an error in it comes before a bad count.
   LEFT: scalar(1, 2, ([t, n]) => {
+    const s = text(t);
     const k = optional(n, 1);
     if (k < 0) throw VALUE;
-    return text(t).slice(0, Math.trunc(k));
+    return s.slice(0, Math.trunc(k));
   }),
   RIGHT: scalar(1, 2, ([t, n]) => {
+    const s = text(t);
     const k = Math.trunc(optional(n, 1));
     if (k < 0) throw VALUE;
-    const s = text(t);
     return k === 0 ? '' : s.slice(-k);
   }),
   MID: scalar(3, 3, ([t, s, n]) => {
@@ -3239,7 +3244,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const start = Math.trunc(optional(s, 1));
     const within = text(w);
     if (start < 1 || start > within.length + 1) throw VALUE;
-    const at = searchIn(parsePattern(text(f).toLowerCase()), within.toLowerCase().slice(start - 1));
+    // A ~ at the end escapes nothing, and is dropped.
+    let find = text(f).toLowerCase();
+    if ((/~+$/.exec(find)?.[0].length ?? 0) % 2) find = find.slice(0, -1);
+    const at = searchIn(parsePattern(find), within.toLowerCase().slice(start - 1));
     if (at < 0) throw VALUE;
     return at + start;
   }),
@@ -3319,7 +3327,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (serial === undefined || serial >= serialOf(9999, 12, 31, false) + 1) throw VALUE;
     return Math.floor(serial) - (ctx.host.date1904 ? 1462 : 0);
   }),
-  DATEDIF: scalar(3, 3, ([s, e, u], ctx) => datedif(dateArg(s, ctx), dateArg(e, ctx), text(u).toUpperCase(), ctx)),
+  DATEDIF: scalar(3, 3, ([s, e, u], ctx) => datedif(Math.floor(dateArg(s, ctx)), Math.floor(dateArg(e, ctx)), text(u).toUpperCase(), ctx)),
   NETWORKDAYS: {
     min: 2,
     max: 3,
@@ -3542,6 +3550,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     },
   },
   YEARFRAC: scalar(2, 3, ([s, e, b], ctx) => {
+    if (typeof b === 'boolean') throw VALUE;
     const basis = Math.trunc(optional(b, 0));
     if (!validBasis(basis)) throw NUM;
     const start = Math.floor(dateArg(s, ctx));

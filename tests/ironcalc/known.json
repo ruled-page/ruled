@@ -11,10 +11,6 @@
   "DATE_AND_TIME/TIMEVALUE_issue_1402.xlsx": [
     "Sheet1!B2"
   ],
-  "DATE_AND_TIME/YEARFRAC_DATEDIF.xlsx": [
-    "YEARFRAC_DATEDIF!D12",
-    "YEARFRAC_DATEDIF!G8"
-  ],
   "ENGINEERING/BESSEL.xlsx": [
     "BESSELJ!C14",
     "BESSELJ!C19",
@@ -298,15 +294,10 @@
   ],
   "INFORMATION/error_broadcast.xlsx": [
     "Sheet1!E22",
-    "Sheet1!E26",
     "Sheet1!E54"
   ],
   "LOOKUP_AND_REFERENCE/FILTER_ERRORS.xlsx": [
     "Sheet1!E1"
-  ],
-  "LOOKUP_AND_REFERENCE/HVLOOKUP.xlsx": [
-    "HLOOKUP!N13",
-    "VLOOKUP!N13"
   ],
   "LOOKUP_AND_REFERENCE/INDEX.xlsx": [
     "INDEX!C9"
@@ -354,13 +345,7 @@
     "SIN_COS_TAN!D46"
   ],
   "STATISTICAL/BETADIST_BETAINV.xlsx": [
-    "Sheet1!H10",
-    "Sheet1!H69",
-    "Sheet1!H8"
-  ],
-  "STATISTICAL/GAMMA.xlsx": [
-    "GAMMA.DIST GAMMA.INV!F18",
-    "GAMMA.DIST GAMMA.INV!F65"
+    "Sheet1!H10"
   ],
   "STATISTICAL/LOGNORM.xlsx": [
     "LOGNORM.DIST LOGNORM.INV!F26"
@@ -377,19 +362,8 @@
   "TEXT/CHAR.xlsx": [
     "Sheet1!B10"
   ],
-  "TEXT/FIND_SEARCH.xlsx": [
-    "Sheet1!E29",
-    "Sheet1!E30"
-  ],
-  "TEXT/MID_LEFT_RIGHT_arrays.xlsx": [
-    "Sheet1!G27"
-  ],
   "TEXT/REPT.xlsx": [
     "Sheet1!C12"
-  ],
-  "TEXT/STRING_HANDLING.xlsx": [
-    "Sheet1!H7",
-    "Sheet1!M7"
   ],
   "TEXT/TEXT.xlsx": [
     "NUMBERS!K12"
