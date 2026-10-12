@@ -42,6 +42,20 @@ describe('formatting cells', () => {
     expect(style(t, 1, 2)).toMatchObject({ numFmt: 'General' });
   });
 
+  it("writes Excel's line styles as themselves", () => {
+    const s = open();
+    const lines = [
+      { width: 2, pattern: 'dashDot', color: '#FF0000' },
+      { width: 1, pattern: 'hair' },
+      { width: 2, pattern: 'slantDashDot' },
+      { width: 1, pattern: 'dashDotDot' },
+    ] as const;
+    lines.forEach((edge, i) => format(s, [rect(5, i)], {}, { borders: { where: 'all', edge } }));
+    const t = open(s.save());
+    // Excel's automatic colour reads back as the black it stands for.
+    expect(lines.map((_e, i) => style(t, 5, i).border?.left)).toEqual(lines.map((e) => ({ color: '#000000', ...e })));
+  });
+
   it('sets vertical alignment and indent, bottom and no indent being the defaults it leaves out', () => {
     const s = open();
     format(s, [rect(0, 0)], { vAlign: 'top', indent: 2, hAlign: 'left' });

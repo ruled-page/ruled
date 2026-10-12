@@ -173,16 +173,16 @@ export function resolveColor(node: XmlNode | undefined, theme: string[], indexed
 /** Excel border styles drawn as width and pattern. */
 const BORDER_STYLES: Record<string, Omit<BorderEdge, 'color'>> = {
   thin: { width: 1, pattern: 'solid' },
-  hair: { width: 1, pattern: 'dotted' },
+  hair: { width: 1, pattern: 'hair' },
   dotted: { width: 1, pattern: 'dotted' },
   dashed: { width: 1, pattern: 'dashed' },
-  dashDot: { width: 1, pattern: 'dashed' },
-  dashDotDot: { width: 1, pattern: 'dashed' },
+  dashDot: { width: 1, pattern: 'dashDot' },
+  dashDotDot: { width: 1, pattern: 'dashDotDot' },
   medium: { width: 2, pattern: 'solid' },
   mediumDashed: { width: 2, pattern: 'dashed' },
-  mediumDashDot: { width: 2, pattern: 'dashed' },
-  mediumDashDotDot: { width: 2, pattern: 'dashed' },
-  slantDashDot: { width: 2, pattern: 'dashed' },
+  mediumDashDot: { width: 2, pattern: 'dashDot' },
+  mediumDashDotDot: { width: 2, pattern: 'dashDotDot' },
+  slantDashDot: { width: 2, pattern: 'slantDashDot' },
   thick: { width: 3, pattern: 'solid' },
   double: { width: 3, pattern: 'double' },
 };
@@ -561,7 +561,22 @@ const FONT_KEYS = ['bold', 'italic', 'underline', 'strike', 'fontFamily', 'fontS
 /** A font's children in the order Excel writes them. */
 const FONT_ORDER = ['b', 'i', 'strike', 'condense', 'extend', 'outline', 'shadow', 'u', 'vertAlign', 'sz', 'color', 'name', 'family', 'charset', 'scheme'];
 const BORDER_SIDES = ['left', 'right', 'top', 'bottom', 'diagonal', 'vertical', 'horizontal'] as const;
-const BORDER_NAMES: Record<string, string> = { '1solid': 'thin', '2solid': 'medium', '3solid': 'thick', '1dashed': 'dashed', '2dashed': 'mediumDashed', '1dotted': 'dotted', '2dotted': 'dotted', '3double': 'double' };
+const BORDER_NAMES: Record<string, string> = {
+  '1solid': 'thin',
+  '2solid': 'medium',
+  '3solid': 'thick',
+  '1hair': 'hair',
+  '1dotted': 'dotted',
+  '2dotted': 'dotted',
+  '1dashed': 'dashed',
+  '2dashed': 'mediumDashed',
+  '1dashDot': 'dashDot',
+  '2dashDot': 'mediumDashDot',
+  '1dashDotDot': 'dashDotDot',
+  '2dashDotDot': 'mediumDashDotDot',
+  '2slantDashDot': 'slantDashDot',
+  '3double': 'double',
+};
 
 const argb = (hex: string) => 'FF' + hex.replace('#', '').toUpperCase();
 

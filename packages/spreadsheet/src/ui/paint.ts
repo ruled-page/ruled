@@ -31,9 +31,23 @@ function paintEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: numbe
     line(2, 1);
     return;
   }
-  const on = edge.pattern === 'dotted' ? edge.width : 3 * edge.width;
-  const off = edge.pattern === 'dotted' ? edge.width : edge.width + 1;
-  for (let p = 0; p < length; p += on + off) line(0, edge.width, p, Math.min(on, length - p));
+  // Each style's run of dashes and gaps, in multiples of the line's width; a hair's dots are as fine as can be.
+  const w = edge.width;
+  const dash = 3 * w;
+  const gap = w + 1;
+  const runs: Record<Exclude<BorderEdge['pattern'], 'solid' | 'double'>, number[]> = {
+    hair: [1, 1],
+    dotted: [w, w],
+    dashed: [dash, gap],
+    dashDot: [dash, gap, w, gap],
+    dashDotDot: [dash, gap, w, gap, w, gap],
+    // Excel slants its dashes; upright here.
+    slantDashDot: [dash, gap, w, gap],
+  };
+  const run = runs[edge.pattern];
+  for (let p = 0, i = 0; p < length; p += run[i], i = (i + 1) % run.length) {
+    if (i % 2 === 0) line(0, edge.pattern === 'hair' ? 1 : w, p, Math.min(run[i], length - p));
+  }
 }
 
 export function drawGridLine(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, color = GRID_LINE): void {

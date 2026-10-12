@@ -68,7 +68,8 @@ export interface SheetGrid {
 /** One side of a cell border, as drawn: width in pixels, line pattern and colour. */
 export interface BorderEdge {
   width: 1 | 2 | 3;
-  pattern: 'solid' | 'dashed' | 'dotted' | 'double';
+  /** Excel's line styles: solid, dashes, dots, a hair's fine dots, dash-dot and dash-dot-dot, slanted dash-dot, and double. */
+  pattern: 'solid' | 'dashed' | 'dotted' | 'double' | 'hair' | 'dashDot' | 'dashDotDot' | 'slantDashDot';
   /** Unset for Excel's automatic colour, which follows the theme's grid text. */
   color?: string;
 }

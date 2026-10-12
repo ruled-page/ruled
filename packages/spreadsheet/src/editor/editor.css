@@ -3545,6 +3545,36 @@
   box-shadow: var(--wbe-shadow);
 }
 
+/* A menu item's sample of what it gives: a colour, or a line. */
+.wbe .wbe-menu-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: 2px;
+}
+
+.wbe .wbe-menu-line {
+  flex: none;
+  width: 40px;
+  height: 0;
+}
+
+.wbe .wbe-menu-check {
+  flex: none;
+  width: 1em;
+}
+
+/* A choice's mark and sample sit before its label, which takes the rest of the line. */
+.wbe .wbe-context-menu button:has(> .wbe-menu-check) {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.wbe .wbe-context-menu button:has(> .wbe-menu-check) > span:last-child {
+  flex: 1;
+}
+
 .wbe .wbe-context-menu button {
   display: flex;
   width: 100%;

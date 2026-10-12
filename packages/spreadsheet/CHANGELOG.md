@@ -41,6 +41,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Vertical alignment and indent: cells are drawn with their file's top,
   middle or bottom alignment (bottom, Excel's default, unless set) and its
   indent, and the format bar sets both.
+- Border styles and colours: the Borders menu's Line Color and Line Style
+  set the line borders are drawn with, from Excel's thirteen styles; files'
+  dash-dot, dash-dot-dot, slanted dash-dot and hair borders are drawn and
+  kept as themselves rather than as dashes and dots.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

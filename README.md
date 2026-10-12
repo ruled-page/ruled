@@ -59,7 +59,9 @@ back as .xlsx without losing what the editor can't display.
   sheet's locked cells and a schema's read-only cells as they were, saying
   how many.
 - Format cells from the format bar: font and size, bold, italic, underline
-  and strikethrough, font and fill colours, borders, alignment (left,
+  and strikethrough, font and fill colours, borders (drawn with the line
+  style and colour picked in the Borders menu, from Excel's thirteen
+  styles, dash-dot and hair lines among them), alignment (left,
   centre or right; top, middle or bottom) and indent, wrapping, number
   formats (with more or fewer decimals), and clearing formats. Text sits at
   the bottom of its cell unless set otherwise, as in Excel, and each indent

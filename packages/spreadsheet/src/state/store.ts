@@ -2123,6 +2123,21 @@ export class WorkbookStore {
     return this.formatCells({ indent, ...(indent > 0 && !aligned && { hAlign: 'left' as const }) });
   }
 
+  /** The line borders are drawn with, as Excel's Line Style and Line Color set it: thin and automatic until changed. */
+  borderPen: BorderEdge = { width: 1, pattern: 'solid' };
+
+  /** Changes the line borders are drawn with; a colour of undefined is Excel's automatic one. */
+  setBorderPen(pen: Partial<BorderEdge>): void {
+    this.borderPen = { ...this.borderPen, ...pen };
+    if (!this.borderPen.color) delete this.borderPen.color;
+    this.notify();
+  }
+
+  /** Borders on the selection, where Excel's Borders menu puts them, drawn with the pen; none takes them away. */
+  drawBorders(where: BorderPlacement): Promise<void> {
+    return this.formatCells({}, { borders: { where, edge: this.borderPen } });
+  }
+
   /** Merged cells the selection covers some of. */
   mergesInSelection(): Rect[] {
     const view = this.view;

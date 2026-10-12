@@ -202,6 +202,15 @@ describe('formats', () => {
     expect(store.activeStyle.fill).toBe('#FF0000');
   });
 
+  it("draws borders with the pen Excel's Line Style and Line Color set", async () => {
+    await open();
+    store.setBorderPen({ width: 2, pattern: 'dashDot', color: '#FF0000' });
+    await store.drawBorders('top');
+    expect(store.activeStyle.border?.top).toEqual({ width: 2, pattern: 'dashDot', color: '#FF0000' });
+    store.setBorderPen({ color: undefined });
+    expect(store.borderPen).toEqual({ width: 2, pattern: 'dashDot' });
+  });
+
   it("indent as Excel's buttons do: a level at a time, aligning text left, up to 15", async () => {
     await open();
     await store.formatCells({ hAlign: 'center' });

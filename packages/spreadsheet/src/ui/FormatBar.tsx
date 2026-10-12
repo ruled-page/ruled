@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { BorderPlacement } from '../core/types';
+import type { BorderEdge, BorderPlacement } from '../core/types';
 import { useT } from '../i18n/react';
 import { NUMBER_FORMAT_KINDS, numberFormatCode, numberFormatKind, type NumberFormatKind } from '../state/numberFormats';
 import type { WorkbookStore } from '../state/store';
@@ -45,6 +45,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
   const sizePt = Math.round(((s.fontSizePx * 3) / 4) * 2) / 2;
   const kind = numberFormatKind(s.numFmt, store.locale);
   const [borders, setBorders] = useState<{ x: number; y: number } | null>(null);
+  const pen = store.borderPen;
   const toggle = (key: 'bold' | 'italic' | 'underline' | 'strike', icon: Parameters<typeof Icon>[0]['name']) => (
     <button className="wbe-btn wbe-icon" aria-pressed={s[key]} disabled={disabled} onClick={() => void store.toggleFormat(key)} title={t(`format.${key}`)} aria-label={t(`format.${key}`)}>
       <Icon name={icon} />
@@ -127,6 +128,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
         aria-label={t('format.borders')}
       >
         <Icon name="borders" />
+        <span className="wbe-color-bar" style={{ background: pen.color ?? 'var(--wbe-text)' }} />
       </button>
       {borders && (
         <ContextMenu
@@ -134,7 +136,31 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
           y={borders.y}
           label={t('format.borders')}
           onClose={() => setBorders(null)}
-          items={BORDERS.map((where) => ({ label: t(`format.border.${where}`), onSelect: () => void store.formatCells({}, { borders: { where } }) }))}
+          items={[
+            ...BORDERS.map((where) => ({ label: t(`format.border.${where}`), onSelect: () => void store.drawBorders(where) })),
+            { separator: true },
+            {
+              label: t('format.lineColor'),
+              items: [
+                { label: t('format.automatic'), checked: !pen.color, onSelect: () => store.setBorderPen({ color: undefined }) },
+                ...Object.entries(COLORS).map(([name, hex]) => ({
+                  label: t(`format.colors.${name as keyof typeof COLORS}`),
+                  checked: pen.color?.toUpperCase() === hex,
+                  sample: <span className="wbe-menu-swatch" style={{ background: hex }} aria-hidden="true" />,
+                  onSelect: () => store.setBorderPen({ color: hex }),
+                })),
+              ],
+            },
+            {
+              label: t('format.lineStyle'),
+              items: LINE_STYLES.map(([name, line]) => ({
+                label: t(`format.line.${name}`),
+                checked: pen.width === line.width && pen.pattern === line.pattern,
+                sample: <LineSample line={line} />,
+                onSelect: () => store.setBorderPen(line),
+              })),
+            },
+          ]}
         />
       )}
       <div className="wbe-btn-group">
@@ -190,6 +216,31 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
       </button>
     </div>
   );
+}
+
+/** Excel's line styles, in the order its Line Style menu lists them. */
+type LineName = 'thin' | 'hair' | 'dotted' | 'dashDotDot' | 'dashDot' | 'dashed' | 'mediumDashDotDot' | 'slantDashDot' | 'mediumDashDot' | 'mediumDashed' | 'medium' | 'thick' | 'double';
+
+const LINE_STYLES: [LineName, Pick<BorderEdge, 'width' | 'pattern'>][] = [
+  ['thin', { width: 1, pattern: 'solid' }],
+  ['hair', { width: 1, pattern: 'hair' }],
+  ['dotted', { width: 1, pattern: 'dotted' }],
+  ['dashDotDot', { width: 1, pattern: 'dashDotDot' }],
+  ['dashDot', { width: 1, pattern: 'dashDot' }],
+  ['dashed', { width: 1, pattern: 'dashed' }],
+  ['mediumDashDotDot', { width: 2, pattern: 'dashDotDot' }],
+  ['slantDashDot', { width: 2, pattern: 'slantDashDot' }],
+  ['mediumDashDot', { width: 2, pattern: 'dashDot' }],
+  ['mediumDashed', { width: 2, pattern: 'dashed' }],
+  ['medium', { width: 2, pattern: 'solid' }],
+  ['thick', { width: 3, pattern: 'solid' }],
+  ['double', { width: 3, pattern: 'double' }],
+];
+
+/** A line style as the menu shows it: a short line drawn in it. */
+function LineSample({ line }: { line: Pick<BorderEdge, 'width' | 'pattern'> }) {
+  const style = line.pattern === 'solid' ? 'solid' : line.pattern === 'double' ? 'double' : line.pattern === 'dotted' || line.pattern === 'hair' ? 'dotted' : 'dashed';
+  return <span className="wbe-menu-line" style={{ borderTop: `${line.pattern === 'hair' ? 1 : line.width}px ${style} currentColor` }} aria-hidden="true" />;
 }
 
 /** A font or fill colour: the colour shown under its button, and a palette that opens from it. */

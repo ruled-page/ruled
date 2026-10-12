@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 export type MenuItem =
-  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean }
+  /** An item; `checked` makes it one of a set of choices, with whether it's the one chosen, and `sample` shows what it gives. */
+  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean; checked?: boolean; sample?: ReactNode }
   /** A submenu, opened by hovering it, or with the arrow key towards it, Enter or Space. */
   | { label: string; items: MenuItem[]; disabled?: boolean }
   | { separator: true };
@@ -144,7 +145,8 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
       ) : (
         <button
           key={i}
-          role="menuitem"
+          role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+          aria-checked={item.checked}
           tabIndex={i === first ? 0 : -1}
           data-index={i}
           className={item.danger ? 'wbe-danger' : undefined}
@@ -152,6 +154,12 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
           onClick={() => choose(item)}
           onMouseEnter={top ? () => setOpen(null) : undefined}
         >
+          {item.checked !== undefined && (
+            <span className="wbe-menu-check" aria-hidden="true">
+              {item.checked ? '✓' : ''}
+            </span>
+          )}
+          {item.sample}
           <span>{item.label}</span>
           {item.hint && <kbd>{item.hint}</kbd>}
         </button>

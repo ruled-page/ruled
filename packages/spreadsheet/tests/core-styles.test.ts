@@ -95,6 +95,15 @@ describe('colours', () => {
     expect(book.dxfs[0].border).toMatchObject({ horizontal: { width: 1, color: '#FF0000' }, vertical: { pattern: 'dashed' } });
     expect(book.tableStyles.get('Banded')?.colStripe).toBe(3);
     expect(parseBorder(parseXml('<border><left/><right/></border>'), THEME, [])).toBeUndefined();
+    const styles = ['hair', 'dashDot', 'mediumDashDotDot', 'slantDashDot'].map(
+      (name) => parseBorder(parseXml(`<border><left style="${name}"/></border>`), THEME, [])?.left,
+    );
+    expect(styles).toEqual([
+      { width: 1, pattern: 'hair' },
+      { width: 1, pattern: 'dashDot' },
+      { width: 2, pattern: 'dashDotDot' },
+      { width: 2, pattern: 'slantDashDot' },
+    ]);
   });
 });
 

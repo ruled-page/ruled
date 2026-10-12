@@ -142,6 +142,29 @@ describe('cell borders', () => {
     ]);
   });
 
+  it("draws Excel's dash-dot styles and its hair's finest dots", () => {
+    const runs = (pattern: BorderEdge['pattern'], width: BorderEdge['width'], length: number) => {
+      const r = new Recorder();
+      drawEdge(r.ctx, 'top', 0, 0, length, edge(pattern, width), '#000000');
+      return r.rects().map(([x, , w, h]) => [x, w, h]);
+    };
+    // Dash, gap, dot, gap: 3, 2, 1, 2.
+    expect(runs('dashDot', 1, 12)).toEqual([
+      [0, 3, 1],
+      [5, 1, 1],
+      [8, 3, 1],
+    ]);
+    expect(runs('dashDotDot', 1, 14).map(([x]) => x)).toEqual([0, 5, 8, 11]);
+    expect(runs('slantDashDot', 2, 12)).toEqual([
+      [0, 6, 2],
+      [9, 2, 2],
+    ]);
+    expect(runs('hair', 2, 4)).toEqual([
+      [0, 1, 1],
+      [2, 1, 1],
+    ]);
+  });
+
   it("uses the theme's colour for borders in Excel's automatic colour", () => {
     const r = new Recorder();
     drawEdge(r.ctx, 'left', 0, 0, 10, edge('solid', 1), '#E8EAED');
