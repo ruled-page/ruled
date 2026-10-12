@@ -226,6 +226,8 @@ export const ui = {
   'shortcuts.filterToggle': 'Add or remove filter buttons',
   'shortcuts.insertChart': 'Insert a column chart of the data',
   'shortcuts.selectObjects': 'Select the charts, pictures and shapes; Tab goes through them',
+  'shortcuts.refreshPivots': "Refresh the sheet's pivot tables",
+  'shortcuts.refreshAllPivots': 'Refresh every pivot table',
   'shortcuts.filterMenu': "Open a heading's filter menu",
   'shortcuts.undoRedo': 'Undo, redo',
   'shortcuts.clipboard': 'Cut, copy, paste',
@@ -255,6 +257,8 @@ export const ui = {
   'keys.filterToggle': 'Ctrl+Shift+L',
   'keys.altF1': 'Alt+F1',
   'keys.ctrlAlt5': 'Ctrl+Alt+5',
+  'keys.altF5': 'Alt+F5',
+  'keys.ctrlAltF5': 'Ctrl+Alt+F5',
   'keys.altDown': 'Alt+Down arrow',
 
   'columnWidth.title': 'Width of column {{column}}',
@@ -562,6 +566,8 @@ export const ui = {
   'objects.selected': '{{name}}, selected',
   'objects.selectedHint': 'Arrow keys move it, Shift and the arrow keys resize it, Enter edits a chart, Delete removes it, Tab goes to the next one and Esc back to the cells.',
   'objects.menu.delete': 'Delete',
+  'pivot.menu.refresh': 'Refresh',
+  'pivot.menu.refreshAll': 'Refresh all',
 
   'grid.empty': 'Empty',
   'grid.label': 'Cells of {{name}}',

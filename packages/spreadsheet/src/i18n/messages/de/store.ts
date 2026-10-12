@@ -86,6 +86,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.history.filterOff': 'Filterschaltflächen entfernen',
   'store.history.format': 'Zellen formatieren',
   'store.history.clearFormats': 'Formate löschen',
+  'store.history.refreshPivots': 'PivotTables aktualisieren',
   'checkbox.history.insert': 'Kontrollkästchen einfügen',
   'checkbox.history.tick_one': 'Kontrollkästchen aktivieren',
   'checkbox.history.tick_other': '{{count, number}} Kontrollkästchen aktivieren',

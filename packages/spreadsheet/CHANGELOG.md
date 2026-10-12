@@ -56,6 +56,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Pivot tables are worked out live from their source as it is edited, and
+  on Refresh or Refresh all in their cell menu (Alt+F5, Ctrl+Alt+F5): rows,
+  columns, values, report filters, subtotals and grand totals, in compact,
+  outline or tabular form. Their cells are worked out, not counted as
+  edits; the change list notes each pivot table instead.
 - Radar, bubble and stock charts are drawn, as are 3-D charts (flat) and
   pie of pie (as one pie); the demo has a Chart gallery sample of them.
   Changing only the title of a chart of such a kind no longer turns it

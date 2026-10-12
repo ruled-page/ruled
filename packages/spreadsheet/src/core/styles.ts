@@ -423,6 +423,11 @@ export class StyleBook {
     return this.customNumFmts.get(id) ?? builtinNumFmt(id, locale);
   }
 
+  /** A number format's code by its id, built in or the workbook's own. */
+  formatCode(id: number): string {
+    return this.numFmtCode(id, this.locale);
+  }
+
   get(index: number): DisplayStyle {
     return this.display[index] ?? this.display[0];
   }

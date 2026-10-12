@@ -81,6 +81,7 @@ export const store = {
   'store.history.filterOff': 'Remove filter buttons',
   'store.history.format': 'Format cells',
   'store.history.clearFormats': 'Clear formats',
+  'store.history.refreshPivots': 'Refresh pivot tables',
   'checkbox.history.insert': 'Insert checkboxes',
   'checkbox.history.tick_one': 'Tick a checkbox',
   'checkbox.history.tick_other': 'Tick {{count, number}} checkboxes',

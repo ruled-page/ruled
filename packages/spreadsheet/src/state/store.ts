@@ -475,6 +475,7 @@ const EDIT_ACTIONS: Record<EditOp['type'], MessageKey> = {
   clear: 'store.history.clear',
   restore: 'store.history.restore',
   sort: 'store.history.sort',
+  refreshPivots: 'store.history.refreshPivots',
   layout: 'store.history.layout',
   format: 'store.history.format',
   comment: 'store.history.comment',
@@ -1505,6 +1506,11 @@ export class WorkbookStore {
       }
     }
     for (const s of r.newStyles) this.styles[s.index] = s.style;
+    // A pivot table that grew or shrank takes its read-only region with it.
+    for (const b of r.blocked ?? []) {
+      const view = this.sheets[b.sheet];
+      if (view) view.info.blocked = b.regions;
+    }
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     for (const n of r.noteRedo ?? []) this.sheets[n.sheet]?.setNote(n.row, n.col, n.note);
     this.noteCircular(r.circular, false);
@@ -3138,6 +3144,20 @@ export class WorkbookStore {
     }
     const unbox: EditOp = { type: 'format', sheet: this.active, rects, change: { checkbox: false } };
     await this.edit({ type: 'batch', ops: [clear, unbox] }, 'undo', { label: msg('checkbox.history.remove') });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pivot tables
+
+  /** Excel's Refresh (the active sheet's pivot tables) or Refresh All (every sheet's): each worked out again from its source, as one step. */
+  async refreshPivots(all = false): Promise<void> {
+    await this.edit({ type: 'refreshPivots', ...(!all && { sheet: this.active }) }, 'undo', { label: msg('store.history.refreshPivots') });
+  }
+
+  /** Whether the active cell is in a pivot table. */
+  get inPivot(): boolean {
+    const { row, col } = this.selection;
+    return !!this.view?.info.blocked.some((b) => b.kind === 'pivot' && row >= b.r1 && row <= b.r2 && col >= b.c1 && col <= b.c2);
   }
 
   // ---------------------------------------------------------------------------

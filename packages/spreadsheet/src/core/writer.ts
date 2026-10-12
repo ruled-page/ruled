@@ -58,6 +58,8 @@ export interface SaveInput {
   conditionalFormats?: ReadonlySet<number>;
   /** The sheets whose charts, pictures or shapes have been changed, with the objects the file had. */
   objects?: ReadonlyMap<number, SheetObject[]>;
+  /** Pivot tables worked out again: their parts, and where they now lie. */
+  pivots?: { path: string; ref: string; firstHeaderRow: number; firstDataRow: number; firstDataCol: number }[];
 }
 
 type Patch =
@@ -128,6 +130,18 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     if (!/pivotCacheDefinition\d*\.xml$/.test(path)) continue;
     const xml = pkg.text(path);
     if (xml && pivotSourceChanged(xml, model, input)) pkg.setText(path, setRootAttr(xml, 'refreshOnLoad', '1'));
+  }
+
+  // A pivot table worked out again keeps its definition, at its new size; Excel refreshes it on open.
+  for (const p of input.pivots ?? []) {
+    const xml = pkg.text(p.path);
+    if (!xml) continue;
+    pkg.setText(
+      p.path,
+      replaceElements(xml, 'location', (_el, text) =>
+        setAttributes(text.slice(0, findTagEnd(text, 0) + 1), { ref: p.ref, firstHeaderRow: String(p.firstHeaderRow), firstDataRow: String(p.firstDataRow), firstDataCol: String(p.firstDataCol) }) + text.slice(findTagEnd(text, 0) + 1),
+      ),
+    );
   }
 
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);

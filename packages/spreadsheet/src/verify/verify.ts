@@ -209,11 +209,12 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
     const a = m.scan?.grid;
     const b = reopened.model.sheets[s]?.scan?.grid;
     if (!a || !b) return;
-    // An array formula's values may change after an edit, as its saved value may.
+    // An array formula's values may change after an edit, as its saved value may, and so may a pivot table's, worked out from its source.
     const spilled = new Set([...spillCells(m.scan), ...spillCells(reopened.model.sheets[s]?.scan)]);
+    const pivots = [...m.info.blocked, ...(reopened.model.sheets[s]?.info.blocked ?? [])].filter((b) => b.kind === 'pivot');
     for (const { row, idx } of cellsOf(a)) {
       const col = a.cols[idx];
-      if (probed.has(`${s}:${row}:${col}`) || spilled.has(`${row}:${col}`)) continue;
+      if (probed.has(`${s}:${row}:${col}`) || spilled.has(`${row}:${col}`) || pivots.some((p) => row >= p.r1 && row <= p.r2 && col >= p.c1 && col <= p.c2)) continue;
       compared++;
       const j = findIndex(b, row, col);
       const before = contentKey(a, idx);
@@ -234,7 +235,7 @@ export function verifyWorkbook(bytes: Uint8Array, file: string, options: VerifyO
   const touched = (path: string) =>
     /^xl\/worksheets\/sheet\d*\.xml$/.test(path) ||
     /^xl\/workbook\.xml$|^\[Content_Types\]\.xml$|^xl\/_rels\/workbook\.xml\.rels$|^xl\/styles\.xml$|^docProps\/custom\.xml$|^_rels\/\.rels$/.test(path) ||
-    /pivotCacheDefinition\d*\.xml$/.test(path);
+    /pivotCacheDefinition\d*\.xml$|pivotTables\/pivotTable\d*\.xml$/.test(path);
   // Folder entries in the zip aren't parts.
   const missing = Object.keys(before).filter((p) => !p.endsWith('/') && !(p in after) && !p.endsWith('calcChain.xml'));
   const changedParts = Object.keys(before).filter((p) => p in after && !touched(p) && !equalBytes(before[p], after[p]));

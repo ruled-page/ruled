@@ -19,7 +19,7 @@ import { parseInput } from './input';
 import { SheetLayout } from './layout';
 import { isBuiltinName, isName, nameProblem } from './names';
 import { resolveTableRefs, type TablePlace } from './tableRefs';
-import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, parseRange, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import { findCell } from './sheetScanner';
 import {
   CellFlag,
@@ -55,12 +55,14 @@ import {
   type CfRule,
   type LayoutOp,
   type SheetObject,
+  type BlockedRegion,
 } from './types';
 import { parseChart, resolveRef } from './charts';
 import { chartKindOf, editChartXml, seriesRefsOf } from './chartEdit';
 import { objectKey } from './objectKey';
 import { chartFromRange, chartPartXml, seriesFromRefs, type ChartCell, type NewChartKind, type NewChartSeries } from './chartWriter';
 import { parseXml } from './xml';
+import { layoutPivot, readPivot, type PivotModel, type PivotValue } from './pivotTable';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
 import { csvPackage, isCsvFile } from './csvWorkbook';
@@ -199,6 +201,28 @@ const CHART_KIND_TYPES: Record<NewChartKind, MessageKey> = {
   doughnut: 'core.chartType.doughnut',
   scatter: 'core.chartType.scatter',
 };
+
+/** A pivot table: its part, what its definition says, and where it lies now and in the file. */
+interface PivotState {
+  sheet: number;
+  path: string;
+  model: PivotModel;
+  /** Its table now, report filters aside. */
+  location: Rect;
+  /** Its table in the file. */
+  file: Rect;
+  /** Every cell it covers now, report filters included. */
+  area: Rect;
+  /** Where its headers and data start inside it, once worked out here. */
+  header?: { firstHeaderRow: number; firstDataRow: number; firstDataCol: number };
+}
+
+/** A pivot table's cells with its report filters, which sit above it with a row between. */
+function pivotArea(location: Rect, pages: number): Rect {
+  return pages ? { r1: Math.max(0, location.r1 - pages - 1), c1: location.c1, r2: location.r2, c2: Math.max(location.c2, location.c1 + 1) } : location;
+}
+
+const sameRect = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
 
 /**
  * A cell's content as people read it: the formula, or the value as text.
@@ -384,6 +408,10 @@ export class WorkbookSession {
   private spills: Map<number, Spill>[];
   /** Per sheet: the cells spills cover now, other than their formulas' own, with the formula's cell key. */
   private spilled: Map<number, number>[];
+  /** The workbook's pivot tables, as their definitions say and where they now lie. */
+  private pivots: PivotState[] = [];
+  /** Per sheet: cells pivot tables have written, which are theirs rather than edits. */
+  private derived: Set<number>[];
 
   /** The name the saved file should have; macro-free files can't keep .xlsm, and a CSV file is saved as a workbook. */
   get saveFileName(): string {
@@ -412,6 +440,164 @@ export class WorkbookSession {
     this.fileNames = model.names.map((d) => ({ ...d }));
     this.spills = Array.from({ length: n }, () => new Map());
     this.spilled = Array.from({ length: n }, () => new Map());
+    this.derived = Array.from({ length: n }, () => new Set());
+    this.pivots = this.readPivots();
+  }
+
+  /** The pivot tables in the file: each one's definition, cache and place. */
+  private readPivots(): PivotState[] {
+    const out: PivotState[] = [];
+    this.model.sheets.forEach((m, sheet) => {
+      for (const rel of this.pkg.rels(m.path)) {
+        if (rel.type !== 'pivotTable') continue;
+        const xml = this.pkg.text(rel.target);
+        if (!xml) continue;
+        const cacheRel = this.pkg.rels(rel.target).find((r) => r.type === 'pivotCacheDefinition');
+        const cacheXml = cacheRel && this.pkg.text(cacheRel.target);
+        let model: PivotModel;
+        try {
+          model = readPivot(parseXml(xml), cacheXml ? parseXml(cacheXml) : undefined);
+        } catch {
+          continue;
+        }
+        const location = model.location.ref;
+        out.push({ sheet, path: rel.target, model, location, file: location, area: pivotArea(location, model.pages.length) });
+      }
+    });
+    return out;
+  }
+
+  /** Whether a pivot table has written cells of its own since the file was opened. */
+  private derivedIn(p: PivotState): boolean {
+    const keys = this.derived[p.sheet];
+    if (!keys.size) return false;
+    for (const key of keys) if (this.edits[p.sheet].has(key) && (inRect(p.area, Math.floor(key / MAX_COLS), key % MAX_COLS) || inRect(pivotArea(p.file, p.model.pages.length), Math.floor(key / MAX_COLS), key % MAX_COLS))) return true;
+    return false;
+  }
+
+  /** Where a pivot table's source data is: a range on a sheet, or a table's or a name's. */
+  private pivotSource(p: PivotState): { sheet: number; rect: Rect } | undefined {
+    const src = p.model.source;
+    if (!src) return undefined;
+    if (src.sheet !== undefined && src.ref) {
+      const sheet = this.sheetIndex.get(src.sheet.toLowerCase());
+      const rect = parseRange(src.ref);
+      return sheet === undefined || !rect ? undefined : { sheet, rect };
+    }
+    if (src.name) {
+      for (const [sheet, m] of this.model.sheets.entries()) {
+        const t = m.info.tables.find((x) => x.name.toLowerCase() === src.name!.toLowerCase());
+        if (t) return { sheet, rect: { ...t.rect, r2: t.rect.r2 - t.totalsRows } };
+      }
+      const ref = resolveRef(src.name, this.model.chartContext);
+      if (ref) return ref;
+    }
+    return undefined;
+  }
+
+  /**
+   * The cells a pivot table has once worked out from its source, where they
+   * differ from what it shows now, and where it then lies. Undefined when it
+   * can't be (a kind of pivot table the editor doesn't work out, or one with
+   * no source to read), and a problem when it would grow over other cells.
+   */
+  private layOutPivot(
+    p: PivotState,
+  ): { writes: Write[]; location: Rect; area: Rect; header: NonNullable<PivotState['header']>; newStyles: { index: number; style: DisplayStyle }[] } | { problem: Text } | undefined {
+    const src = this.pivotSource(p);
+    if (!src || p.model.unsupported) return undefined;
+    const info = this.sheet(src.sheet).info;
+    let last = info.maxRow;
+    for (const key of this.edits[src.sheet].keys()) last = Math.max(last, Math.floor(key / MAX_COLS));
+    const records: PivotValue[][] = [];
+    for (let r = src.rect.r1 + 1; r <= Math.min(src.rect.r2, last); r++) {
+      const rec: PivotValue[] = [];
+      for (let c = src.rect.c1; c <= src.rect.c2; c++) {
+        const v = this.cellValue(src.sheet, r, c);
+        rec.push(v !== null && typeof v === 'object' ? { error: v.error } : v);
+      }
+      records.push(rec);
+    }
+    const styles = this.model.styles;
+    const label = (v: PivotValue, numFmtId: number | undefined) =>
+      typeof v === 'number' ? String(formatNumber(numFmtId ? styles.formatCode(numFmtId) : 'General', v, { throws: false })) : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : String(v);
+    const laid = layoutPivot(p.model, records, label);
+    const top = p.location.r1;
+    const left = p.location.c1;
+    const location = { r1: top, c1: left, r2: top + Math.max(1, laid.height) - 1, c2: left + Math.max(1, laid.width) - 1 };
+    const area = pivotArea(location, p.model.pages.length);
+    // It may grow only over empty cells, as Excel's refresh may.
+    for (let r = area.r1; r <= area.r2; r++) {
+      for (let c = area.c1; c <= area.c2; c++) {
+        if (inRect(p.area, r, c)) continue;
+        if (this.current(p.sheet, r, c).content.kind !== 'empty' || this.blockedReason(p.sheet, r, c)) return { problem: msg('core.pivot.overlap', { name: p.model.name, ref: rangeToA1(area) }) };
+      }
+    }
+    const cells = new Map(laid.cells.map((c) => [cellKey(top + c.row, left + c.col), c]));
+    const writes: Write[] = [];
+    const newStyles: { index: number; style: DisplayStyle }[] = [];
+    const visit = (r: number, c: number) => {
+      const cell = cells.get(cellKey(r, c));
+      const now = this.current(p.sheet, r, c);
+      let style = now.style;
+      if (cell?.numFmtId !== undefined) {
+        const made = styles.withNumFmt(style, styles.formatCode(cell.numFmtId));
+        if (made.created) newStyles.push({ index: made.index, style: styles.get(made.index) });
+        style = made.index;
+      }
+      const content: CellContent = cell ? valueContent(cell.value) : EMPTY;
+      if (!sameContent(now.content, content) || now.style !== style) writes.push({ sheet: p.sheet, row: r, col: c, content, style });
+    };
+    const seen = new Set<number>();
+    for (const rect of [p.area, area]) {
+      for (let r = rect.r1; r <= rect.r2; r++) {
+        for (let c = rect.c1; c <= rect.c2; c++) {
+          if (seen.has(cellKey(r, c))) continue;
+          seen.add(cellKey(r, c));
+          visit(r, c);
+        }
+      }
+    }
+    return { writes, location, area, newStyles, header: { firstHeaderRow: laid.firstHeaderRow, firstDataRow: laid.firstDataRow, firstDataCol: laid.firstDataCol } };
+  }
+
+  /**
+   * Works out again the pivot tables whose source has cells among `touched`
+   * (every one, or one sheet's, with `all`), giving the cells they write and
+   * the read-only regions of the sheets whose pivot tables moved.
+   */
+  private refreshPivots(touched: Iterable<Pos> | { all: true; sheet?: number }): { writes: Write[]; warnings: Text[]; newStyles: { index: number; style: DisplayStyle }[]; blocked: { sheet: number; regions: BlockedRegion[] }[] } | undefined {
+    if (!this.pivots.length) return undefined;
+    const list = 'all' in touched ? undefined : [...touched];
+    const hits = this.pivots.filter((p) => {
+      if (!list) return (touched as { sheet?: number }).sheet === undefined || p.sheet === (touched as { sheet?: number }).sheet;
+      const src = this.pivotSource(p);
+      return !!src && list.some((t) => t.sheet === src.sheet && inRect(src.rect, t.row, t.col));
+    });
+    if (!hits.length) return undefined;
+    const writes: Write[] = [];
+    const warnings: Text[] = [];
+    const newStyles: { index: number; style: DisplayStyle }[] = [];
+    const moved = new Set<number>();
+    for (const p of hits) {
+      const done = this.layOutPivot(p);
+      if (!done) continue;
+      if ('problem' in done) {
+        warnings.push(done.problem);
+        continue;
+      }
+      writes.push(...done.writes);
+      newStyles.push(...done.newStyles);
+      if (!sameRect(done.area, p.area)) {
+        const info = this.sheet(p.sheet).info;
+        info.blocked = info.blocked.map((b) => (b.kind === 'pivot' && sameRect(b, p.location) ? { ...b, ...done.location } : b));
+        moved.add(p.sheet);
+      }
+      p.location = done.location;
+      p.area = done.area;
+      p.header = done.header;
+    }
+    return { writes, warnings, newStyles, blocked: [...moved].map((sheet) => ({ sheet, regions: this.sheet(sheet).info.blocked })) };
   }
 
   static open(bytes: Uint8Array, fileName: string, locale = 'en-US', options: OpenOptions = {}): WorkbookSession {
@@ -473,7 +659,7 @@ export class WorkbookSession {
   get editedCount(): number {
     let n = this.baked.changes.length + this.baked.structure.length + this.noteChanges().length + this.layoutNotes().length + this.nameNotes().length;
     this.edits.forEach((m, s) => {
-      for (const key of m.keys()) if (!this.baked.keys[s].has(key)) n++;
+      for (const key of m.keys()) if (!this.baked.keys[s].has(key) && !this.derived[s].has(key)) n++;
     });
     return n;
   }
@@ -489,6 +675,9 @@ export class WorkbookSession {
       ...(validations.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.validations') }] : []),
       ...(formats.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.conditionalFormats') }] : []),
       ...(objects.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.objects') }] : []),
+      ...this.pivots
+        .filter((p) => p.sheet === s && this.derivedIn(p))
+        .map((p) => ({ sheet: m.info.name, ref: rangeToA1(p.location), before: '', after: '', note: msg('core.change.pivot', { name: p.model.name }) })),
     ]);
   }
 
@@ -578,7 +767,7 @@ export class WorkbookSession {
     const out: CellChange[] = [];
     this.edits.forEach((edits, s) => {
       const name = this.model.sheets[s].info.name;
-      const keys = [...edits.keys()].sort((a, b) => a - b);
+      const keys = [...edits.keys()].filter((key) => !this.derived[s].has(key)).sort((a, b) => a - b);
       for (const key of keys) {
         const row = Math.floor(key / MAX_COLS);
         const col = key % MAX_COLS;
@@ -746,7 +935,8 @@ export class WorkbookSession {
     const edit = this.edits[sheet].get(key);
     let f: number;
     if (edit) {
-      f = CellFlag.Edited;
+      // A pivot table's own cells are worked out, not edited.
+      f = this.derived[sheet].has(key) ? 0 : CellFlag.Edited;
       if (edit.content.kind === 'formula') f |= CellFlag.Formula | (this.newFormulaFlags[sheet].get(key) ?? 0);
     } else {
       const grid = this.sheet(sheet).scan?.grid;
@@ -1729,6 +1919,10 @@ export class WorkbookSession {
     if (op.type === 'comment') return this.applyComment(op);
     if (op.type === 'layout') return this.applyLayout([{ sheet: op.sheet, op: op.op }]);
     if (op.type === 'name') return this.applyName(op.change);
+    if (op.type === 'refreshPivots') {
+      const pivots = this.refreshPivots({ all: true, sheet: op.sheet });
+      return pivots ? this.withPivots(this.emptyResult(), pivots) : this.emptyResult(msg('core.pivot.none'));
+    }
     // Names go back first, so the formulas put back with them find them.
     if (op.type === 'restore' && op.names?.length) return mergeEditResults([this.applyNames(op.names), this.applyEdit({ ...op, names: undefined })]);
     let notes: { undo: NoteSnapshot[]; redo: NoteSnapshot[] } | undefined;
@@ -2377,7 +2571,7 @@ export class WorkbookSession {
    * Applies writes; `restoring` puts back an earlier state, so cells a merge
    * covers then are written too. Cells in `readOnly` are skipped as locked ones are.
    */
-  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[], restoring = false, readOnly?: ReadOnlyCells[]): EditResult {
+  private commit(writes: Write[], warnings: Text[], newStyles: { index: number; style: DisplayStyle }[], restoring = false, readOnly?: ReadOnlyCells[], derived = false): EditResult {
     const engine = this.engine;
     const undo: CellSnapshot[] = [];
     const redo: CellSnapshot[] = [];
@@ -2389,7 +2583,8 @@ export class WorkbookSession {
     const content: Write[] = [];
 
     for (const w of writes) {
-      const reason = this.blockedReason(w.sheet, w.row, w.col) ?? readOnly?.find((r) => inRect(r, w.row, w.col))?.reason;
+      // A pivot table writes its own cells, which are read-only to everything else.
+      const reason = derived ? undefined : (this.blockedReason(w.sheet, w.row, w.col) ?? readOnly?.find((r) => inRect(r, w.row, w.col))?.reason);
       // The cells a merge covers take formats, as Excel gives them the merge's borders; and earlier states are put back whole.
       const styleOnly = w.content.kind === 'empty' && this.current(w.sheet, w.row, w.col).content.kind === 'empty';
       if (reason && !(reason === MERGED && (restoring || styleOnly))) {
@@ -2406,6 +2601,8 @@ export class WorkbookSession {
       const key = cellKey(w.row, w.col);
       const formatOnly = sameContent(prev.content, w.content) && (this.spilled[w.sheet].has(key) || this.spills[w.sheet].has(key));
       this.setCurrent(w);
+      if (derived) this.derived[w.sheet].add(key);
+      else this.derived[w.sheet].delete(key);
       applied.push(w);
       if (!formatOnly) content.push(w);
     }
@@ -2460,7 +2657,7 @@ export class WorkbookSession {
       }
     });
 
-    return {
+    const result: EditResult = {
       updates: [...touched.values()].map((p) => this.update(p.sheet, p.row, p.col)),
       undo,
       redo,
@@ -2470,6 +2667,16 @@ export class WorkbookSession {
       newStyles,
       editedCount: this.editedCount,
     };
+    // Pivot tables over the cells changed are worked out again, in the same step.
+    const pivots = derived ? undefined : this.refreshPivots(touched.values());
+    return pivots ? this.withPivots(result, pivots) : result;
+  }
+
+  /** An edit's result with the cells pivot tables wrote after it, and their sheets' read-only regions. */
+  private withPivots(result: EditResult, pivots: NonNullable<ReturnType<WorkbookSession['refreshPivots']>>): EditResult {
+    const more = pivots.writes.length ? this.commit(pivots.writes, [], pivots.newStyles, false, undefined, true) : undefined;
+    const merged = more ? mergeEditResults([result, more]) : result;
+    return { ...merged, warnings: [...merged.warnings, ...pivots.warnings], ...(pivots.blocked.length && { blocked: pivots.blocked }) };
   }
 
   /** Takes the engine's new values for the formulas it calculates, noting each cell in `touched`. */
@@ -2535,6 +2742,7 @@ export class WorkbookSession {
       validations: new Set(this.validationsChanged()),
       conditionalFormats: new Set(this.conditionalFormatsChanged()),
       objects: this.objectsChanged(),
+      pivots: this.pivots.filter((p) => p.header && this.derivedIn(p)).map((p) => ({ path: p.path, ref: rangeToA1(p.location), ...p.header! })),
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

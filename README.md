@@ -172,6 +172,17 @@ back as .xlsx without losing what the editor can't display.
   Surface charts and Excel's newer kinds (waterfall, treemap and the like)
   show as placeholders. Screen readers hear each chart's name and its series
   and values. The demo's Chart gallery sample has one of each.
+- Pivot tables are worked out live from their source: edit the data and
+  every pivot table over it is worked out again in the same step, as
+  Excel's Refresh would, with its rows, columns, values (Sum, Count,
+  Average, Max, Min, Product, the standard deviations and variances),
+  report filters and hidden items, subtotals and grand totals, in compact,
+  outline or tabular form. It grows or shrinks with its data, but not over
+  cells that hold something. "Refresh" and "Refresh all" are in a pivot
+  table's cell menu (Alt+F5 and Ctrl+Alt+F5). Pivot tables with grouped or
+  calculated fields, calculated items or Show Values As keep what Excel
+  saved. Saved, a pivot table's new cells and size are written and Excel
+  still refreshes it on opening.
 - Insert a chart, as Excel's Insert Chart does: "Insert chart" in the cell
   menu (column, bar, line, area, pie, doughnut or scatter) or Alt+F1 for a
   column chart. It plots the selection, or the data around the active cell:

@@ -664,6 +664,8 @@ export type EditOp =
    * ignoring case unless `caseSensitive`, which puts lower case first.
    */
   | { type: 'sort'; sheet: number; rect: Rect; keys: SortKey[]; header: boolean; caseSensitive?: boolean; across?: boolean }
+  /** Excel's Refresh (one sheet's pivot tables) and Refresh All (every sheet's): each worked out again from its source. */
+  | { type: 'refreshPivots'; sheet?: number }
   /** Changes how a sheet is laid out, rather than what its cells hold. */
   | { type: 'layout'; sheet: number; op: LayoutOp }
   /**
@@ -801,4 +803,6 @@ export interface EditResult {
   names?: { applied: NameChange[]; undo: NameChange[]; list: DefinedName[] };
   /** Where circular references close now, when formulas are being calculated. */
   circular?: { sheet: number; row: number; col: number }[];
+  /** Sheets whose read-only regions changed (a pivot table grown or shrunk), with all of them as they now are. */
+  blocked?: { sheet: number; regions: BlockedRegion[] }[];
 }

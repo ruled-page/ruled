@@ -1445,6 +1445,13 @@ export function SheetGrid({
           return;
         }
       }
+      // Alt+F5 refreshes the sheet's pivot tables and Ctrl+Alt+F5 every sheet's, as in Excel.
+      if (e.key === 'F5' && e.altKey && !e.metaKey && !e.shiftKey) {
+        e.cancel();
+        e.preventDefault();
+        void store.refreshPivots(e.ctrlKey);
+        return;
+      }
       // Alt+F1 inserts a column chart of the data, as in Excel.
       if (e.key === 'F1' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && store.features.charts) {
         e.cancel();

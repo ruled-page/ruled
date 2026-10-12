@@ -158,6 +158,13 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('cf.menu.clearSheet'), onSelect: () => void store.clearConditionalFormats('sheet') },
     { label: t('cf.menu.manage'), onSelect: () => store.openCfManager() },
   ];
+  const pivotItems: MenuItem[] = store.inPivot
+    ? [
+        { label: t('pivot.menu.refresh'), hint: APPLE ? '⌥F5' : t('keys.altF5'), onSelect: () => void store.refreshPivots() },
+        { label: t('pivot.menu.refreshAll'), hint: APPLE ? '⌃⌥F5' : t('keys.ctrlAltF5'), onSelect: () => void store.refreshPivots(true) },
+        { separator: true },
+      ]
+    : [];
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
@@ -203,6 +210,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     ...(menu.kind === 'cell' ? [...noteItems, { separator: true } as const] : []),
     ...lineItems,
     { separator: true },
+    ...pivotItems,
     ...dataItems,
     ...linkItems,
     { separator: true },

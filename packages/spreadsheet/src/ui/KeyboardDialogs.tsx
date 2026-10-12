@@ -36,6 +36,8 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [APPLE ? '⌥↓' : t('keys.altDown'), t('shortcuts.filterMenu')],
         [APPLE ? '⌥F1' : t('keys.altF1'), t('shortcuts.insertChart')],
         [APPLE ? '⌃⌥5' : t('keys.ctrlAlt5'), t('shortcuts.selectObjects')],
+        [APPLE ? '⌥F5' : t('keys.altF5'), t('shortcuts.refreshPivots')],
+        [APPLE ? '⌃⌥F5' : t('keys.ctrlAltF5'), t('shortcuts.refreshAllPivots')],
       ],
     },
     {

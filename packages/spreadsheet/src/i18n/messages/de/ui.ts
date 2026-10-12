@@ -224,6 +224,8 @@ export const ui: Record<keyof typeof en, string> = {
   'shortcuts.filterToggle': 'Filterschaltflächen hinzufügen oder entfernen',
   'shortcuts.insertChart': 'Säulendiagramm der Daten einfügen',
   'shortcuts.selectObjects': 'Diagramme, Bilder und Formen auswählen; Tab geht sie durch',
+  'shortcuts.refreshPivots': 'PivotTables des Blatts aktualisieren',
+  'shortcuts.refreshAllPivots': 'Alle PivotTables aktualisieren',
   'shortcuts.filterMenu': 'Filtermenü einer Überschrift öffnen',
   'shortcuts.undoRedo': 'Rückgängig, Wiederholen',
   'shortcuts.clipboard': 'Ausschneiden, Kopieren, Einfügen',
@@ -253,6 +255,8 @@ export const ui: Record<keyof typeof en, string> = {
   'keys.filterToggle': 'Strg+Umschalt+L',
   'keys.altF1': 'Alt+F1',
   'keys.ctrlAlt5': 'Strg+Alt+5',
+  'keys.altF5': 'Alt+F5',
+  'keys.ctrlAltF5': 'Strg+Alt+F5',
   'keys.altDown': 'Alt+Nach-unten',
 
   'columnWidth.title': 'Breite von Spalte {{column}}',
@@ -557,6 +561,8 @@ export const ui: Record<keyof typeof en, string> = {
   'objects.selected': '{{name}}, ausgewählt',
   'objects.selectedHint': 'Pfeiltasten verschieben es, Umschalt und Pfeiltasten ändern die Größe, Eingabe bearbeitet ein Diagramm, Entf löscht es, Tab geht zum nächsten und Esc zurück zu den Zellen.',
   'objects.menu.delete': 'Löschen',
+  'pivot.menu.refresh': 'Aktualisieren',
+  'pivot.menu.refreshAll': 'Alle aktualisieren',
 
   'grid.empty': 'Leer',
   'grid.label': 'Zellen von {{name}}',
