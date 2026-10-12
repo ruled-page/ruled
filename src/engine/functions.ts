@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
-import { Areas, bool, CALC, compare, DIV0, err, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -140,8 +140,15 @@ function counta(args: Operand[], ctx: Ctx, skipSubtotals = false): number {
 // -----------------------------------------------------------------------------
 // Criteria, as COUNTIF and SUMIFS take them
 
-/** Whether a value meets a criterion such as 5, ">=10", "<>", "North" or "N*". */
+/**
+ * Whether a value meets a criterion such as 5, ">=10", "<>", "North" or "N*",
+ * by Excel's rules: a criterion that is an empty cell is 0; "=5" (or 5)
+ * matches the text "5" as well as the number, though "<>5" passes over only
+ * the number; "<>" alone matches anything not empty, a formula's "" too;
+ * and a comparison with nothing to compare with matches nothing.
+ */
 function criterion(c: Scalar): (v: Scalar) => boolean {
+  if (c === null) return criterion(0);
   if (isError(c)) return (v) => isError(v) && v.error === c.error;
   if (typeof c === 'number') return (v) => (typeof v === 'number' ? round15(v) === round15(c) : typeof v === 'string' && v.trim() !== '' && Number(v) === c);
   if (typeof c === 'boolean') return (v) => v === c;
@@ -155,13 +162,24 @@ function criterion(c: Scalar): (v: Scalar) => boolean {
   const asBool = upper === 'TRUE' ? true : upper === 'FALSE' ? false : undefined;
   const equal = (v: Scalar): boolean => {
     if (rest === '') return op === '=' ? v === null : v === null || v === '';
-    if (asNumber) return typeof v === 'number' && round15(v) === round15(n!);
+    if (asNumber) return typeof v === 'number' ? round15(v) === round15(n!) : typeof v === 'string' && v.trim() !== '' && Number(v) === n;
     if (asBool !== undefined) return v === asBool;
     if (typeof v !== 'string') return false;
     return hasWildcards(rest) ? matchesWhole(parsePattern(rest.toLowerCase()), v.toLowerCase()) : v.toLowerCase() === rest.toLowerCase();
   };
+  // Text that spells an error means the error.
+  const code = rest.toUpperCase();
+  if (ERROR_CODES.has(code) && (op === '' || op === '=' || op === '<>')) {
+    const same = (v: Scalar) => isError(v) && v.error === code;
+    return op === '<>' ? (v) => !same(v) : same;
+  }
   if (op === '' || op === '=') return equal;
-  if (op === '<>') return rest === '' ? (v) => v !== null && v !== '' : (v) => !equal(v);
+  if (op === '<>') {
+    if (rest === '') return (v) => v !== null;
+    if (asNumber) return (v) => !(typeof v === 'number' && round15(v) === round15(n!));
+    return (v) => !equal(v);
+  }
+  if (rest === '') return () => false;
   const test = op === '<' ? (d: number) => d < 0 : op === '>' ? (d: number) => d > 0 : op === '<=' ? (d: number) => d <= 0 : (d: number) => d >= 0;
   if (asNumber) return (v) => typeof v === 'number' && test(compare(v, n!));
   return (v) => typeof v === 'string' && test(compare(v, rest));
@@ -179,23 +197,38 @@ function grid(op: Operand, ctx: Ctx): { rows: number; cols: number; at: (r: numb
   return { rows: 1, cols: 1, at: () => v };
 }
 
-/** The offsets of the cells meeting every (range, criterion) pair, for COUNTIFS and its kind; ranges must be the same size. */
-function matching(pairs: Operand[], ctx: Ctx): { hits: [number, number][]; rows: number; cols: number } {
+/**
+ * The offsets of the cells meeting every (range, criterion) pair, for
+ * COUNTIFS and its kind; ranges must be the same size. Whole rows and
+ * columns are read only as far as the sheet is used: `blanks` counts the
+ * empty cells past that, when empty cells meet every criterion.
+ */
+function matching(pairs: Operand[], ctx: Ctx): { hits: [number, number][]; rows: number; cols: number; blanks: number } {
   const ranges = [];
-  for (let i = 0; i < pairs.length; i += 2) ranges.push({ g: grid(pairs[i], ctx), test: criterion(scalarOf(pairs[i + 1], ctx)) });
-  const { rows, cols } = ranges[0].g;
-  if (ranges.some((r) => r.g.rows !== rows || r.g.cols !== cols)) throw VALUE;
-  const hits: [number, number][] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) if (ranges.every((x) => x.test(x.g.at(r, c)))) hits.push([r, c]);
+  for (let i = 0; i < pairs.length; i += 2) {
+    const op = pairs[i];
+    const g = grid(op, ctx);
+    ranges.push({ g, full: op instanceof Ref ? { rows: op.rows, cols: op.cols } : { rows: g.rows, cols: g.cols }, test: criterion(scalarOf(pairs[i + 1], ctx)) });
   }
-  return { hits, rows, cols };
+  const { rows, cols } = ranges[0].full;
+  if (ranges.some((r) => r.full.rows !== rows || r.full.cols !== cols)) throw VALUE;
+  const usedRows = Math.min(rows, Math.max(...ranges.map((r) => r.g.rows)));
+  const usedCols = Math.min(cols, Math.max(...ranges.map((r) => r.g.cols)));
+  const hits: [number, number][] = [];
+  for (let r = 0; r < usedRows; r++) {
+    for (let c = 0; c < usedCols; c++) if (ranges.every((x) => x.test(x.g.at(r, c)))) hits.push([r, c]);
+  }
+  const past = rows * cols - usedRows * usedCols;
+  return { hits, rows, cols, blanks: past > 0 && ranges.every((x) => x.test(null)) ? past : 0 };
 }
+
+const count = (m: { hits: unknown[]; blanks: number }) => m.hits.length + m.blanks;
 
 function ifs(kind: 'sum' | 'avg' | 'min' | 'max', target: Operand, pairs: Operand[], ctx: Ctx): number {
   const t = grid(target, ctx);
   const { hits, rows, cols } = matching(pairs, ctx);
-  if (t.rows !== rows || t.cols !== cols) throw VALUE;
+  const size = target instanceof Ref ? target : t;
+  if (size.rows !== rows || size.cols !== cols) throw VALUE;
   const xs: number[] = [];
   for (const [r, c] of hits) {
     const v = t.at(r, c);
@@ -2723,13 +2756,13 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return f(list(rest, ctx, { typed: 'coerce', skipSubtotals: true }), rest, ctx);
     },
   },
-  COUNTIF: { min: 2, max: 2, fn: (a, ctx) => perCriterion(a, ctx, 1, (x) => matching([x[0], x[1]], ctx).hits.length) },
+  COUNTIF: { min: 2, max: 2, fn: (a, ctx) => perCriterion(a, ctx, 1, (x) => count(matching([x[0], x[1]], ctx))) },
   COUNTIFS: {
     min: 2,
     max: MANY,
     fn: (a, ctx) => {
       if (a.length % 2) throw VALUE;
-      return perCriterion(a, ctx, 1, (x) => matching(x, ctx).hits.length);
+      return perCriterion(a, ctx, 1, (x) => count(matching(x, ctx)));
     },
   },
   SUMIF: { min: 2, max: 3, fn: (a, ctx) => perCriterion(a.slice(0, 2), ctx, 1, (x) => ifOne('sum', [...x, ...a.slice(2)], ctx)) },
