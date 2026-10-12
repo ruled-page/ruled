@@ -40,6 +40,9 @@ export const de: Record<keyof typeof en, string> = {
   'sample.salesReport.title': 'Umsatzbericht',
   'sample.salesReport.detail':
     'Diagramme, ein Diagrammblatt, eine Tabelle, Datenüberprüfung, Kontrollkästchen, Notizen, Bilder, ein ausgeblendetes Blatt sowie LET-, dynamische Matrix- und Strg+Umschalt+Eingabe-Formeln.',
+  'sample.chartGallery.title': 'Diagrammgalerie',
+  'sample.chartGallery.detail':
+    'Netz-, Blasen- und Kursdiagramme, flach gezeichnete 3D-Diagramme, ein Kreis aus Kreis und ein unverändert behaltenes Oberflächendiagramm.',
   'sample.orders.title': 'Bestellprotokoll',
   'sample.orders.detail':
     'Die Datenüberprüfung von Excel: Dropdownlisten (direkt eingegeben, benannt, mit OFFSET und abhängig mit INDIRECT) sowie Regeln für Zahlen, Datumsangaben, Textlänge und benutzerdefinierte Formeln.',

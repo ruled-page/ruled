@@ -228,3 +228,20 @@ test('changes a chart in its dialog, opened by double-clicking it or from its me
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(line).toHaveAccessibleDescription(/^2 series\. Qty:/);
 });
+
+test('draws radar, bubble and stock charts from the chart gallery, and says what they show', async ({ page }) => {
+  await openSample(page, 'Chart gallery');
+  for (const name of [
+    'Radar chart “Skills (radar)”',
+    'Radar chart “Skills (filled radar)”',
+    'Bubble chart “Price, margin and units (bubble)”',
+    'Stock chart “High, low, close (stock)”',
+    'Stock chart “Open, high, low, close (stock)”',
+  ]) {
+    const chart = page.getByRole('img', { name });
+    await expect(chart).toHaveCount(1);
+    await expect.poll(() => inked(chart)).toBeGreaterThan(500);
+  }
+  await expect(page.getByRole('img', { name: 'Stock chart “Open, high, low, close (stock)”' })).toHaveAccessibleDescription(/^4 series\. Open: 1 Oct 41\.2, 2 Oct 42\.5/);
+  await expect(page.getByRole('img', { name: 'Bubble chart “Price, margin and units (bubble)”' })).toHaveAccessibleDescription(/^1 series\. Products: x 12\.5, y 0\.32, size 1200/);
+});

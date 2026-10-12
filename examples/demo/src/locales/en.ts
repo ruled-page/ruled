@@ -39,6 +39,9 @@ export const en = {
   'sample.priceListOld.detail': 'One renamed column, so the schema doesn’t match and the file opens as a plain spreadsheet.',
   'sample.salesReport.title': 'Sales report',
   'sample.salesReport.detail': 'Charts, a chart sheet, a table, validation, checkboxes, notes, pictures, a hidden sheet, and LET, dynamic array and Ctrl+Shift+Enter formulas.',
+  'sample.chartGallery.title': 'Chart gallery',
+  'sample.chartGallery.detail':
+    'Radar, bubble and stock charts, 3-D charts drawn flat, a pie of pie, and a surface chart kept as it is.',
   'sample.orders.title': 'Order log',
   'sample.orders.detail':
     'Excel’s own data validation: dropdown lists (inline, named, OFFSET and dependent INDIRECT) and number, date, text-length and custom-formula rules.',

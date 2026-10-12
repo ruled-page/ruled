@@ -17,8 +17,10 @@ export interface PlotSeries {
   name: Text;
   /** A value per point; null where there is nothing to plot. */
   values: (number | null)[];
-  /** A scatter chart's x value for each point. */
+  /** A scatter or bubble chart's x value for each point. */
   x?: (number | null)[];
+  /** A bubble chart's bubble size for each point. */
+  sizes?: (number | null)[];
   /** Number format the values are shown in. */
   format: string;
   /** Its position among all the chart's series, which picks its default colour. */
@@ -145,10 +147,10 @@ export function plotChart(spec: ChartSpec, src: ChartSource): ChartPlot {
   let index = 0;
   const groups = spec.groups.map((g) => ({
     group: g,
-    series: g.series.map((s) => ({ style: s, index: index++, values: read(s.values, src), categories: read(s.categories, src) })),
+    series: g.series.map((s) => ({ style: s, index: index++, values: read(s.values, src), categories: read(s.categories, src), sizes: read(s.sizes, src) })),
   }));
   const first = groups.find((g) => g.series.length)?.series[0];
-  const scatter = spec.groups[0]?.kind === 'scatter';
+  const scatter = spec.groups[0]?.kind === 'scatter' || spec.groups[0]?.kind === 'bubble';
   // Points are laid out by the first series, whose categories label the axis.
   const count = Math.max(0, ...groups.flatMap((g) => g.series.map((s) => s.values?.values.length ?? 0)));
   const keep = Array.from({ length: count }, (_, i) => !spec.visibleOnly || !(first?.values?.hidden[i] || first?.categories?.hidden[i]));
@@ -162,6 +164,7 @@ export function plotChart(spec: ChartSpec, src: ChartSource): ChartPlot {
       values: pick(s.values?.values ?? [], () => null),
       // X values that aren't all numbers are plotted as 1, 2, 3…, as Excel does.
       x: scatter ? pick(s.categories?.numeric ? s.categories.values : [], (i) => i + 1) : undefined,
+      ...(s.style.sizes && { sizes: pick(s.sizes?.values ?? [], () => null) }),
       format: s.values?.format ?? 'General',
       index: s.index,
       style: s.style,
@@ -221,7 +224,9 @@ export function describeChart(plot: ChartPlot, t: Translator, date1904 = false):
     const points: string[] = [];
     s.values.slice(0, LISTED).forEach((v, i) => {
       const value = v === null ? t('charts.blank') : formatValue(v, s.format, date1904);
-      if (s.x) points.push(t('charts.xy', { x: formatValue(s.x[i] ?? i + 1, plot.axes.category?.format ?? 'General', date1904), y: value }));
+      const x = s.x && formatValue(s.x[i] ?? i + 1, plot.axes.category?.format ?? 'General', date1904);
+      if (x && s.sizes) points.push(t('charts.bubble', { x, y: value, size: s.sizes[i] === null || s.sizes[i] === undefined ? t('charts.blank') : formatValue(s.sizes[i]!, 'General') }));
+      else if (x) points.push(t('charts.xy', { x, y: value }));
       else points.push(t('charts.point', { label: plot.categories[i] ?? String(i + 1), value }));
     });
     if (s.values.length > LISTED) points.push(t('charts.more', { count: s.values.length - LISTED }));

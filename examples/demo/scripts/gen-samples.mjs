@@ -14,7 +14,8 @@
  * `--no-big` leaves out the two large ones; `--only=lookups` (or any other
  * sample's name) writes just that one.
  *
- * public/samples/kitchen-sink.xlsx comes from scripts/gen_kitchen_sink.py.
+ * public/samples/kitchen-sink.xlsx comes from scripts/gen_kitchen_sink.py, and
+ * public/samples/chart-gallery.xlsx from scripts/gen_chart_gallery.py.
  */
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';

@@ -169,6 +169,141 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
     };
   };
 
+  const categoryScale = (): ScaleOptions => {
+    const category = plot.axes.category;
+    return {
+      type: 'category',
+      offset: true,
+      reverse: !!category?.reversed,
+      display: !category?.hidden,
+      grid: { display: !!category?.gridlines, color: look.gridline },
+      border: { color: look.axis },
+      ticks: { color: look.muted, font },
+      title: titleOf(category?.title),
+    } as ScaleOptions;
+  };
+
+  if (kind === 'radar') {
+    const g = groups[0];
+    const value = plot.axes.value;
+    return {
+      type: 'radar',
+      data: {
+        labels: plot.categories,
+        datasets: g.series.map((s) => ({
+          label: text(s.name),
+          data: s.values.map((v) => (v === null && plot.blanks === 'zero' ? 0 : v)),
+          ...lineStyle(s),
+          // A filled radar's series are solid areas, later ones over earlier ones.
+          ...(g.filled ? { fill: true, showLine: true, borderWidth: 0, pointRadius: 0, pointStyle: 'rect' } : { fill: false, showLine: s.style.line, borderWidth: s.style.line ? (s.style.lineWidth ?? 2) : 0 }),
+        })) as ChartDataset[],
+      },
+      options: {
+        ...options,
+        scales: {
+          r: {
+            ...axisBounds(g.series.flatMap((s) => s.values)),
+            min: value?.min,
+            max: value?.max,
+            grid: { color: look.gridline },
+            angleLines: { color: look.gridline },
+            pointLabels: { color: look.muted, font },
+            ticks: { ...ticks(value?.format ?? 'General'), backdropColor: 'transparent', stepSize: value?.majorUnit, display: !value?.hidden },
+          },
+        },
+      } as ChartConfiguration['options'],
+    };
+  }
+
+  if (kind === 'bubble') {
+    const g = groups[0];
+    const sizes = g.series.flatMap((s) => s.sizes ?? []).filter((v): v is number => v !== null && v > 0);
+    const biggest = Math.max(Number.MIN_VALUE, ...sizes);
+    // Excel's largest bubble is about a quarter of the plot across at 100%; bubbleScale shrinks or grows it.
+    const largest = (30 * (g.bubbles?.scale ?? 100)) / 100;
+    const radius = (v: number | null | undefined) => (v === null || v === undefined || !(v > 0) ? 0 : g.bubbles?.area === false ? (largest * v) / biggest : largest * Math.sqrt(v / biggest));
+    const x = plot.axes.category;
+    const y = plot.axes.value;
+    return {
+      type: 'bubble',
+      data: {
+        datasets: g.series.map((s) => {
+          const c = color(s);
+          return {
+            label: text(s.name),
+            data: s.values.flatMap((v, i) => (v === null ? [] : [{ x: s.x?.[i] ?? i + 1, y: v, r: radius(s.sizes?.[i]) }])),
+            backgroundColor: c,
+            borderColor: look.background,
+            borderWidth: 1,
+          };
+        }) as ChartDataset[],
+      },
+      options: {
+        ...options,
+        scales: {
+          x: valueScale(x, 'bottom', g.series.flatMap((s) => s.x ?? []), false, x?.format ?? 'General'),
+          y: valueScale(y, 'left', g.series.flatMap((s) => s.values), false, y?.format ?? 'General'),
+        },
+      } as ChartConfiguration['options'],
+    };
+  }
+
+  if (kind === 'stock') {
+    const g = groups[0];
+    const n = plot.categories.length;
+    const known = (i: number) => g.series.map((s) => s.values[i]).filter((v): v is number => v !== null && v !== undefined);
+    const datasets: ChartDataset[] = [];
+    // A line from each day's highest value to its lowest.
+    if (g.stock?.hiLow) {
+      datasets.push({
+        type: 'bar',
+        label: '',
+        data: Array.from({ length: n }, (_, i) => {
+          const v = known(i);
+          return v.length ? [Math.min(...v), Math.max(...v)] : null;
+        }),
+        backgroundColor: look.text,
+        barThickness: 1.5,
+        grouped: false,
+        order: 2,
+      } as ChartDataset);
+    }
+    // A bar from the first series (open) to the last (close): up days light, down days dark.
+    const upDown = g.stock?.upDown;
+    if (upDown && g.series.length > 1) {
+      const first = g.series[0].values;
+      const last = g.series[g.series.length - 1].values;
+      const bars = Array.from({ length: n }, (_, i) => (first[i] === null || last[i] === null || first[i] === undefined || last[i] === undefined ? null : [first[i]!, last[i]!]));
+      datasets.push({
+        type: 'bar',
+        label: '',
+        data: bars,
+        backgroundColor: bars.map((b) => (b && b[1] >= b[0] ? (upDown.up ?? look.background) : (upDown.down ?? look.text))),
+        borderColor: look.text,
+        borderWidth: 1,
+        grouped: false,
+        categoryPercentage: 1 / (1 + g.gapWidth / 100),
+        barPercentage: 1,
+        order: 1,
+      } as ChartDataset);
+    }
+    datasets.push(...(g.series.map((s) => ({ type: 'line', label: text(s.name), data: s.values, ...lineStyle(s), order: 0 })) as ChartDataset[]));
+    const legend = options.plugins!.legend!;
+    return {
+      type: 'bar',
+      data: { labels: plot.categories, datasets },
+      options: {
+        ...options,
+        // The lines and bars aren't series of their own, so the legend leaves them out.
+        plugins: { ...options.plugins, legend: { ...legend, labels: { ...legend.labels, filter: (item: LegendItem) => !!item.text } } },
+        scales: {
+          x: categoryScale(),
+          y: valueScale(plot.axes.value, 'left', g.series.flatMap((s) => s.values), false, plot.axes.value?.format ?? 'General'),
+        },
+      } as ChartConfiguration['options'],
+    };
+  }
+
   if (kind === 'scatter') {
     const x = plot.axes.category;
     const y = plot.axes.value;

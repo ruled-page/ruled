@@ -12,7 +12,7 @@ import { tintColor } from './styles';
 import type { Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';
 
-export type ChartKind = 'bar' | 'line' | 'area' | 'pie' | 'doughnut' | 'scatter';
+export type ChartKind = 'bar' | 'line' | 'area' | 'pie' | 'doughnut' | 'scatter' | 'radar' | 'bubble' | 'stock';
 export type ChartGrouping = 'clustered' | 'stacked' | 'percentStacked' | 'standard';
 
 /** A series' name, categories or values: where they come from, and what Excel saved. */
@@ -29,9 +29,11 @@ export interface ChartData {
 
 export interface ChartSeries {
   name?: ChartData;
-  /** Labels along the category axis, or a scatter chart's x values. */
+  /** Labels along the category axis, or a scatter or bubble chart's x values. */
   categories?: ChartData;
   values: ChartData;
+  /** A bubble chart's bubble sizes. */
+  sizes?: ChartData;
   /** The colour the file gives the series: its fill, or its line for lines and scatter. */
   color?: string;
   /** Colours the file gives single points (a pie's slices), by point. */
@@ -63,6 +65,12 @@ export interface ChartGroup {
   holeSize?: number;
   /** Where a pie's first slice starts, in degrees clockwise from the top. */
   firstSliceAngle?: number;
+  /** A radar's areas are filled, rather than drawn as lines. */
+  filled?: boolean;
+  /** A bubble chart's largest bubble, as a percentage of Excel's default size, and whether sizes give a bubble's area or its width. */
+  bubbles?: { scale: number; area: boolean };
+  /** A stock chart's lines from each category's highest value to its lowest, and its bars from its first series to its last (up and down colours). */
+  stock?: { hiLow: boolean; upDown?: { up?: string; down?: string } };
 }
 
 export interface ChartAxis {
@@ -117,6 +125,11 @@ const KINDS: Record<string, ChartKind> = {
   pie3DChart: 'pie',
   doughnutChart: 'doughnut',
   scatterChart: 'scatter',
+  radarChart: 'radar',
+  bubbleChart: 'bubble',
+  stockChart: 'stock',
+  // Pie of pie and bar of pie: drawn as the one pie, without the second plot.
+  ofPieChart: 'pie',
 };
 
 /** Points read from one chart part at most; the cache can claim any count. */
@@ -315,7 +328,8 @@ function readSeries(ser: XmlNode, kind: ChartKind, group: XmlNode, ctx: ChartCon
   const ln = child(spPr, 'ln');
   const lineColor = solidFill(ln, ctx.theme);
   const fillColor = solidFill(spPr, ctx.theme);
-  const lined = kind === 'line' || kind === 'scatter';
+  const lined = kind === 'line' || kind === 'scatter' || kind === 'radar' || kind === 'stock';
+  const xy = kind === 'scatter' || kind === 'bubble';
   const symbol = val(child(child(ser, 'marker'), 'symbol'));
   const pointColors: Record<number, string> = {};
   for (const dPt of children(ser, 'dPt')) {
@@ -327,13 +341,17 @@ function readSeries(ser: XmlNode, kind: ChartKind, group: XmlNode, ctx: ChartCon
   const dash = val(child(ln, 'prstDash'));
   return {
     name: readData(child(ser, 'tx'), ctx),
-    categories: readData(child(ser, kind === 'scatter' ? 'xVal' : 'cat'), ctx),
-    values: readData(child(ser, kind === 'scatter' ? 'yVal' : 'val'), ctx) ?? { cache: [] },
+    categories: readData(child(ser, xy ? 'xVal' : 'cat'), ctx),
+    values: readData(child(ser, xy ? 'yVal' : 'val'), ctx) ?? { cache: [] },
+    ...(kind === 'bubble' && { sizes: readData(child(ser, 'bubbleSize'), ctx) }),
     color: lined ? (lineColor ?? fillColor) : (fillColor ?? lineColor),
     pointColors: Object.keys(pointColors).length ? pointColors : undefined,
     // Excel goes by each series' line and markers, whatever the scatter style says.
     line: lined && !child(ln, 'noFill'),
-    markers: lined && symbol !== 'none' && (kind === 'scatter' || flag(child(group, 'marker'), true)),
+    markers:
+      lined &&
+      symbol !== 'none' &&
+      (kind === 'scatter' || (kind === 'radar' ? val(child(group, 'radarStyle')) === 'marker' || !!symbol : kind === 'stock' ? !!symbol : flag(child(group, 'marker'), true))),
     smooth: lined && flag(child(ser, 'smooth'), false),
     dashed: dash !== undefined && dash !== 'solid',
     lineWidth: width > 0 ? Math.max(1, Math.round((width / EMU_PER_PX) * 10) / 10) : undefined,
@@ -392,6 +410,16 @@ export function parseChart(root: XmlNode, ctx: ChartContext): ChartSpec {
       gapWidth: num(child(g, 'gapWidth')) ?? 150,
       holeSize: kind === 'doughnut' ? (num(child(g, 'holeSize')) ?? 50) : undefined,
       firstSliceAngle: kind === 'pie' || kind === 'doughnut' ? (num(child(g, 'firstSliceAng')) ?? 0) : undefined,
+      ...(kind === 'radar' && { filled: val(child(g, 'radarStyle')) === 'filled' }),
+      ...(kind === 'bubble' && { bubbles: { scale: num(child(g, 'bubbleScale')) ?? 100, area: val(child(g, 'sizeRepresents')) !== 'w' } }),
+      ...(kind === 'stock' && {
+        stock: {
+          hiLow: !!child(g, 'hiLowLines'),
+          ...(child(g, 'upDownBars') && {
+            upDown: { up: solidFill(child(child(child(g, 'upDownBars'), 'upBars'), 'spPr'), ctx.theme), down: solidFill(child(child(child(g, 'upDownBars'), 'downBars'), 'spPr'), ctx.theme) },
+          }),
+        },
+      }),
     });
   }
 

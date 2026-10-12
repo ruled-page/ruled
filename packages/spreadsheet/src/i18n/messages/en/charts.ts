@@ -43,6 +43,8 @@ export const charts = {
   'charts.point': '{{label}} {{value}}',
   /** A point on a scatter chart. */
   'charts.xy': 'x {{x}}, y {{y}}',
+  /** A point on a bubble chart. */
+  'charts.bubble': 'x {{x}}, y {{y}}, size {{size}}',
   'charts.blank': 'blank',
   'charts.more_one': '{{count, number}} more',
   'charts.more_other': '{{count, number}} more',

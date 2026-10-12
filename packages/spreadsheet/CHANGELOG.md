@@ -56,6 +56,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Radar, bubble and stock charts are drawn, as are 3-D charts (flat) and
+  pie of pie (as one pie); the demo has a Chart gallery sample of them.
+  Changing only the title of a chart of such a kind no longer turns it
+  into a column chart.
 - Edit chart: double-click a chart, press Enter on it or right-click it to
   change its type, title, legend and data (a range down the columns or
   along the rows, or each series' references), as Excel's chart dialogs

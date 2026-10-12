@@ -25,7 +25,7 @@ export interface ChartEdit {
 /** The chart's type, as Insert Chart names it; undefined for kinds and combinations it doesn't make. */
 export function chartKindOf(spec: ChartSpec | undefined): NewChartKind | undefined {
   const g = spec?.groups[0];
-  if (!g || spec.unsupported || spec.groups.length > 1) return undefined;
+  if (!g || spec.unsupported || spec.groups.length > 1 || g.kind === 'radar' || g.kind === 'bubble' || g.kind === 'stock') return undefined;
   return g.kind === 'bar' ? (g.horizontal ? 'bar' : 'column') : g.kind;
 }
 

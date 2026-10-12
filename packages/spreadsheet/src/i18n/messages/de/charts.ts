@@ -41,6 +41,8 @@ export const charts: Record<keyof typeof en, string> = {
   'charts.series': '{{name}}: {{points}}.',
   'charts.point': '{{label}} {{value}}',
   'charts.xy': 'x {{x}}, y {{y}}',
+  /** A point on a bubble chart. */
+  'charts.bubble': 'x {{x}}, y {{y}}, Größe {{size}}',
   'charts.blank': 'leer',
   'charts.more_one': '{{count, number}} weiterer',
   'charts.more_other': '{{count, number}} weitere',

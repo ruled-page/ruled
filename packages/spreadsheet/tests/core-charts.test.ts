@@ -108,10 +108,10 @@ describe('reading charts made by XlsxWriter', () => {
     expect(c.axes.value?.format).toBeUndefined();
   });
 
-  it('marks kinds of chart it does not draw', () => {
+  it('reads a radar chart, as one of the kinds it draws', () => {
     const radar = chart('Radar');
-    expect(radar.unsupported).toBe('radarChart');
-    expect(radar.groups).toEqual([]);
+    expect(radar.unsupported).toBeUndefined();
+    expect(radar.groups[0]).toMatchObject({ kind: 'radar', filled: false });
   });
 
   it('titles an untitled single-series chart with the series name, as Excel does', () => {

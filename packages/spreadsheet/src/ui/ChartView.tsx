@@ -1,6 +1,7 @@
 import {
   ArcElement,
   BarController,
+  BubbleController,
   BarElement,
   CategoryScale,
   Chart,
@@ -13,6 +14,8 @@ import {
   LogarithmicScale,
   PieController,
   PointElement,
+  RadarController,
+  RadialLinearScale,
   ScatterController,
   Title,
 } from 'chart.js';
@@ -34,8 +37,11 @@ Chart.register(
   DoughnutController,
   ArcElement,
   ScatterController,
+  RadarController,
+  BubbleController,
   CategoryScale,
   LinearScale,
+  RadialLinearScale,
   LogarithmicScale,
   Filler,
   Legend,

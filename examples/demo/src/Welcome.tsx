@@ -13,6 +13,7 @@ interface Sample {
 
 export const SAMPLES: Sample[] = [
   { file: 'kitchen-sink.xlsx', title: 'sample.salesReport.title', detail: 'sample.salesReport.detail' },
+  { file: 'chart-gallery.xlsx', title: 'sample.chartGallery.title', detail: 'sample.chartGallery.detail' },
   { file: 'orders.xlsx', title: 'sample.orders.title', detail: 'sample.orders.detail' },
   { file: 'formatting.xlsx', title: 'sample.formatting.title', detail: 'sample.formatting.detail' },
   { file: 'pivot.xlsx', title: 'sample.pivot.title', detail: 'sample.pivot.detail' },

@@ -2046,8 +2046,9 @@ export class WorkbookSession {
     const xml = obj && (obj.chartXml ?? (obj.chartPart ? this.pkg.text(obj.chartPart) : undefined));
     if (!obj || !xml) return { reason: msg('core.chart.missing') };
     const current = chartKindOf(obj.chart);
+    // Only a new type makes a new plot area; a chart of a kind Insert Chart doesn't make keeps its own.
+    const rebuild = !!op.edit.kind && op.edit.kind !== current;
     const kind = op.edit.kind ?? current ?? 'column';
-    const rebuild = kind !== current;
     const cell = this.chartCell();
     let series: NewChartSeries[] | undefined;
     if (op.edit.range) {
@@ -2063,7 +2064,7 @@ export class WorkbookSession {
     const next = editChartXml(xml, { kind, rebuild, series, title: op.edit.title, legend: op.edit.legend });
     const spec = parseChart(parseXml(next), ctx);
     const title = spec.title?.cache.filter((v) => v !== null).join('') || undefined;
-    const object: SheetObject = { ...obj, chartXml: next, chart: spec, title, chartType: msg(CHART_KIND_TYPES[kind]) };
+    const object: SheetObject = { ...obj, chartXml: next, chart: spec, title, chartType: rebuild || current ? msg(CHART_KIND_TYPES[kind]) : obj.chartType };
     return { op: { kind: 'objects', objects: info.objects.map((o) => (o === obj ? object : o)) } };
   }
 

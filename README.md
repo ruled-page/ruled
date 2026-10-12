@@ -166,8 +166,12 @@ back as .xlsx without losing what the editor can't display.
   the cells as they are now, so editing their data redraws them: column and
   bar charts (clustered, stacked and 100% stacked), line, area, pie,
   doughnut and scatter charts, and columns, lines and areas combined, on
-  two axes if need be. Other kinds show as placeholders. Screen readers
-  hear each chart's name and its series and values.
+  two axes if need be; radar charts (lines, markers or filled), bubble
+  charts sized by area or width, and stock charts with their high-low lines
+  and up-down bars; 3-D charts drawn flat, and pie of pie as one pie.
+  Surface charts and Excel's newer kinds (waterfall, treemap and the like)
+  show as placeholders. Screen readers hear each chart's name and its series
+  and values. The demo's Chart gallery sample has one of each.
 - Insert a chart, as Excel's Insert Chart does: "Insert chart" in the cell
   menu (column, bar, line, area, pie, doughnut or scatter) or Alt+F1 for a
   column chart. It plots the selection, or the data around the active cell:
