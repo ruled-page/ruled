@@ -157,13 +157,13 @@ function criterion(c: Scalar): (v: Scalar) => boolean {
   const m = /^(<=|>=|<>|<|>|=)?([\s\S]*)$/.exec(c)!;
   const op = m[1] ?? '';
   const rest = m[2];
-  const n = rest.trim() === '' ? undefined : Number(rest);
-  const asNumber = n !== undefined && Number.isFinite(n);
+  const n = numberOrDate(rest);
+  const asNumber = n !== undefined;
   const upper = rest.toUpperCase();
   const asBool = upper === 'TRUE' ? true : upper === 'FALSE' ? false : undefined;
   const equal = (v: Scalar): boolean => {
     if (rest === '') return op === '=' ? v === null : v === null || v === '';
-    if (asNumber) return typeof v === 'number' ? round15(v) === round15(n!) : typeof v === 'string' && v.trim() !== '' && Number(v) === n;
+    if (asNumber) return typeof v === 'number' ? round15(v) === round15(n!) : typeof v === 'string' && numberOrDate(v) === n;
     if (asBool !== undefined) return v === asBool;
     if (typeof v !== 'string') return false;
     return hasWildcards(rest) ? matchesWhole(parsePattern(rest.toLowerCase()), v.toLowerCase()) : v.toLowerCase() === rest.toLowerCase();
@@ -184,6 +184,14 @@ function criterion(c: Scalar): (v: Scalar) => boolean {
   const test = op === '<' ? (d: number) => d < 0 : op === '>' ? (d: number) => d > 0 : op === '<=' ? (d: number) => d <= 0 : (d: number) => d >= 0;
   if (asNumber) return (v) => typeof v === 'number' && test(compare(v, n!));
   return (v) => typeof v === 'string' && test(compare(v, rest));
+}
+
+/** Text in a criterion or a cell as the number or date it spells, if it does. */
+function numberOrDate(t: string): number | undefined {
+  const s = t.trim();
+  if (!s) return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : parseDateText(s);
 }
 
 /** The cells of a range (or the values of an array) by offset, the range cut to the sheet's used part. */
@@ -1408,8 +1416,11 @@ function cubes(xs: number[], s: number): number {
 }
 
 /** A distribution's result: an overflow or a result that isn't a number is #NUM!. */
+/** A distribution function: the first error among its arguments is its result, before any is checked. */
 const dist = (min: number, max: number, f: (a: Scalar[]) => number): FunctionSpec =>
   scalar(min, max, (a) => {
+    const e = a.find(isError);
+    if (e) throw e;
     const r = f(a);
     if (!Number.isFinite(r)) throw NUM;
     return r;
@@ -1651,7 +1662,8 @@ function negativeBinomial(f: Scalar, s: Scalar, p: Scalar, cumulative: boolean):
   const failures = Math.trunc(num(f));
   const successes = Math.trunc(num(s));
   const chance = probability(p);
-  if (failures < 0 || successes < 1) throw NUM;
+  // Never or always succeeding has no distribution.
+  if (failures < 0 || successes < 1 || chance === 0 || chance === 1) throw NUM;
   if (cumulative) return betaI(chance, 1 - chance, successes, failures + 1);
   return Math.exp(logChoose(failures + successes - 1, failures) + successes * Math.log(chance) + failures * Math.log1p(-chance));
 }
@@ -1817,7 +1829,7 @@ function criticalBinomial(n: Scalar, p: Scalar, alpha: Scalar): number {
   const trials = Math.trunc(num(n));
   const chance = probability(p);
   const a = probability(alpha);
-  if (trials < 0) throw NUM;
+  if (trials < 0 || chance === 0 || chance === 1 || a === 0 || a === 1) throw NUM;
   return binomialInverse(trials, chance, a);
 }
 
@@ -2207,7 +2219,7 @@ function dbCriterion(c: Scalar): (v: Scalar) => boolean {
 
 /** Which column of a database a header names, ignoring case; -1 if none. */
 function columnNamed(name: Scalar, headers: Scalar[]): number {
-  if (name === null) return -1;
+  if (name === null || isError(name)) return -1;
   const wanted = text(name).toLowerCase();
   return headers.findIndex((h) => h !== null && !isError(h) && text(h).toLowerCase() === wanted);
 }
@@ -2221,12 +2233,13 @@ function columnNamed(name: Scalar, headers: Scalar[]): number {
 function records(a: Operand[], ctx: Ctx, fieldNeeded = true): Scalar[] {
   const db = grid(a[0], ctx);
   const criteria = grid(a[2], ctx);
-  if (criteria.rows < 2) throw VALUE;
+  // A database needs a record under its headers, and criteria a condition under theirs.
+  if (db.rows < 2 || criteria.rows < 2) throw VALUE;
   const headers = Array.from({ length: db.cols }, (_, c) => db.at(0, c));
   let field: number | undefined;
   if (given(a, 1)) {
     const f = scalarOf(a[1], ctx);
-    if (typeof f === 'number') field = Math.trunc(f) - 1;
+    if (typeof f === 'number' || typeof f === 'boolean') field = Math.trunc(Number(f)) - 1;
     else if (typeof f === 'string') field = columnNamed(f, headers);
     else if (isError(f)) throw f;
     else throw VALUE;
@@ -2237,8 +2250,12 @@ function records(a: Operand[], ctx: Ctx, fieldNeeded = true): Scalar[] {
     const row = [];
     for (let c = 0; c < criteria.cols; c++) {
       const condition = criteria.at(r, c);
-      if (isError(condition)) throw condition;
       if (condition === null || condition === '') continue;
+      // An error as a condition is met by nothing.
+      if (isError(condition)) {
+        row.push({ col: -1, test: () => false });
+        continue;
+      }
       const col = columnNamed(criteria.at(0, c), headers);
       // A condition under a header the database lacks is a worked-out one: TRUE lets every record through.
       row.push(col < 0 ? { col, test: () => condition === true } : { col, test: dbCriterion(condition) });
@@ -3661,7 +3678,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const trials = Math.trunc(num(n));
     const chance = num(p);
     const lo = Math.trunc(num(s));
-    const hi = s2 === undefined || s2 === null ? lo : Math.trunc(num(s2));
+    const hi = s2 === undefined ? lo : Math.trunc(num(s2));
     if (trials < 0 || chance < 0 || chance > 1 || lo < 0 || lo > trials || hi < lo || hi > trials) throw NUM;
     return binomialRange(trials, chance, lo, hi);
   }),
@@ -4280,7 +4297,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (!xs.length) throw DIV0;
     return sum(xs) / xs.length;
   } },
-  DCOUNT: { min: 3, max: 3, fn: (a, ctx) => (given(a, 1) ? dbNumbers(a, ctx).length : records(a, ctx, false).length) },
+  // Errors in the field aren't numbers to count.
+  DCOUNT: { min: 3, max: 3, fn: (a, ctx) => (given(a, 1) ? records(a, ctx).filter((v) => typeof v === 'number').length : records(a, ctx, false).length) },
   DCOUNTA: { min: 3, max: 3, fn: (a, ctx) => records(a, ctx, false).filter((v) => !given(a, 1) || (v !== null && v !== '')).length },
   DMAX: { min: 3, max: 3, fn: (a, ctx) => {
     const xs = dbNumbers(a, ctx);
