@@ -213,7 +213,38 @@ function grid(op: Operand, ctx: Ctx): { rows: number; cols: number; at: (r: numb
  * columns are read only as far as the sheet is used: `blanks` counts the
  * empty cells past that, when empty cells meet every criterion.
  */
-function matching(pairs: Operand[], ctx: Ctx): { hits: [number, number][]; rows: number; cols: number; blanks: number } {
+type Matches = { hits: [number, number][]; rows: number; cols: number; blanks: number };
+
+const SHARED = new WeakMap<Matrix, Map<string, unknown>>();
+const IDS = new WeakMap<Matrix, number>();
+let lastId = 0;
+const idOf = (m: Matrix) => IDS.get(m) ?? (IDS.set(m, ++lastId), lastId);
+
+/**
+ * An answer shared by formulas asking the same of the same ranges (a total
+ * by category down a column), worked out once while the engine keeps the
+ * ranges' values for the calculation; anything else is worked out each time.
+ */
+function shared<T>(ranges: Operand[], question: string, ctx: Ctx, work: () => T): T {
+  if (!ranges.every((r) => r instanceof Ref)) return work();
+  const values = ranges.map((r) => ctx.host.read(ctx.host.bound(r as Ref)));
+  const key = `${ranges.map((r, i) => `${idOf(values[i])}:${(r as Ref).rows}x${(r as Ref).cols}`).join(',')}|${question}`;
+  let answers = SHARED.get(values[0]);
+  if (!answers) SHARED.set(values[0], (answers = new Map()));
+  if (!answers.has(key)) answers.set(key, work());
+  return answers.get(key) as T;
+}
+
+/** A criterion as a question to share an answer to. */
+const criterionKey = (v: Scalar) => (isError(v) ? `e${v.error}` : `${typeof v}${String(v)}`);
+
+function matching(pairs: Operand[], ctx: Ctx): Matches {
+  const ranges = pairs.filter((_, i) => i % 2 === 0);
+  const criteria = pairs.filter((_, i) => i % 2 === 1).map((p) => scalarOf(p, ctx));
+  return shared(ranges, criteria.map(criterionKey).join('\u0000'), ctx, () => matchingOf(pairs, ctx));
+}
+
+function matchingOf(pairs: Operand[], ctx: Ctx): Matches {
   const ranges = [];
   for (let i = 0; i < pairs.length; i += 2) {
     const op = pairs[i];
@@ -235,6 +266,11 @@ function matching(pairs: Operand[], ctx: Ctx): { hits: [number, number][]; rows:
 const count = (m: { hits: unknown[]; blanks: number }) => m.hits.length + m.blanks;
 
 function ifs(kind: 'sum' | 'avg' | 'min' | 'max', target: Operand, pairs: Operand[], ctx: Ctx): number {
+  const criteria = pairs.filter((_, i) => i % 2 === 1).map((p) => criterionKey(scalarOf(p, ctx)));
+  return shared([target, ...pairs.filter((_, i) => i % 2 === 0)], `${kind}|${criteria.join('\u0000')}`, ctx, () => ifsOf(kind, target, pairs, ctx));
+}
+
+function ifsOf(kind: 'sum' | 'avg' | 'min' | 'max', target: Operand, pairs: Operand[], ctx: Ctx): number {
   const t = grid(target, ctx);
   const { hits, rows, cols } = matching(pairs, ctx);
   const size = target instanceof Ref ? target : t;
@@ -341,8 +377,46 @@ function approximate(values: Scalar[], target: Scalar, descending = false): numb
   return found;
 }
 
+/** Lists at least this long are searched for an exact match through an index of them. */
+const INDEXED = 64;
+const EXACT = new WeakMap<Scalar[], Map<string, [first: number, last: number]>>();
+
+/** A value as an exact match compares it: numbers to 15 digits, text in any case; nothing for empty cells and errors. */
+function exactKey(v: Scalar): string | undefined {
+  if (typeof v === 'number') return `n${round15(v)}`;
+  if (typeof v === 'string') return `s${v.toLowerCase()}`;
+  if (typeof v === 'boolean') return v ? 'bT' : 'bF';
+  return undefined;
+}
+
+/**
+ * Where each value is first and last found in a list, built once for it:
+ * the engine keeps a range's values for the calculation, so every lookup
+ * into the same table shares one index.
+ */
+function exactIndex(values: Scalar[]): Map<string, [number, number]> {
+  let index = EXACT.get(values);
+  if (!index) {
+    const built = new Map<string, [number, number]>();
+    values.forEach((v, i) => {
+      const k = exactKey(v);
+      if (k === undefined) return;
+      const at = built.get(k);
+      if (at) at[1] = i;
+      else built.set(k, [i, i]);
+    });
+    EXACT.set(values, (index = built));
+  }
+  return index;
+}
+
 function lookupIn(values: Scalar[], target: Scalar, mode: number, last = false): number {
   if (mode === 0 || mode === 2) {
+    if (values.length >= INDEXED && !(typeof target === 'string' && hasWildcards(target))) {
+      const k = exactKey(target);
+      const at = k === undefined ? undefined : exactIndex(values).get(k);
+      return at ? at[last ? 1 : 0] : -1;
+    }
     const eq = exactly(target, true);
     if (last) {
       for (let i = values.length - 1; i >= 0; i--) if (eq(values[i])) return i;
@@ -464,10 +538,26 @@ function vlookup(args: Operand[], ctx: Ctx, horizontal: boolean): Scalar {
   const lines = horizontal ? table.rows : table.cols;
   if (index < 1) throw VALUE;
   if (index > lines) throw REF;
-  const keys = horizontal ? Array.from({ length: table.cols }, (_, c) => table.get(0, c)) : Array.from({ length: table.rows }, (_, r) => table.get(r, 0));
+  const keys = lineOf(table, 0, horizontal);
   const at = approx ? approximate(keys, target) : lookupIn(keys, target, 0);
   if (at < 0) throw NA;
   return horizontal ? table.get(index - 1, at) : table.get(at, index - 1);
+}
+
+const LINES = new WeakMap<Matrix, Map<number, Scalar[]>>();
+
+/** A row or column of a matrix as a list, kept with it, so lookups into the same table share one (and its index). */
+function lineOf(m: Matrix, i: number, row: boolean): Scalar[] {
+  if (row ? m.rows === 1 : m.cols === 1) return m.data;
+  let lines = LINES.get(m);
+  if (!lines) LINES.set(m, (lines = new Map()));
+  const k = row ? -1 - i : i;
+  let line = lines.get(k);
+  if (!line) {
+    line = row ? m.data.slice(i * m.cols, (i + 1) * m.cols) : Array.from({ length: m.rows }, (_, r) => m.get(r, i));
+    lines.set(k, line);
+  }
+  return line;
 }
 
 /** The cells of a reference or values of an array as one list, row by row. */

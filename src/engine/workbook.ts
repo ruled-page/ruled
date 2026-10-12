@@ -23,6 +23,10 @@ const MAX_DEPTH = 400;
 /** Ranges at most this many columns wide are indexed by column; wider ones are checked one by one. */
 const BLOCK = 16;
 const WIDE = BLOCK * 4;
+/** Ranges of at least this many cells are kept once read, for the other formulas reading them in the same change. */
+const KEPT_CELLS = 16;
+/** How many such ranges are kept at once, the oldest let go first. */
+const KEPT_RANGES = 32;
 
 class Deferred {
   constructor(readonly formula: Formula) {}
@@ -148,6 +152,15 @@ export class NativeEngine implements FormulaEngine, Host {
   private readonly waiting = new Map<string, Set<Formula>>();
   /** Formulas read while being worked out: where a circular reference closes. */
   private readonly circles = new Set<Formula>();
+  /** Reads of a formula while it was being worked out, counted so a range read round a circle isn't kept. */
+  private circleReads = 0;
+  /**
+   * Ranges read during the change being worked out, by sheet and corners, so
+   * that formulas looking up the same table share one read of it (and the
+   * indexes built over it); let go when the change is done, or a formula
+   * within one is worked out again.
+   */
+  private readonly kept = new Map<string, { area: Ref; values: Matrix }>();
   /** Formulas with three-dimensional references, which a sheet added within their run of sheets joins. */
   private readonly spans = new Set<Formula>();
   private readonly volatile = new Set<Formula>();
@@ -177,6 +190,7 @@ export class NativeEngine implements FormulaEngine, Host {
     this.settle(this.dirtied);
     this.iterate();
     this.dirtied = [];
+    this.kept.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -190,10 +204,12 @@ export class NativeEngine implements FormulaEngine, Host {
     if (this.sheets[sheet]) return [];
     this.sheets[sheet] = new Sheet(content.name);
     this.byName.set(content.name.toLowerCase(), sheet);
+    this.kept.clear();
     this.load(sheet, content.rows, false);
     this.settle(this.dirtied);
     this.iterate();
     this.dirtied = [];
+    this.kept.clear();
     // Formulas that named it before it was here read it now.
     const users = [...(this.waiting.get(content.name.toLowerCase()) ?? [])];
     this.waiting.delete(content.name.toLowerCase());
@@ -220,6 +236,7 @@ export class NativeEngine implements FormulaEngine, Host {
       // A formula read while it is being worked out reads round in a circle: 0, as Excel shows, or iterating, its value from the pass before.
       if (c.busy) {
         this.circles.add(c);
+        this.circleReads++;
         return this.iteration ? c.value : 0;
       }
       return c.value;
@@ -305,6 +322,8 @@ export class NativeEngine implements FormulaEngine, Host {
     if (!this.sheets[sheet]) return REF;
     const t = compileAt(formula, 0, 0);
     let out: Operand;
+    // Ranges kept while working it out are let go after, as after a change.
+    this.kept.clear();
     try {
       out = t.run({ host: this, sheet, row: 0, col: 0, legacy: false });
     } catch (e) {
@@ -373,7 +392,24 @@ export class NativeEngine implements FormulaEngine, Host {
 
   read(ref: Ref): Matrix {
     const r = this.bound(ref);
-    return Matrix.build(r.rows, r.cols, (i, j) => this.value(r.sheet, r.r1 + i, r.c1 + j));
+    const k = `${r.sheet}:${r.r1}:${r.c1}:${r.r2}:${r.c2}`;
+    const kept = this.kept.get(k);
+    if (kept) return kept.values;
+    const circles = this.circleReads;
+    const values = Matrix.build(r.rows, r.cols, (i, j) => this.value(r.sheet, r.r1 + i, r.c1 + j));
+    if (r.rows * r.cols >= KEPT_CELLS && this.circleReads === circles) {
+      if (this.kept.size >= KEPT_RANGES) this.kept.delete(this.kept.keys().next().value!);
+      this.kept.set(k, { area: r, values });
+    }
+    return values;
+  }
+
+  /** Lets go of kept ranges an area overlaps, as a formula within them is worked out. */
+  private forget(area: Ref | undefined): void {
+    if (!area || !this.kept.size) return;
+    for (const [k, { area: a }] of this.kept) {
+      if (a.sheet === area.sheet && a.r1 <= area.r2 && area.r1 <= a.r2 && a.c1 <= area.c2 && area.c1 <= a.c2) this.kept.delete(k);
+    }
   }
 
   /** Each value in a reference that isn't blank. */
@@ -640,6 +676,7 @@ export class NativeEngine implements FormulaEngine, Host {
   private change(run: () => void): EngineChange[] {
     this.changes = new Map();
     this.dirtied = [];
+    this.kept.clear();
     try {
       run();
       this.settle(this.dirtied);
@@ -654,6 +691,7 @@ export class NativeEngine implements FormulaEngine, Host {
     } finally {
       this.changes = undefined;
       this.dirtied = [];
+      this.kept.clear();
     }
   }
 
@@ -679,6 +717,7 @@ export class NativeEngine implements FormulaEngine, Host {
       // Formulas the change hadn't reached yet keep the value they had before it, for the changes it reports.
       for (const f of round) if (f.prev === undefined && this.changes) this.dirty(f);
       else f.dirty = true;
+      this.kept.clear();
       this.settle(round);
       if (round.every((f, i) => !moved(before[i], f.value, iteration.delta))) break;
     }
@@ -762,6 +801,7 @@ export class NativeEngine implements FormulaEngine, Host {
 
     const oldArea = f.spill;
     const oldResult = f.result;
+    this.forget(oldArea ?? new Ref(f.sheet, f.row, f.col, f.row, f.col));
     if (f.template.spill && whole) {
       if (this.placeSpill(f, whole)) {
         f.value = v;
@@ -775,6 +815,7 @@ export class NativeEngine implements FormulaEngine, Host {
       f.value = v;
       f.result = whole;
     }
+    this.forget(f.spill);
     if (this.changes && (oldArea || f.spill)) this.spillChanges(f, oldArea, oldResult);
   }
 

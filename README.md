@@ -445,11 +445,18 @@ LAMBDA (written in place, in LET or as a name) and Excel's rules for
 comparing and converting values. CELL gives what the cell itself holds
 (address, row, column, contents, type); asked for a format, width or
 protection, it keeps Excel's saved value, as any formula the engine can't
-calculate does. It is 39 kB gzipped. It replaced HyperFormula, which was
+calculate does. It is 43 kB gzipped. It replaced HyperFormula, which was
 173 kB: the library's worker went from 297 kB to 156 kB, and on `big.xlsx`
 the engine calculates in about a third of the time with about half the
 memory. `npm run engine:bench` measures it on the samples and the test
 corpus.
+
+Within a calculation it keeps the values of each large range it reads, so
+formulas looking up the same table share one read of it, one index of it for
+exact matches, and one answer to the same SUMIFS or COUNTIFS question. `npm
+run lookup:bench` times lookup-heavy workbooks as they grow: 20,000 lookups
+into a 20,000-row table recalculate after an edit to the table in well under
+a second, where without these each lookup read and searched the whole table.
 
 Its answers are held to Excel's: `npm run excel:check` writes a workbook per
 family of functions to `tests/excel-checks/`, each formula beside the

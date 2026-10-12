@@ -23,6 +23,7 @@
     "check:bundle": "node scripts/check-bundle.mjs",
     "engine:bench": "ENGINE_BENCH=1 NODE_OPTIONS=--expose-gc vitest run engines --silent=false",
     "excel:check": "ENGINE_BENCH=1 vitest run excel-check --silent=false",
+    "lookup:bench": "ENGINE_BENCH=1 vitest run lookups --silent=false",
     "validate:saves": "node scripts/validate-saves.mjs",
     "e2e": "playwright test",
     "notices": "node scripts/notices.mjs",
