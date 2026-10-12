@@ -348,7 +348,8 @@ function patchCell(p: string, row: number, col: number, raw: string | undefined,
   const r = toA1(row, col);
   if (patch.kind === 'value') {
     if (!raw) return null;
-    const attrs = keptAttrs(raw, ['r', 't']);
+    // vm points at the rich value (such as a #CALC! error) the old value was.
+    const attrs = keptAttrs(raw, ['r', 't', 'vm']);
     const { t, v } = valueXml(p, patch.value);
     const f = rawFormulaElement(raw, p);
     return `<${p}c r="${r}"${attrs}${t}>${patch.ref ? withRef(f, rangeToA1(patch.ref)) : f}${v}</${p}c>`;

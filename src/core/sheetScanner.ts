@@ -102,10 +102,10 @@ export function parseSharedStrings(xml: string | undefined): { strings: string[]
   return { strings, rich };
 }
 
-/** Matches the scanning cursor's `{r, s, t, cm}` attributes without allocating. */
-const cellAttrs = { r: '', s: '', t: '', cm: '' };
+/** Matches the scanning cursor's `{r, s, t, cm, vm}` attributes without allocating. */
+const cellAttrs = { r: '', s: '', t: '', cm: '', vm: '' };
 function readCellAttrs(s: string): void {
-  cellAttrs.r = cellAttrs.s = cellAttrs.t = cellAttrs.cm = '';
+  cellAttrs.r = cellAttrs.s = cellAttrs.t = cellAttrs.cm = cellAttrs.vm = '';
   let i = 0;
   const n = s.length;
   while (i < n) {
@@ -122,6 +122,7 @@ function readCellAttrs(s: string): void {
     else if (name === 's') cellAttrs.s = s.slice(q + 1, end);
     else if (name === 't') cellAttrs.t = s.slice(q + 1, end);
     else if (name === 'cm') cellAttrs.cm = s.slice(q + 1, end);
+    else if (name === 'vm') cellAttrs.vm = s.slice(q + 1, end);
     i = end + 1;
   }
 }
@@ -149,9 +150,17 @@ export interface CellBudget {
 
 /**
  * `dynamic` holds the cell metadata indexes (a cell's cm attribute) that the
- * workbook's metadata part marks as dynamic arrays.
+ * workbook's metadata part marks as dynamic arrays, and `richErrors` the
+ * errors that value metadata indexes (a cell's vm attribute) stand for.
  */
-export function scanSheet(xml: string, sst: string[], richStrings: Set<number> = new Set(), budget?: CellBudget, dynamic?: ReadonlySet<number>): ScanResult {
+export function scanSheet(
+  xml: string,
+  sst: string[],
+  richStrings: Set<number> = new Set(),
+  budget?: CellBudget,
+  dynamic?: ReadonlySet<number>,
+  richErrors?: ReadonlyMap<number, string>,
+): ScanResult {
   const p = /<(\w+:)?worksheet\b/.exec(xml)?.[1] ?? '';
   const rowsA: number[] = [];
   const colsA: number[] = [];
@@ -284,7 +293,8 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
                 num = vText.trim() === '1' || vText.trim() === 'true' ? 1 : 0;
               } else if (t === 'e') {
                 type = VT.Error;
-                str = decodeEntities(vText).trim();
+                // Errors newer than the format (#CALC!, #SPILL!) are saved as #VALUE! with a rich value naming them.
+                str = (cellAttrs.vm && richErrors?.get(Number(cellAttrs.vm))) || decodeEntities(vText).trim();
               } else if (t === 'd') {
                 type = VT.Number;
                 num = isoToSerial(vText.trim());

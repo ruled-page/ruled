@@ -192,6 +192,41 @@ export function dynamicArrayMetadata(xml: string | undefined): Set<number> {
   return out;
 }
 
+/** The error codes a rich value's errorType numbers, from 0. */
+const RICH_ERRORS = ['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!', '#CONNECT!', '#BLOCKED!', '#UNKNOWN!', '#FIELD!', '#CALC!'];
+
+/**
+ * The errors newer than the file format (#CALC!, #SPILL! and their kind),
+ * which Excel saves as #VALUE! for older readers, by value metadata index (a
+ * cell's vm attribute, counting from 1): each points through the metadata
+ * part at a rich value of the _error structure that names the real one.
+ */
+export function richErrorMetadata(metadata: string | undefined, values: string | undefined, structures: string | undefined): Map<number, string> {
+  const out = new Map<number, string>();
+  if (!metadata || !values || !structures) return out;
+  const root = parseXml(metadata);
+  const type = children(child(root, 'metadataTypes'), 'metadataType').findIndex((t) => attr(t, 'name') === 'XLRICHVALUE') + 1;
+  if (!type) return out;
+  const future = children(root, 'futureMetadata').find((f) => attr(f, 'name') === 'XLRICHVALUE');
+  const rich = children(future, 'bk').map((bk) => Number(attr(descendants(bk, 'rvb')[0], 'i')));
+  const kinds = children(parseXml(structures), 's').map((s) => ({ t: attr(s, 't'), keys: children(s, 'k').map((k) => attr(k, 'n')) }));
+  const rvs = children(parseXml(values), 'rv').map((rv) => ({ s: Number(attr(rv, 's')), v: children(rv, 'v').map((v) => v.text) }));
+  children(child(root, 'valueMetadata'), 'bk').forEach((bk, i) => {
+    const rc = children(bk, 'rc').find((x) => Number(attr(x, 't')) === type);
+    const rv = rc && rvs[rich[Number(attr(rc, 'v'))]];
+    const kind = rv && kinds[rv.s];
+    if (!rv || kind?.t !== '_error') return;
+    const code = RICH_ERRORS[Number(rv.v[kind.keys.indexOf('errorType')])];
+    if (code) out.set(i + 1, code);
+  });
+  return out;
+}
+
+/** Whether a workbook's rich values hold anything but errors: pictures in cells, or linked data types. */
+function richValuesBeyondErrors(structures: string | undefined): boolean {
+  return !!structures && children(parseXml(structures), 's').some((s) => attr(s, 't') !== '_error');
+}
+
 /** Excel 4.0 macro sheets, which hold macros that can run when the file is opened. */
 export function isMacroSheet(relType: string | undefined): boolean {
   return relType === 'xlMacrosheet' || relType === 'xlIntlMacrosheet';
@@ -216,7 +251,11 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const persons = new Map(people.map((p) => [p.id, p.displayName]));
 
   const date1904 = ['1', 'true'].includes(attr(child(wb, 'workbookPr'), 'date1904') ?? '');
-  const dynamic = dynamicArrayMetadata(relOfType('sheetMetadata').map((r) => pkg.text(r.target)).find((x) => x));
+  const metadataXml = relOfType('sheetMetadata').map((r) => pkg.text(r.target)).find((x) => x);
+  const dynamic = dynamicArrayMetadata(metadataXml);
+  const richPart = (type: string) => relOfType(type).map((r) => pkg.text(r.target)).find((x) => x);
+  const richStructures = richPart('rdRichValueStructure');
+  const richErrors = richErrorMetadata(metadataXml, richPart('rdRichValue'), richStructures);
   const sst = parseSharedStrings(relOfType('sharedStrings')[0] ? pkg.text(relOfType('sharedStrings')[0].target) : undefined);
   const styles = new StyleBook(
     relOfType('styles')[0] ? pkg.text(relOfType('styles')[0].target) : undefined,
@@ -332,7 +371,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     }
 
     const xml = pkg.text(path) ?? '';
-    const scan = scanSheet(xml, sst.strings, sst.rich, cells, dynamic);
+    const scan = scanSheet(xml, sst.strings, sst.rich, cells, dynamic, richErrors);
     info.maxRow = scan.maxRow;
     info.maxCol = scan.maxCol;
 
@@ -714,7 +753,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
       findings.push({ kind: 'slicer', severity: 'info', title: msg('core.finding.slicers.title'), detail: msg('core.finding.slicers.detail') });
     }
   }
-  if (pkg.list().some((p) => p.startsWith('xl/richData/'))) {
+  // Rich values that only name newer errors aren't pictures.
+  if (pkg.list().some((p) => p.startsWith('xl/richData/')) && (!richStructures || richValuesBeyondErrors(richStructures))) {
     findings.push({
       kind: 'cellImage',
       severity: 'info',

@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
+import { richErrorMetadata } from '../src/core/workbook';
 import type { Finding } from '../src/core/types';
 import { english, errorText } from '../src/i18n';
 
@@ -189,5 +190,38 @@ describe('reading a workbook', () => {
       error = e;
     }
     expect(english.text(errorText(error))).toBe('The workbook part is missing from this file.');
+  });
+});
+
+describe('errors newer than the file format', () => {
+  // As Excel saves #CALC!: #VALUE! in the cell, with vm="1" pointing through the metadata at a rich value naming the real error.
+  const metadata = `<metadata xmlns="${MAIN}" xmlns:xlrd="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata"><metadataTypes count="2"><metadataType name="XLDAPR"/><metadataType name="XLRICHVALUE"/></metadataTypes><futureMetadata name="XLRICHVALUE" count="2"><bk><extLst><ext><xlrd:rvb i="0"/></ext></extLst></bk><bk><extLst><ext><xlrd:rvb i="1"/></ext></extLst></bk></futureMetadata><valueMetadata count="2"><bk><rc t="2" v="0"/></bk><bk><rc t="2" v="1"/></bk></valueMetadata></metadata>`;
+  const values = '<rvData count="2"><rv s="0"><v>13</v><v>3</v></rv><rv s="0"><v>8</v><v>1</v></rv></rvData>';
+  const structures = '<rvStructures count="1"><s t="_error"><k n="errorType" t="i"/><k n="subType" t="i"/></s></rvStructures>';
+
+  it('are read through the rich value each points at', () => {
+    expect([...richErrorMetadata(metadata, values, structures)]).toEqual([
+      [1, '#CALC!'],
+      [2, '#SPILL!'],
+    ]);
+    expect(richErrorMetadata(metadata, undefined, structures).size).toBe(0);
+  });
+
+  it("aren't taken for pictures in cells", () => {
+    const wb = pack({
+      'xl/workbook.xml': `<workbook xmlns="${MAIN}" xmlns:r="${REL}"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      'xl/_rels/workbook.xml.rels': rels([
+        ['rId1', 'worksheet', 'worksheets/sheet1.xml'],
+        ['rId2', 'sheetMetadata', 'metadata.xml'],
+        ['rId3', 'http://schemas.microsoft.com/office/2017/06/relationships/rdRichValue', 'richData/rdrichvalue.xml'],
+        ['rId4', 'http://schemas.microsoft.com/office/2017/06/relationships/rdRichValueStructure', 'richData/rdrichvaluestructure.xml'],
+      ]),
+      'xl/worksheets/sheet1.xml': `<worksheet xmlns="${MAIN}"><sheetData><row r="1"><c r="A1" t="e" vm="1"><f>1/0+NA()</f><v>#VALUE!</v></c></row></sheetData></worksheet>`,
+      'xl/metadata.xml': metadata,
+      'xl/richData/rdrichvalue.xml': values,
+      'xl/richData/rdrichvaluestructure.xml': structures,
+    });
+    const s = WorkbookSession.open(wb, 'w.xlsx');
+    expect(s.model.findings.map((f) => f.kind)).not.toContain('cellImage');
   });
 });

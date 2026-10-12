@@ -284,20 +284,9 @@
     "accrint_cases!I98",
     "accrint_cases!I99"
   ],
-  "INFORMATION/ERROR.TYPE.xlsx": [
-    "Sheet1!B14",
-    "Sheet1!B8"
-  ],
-  "INFORMATION/ISREF.xlsx": [
-    "Sheet1!D7",
-    "Sheet1!D9"
-  ],
   "INFORMATION/error_broadcast.xlsx": [
     "Sheet1!E22",
     "Sheet1!E54"
-  ],
-  "LOOKUP_AND_REFERENCE/FILTER_ERRORS.xlsx": [
-    "Sheet1!E1"
   ],
   "LOOKUP_AND_REFERENCE/INDEX.xlsx": [
     "INDEX!C9"
@@ -327,14 +316,8 @@
     "Sheet1!D6",
     "Sheet1!D7"
   ],
-  "MATH_AND_TRIGONOMETRY/MAX_MIN.xlsx": [
-    "Sheet1!H42"
-  ],
   "MATH_AND_TRIGONOMETRY/MMULT.xlsx": [
     "Sheet1!E30"
-  ],
-  "MATH_AND_TRIGONOMETRY/SEQUENCE.xlsx": [
-    "Sheet1!C23"
   ],
   "MATH_AND_TRIGONOMETRY/TRIGONOMETRIC.xlsx": [
     "COT_CSC_SEC!B44",

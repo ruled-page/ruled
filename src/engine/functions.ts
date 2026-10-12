@@ -865,7 +865,7 @@ function takeOrDrop(a: Operand[], ctx: Ctx, take: boolean): Matrix {
   };
   const [r1, r2] = span(m.rows, 1);
   const [c1, c2] = span(m.cols, 2);
-  if (r2 <= r1 || c2 <= c1) throw VALUE;
+  if (r2 <= r1 || c2 <= c1) throw err('#CALC!');
   return Matrix.build(r2 - r1, c2 - c1, (r, c) => m.get(r1 + r, c1 + c));
 }
 
@@ -3122,10 +3122,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 1,
     max: 4,
     fn: (a, ctx) => {
-      const rows = Math.trunc(num(scalarOf(a[0], ctx)));
-      const cols = a[1] === undefined || a[1] === null ? 1 : Math.trunc(num(scalarOf(a[1], ctx)));
-      const start = a[2] === undefined || a[2] === null ? 1 : num(scalarOf(a[2], ctx));
-      const step = a[3] === undefined || a[3] === null ? 1 : num(scalarOf(a[3], ctx));
+      // An argument left empty takes its default; no rows or columns is an empty array, #CALC!.
+      const arg = (i: number) => (a[i] === undefined || a[i] === null ? 1 : num(scalarOf(a[i], ctx)));
+      const [rows, cols] = [Math.trunc(arg(0)), Math.trunc(arg(1))];
+      const [start, step] = [arg(2), arg(3)];
+      if (rows === 0 || cols === 0) throw CALC;
       sized(rows, cols);
       return Matrix.build(rows, cols, (r, c) => start + (r * cols + c) * step);
     },
