@@ -1,15 +1,6 @@
 {
-  "DATE_AND_TIME/DATE.xlsx": [
-    "Sheet1!D25"
-  ],
   "DATE_AND_TIME/DATEVALUE.xlsx": [
     "DATEVALUE!B48"
-  ],
-  "DATE_AND_TIME/DATEVALUE_issue_1380.xlsx": [
-    "DATEVALUE!B2"
-  ],
-  "DATE_AND_TIME/TIMEVALUE_issue_1402.xlsx": [
-    "Sheet1!B2"
   ],
   "ENGINEERING/BESSEL.xlsx": [
     "BESSELJ!C14",
@@ -316,9 +307,6 @@
     "Sheet1!D6",
     "Sheet1!D7"
   ],
-  "MATH_AND_TRIGONOMETRY/MMULT.xlsx": [
-    "Sheet1!E30"
-  ],
   "MATH_AND_TRIGONOMETRY/TRIGONOMETRIC.xlsx": [
     "COT_CSC_SEC!B44",
     "COT_CSC_SEC!C44",
@@ -333,20 +321,11 @@
   "STATISTICAL/LOGNORM.xlsx": [
     "LOGNORM.DIST LOGNORM.INV!F26"
   ],
-  "STATISTICAL/POISSON.xlsx": [
-    "POISSON.DIST!D26"
-  ],
-  "STATISTICAL/PROB.xlsx": [
-    "Sheet1!O2"
-  ],
   "STATISTICAL/T_DIST.xlsx": [
     "T.DIST T.INV T.DIST.RT!E19"
   ],
   "TEXT/CHAR.xlsx": [
     "Sheet1!B10"
-  ],
-  "TEXT/REPT.xlsx": [
-    "Sheet1!C12"
   ],
   "TEXT/TEXT.xlsx": [
     "NUMBERS!K12"

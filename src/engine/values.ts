@@ -161,7 +161,9 @@ const TIME_TEXT = /^(\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?|(?=\s*[AaPp]
  * workbook in the 1904 system reads such text 1,462 days late here).
  * Undefined when it isn't one, or names a day that doesn't exist.
  */
-export function parseDateText(text: string): number | undefined {
+export function parseDateText(written: string): number | undefined {
+  // Spaces around a separator don't count: 2026 - 01 - 01, 4 : 35.
+  const text = written.replace(/\s*([-/:])\s*/g, '$1');
   const t = TIME_TEXT.exec(text);
   if (t) {
     let h = Number(t[1]);

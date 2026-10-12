@@ -1847,9 +1847,11 @@ function criticalBinomial(n: Scalar, p: Scalar, alpha: Scalar): number {
 }
 
 function poisson(x: Scalar, m: Scalar, cumulative: boolean): number {
-  const k = Math.trunc(num(x));
+  // Below zero is #NUM! before the fraction is cut off.
+  const n = num(x);
+  const k = Math.trunc(n);
   const mean = num(m);
-  if (k < 0 || mean < 0) throw NUM;
+  if (n < 0 || mean < 0) throw NUM;
   if (cumulative) return gammaP(k + 1, mean, true);
   if (mean === 0) return k === 0 ? 1 : 0;
   return Math.exp(k * Math.log(mean) - mean - logGamma(k + 1));
@@ -3206,9 +3208,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   // The first 32 characters, which don't print.
   CLEAN: scalar(1, 1, ([t]) => [...text(t)].filter((ch) => ch.charCodeAt(0) >= 32).join('')),
   REPT: scalar(2, 2, ([t, n]) => {
+    const s = text(t);
     const k = Math.trunc(num(n));
-    if (k < 0 || text(t).length * k > 32767) throw VALUE;
-    return text(t).repeat(k);
+    if (k < 0 || s.length * k > 32767) throw VALUE;
+    return s.repeat(k);
   }),
   EXACT: scalar(2, 2, ([a, b]) => text(a) === text(b)),
   SUBSTITUTE: scalar(3, 4, ([t, from, to, nth]) => {
@@ -3281,7 +3284,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (year < 0 || year > 9999) throw NUM;
     if (year < 1900) year += 1900;
     const s = serialOf(year, Math.trunc(num(m)), Math.trunc(num(d)), ctx.host.date1904);
-    if (s < 0) throw NUM;
+    if (s < 0 || s > serialOf(9999, 12, 31, ctx.host.date1904)) throw NUM;
     return s;
   }),
   TIME: scalar(3, 3, ([h, m, s]) => {
@@ -3713,6 +3716,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         all += p;
         if (typeof x === 'number' && x >= lo && x <= hi) total += p;
       });
+      // No chances at all is a division by nothing.
+      if (all === 0) throw DIV0;
       if (Math.abs(all - 1) > 1e-6) throw NUM;
       return total;
     },
@@ -3984,7 +3989,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const b = numberMatrix(y, ctx);
       if (a[0].length !== b.length) throw VALUE;
       sized(a.length, b[0].length);
-      return Matrix.build(a.length, b[0].length, (r, c) => a[r].reduce((s, v, k) => s + v * b[k][c], 0));
+      const out = Matrix.build(a.length, b[0].length, (r, c) => a[r].reduce((s, v, k) => s + v * b[k][c], 0));
+      if (out.data.some((v) => !Number.isFinite(v as number))) throw NUM;
+      return out;
     },
   },
 
