@@ -181,6 +181,13 @@ back as .xlsx without losing what the editor can't display.
   Shift and the arrow keys resize it, Tab goes to the next and Esc back to
   the cells; Ctrl+Alt+5 selects them from the keyboard. Each change is one
   undoable step, saved as new anchors in the sheet's drawing.
+- Change a chart, as Excel's Change Chart Type, Select Data and chart
+  elements do: double-click it, press Enter on it, or right-click it for
+  "Edit chart…". Its type, title and legend, and its data: a range whose
+  series run down the columns or along the rows, or each series' name and
+  values and the category labels. The title, legend and series are changed
+  in place, keeping the rest of a file's chart as it was; another type gets
+  a new plot area, its series in the theme's colours.
 - Notes and threaded comments are marked in the corner of their cell and
   shown when you point at the cell or select it. From the cell menu, or with
   Shift+F2 as in Excel, you can add, edit and delete a note, and read a

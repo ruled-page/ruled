@@ -85,6 +85,20 @@ describe('objects on the sheet', () => {
     expect(objects().map((o) => o.kind)).toEqual(['image', 'chart']);
   });
 
+  it('change a chart from the dialog as one step, and leave a chart alone when nothing changed', async () => {
+    await open();
+    store.setSelection({ row: 0, col: 0, rects: [{ r1: 0, c1: 0, r2: 3, c2: 2 }] });
+    await store.insertChart('column');
+    const chart = objects()[1];
+    await store.editChart(objectKey(chart), {});
+    await store.editChart(objectKey(chart), { kind: 'line', title: 'By region', legend: 'top' });
+    const changed = objects()[1];
+    expect([changed.title, english.text(changed.chartType!), changed.chart?.groups[0].kind, changed.chart?.legend?.position]).toEqual(['By region', 'Line', 'line', 'top']);
+    expect(history()).toEqual(['Insert chart', 'Change Chart 1']);
+    await store.undo();
+    expect(objects()[1].chart?.groups[0].kind).toBe('bar');
+  });
+
   it("can't be moved or deleted on a protected sheet", async () => {
     await open();
     store.setActive(1);

@@ -1,6 +1,7 @@
 import type { Text } from '../i18n/message';
 import type { ChartSpec } from './charts';
 import type { NewChartKind } from './chartWriter';
+import type { ChartEdit } from './chartEdit';
 /** Inclusive, 0-based cell rectangle. */
 export interface Rect {
   r1: number;
@@ -247,7 +248,9 @@ export interface SheetObject {
   sizePx?: { w: number; h: number };
   /** Where it is in the file: its sheet's drawing part, and which of the part's anchors it is. Missing for objects added since. */
   source?: { drawing: string; anchor: number };
-  /** A chart added in the editor: its chart part, as it is saved. */
+  /** A chart's part in the file. */
+  chartPart?: string;
+  /** A chart added or changed in the editor: its chart part, as it is saved. */
   chartXml?: string;
 }
 
@@ -705,7 +708,9 @@ export type LayoutOp =
   /** The sheet's charts, pictures and shapes, where they now sit; any left out are deleted. */
   | { kind: 'objects'; objects: SheetObject[] }
   /** Excel's Insert Chart: a chart of `chart`'s kind plotting `rect`, placed between `from` and `to`; `title` is Excel's "Chart Title" in the user's language. */
-  | { kind: 'insertChart'; chart: NewChartKind; rect: Rect; from: Anchor; to: Anchor; title: string };
+  | { kind: 'insertChart'; chart: NewChartKind; rect: Rect; from: Anchor; to: Anchor; title: string }
+  /** Excel's chart dialogs: the chart with key `key` changed as `edit` says; `title` is Excel's "Chart Title" in the user's language. */
+  | { kind: 'editChart'; key: string; edit: ChartEdit; title: string };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

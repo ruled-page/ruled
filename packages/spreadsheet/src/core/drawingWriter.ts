@@ -46,7 +46,7 @@ function removeChart(pkg: OoxmlPackage, drawing: string, anchor: string): void {
  * new chart.
  */
 export function writeObjects(pkg: OoxmlPackage, sheetPath: string, sheetXml: string, prefix: string, file: SheetObject[], now: SheetObject[]): string {
-  const added = now.filter((o) => o.chartXml);
+  const added = now.filter((o) => o.chartXml && !o.source);
   const rel = pkg.rels(sheetPath).find((r) => r.type === 'drawing');
   let xml = sheetXml;
   let drawing = rel?.target;
@@ -72,6 +72,8 @@ export function writeObjects(pkg: OoxmlPackage, sheetPath: string, sheetXml: str
     if (!span) continue;
     const anchor = out.slice(span.start, span.end);
     const is = kept.get(was.source!.anchor);
+    // A chart changed in the editor is written over its own part.
+    if (is?.chartXml && is.chartPart && is.chartXml !== was.chartXml) pkg.setText(is.chartPart, is.chartXml);
     if (!is) {
       removeChart(pkg, drawing, anchor);
       out = out.slice(0, span.start) + out.slice(span.end);

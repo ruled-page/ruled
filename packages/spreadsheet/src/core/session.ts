@@ -56,8 +56,10 @@ import {
   type LayoutOp,
   type SheetObject,
 } from './types';
-import { parseChart } from './charts';
-import { chartFromRange, chartPartXml, type ChartCell, type NewChartKind } from './chartWriter';
+import { parseChart, resolveRef } from './charts';
+import { chartKindOf, editChartXml, seriesRefsOf } from './chartEdit';
+import { objectKey } from './objectKey';
+import { chartFromRange, chartPartXml, seriesFromRefs, type ChartCell, type NewChartKind, type NewChartSeries } from './chartWriter';
 import { parseXml } from './xml';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
@@ -1945,13 +1947,18 @@ export class WorkbookSession {
         if (table) return this.emptyResult(msg('core.layout.mergeTable', { table: table.name }));
       }
     }
-    // A chart inserted is made here, from the cells as they are now, and set among the sheet's objects.
-    if (changes.some((c) => c.op.kind === 'insertChart')) {
+    // A chart inserted or changed is made here, from the cells as they are now, and set among the sheet's objects.
+    if (changes.some((c) => c.op.kind === 'insertChart' || c.op.kind === 'editChart')) {
       const made: LayoutChange[] = [];
       for (const c of changes) {
-        const op = c.op.kind === 'insertChart' ? this.insertedChart(c.sheet, c.op) : c.op;
-        if (!op) return this.emptyResult(msg('core.chart.noData'));
-        made.push({ sheet: c.sheet, op });
+        const done =
+          c.op.kind === 'insertChart'
+            ? { op: this.insertedChart(c.sheet, c.op), reason: msg('core.chart.noData') }
+            : c.op.kind === 'editChart'
+              ? this.editedChart(c.sheet, c.op)
+              : { op: c.op };
+        if (!done.op) return this.emptyResult(done.reason ?? '');
+        made.push({ sheet: c.sheet, op: done.op });
       }
       changes = made;
     }
@@ -1966,7 +1973,7 @@ export class WorkbookSession {
               ? this.applyConditionalFormats(sheet, op)
               : op.kind === 'objects'
                 ? this.applyObjects(sheet, op)
-                : op.kind === 'insertChart'
+                : op.kind === 'insertChart' || op.kind === 'editChart'
                   ? op
                   : this.layoutOf(sheet).apply(op);
       undo.unshift({ sheet, op: back });
@@ -2008,22 +2015,8 @@ export class WorkbookSession {
    */
   private insertedChart(sheet: number, op: Extract<LayoutOp, { kind: 'insertChart' }>): LayoutOp | undefined {
     const info = this.sheet(sheet).info;
-    const date1904 = this.model.date1904;
-    const at = (row: number, col: number): ChartCell => {
-      const v = this.cellValue(sheet, row, col);
-      const format = this.model.styles.get(this.current(sheet, row, col).style).numFmt || 'General';
-      let date = false;
-      try {
-        date = typeof v === 'number' && format !== 'General' && isDateFormat(format);
-      } catch {
-        date = false;
-      }
-      const value = v !== null && typeof v === 'object' ? null : v;
-      const text =
-        typeof value === 'number' ? String(formatNumber(format, date && date1904 ? value + 1462 : value, { throws: false })) : typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : (value ?? '');
-      return { value, date, format, text };
-    };
-    const chart = chartFromRange(op.rect, at, info.name, op.chart, op.title);
+    const cell = this.chartCell();
+    const chart = chartFromRange(op.rect, (row, col) => cell(sheet, row, col), info.name, op.chart, op.title);
     if (!chart.series.some((s) => s.values.points.some((p) => p !== null))) return undefined;
     const xml = chartPartXml(chart);
     const names = new Set(info.objects.map((o) => o.name));
@@ -2040,6 +2033,57 @@ export class WorkbookSession {
       chartXml: xml,
     };
     return { kind: 'objects', objects: [...info.objects, object] };
+  }
+
+  /**
+   * Excel's chart dialogs: the sheet's objects with one chart changed, its
+   * data read from the cells as they are now. The reason, when it can't be.
+   */
+  private editedChart(sheet: number, op: Extract<LayoutOp, { kind: 'editChart' }>): { op?: LayoutOp; reason?: Text } {
+    const info = this.sheet(sheet).info;
+    const ctx = this.model.chartContext;
+    const obj = info.objects.find((o) => o.kind === 'chart' && objectKey(o) === op.key);
+    const xml = obj && (obj.chartXml ?? (obj.chartPart ? this.pkg.text(obj.chartPart) : undefined));
+    if (!obj || !xml) return { reason: msg('core.chart.missing') };
+    const current = chartKindOf(obj.chart);
+    const kind = op.edit.kind ?? current ?? 'column';
+    const rebuild = kind !== current;
+    const cell = this.chartCell();
+    let series: NewChartSeries[] | undefined;
+    if (op.edit.range) {
+      const r = resolveRef(op.edit.range.ref, ctx);
+      if (!r) return { reason: msg('core.chart.badRef', { ref: op.edit.range.ref }) };
+      series = chartFromRange(r.rect, (row, col) => cell(r.sheet, row, col), this.sheet(r.sheet).info.name, kind, op.title, op.edit.range.byColumns).series;
+    } else if (op.edit.series || rebuild) {
+      const made = seriesFromRefs(op.edit.series ?? seriesRefsOf(obj.chart), (ref) => resolveRef(ref, ctx), cell);
+      if ('bad' in made) return { reason: msg('core.chart.badRef', { ref: made.bad }) };
+      series = made.series;
+    }
+    if (series && !series.some((s) => s.values.points.some((p) => p !== null))) return { reason: msg('core.chart.noData') };
+    const next = editChartXml(xml, { kind, rebuild, series, title: op.edit.title, legend: op.edit.legend });
+    const spec = parseChart(parseXml(next), ctx);
+    const title = spec.title?.cache.filter((v) => v !== null).join('') || undefined;
+    const object: SheetObject = { ...obj, chartXml: next, chart: spec, title, chartType: msg(CHART_KIND_TYPES[kind]) };
+    return { op: { kind: 'objects', objects: info.objects.map((o) => (o === obj ? object : o)) } };
+  }
+
+  /** A cell as charts read it: its value as now calculated, whether it is a date, its format and its text. */
+  private chartCell(): (sheet: number, row: number, col: number) => ChartCell {
+    const date1904 = this.model.date1904;
+    return (sheet, row, col) => {
+      const v = this.cellValue(sheet, row, col);
+      const format = this.model.styles.get(this.current(sheet, row, col).style).numFmt || 'General';
+      let date = false;
+      try {
+        date = typeof v === 'number' && format !== 'General' && isDateFormat(format);
+      } catch {
+        date = false;
+      }
+      const value = v !== null && typeof v === 'object' ? null : v;
+      const text =
+        typeof value === 'number' ? String(formatNumber(format, date && date1904 ? value + 1462 : value, { throws: false })) : typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : (value ?? '');
+      return { value, date, format, text };
+    };
   }
 
   /** The sheets whose charts, pictures or shapes differ from the file's, with the file's. */

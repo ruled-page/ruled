@@ -560,7 +560,8 @@ export const ui = {
   'objects.history.resize': 'Resize {{name}}',
   'objects.history.delete': 'Delete {{name}}',
   'objects.selected': '{{name}}, selected',
-  'objects.selectedHint': 'Arrow keys move it, Shift and the arrow keys resize it, Delete removes it, Tab goes to the next one and Esc back to the cells.',
+  'objects.selectedHint': 'Arrow keys move it, Shift and the arrow keys resize it, Enter edits a chart, Delete removes it, Tab goes to the next one and Esc back to the cells.',
+  'objects.menu.delete': 'Delete',
 
   'grid.empty': 'Empty',
   'grid.label': 'Cells of {{name}}',

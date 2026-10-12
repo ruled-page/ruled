@@ -4,6 +4,7 @@ import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { ChartSlot } from './ChartSlot';
+import { ContextMenu } from './ContextMenu';
 import { GLIDE_SCROLLER } from './glideDom';
 import { Icon } from './icons';
 import type { MessageKey } from '../i18n/message';
@@ -67,6 +68,8 @@ const MIN_SIZE = 16;
 /** A drag in progress: of an object's frame (`move`) or one of its handles, so far. */
 interface Drag {
   key: string;
+  /** The object as it was when the drag began; once the moved one replaces it, the drag no longer shifts it. */
+  obj: SheetObject;
   mode: 'move' | Edge;
   x0: number;
   y0: number;
@@ -120,6 +123,7 @@ export function ObjectsOverlay({
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [bars, setBars] = useState({ right: 0, bottom: 0 });
   const [drag, setDrag] = useState<Drag>();
+  const [menu, setMenu] = useState<{ x: number; y: number; box: Box }>();
 
   useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -193,7 +197,7 @@ export function ObjectsOverlay({
     e.preventDefault();
     e.stopPropagation();
     store.selectObject(b.id);
-    const start: Drag = { key: b.id, mode, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0 };
+    const start: Drag = { key: b.id, obj: b.obj, mode, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0 };
     let now = start;
     setDrag(start);
     const move = (ev: MouseEvent) => {
@@ -204,9 +208,11 @@ export function ObjectsOverlay({
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', end, true);
       window.removeEventListener('keydown', cancel, true);
-      setDrag(undefined);
       if (ev.type === 'mouseup' && Math.abs(now.dx) + Math.abs(now.dy) > 2) {
-        void store.placeObject(b.id, edgesFor(mode, now.dx, now.dy, b.width, b.height));
+        // It stays where it was dropped until the moved object takes its place, rather than flashing back first.
+        void store.placeObject(b.id, edgesFor(mode, now.dx, now.dy, b.width, b.height)).finally(() => setDrag(undefined));
+      } else {
+        setDrag(undefined);
       }
       frame.current?.focus({ preventScroll: true });
     };
@@ -222,6 +228,20 @@ export function ObjectsOverlay({
     window.addEventListener('keydown', cancel, true);
   };
 
+  /** Excel's chart dialogs, for a chart. */
+  const openEditor = (b: Box) => {
+    if (b.editable && b.obj.kind === 'chart') store.set('chartDialog', { key: b.id });
+  };
+
+  /** Right-clicking an object selects it and offers what can be done with it. */
+  const onMenu = (e: ReactMouseEvent, b: Box) => {
+    if (!b.editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    store.selectObject(b.id);
+    setMenu({ x: e.clientX, y: e.clientY, box: b });
+  };
+
   /** The wheel scrolls the sheet under an object, as it does elsewhere on the grid. */
   const wheel = (e: ReactWheelEvent) => host.current?.parentElement?.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`)?.scrollBy({ left: e.deltaX, top: e.deltaY });
 
@@ -233,6 +253,11 @@ export function ObjectsOverlay({
       void store.placeObject(b.id, e.shiftKey ? { left: 0, top: 0, right: x, bottom: y } : { left: x, top: y, right: x, bottom: y });
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       void store.deleteObject(b.id).then(() => store.focusGrid());
+    } else if (e.key === 'Enter' && b.obj.kind === 'chart') {
+      openEditor(b);
+    } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      const r = (e.target as HTMLElement).getBoundingClientRect();
+      setMenu({ x: r.left + 8, y: r.top + 8, box: b });
     } else if (e.key === 'Escape') {
       store.selectObject(undefined);
       store.focusGrid();
@@ -246,55 +271,73 @@ export function ObjectsOverlay({
   };
 
   const placed = (b: Box): CSSProperties => {
-    if (drag?.key !== b.id) return { left: b.left, top: b.top, width: b.width, height: b.height };
+    if (drag?.key !== b.id || drag.obj !== b.obj) return { left: b.left, top: b.top, width: b.width, height: b.height };
     const d = edgesFor(drag.mode, drag.dx, drag.dy, b.width, b.height);
     return { left: b.left + d.left, top: b.top + d.top, width: b.width + d.right - d.left, height: b.height + d.bottom - d.top };
   };
 
   return (
-    <div className="wbe-objects-overlay" ref={host} style={{ top, right: bars.right, bottom: bars.bottom }}>
-      {boxes.map((b) => {
-        const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined };
-        const placeholder = <Placeholder box={b} style={style} />;
-        return b.obj.kind === 'chart' ? (
-          <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
-        ) : (
-          <Placeholder key={b.key} box={b} style={style} />
-        );
-      })}
-      {boxes
-        .filter((b) => b.editable && b !== selected)
-        .map((b) => (
-          <div
-            key={`hit-${b.key}`}
-            className="wbe-object-hit"
-            style={{ ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined }}
-            onMouseDown={(e) => begin(e, b, 'move')}
-            onWheel={wheel}
-            aria-hidden="true"
-          />
-        ))}
-      {selected && (
-        <div
-          ref={selected.continued ? undefined : frame}
-          className="wbe-object-frame"
-          style={placed(selected)}
-          tabIndex={selected.continued ? -1 : 0}
-          role="group"
-          aria-label={t('objects.selected', { name: selected.obj.name })}
-          aria-describedby={`${id}-hint`}
-          onMouseDown={(e) => begin(e, selected, 'move')}
-          onWheel={wheel}
-          onKeyDown={(e) => onKey(e, selected)}
-        >
-          {HANDLES.map((h) => (
-            <span key={h} className={`wbe-object-handle wbe-handle-${h}`} onMouseDown={(e) => begin(e, selected, h)} aria-hidden="true" />
+    <>
+      <div className="wbe-objects-overlay" ref={host} style={{ top, right: bars.right, bottom: bars.bottom }}>
+        {boxes.map((b) => {
+          const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined };
+          const placeholder = <Placeholder box={b} style={style} />;
+          return b.obj.kind === 'chart' ? (
+            <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
+          ) : (
+            <Placeholder key={b.key} box={b} style={style} />
+          );
+        })}
+        {boxes
+          .filter((b) => b.editable && b !== selected)
+          .map((b) => (
+            <div
+              key={`hit-${b.key}`}
+              className="wbe-object-hit"
+              style={{ ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined }}
+              onMouseDown={(e) => begin(e, b, 'move')}
+              onDoubleClick={() => openEditor(b)}
+              onContextMenu={(e) => onMenu(e, b)}
+              onWheel={wheel}
+              aria-hidden="true"
+            />
           ))}
-          <span id={`${id}-hint`} className="wbe-sr-only">
-            {t('objects.selectedHint')}
-          </span>
-        </div>
+        {selected && (
+          <div
+            ref={selected.continued ? undefined : frame}
+            className="wbe-object-frame"
+            style={placed(selected)}
+            tabIndex={selected.continued ? -1 : 0}
+            role="group"
+            aria-label={t('objects.selected', { name: selected.obj.name })}
+            aria-describedby={`${id}-hint`}
+            onMouseDown={(e) => begin(e, selected, 'move')}
+            onDoubleClick={() => openEditor(selected)}
+            onContextMenu={(e) => onMenu(e, selected)}
+            onWheel={wheel}
+            onKeyDown={(e) => onKey(e, selected)}
+          >
+            {HANDLES.map((h) => (
+              <span key={h} className={`wbe-object-handle wbe-handle-${h}`} onMouseDown={(e) => begin(e, selected, h)} aria-hidden="true" />
+            ))}
+            <span id={`${id}-hint`} className="wbe-sr-only">
+              {t('objects.selectedHint')}
+            </span>
+          </div>
+        )}
+      </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          label={menu.box.obj.name}
+          onClose={() => setMenu(undefined)}
+          items={[
+            ...(menu.box.obj.kind === 'chart' ? [{ label: t('charts.menu.edit'), onSelect: () => openEditor(menu.box) }] : []),
+            { label: t('objects.menu.delete'), danger: true, onSelect: () => void store.deleteObject(menu.box.id).then(() => store.focusGrid()) },
+          ]}
+        />
       )}
-    </div>
+    </>
   );
 }

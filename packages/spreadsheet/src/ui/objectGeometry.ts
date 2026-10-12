@@ -35,10 +35,7 @@ export function objectSize(view: SheetView, obj: SheetObject): { width: number; 
   };
 }
 
-/** An object's key, the same whatever else changes: where it is in the file, or its name for one added in the editor. */
-export function objectKey(obj: SheetObject): string {
-  return obj.source ? `${obj.source.drawing}#${obj.source.anchor}` : `new:${obj.name}`;
-}
+export { objectKey } from '../core/objectKey';
 
 /** Whether an object can be moved, resized or deleted: a chart, picture or shape on a worksheet that isn't protected. */
 export function objectEditable(info: Pick<SheetInfo, 'kind' | 'protected'>, obj: SheetObject): boolean {

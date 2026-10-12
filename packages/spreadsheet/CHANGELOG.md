@@ -56,6 +56,12 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Edit chart: double-click a chart, press Enter on it or right-click it to
+  change its type, title, legend and data (a range down the columns or
+  along the rows, or each series' references), as Excel's chart dialogs
+  do; a file's chart keeps its own formatting where its type is unchanged.
+- A chart dropped after dragging or resizing stays where it was let go
+  rather than flashing back while the change is saved.
 - Charts, pictures and shapes can be selected by clicking them, moved by
   dragging, resized by their handles and deleted with Delete, or worked
   from the keyboard (Ctrl+Alt+5, arrows, Shift+arrows, Tab, Esc); each is

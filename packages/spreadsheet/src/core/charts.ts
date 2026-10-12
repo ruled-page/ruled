@@ -197,7 +197,7 @@ function solidFill(node: XmlNode | undefined, theme: string[]): string | undefin
 }
 
 /** A reference resolved to one range on one sheet: directly, or through a defined name. */
-function resolveRef(formula: string, ctx: ChartContext, depth = 0): ChartData['ref'] {
+export function resolveRef(formula: string, ctx: ChartContext, depth = 0): ChartData['ref'] {
   const ref = parseA1Ref(formula.trim().replace(/^=/, ''), { allowTernary: false });
   if (!ref || (ref.context?.length ?? 0) > 1) return undefined;
   const sheetName = ref.context?.[0];

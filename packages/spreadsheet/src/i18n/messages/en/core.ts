@@ -272,6 +272,8 @@ export const core = {
   'core.change.conditionalFormats': 'Conditional formatting changed',
   'core.change.objects': 'Charts, pictures or shapes changed',
   'core.chart.noData': 'There is nothing to chart: select cells with numbers in them.',
+  'core.chart.missing': 'That chart is no longer there.',
+  'core.chart.badRef': "That isn't a range on a sheet: {{ref}}",
   'core.validation.kept': "This sheet has validation rules the editor can't read, so its rules are kept as the file has them. Change them in Excel.",
   'core.change.unmerged': 'Unmerged the cells',
   'core.change.tableGrew_one': 'Table {{table}} took in {{count, number}} more row',

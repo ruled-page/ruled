@@ -58,6 +58,7 @@ import { csvFileName, sheetCsv } from './csv';
 import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit';
 import { checkboxState } from './checkbox';
 import type { NewChartKind } from '../core/chartWriter';
+import type { ChartEdit } from '../core/chartEdit';
 import { objectEditable, objectKey, objectSize, shiftAnchor } from '../ui/objectGeometry';
 import { displayText, editText, exactText, isDateStyle } from './format';
 import { excelTextWidth } from './overflow';
@@ -837,6 +838,7 @@ export class WorkbookStore {
   setActive(i: number): void {
     this.active = i;
     this.selectedObject = undefined;
+    this.chartDialog = undefined;
     this.refreshConditionalFormats(i);
     this.notify();
   }
@@ -3196,6 +3198,16 @@ export class WorkbookStore {
     await this.changeLayout({ kind: 'objects', objects: objects.map((o, j) => (j === i ? next : o)) }, msg(moved ? 'objects.history.move' : 'objects.history.resize', { name: obj.name }));
   }
 
+  /** Excel's chart dialogs, open for the chart with this key. */
+  chartDialog?: { key: string };
+
+  /** Changes a chart as Excel's Change Chart Type, Select Data and chart elements do. One undoable step. */
+  async editChart(key: string, edit: ChartEdit): Promise<void> {
+    const obj = this.view?.info.objects.find((o) => objectKey(o) === key);
+    if (!obj || !Object.keys(edit).length) return;
+    await this.changeLayout({ kind: 'editChart', key, edit, title: this.t('charts.placeholderTitle') }, msg('charts.history.edit', { name: obj.name }));
+  }
+
   /** Deletes an object, as Delete does with one selected in Excel. One undoable step. */
   async deleteObject(key: string): Promise<void> {
     const view = this.view;
@@ -4123,6 +4135,7 @@ export class WorkbookStore {
       | 'validationDialog'
       | 'sortDialog'
       | 'selectedObject'
+      | 'chartDialog'
       | 'numberFormatOpen'
       | 'cellsDialog'
       | 'customListsOpen'

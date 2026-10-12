@@ -555,7 +555,8 @@ export const ui: Record<keyof typeof en, string> = {
   'objects.history.resize': 'Größe von {{name}} ändern',
   'objects.history.delete': '{{name}} löschen',
   'objects.selected': '{{name}}, ausgewählt',
-  'objects.selectedHint': 'Pfeiltasten verschieben es, Umschalt und Pfeiltasten ändern die Größe, Entf löscht es, Tab geht zum nächsten und Esc zurück zu den Zellen.',
+  'objects.selectedHint': 'Pfeiltasten verschieben es, Umschalt und Pfeiltasten ändern die Größe, Eingabe bearbeitet ein Diagramm, Entf löscht es, Tab geht zum nächsten und Esc zurück zu den Zellen.',
+  'objects.menu.delete': 'Löschen',
 
   'grid.empty': 'Leer',
   'grid.label': 'Zellen von {{name}}',

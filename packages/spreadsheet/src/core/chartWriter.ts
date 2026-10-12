@@ -22,7 +22,8 @@ export interface ChartCell {
 }
 
 export interface NewChartSeries {
-  name?: { ref: string; text: string };
+  /** A reference to the cell holding the name, or (without one) the name written in. */
+  name?: { ref?: string; text: string };
   /** Labels along the category axis, or a scatter chart's x values. */
   categories?: { ref: string; points: (string | number | null)[]; numeric: boolean; format: string };
   values: { ref: string; points: (number | null)[]; format: string };
@@ -46,7 +47,15 @@ const isEmpty = (c: ChartCell) => c.value === null || c.value === '';
  * first column of numbers as the x values. A chart of several series gets
  * `placeholder` as its title, as Excel gives it "Chart Title".
  */
-export function chartFromRange(rect: Rect, at: (row: number, col: number) => ChartCell, sheet: string, kind: NewChartKind, placeholder: string): NewChart {
+export function chartFromRange(
+  rect: Rect,
+  at: (row: number, col: number) => ChartCell,
+  sheet: string,
+  kind: NewChartKind,
+  placeholder: string,
+  /** Series down the columns (true) or along the rows, instead of Excel's guess. */
+  byColumns?: boolean,
+): NewChart {
   const rows = rect.r2 - rect.r1 + 1;
   const cols = rect.c2 - rect.c1 + 1;
   const corner = at(rect.r1, rect.c1);
@@ -69,7 +78,7 @@ export function chartFromRange(rect: Rect, at: (row: number, col: number) => Cha
   const ref = (r1: number, c1: number, r2: number, c2: number) => `${quoteSheetName(sheet)}!${absolute(rangeToA1({ r1, c1, r2, c2 }))}`;
   const data = { r1: rect.r1 + (header ? 1 : 0), c1: rect.c1 + (labels ? 1 : 0), r2: rect.r2, c2: rect.c2 };
   // Series down the columns, unless there are more columns of data than rows.
-  const byCols = data.r2 - data.r1 + 1 >= data.c2 - data.c1 + 1;
+  const byCols = byColumns ?? data.r2 - data.r1 + 1 >= data.c2 - data.c1 + 1;
   const lines: { cells: ChartCell[]; ref: string; name?: { ref: string; text: string } }[] = [];
   const along: { cells: ChartCell[]; ref: string } | undefined = labels && byCols
     ? { cells: span(data.r1, rect.c1, data.r2, rect.c1), ref: ref(data.r1, rect.c1, data.r2, rect.c1) }
@@ -107,6 +116,60 @@ export function chartFromRange(rect: Rect, at: (row: number, col: number) => Cha
   return { kind, ...(series.length > 1 && !round && { title: placeholder }), legend: series.length > 1 || round, series };
 }
 
+/** What Select Data sets for a series: its name (a reference, or the name itself), values and categories, as typed. */
+export interface SeriesRefs {
+  name?: string;
+  values: string;
+  categories?: string;
+}
+
+/** The most points a series is read with, as the editor draws charts. */
+const MAX_POINTS = 4000;
+
+/**
+ * Series from references, with what their cells hold now, as Excel's Select
+ * Data takes them. A name that isn't a reference is the name itself. Values
+ * or categories that aren't a range on a sheet are given back as `bad`.
+ */
+export function seriesFromRefs(
+  refs: SeriesRefs[],
+  resolve: (ref: string) => { sheet: number; rect: Rect } | undefined,
+  at: (sheet: number, row: number, col: number) => ChartCell,
+): { series: NewChartSeries[] } | { bad: string } {
+  const clean = (ref: string) => ref.trim().replace(/^=/, '');
+  const cells = ({ sheet, rect }: { sheet: number; rect: Rect }) => {
+    const out: ChartCell[] = [];
+    for (let r = rect.r1; r <= rect.r2 && out.length < MAX_POINTS; r++) for (let c = rect.c1; c <= rect.c2 && out.length < MAX_POINTS; c++) out.push(at(sheet, r, c));
+    return out;
+  };
+  const series: NewChartSeries[] = [];
+  for (const s of refs) {
+    const v = resolve(clean(s.values));
+    if (!v) return { bad: s.values };
+    const values = cells(v);
+    const one: NewChartSeries = {
+      values: { ref: clean(s.values), points: values.map((c) => (typeof c.value === 'number' ? c.value : null)), format: values.find((c) => typeof c.value === 'number')?.format ?? 'General' },
+    };
+    if (s.categories?.trim()) {
+      const c = resolve(clean(s.categories));
+      if (!c) return { bad: s.categories };
+      const labels = cells(c);
+      one.categories = {
+        ref: clean(s.categories),
+        points: labels.map((l) => (l.date && typeof l.value === 'number' ? l.value : l.text || null)),
+        numeric: labels.every((l) => l.date || isEmpty(l)),
+        format: labels.find((l) => l.date)?.format ?? 'General',
+      };
+    }
+    if (s.name?.trim()) {
+      const n = resolve(clean(s.name));
+      one.name = n ? { ref: clean(s.name), text: at(n.sheet, n.rect.r1, n.rect.c1).text } : { text: s.name.trim() };
+    }
+    series.push(one);
+  }
+  return { series };
+}
+
 /** A1:B2 as $A$1:$B$2. */
 const absolute = (a1: string) => a1.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2');
 
@@ -126,28 +189,44 @@ function numCache(points: (string | number | null)[], format: string): string {
   return `<c:numCache><c:formatCode>${escapeXml(format)}</c:formatCode><c:ptCount val="${points.length}"/>${pts}</c:numCache>`;
 }
 
+/** A series' name element: a reference to its cell, with what the cell holds, or the name written in. */
+export function seriesTxXml(name: NonNullable<NewChartSeries['name']>): string {
+  return name.ref
+    ? `<c:tx><c:strRef><c:f>${escapeXml(name.ref)}</c:f>${strCache([name.text])}</c:strRef></c:tx>`
+    : `<c:tx><c:v>${escapeXml(name.text)}</c:v></c:tx>`;
+}
+
+/** A series' categories (or x values) inside `tag`: their reference with what the cells hold. */
+export function seriesCategoriesXml(tag: 'cat' | 'xVal', c: NonNullable<NewChartSeries['categories']>): string {
+  const ref = c.numeric
+    ? `<c:numRef><c:f>${escapeXml(c.ref)}</c:f>${numCache(c.points, c.format)}</c:numRef>`
+    : `<c:strRef><c:f>${escapeXml(c.ref)}</c:f>${strCache(c.points)}</c:strRef>`;
+  return `<c:${tag}>${ref}</c:${tag}>`;
+}
+
+/** A series' values inside `tag`: their reference with what the cells hold. */
+export function seriesValuesXml(tag: 'val' | 'yVal', v: NewChartSeries['values']): string {
+  return `<c:${tag}><c:numRef><c:f>${escapeXml(v.ref)}</c:f>${numCache(v.points, v.format)}</c:numRef></c:${tag}>`;
+}
+
 /** A series' parts, in the order the chart schema has them for its kind. */
 function seriesXml(s: NewChartSeries, i: number, kind: NewChartKind): string {
-  const tx = s.name ? `<c:tx><c:strRef><c:f>${escapeXml(s.name.ref)}</c:f>${strCache([s.name.text])}</c:strRef></c:tx>` : '';
-  const cat = s.categories
-    ? s.categories.numeric
-      ? `<c:numRef><c:f>${escapeXml(s.categories.ref)}</c:f>${numCache(s.categories.points, s.categories.format)}</c:numRef>`
-      : `<c:strRef><c:f>${escapeXml(s.categories.ref)}</c:f>${strCache(s.categories.points)}</c:strRef>`
-    : '';
-  const val = `<c:numRef><c:f>${escapeXml(s.values.ref)}</c:f>${numCache(s.values.points, s.values.format)}</c:numRef>`;
+  const tx = s.name ? seriesTxXml(s.name) : '';
+  const cat = s.categories ? seriesCategoriesXml(kind === 'scatter' ? 'xVal' : 'cat', s.categories) : '';
+  const val = seriesValuesXml(kind === 'scatter' ? 'yVal' : 'val', s.values);
   const head = `<c:idx val="${i}"/><c:order val="${i}"/>${tx}`;
   switch (kind) {
     case 'column':
     case 'bar':
-      return `<c:ser>${head}<c:invertIfNegative val="0"/>${cat && `<c:cat>${cat}</c:cat>`}<c:val>${val}</c:val></c:ser>`;
+      return `<c:ser>${head}<c:invertIfNegative val="0"/>${cat}${val}</c:ser>`;
     case 'line':
-      return `<c:ser>${head}<c:marker><c:symbol val="none"/></c:marker>${cat && `<c:cat>${cat}</c:cat>`}<c:val>${val}</c:val><c:smooth val="0"/></c:ser>`;
+      return `<c:ser>${head}<c:marker><c:symbol val="none"/></c:marker>${cat}${val}<c:smooth val="0"/></c:ser>`;
     case 'area':
     case 'pie':
     case 'doughnut':
-      return `<c:ser>${head}${cat && `<c:cat>${cat}</c:cat>`}<c:val>${val}</c:val></c:ser>`;
+      return `<c:ser>${head}${cat}${val}</c:ser>`;
     case 'scatter':
-      return `<c:ser>${head}<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>${cat && `<c:xVal>${cat}</c:xVal>`}<c:yVal>${val}</c:yVal><c:smooth val="0"/></c:ser>`;
+      return `<c:ser>${head}<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>${cat}${val}<c:smooth val="0"/></c:ser>`;
   }
 }
 
@@ -160,8 +239,8 @@ function axisXml(tag: 'catAx' | 'valAx', id: number, cross: number, pos: 'b' | '
     : `<c:valAx>${head}${ticks}<c:crossBetween val="${between}"/></c:valAx>`;
 }
 
-/** The chart part for a new chart, as Excel writes a default one of its kind. */
-export function chartPartXml(chart: NewChart): string {
+/** A chart's plot area, as Excel writes a default one of its kind: its series and its axes. */
+export function plotAreaXml(chart: Pick<NewChart, 'kind' | 'series'>): string {
   const series = chart.series.map((s, i) => seriesXml(s, i, chart.kind)).join('');
   const valueFormat = chart.series[0]?.values.format ?? 'General';
   const catFormat = chart.series[0]?.categories?.format ?? 'General';
@@ -200,6 +279,11 @@ export function chartPartXml(chart: NewChart): string {
         axisXml('valAx', 500000002, 500000001, 'l', true, valueFormat, 'midCat');
       break;
   }
+  return `<c:plotArea><c:layout/>${plot}</c:plotArea>`;
+}
+
+/** The chart part for a new chart, as Excel writes a default one of its kind. */
+export function chartPartXml(chart: NewChart): string {
   const title = chart.title
     ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${escapeXml(chart.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
     : `<c:autoTitleDeleted val="${chart.series.length === 1 ? 0 : 1}"/>`;
@@ -207,7 +291,7 @@ export function chartPartXml(chart: NewChart): string {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' +
     `<c:chartSpace xmlns:c="${C_NS}" xmlns:a="${A_NS}" xmlns:r="${R_NS}"><c:roundedCorners val="0"/>` +
-    `<c:chart>${title}<c:plotArea><c:layout/>${plot}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    `<c:chart>${title}${plotAreaXml(chart)}${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
     '</c:chartSpace>'
   );
 }

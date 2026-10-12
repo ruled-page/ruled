@@ -204,7 +204,7 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
     if (rel && (rel.type === 'chart' || rel.type === 'chartEx')) {
       const { title, type, chart } = readChart(pkg, rel.target, ctx);
       // Excel's newer kinds of chart (chartEx: waterfall, treemap…) aren't read.
-      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx, source });
+      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx, source, chartPart: rel.target });
     } else if (descendants(anchor, 'pic').length) {
       out.push({ kind: 'image', name, from, to, sizePx, source });
     } else if (descendants(anchor, 'sp').length || descendants(anchor, 'grpSp').length || descendants(anchor, 'cxnSp').length) {

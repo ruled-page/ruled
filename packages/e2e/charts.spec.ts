@@ -159,6 +159,8 @@ test('selects a chart by clicking it, moves and resizes it by dragging, and dele
   await page.mouse.move(start.x + 140, start.y + 120, { steps: 4 });
   await page.mouse.move(start.x + 164, start.y + 140, { steps: 4 });
   await page.mouse.up();
+  // Dropped, it stays where it was let go rather than flashing back while the move is saved.
+  expect(Math.round((await box()).x - start.x)).toBe(64);
   await expect.poll(async () => [Math.round((await box()).x - start.x), Math.round((await box()).y - start.y)]).toEqual([64, 40]);
 
   // Its bottom-right handle dragged 50 pixels further out.
@@ -167,6 +169,7 @@ test('selects a chart by clicking it, moves and resizes it by dragging, and dele
   await page.mouse.down();
   await page.mouse.move(moved.x + moved.width + 50, moved.y + moved.height + 50, { steps: 5 });
   await page.mouse.up();
+  expect(Math.round((await box()).width - moved.width)).toBe(50);
   await expect.poll(async () => Math.round((await box()).width - moved.width)).toBe(50);
 
   // Arrow keys nudge it; Delete removes it, and back to the cells.
@@ -184,4 +187,44 @@ test('selects a chart by clicking it, moves and resizes it by dragging, and dele
   await expect(frame).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(frame).toHaveCount(0);
+});
+
+test('changes a chart in its dialog, opened by double-clicking it or from its menu: type, title, legend and data', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  await goTo(page, 'A1:C3');
+  await page.keyboard.press('Alt+F1');
+  const column = page.getByRole('img', { name: 'Column chart “Chart Title”' });
+  const b = (await column.boundingBox())!;
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  const dialog = page.getByRole('dialog', { name: 'Edit chart' });
+  const type = dialog.getByRole('combobox', { name: 'Chart type' });
+  await expect(type).toBeFocused();
+  await expect(dialog.getByRole('textbox', { name: 'Data range' })).toHaveValue('=Lines!$A$1:$C$3');
+  await expect(dialog.getByRole('textbox', { name: 'Series 2: Values' })).toHaveValue('=Lines!$C$2:$C$3');
+  await type.selectOption('line');
+  await dialog.getByRole('textbox', { name: 'Title' }).fill('Orders');
+  await dialog.getByRole('combobox', { name: 'Legend' }).selectOption('top');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  const line = page.getByRole('img', { name: 'Line chart “Orders”' });
+  await expect(line).toHaveAccessibleDescription(/^2 series\. Qty: Bolts 2 and Nuts 4\./);
+
+  // From its menu, the series along the rows instead.
+  const lb = (await line.boundingBox())!;
+  await page.mouse.click(lb.x + 60, lb.y + 60, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Edit chart…' }).click();
+  await dialog.getByRole('combobox', { name: 'Series in' }).selectOption('rows');
+  await expect(dialog.getByRole('textbox', { name: 'Series 1: Values' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await expect(line).toHaveAccessibleDescription(/^2 series\. Bolts: Qty 2 and Price 3\./);
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Save as Excel/ }).click();
+  const files = unzipSync(new Uint8Array(await readFile(await (await download).path())));
+  const part = new TextDecoder().decode(files['xl/charts/chart1.xml']);
+  expect(part).toContain('<c:lineChart>');
+  expect(part).toContain('<a:t>Orders</a:t>');
+  expect(part).toContain('<c:f>Lines!$B$2:$C$2</c:f>');
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(line).toHaveAccessibleDescription(/^2 series\. Qty:/);
 });
