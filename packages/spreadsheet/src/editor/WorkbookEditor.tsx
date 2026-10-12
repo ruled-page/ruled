@@ -35,6 +35,7 @@ const sortDialog = lazyModule(() => import('../ui/SortDialog'));
 // The cell menu, the filter menu, Find, and the dialogs for sizes, inserting cells and the shortcuts.
 const gridMenu = lazyModule(() => import('../ui/GridMenu'));
 const filterPicker = lazyModule(() => import('../ui/FilterPicker'));
+const conditionDialog = lazyModule(() => import('../ui/FilterConditionDialog'));
 const findPanel = lazyModule(() => import('../ui/FindPanel'));
 const keyDialogs = lazyModule(() => import('../ui/KeyboardDialogs'));
 
@@ -253,6 +254,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Sort = sortDialog.useModule(!!store.sortDialog);
   const Menu = gridMenu.useModule(!!store.menu);
   const Filter = filterPicker.useModule(!!store.filterPicker);
+  const Condition = conditionDialog.useModule(!!store.conditionDialog);
   const Find = findPanel.useModule(store.findOpen);
   const Keys = keyDialogs.useModule(store.shortcutsOpen || store.columnWidthFor !== undefined || store.rowHeightFor !== undefined || !!store.cellsDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
@@ -265,7 +267,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [gridMenu, filterPicker, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog]) m.preload();
+      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog]) m.preload();
     });
   }, [opened]);
 
@@ -366,6 +368,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {store.designerOpen && Designer && <Designer.SchemaDesigner store={store} />}
       {ready && Menu && <Menu.GridMenu store={store} />}
       {ready && Filter && <Filter.FilterPicker store={store} />}
+      {ready && store.conditionDialog && Condition && <Condition.FilterConditionDialog store={store} />}
       {ready && Keys && <Keys.SizeDialog store={store} axis="cols" />}
       {ready && Keys && <Keys.SizeDialog store={store} axis="rows" />}
       {ready && Keys && <Keys.CellsDialog store={store} />}

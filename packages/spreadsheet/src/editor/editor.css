@@ -3477,6 +3477,82 @@
   font-weight: 600;
 }
 
+/* Text, Number or Date Filters, opening into their rules. */
+.wbe .wbe-filter-conditions {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--wbe-border);
+}
+
+.wbe .wbe-filter-conditions > .wbe-btn {
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.wbe .wbe-filter-conditions > .wbe-btn > span {
+  flex: 1;
+  text-align: start;
+}
+
+.wbe .wbe-filter-conditions ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.wbe .wbe-filter-conditions li .wbe-btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* The Custom AutoFilter and Top 10 dialogs, wide enough for the longest comparison. */
+.wbe .wbe-modal.wbe-condition-dialog {
+  width: 540px;
+}
+
+.wbe .wbe-condition-rule,
+.wbe .wbe-condition-top10 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wbe .wbe-condition-top10 {
+  grid-template-columns: auto minmax(0, 1fr) 5em minmax(0, 1fr);
+}
+
+.wbe .wbe-condition-rule .wbe-field-error,
+.wbe .wbe-condition-top10 .wbe-field-error {
+  grid-column: 1 / -1;
+}
+
+.wbe .wbe-condition-value,
+.wbe .wbe-condition-count {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  font: inherit;
+  min-width: 0;
+}
+
+.wbe .wbe-condition-join {
+  display: flex;
+  gap: 16px;
+  margin: 10px 0 2px;
+}
+
+.wbe .wbe-condition-join label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Sorting by the column, above its values, as in Excel's filter menu. */
 .wbe .wbe-filter-sort {
   display: flex;

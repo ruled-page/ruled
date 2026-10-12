@@ -28,6 +28,7 @@ import {
   type BorderEdge,
   type BorderPlacement,
   type Finding,
+  type FilterCondition,
   type FilterState,
   type FormatChange,
   type PastePart,
@@ -58,6 +59,7 @@ import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
+import { averageOf, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
 import type { EngineInfo, WorkStats } from '../core/engineIds';
 import { SheetView } from './sheetView';
 import { cellLink, type CellLink, type LinkClick } from './links';
@@ -514,6 +516,8 @@ export class WorkbookStore {
   menu?: { x: number; y: number; kind: 'cell' | 'column' | 'row' };
   /** The value picker for filtering a column, while open. */
   filterPicker?: { col: number; x: number; y: number; rect?: Rect };
+  /** Excel's Custom AutoFilter or Top 10 dialog, open for a column of a filter, starting on the rules picked from its menu. */
+  conditionDialog?: { col: number; rect: Rect; mode: 'custom' | 'top10'; preset?: { first: RuleOp; second?: RuleOp; and: boolean } };
   findOpen = false;
   /** The list of keyboard shortcuts. */
   shortcutsOpen = false;
@@ -2386,25 +2390,45 @@ export class WorkbookStore {
     return out;
   }
 
+  /** A cell as a filter tests it: the text it shows, and its number. */
+  private filterCell(view: SheetView, row: number, col: number): FilterCell {
+    const rec = view.get(row, col);
+    return { text: this.shownText(view, row, col), ...(rec?.t === VT.Number && rec.n !== undefined && { n: rec.n }) };
+  }
+
   /**
    * The values in a column of a filter's range, with how many rows hold each,
    * for picking what to show: `range` when a heading's button gives it, else
-   * the filter's, else the data around the selection.
+   * the filter's, else the data around the selection. With the values picked
+   * or the condition the column is filtered by, and the kind of value it
+   * mostly holds, which names its filters (Text, Number or Date Filters).
    */
-  filterChoices(col: number, range?: Rect): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string> } | undefined {
+  filterChoices(
+    col: number,
+    range?: Rect,
+  ): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string>; condition?: FilterCondition; kind: 'text' | 'number' | 'date'; style: number } | undefined {
     const view = this.view;
     if (!view) return undefined;
     const rect = range ?? view.filter?.rect ?? this.dataRegion();
     if (!rect || col < rect.c1 || col > rect.c2) return undefined;
     const counts = new Map<string, number>();
+    const kinds = { text: 0, number: 0, date: 0 };
+    let style = 0;
     for (let row = rect.r1 + 1; row <= rect.r2; row++) {
       const text = this.shownText(view, row, col);
       counts.set(text, (counts.get(text) ?? 0) + 1);
+      const rec = view.get(row, col);
+      if (!rec || rec.t === VT.None) continue;
+      const date = rec.t === VT.Number && isDateStyle(this.styles[rec.style] ?? this.styles[0]);
+      if (date && !kinds.date) style = rec.style;
+      kinds[rec.t !== VT.Number ? 'text' : date ? 'date' : 'number']++;
     }
     const values = [...counts].map(([text, count]) => ({ text, count }));
     values.sort((a, b) => (a.text === '' ? 1 : b.text === '' ? -1 : a.text.localeCompare(b.text, undefined, { numeric: true })));
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
-    return { rect, values, allowed: current?.columns.get(col) };
+    // As Excel chooses, the kind most of the column's values are.
+    const kind = kinds.date >= kinds.number && kinds.date > kinds.text ? 'date' : kinds.number > kinds.text ? 'number' : 'text';
+    return { rect, values, allowed: current?.columns.get(col), condition: current?.conditions.get(col), kind, style };
   }
 
   /**
@@ -2414,33 +2438,63 @@ export class WorkbookStore {
    * of the filter there was. The file keeps the filter, and the rows it
    * hides, when saved.
    */
-  async setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): Promise<void> {
+  setFilter(rect: Rect, col: number, allowed: Set<string> | undefined): Promise<void> {
+    return this.filterColumn(rect, col, allowed && { values: allowed });
+  }
+
+  /**
+   * Shows only rows whose value in `col` meets a condition, as Excel's Text,
+   * Number and Date Filters do; undefined shows them all again. A Top 10 or
+   * average is worked out now, as Excel does, and kept with the filter.
+   */
+  setFilterCondition(rect: Rect, col: number, condition: FilterCondition | undefined): Promise<void> {
+    return this.filterColumn(rect, col, condition && { condition });
+  }
+
+  private async filterColumn(rect: Rect, col: number, pick: { values: Set<string> } | { condition: FilterCondition } | undefined): Promise<void> {
     const view = this.view;
     if (!view) return;
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
-    const columns = new Map(current?.columns ?? []);
-    if (allowed) columns.set(col, allowed);
-    else columns.delete(col);
     let target = rect;
     let table = current?.table;
-    if (!current) {
-      const t = view.info.tables.find((x) => x.rect.r1 <= target.r2 && x.rect.r2 >= target.r1 && x.rect.c1 <= target.c2 && x.rect.c2 >= target.c1);
-      if (t) {
-        target = { ...t.rect, r2: t.rect.r2 - t.totalsRows };
-        table = t.name;
-      }
+    const t = current ? undefined : view.info.tables.find((x) => x.rect.r1 <= target.r2 && x.rect.r2 >= target.r1 && x.rect.c1 <= target.c2 && x.rect.c2 >= target.c1);
+    if (t) {
+      target = { ...t.rect, r2: t.rect.r2 - t.totalsRows };
+      table = t.name;
     }
-    const rows = columns.size ? SheetView.rowsFilteredBy(target, columns, (row, c) => this.shownText(view, row, c)) : [];
-    const filter: FilterState = { rect: target, columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])), ...(table ? { table } : {}) };
+    // A filter the editor can't change is left as the file has it.
+    if (current?.kept || t?.filterKept) return this.toast('warn', msg('filter.kept'));
+    const columns = new Map(current?.columns ?? []);
+    const conditions = new Map(current?.conditions ?? []);
+    columns.delete(col);
+    conditions.delete(col);
+    const cell = (row: number, c: number) => this.filterCell(view, row, c);
+    if (pick && 'values' in pick) columns.set(col, pick.values);
+    if (pick && 'condition' in pick) {
+      const cells = Array.from({ length: Math.max(0, target.r2 - target.r1) }, (_, i) => cell(target.r1 + 1 + i, col));
+      const c = pick.condition;
+      conditions.set(
+        col,
+        c.kind === 'top10' ? { ...c, threshold: top10Threshold(c, cells) } : c.kind === 'average' ? { ...c, average: averageOf(cells) } : c,
+      );
+    }
+    const picked = columns.size + conditions.size > 0;
+    const rows = picked ? SheetView.rowsFilteredBy(target, columns, conditions, cell) : [];
+    const filter: FilterState = {
+      rect: target,
+      columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])),
+      ...(conditions.size && { conditions: Object.fromEntries(conditions) }),
+      ...(table ? { table } : {}),
+    };
     // How many rows the filter hides is said, as Excel's status bar shows how many it leaves.
-    const hidden = msg(columns.size ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
-    await this.changeLayout({ kind: 'filter', filter, rows }, msg(columns.size ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
+    const hidden = msg(picked ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
+    await this.changeLayout({ kind: 'filter', filter, rows }, msg(picked ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
   }
 
   /** Shows every row again, as Excel's Clear does, keeping the filter's buttons. */
   async clearFilter(): Promise<void> {
     const f = this.view?.filter;
-    if (!f?.columns.size) return;
+    if (!f || f.kept || !this.view?.filtering) return;
     const filter: FilterState = { rect: f.rect, columns: {}, ...(f.table ? { table: f.table } : {}) };
     await this.changeLayout({ kind: 'filter', filter, rows: [] }, msg('store.history.clearFilter'), [], msg('store.announce.filterCleared'));
   }
@@ -3660,6 +3714,7 @@ export class WorkbookStore {
       | 'designerOpen'
       | 'menu'
       | 'filterPicker'
+      | 'conditionDialog'
       | 'findOpen'
       | 'shortcutsOpen'
       | 'columnWidthFor'

@@ -125,6 +125,8 @@ export interface TableInfo {
   totalsRows: number;
   /** Whether its heading row shows filter buttons, as a table with an <autoFilter> does. */
   filterButtons?: boolean;
+  /** Its filter picks rows in a way the editor can't change, so it is kept as the file has it. */
+  filterKept?: boolean;
   columns: string[];
   /** Each column's calculated formula, which Excel fills into every row of the column, in file form. */
   calculated?: (string | undefined)[];
@@ -414,6 +416,8 @@ export interface SheetInfo {
   outline?: Record<'rows' | 'cols', OutlineAxis>;
   /** The range of the sheet's own filter (autoFilter), if it has one. */
   autoFilter?: Rect;
+  /** The sheet's own filter picks rows in a way the editor can't change (dates in a period, colours, icons), so it is kept as the file has it. */
+  filterKept?: boolean;
   /** The filter that hides rows, the sheet's or a table's, when it picks values the editor can show and change. */
   filter?: FilterState;
   protected: boolean;
@@ -702,9 +706,29 @@ export type BorderPlacement = 'all' | 'outside' | 'inside' | 'top' | 'bottom' | 
 export interface FilterState {
   rect: Rect;
   columns: Record<number, string[]>;
+  /** Columns filtered by a condition rather than by values, as Excel's Text, Number and Date Filters do. */
+  conditions?: Record<number, FilterCondition>;
   /** The table whose filter it is, when the range is a table's; its part holds the filter. */
   table?: string;
 }
+
+/** How a custom filter compares a cell with its value, as Excel stores it. */
+export type FilterOperator = 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual';
+
+/**
+ * A column's filter by condition, as Excel keeps it:
+ * - `custom`: one or two rules, both or either to hold. A rule's value is
+ *   text, with Excel's wildcards for "begins with" (`abc*`), "contains"
+ *   (`*abc*`) and the like, or a number (a date's serial number).
+ * - `top10`: the largest (or smallest) so many numbers, or so many percent of
+ *   them, with the cut-off the filter was applied with.
+ * - `average`: the numbers above (or below) the average, with the average it
+ *   was applied with.
+ */
+export type FilterCondition =
+  | { kind: 'custom'; and: boolean; rules: { operator: FilterOperator; value: string }[] }
+  | { kind: 'top10'; top: boolean; percent: boolean; count: number; threshold?: number }
+  | { kind: 'average'; above: boolean; average?: number };
 
 export interface LayoutChange {
   sheet: number;

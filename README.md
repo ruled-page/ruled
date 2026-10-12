@@ -197,8 +197,14 @@ back as .xlsx without losing what the editor can't display.
   cell colour, font colour or icon isn't offered.
   Filters have Excel's buttons on their headings, as do tables that have
   them: a button (or Alt+↓ on the heading) opens the column's filter menu,
-  which sorts the range by the column or picks the values whose rows show,
-  and a funnel marks a filtered column. Ctrl+Shift+L (⇧⌘F on a Mac), or the
+  which sorts the range by the column, picks the values whose rows show, or
+  filters by a condition, and a funnel marks a filtered column. Excel's Text,
+  Number and Date Filters open its Custom AutoFilter dialog (one or two
+  rules joined by And or Or: equals, begins with, contains, is greater than,
+  is before and the rest, with ? and * as wildcards, and numbers and dates
+  typed as the locale writes them), its Top 10 dialog (the largest or
+  smallest so many, or so many percent), or filter above or below the
+  average. Ctrl+Shift+L (⇧⌘F on a Mac), or the
   cell menu, puts the buttons on the block around the selection or takes
   them off the sheet, showing every row; a table keeps its own.
   Cutting and pasting moves cells, and references to them follow. Rows
@@ -1116,8 +1122,11 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
   lower case first. A selected range keeps its first row in place
   only when it looks like headings (text over numbers, or bold over plain). Filtering by values is saved as
   Excel saves it, with the rows it hides; in a table it is the table's
-  filter. A file's own filter by values can be changed and cleared; one by
-  condition, top ten or colour is kept as the file has it. Clearing a
+  filter. A file's own filter by values or by condition (custom rules, Top
+  10, above or below the average) can be changed and cleared; one by dates
+  in a period, colour or icon is kept as the file has it, and can't be
+  changed here. A Top 10 or average filter is worked out when applied, as
+  Excel does, not again as values change. Clearing a
   filter keeps its buttons, as Excel's Clear does. Only one filter is
   active at a time: filtering another table or range replaces it.
 - Adding, renaming, deleting, moving, hiding and unhiding a sheet rebuild

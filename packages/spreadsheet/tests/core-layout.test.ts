@@ -1,8 +1,9 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
-import type { EditResult, LayoutOp } from '../src/core/types';
+import type { EditResult, FilterCondition, LayoutOp } from '../src/core/types';
 import { english } from '../src/i18n';
+import { strToU8, zipSync } from 'fflate';
 import { parts } from './helpers';
 
 /**
@@ -201,6 +202,43 @@ describe('filters', () => {
     expect(sheetXml(t, 1)).not.toMatch(/<autoFilter/);
     expect(t.changes().map((c) => english.text(c.note!))).toEqual(['Filter buttons removed']);
     expect(info(open(t.save()), 'Region').autoFilter).toBeUndefined();
+  });
+
+  it("by condition, are saved as Excel saves them and read back: custom rules, Top 10 and the average", async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 5, c2: 1 };
+    const conditions: Record<number, FilterCondition> = {
+      0: { kind: 'custom', and: false, rules: [{ operator: 'equal', value: 'N*' }, { operator: 'notEqual', value: 'East' }] },
+      1: { kind: 'top10', top: false, percent: true, count: 20, threshold: 1 },
+    };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: {}, conditions }, rows: [2, 3, 4, 5] });
+    const xml = sheetXml(s, 1);
+    expect(xml).toContain(
+      '<filterColumn colId="0"><customFilters><customFilter val="N*"/><customFilter operator="notEqual" val="East"/></customFilters></filterColumn>' +
+        '<filterColumn colId="1"><top10 top="0" percent="1" val="20" filterVal="1"/></filterColumn>',
+    );
+    expect(info(reopen(s), 'Region').filter).toEqual({ rect, columns: {}, conditions });
+    const above: Record<number, FilterCondition> = { 1: { kind: 'average', above: true, average: 3 } };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: { 0: ['North'] }, conditions: above }, rows: [2, 4, 5] });
+    expect(sheetXml(s, 1)).toContain('<filterColumn colId="1"><dynamicFilter type="aboveAverage" val="3"/></filterColumn>');
+    expect(info(reopen(s), 'Region').filter).toEqual({ rect, columns: { 0: ['North'] }, conditions: above });
+  });
+
+  it("the editor can't change, such as dates in a period, are kept as the file has them", async () => {
+    const files = parts(await filterBook());
+    const kept = '<autoFilter ref="A1:B6"><filterColumn colId="0"><dynamicFilter type="today"/></filterColumn></autoFilter>';
+    const sheet = files['xl/worksheets/sheet1.xml'].replace('</sheetData>', `</sheetData>${kept}`);
+    const tablePath = 'xl/tables/table1.xml';
+    const table = files[tablePath].replace('<filterColumn colId="0" hiddenButton="0"/>', '<filterColumn colId="0"><colorFilter dxfId="0"/></filterColumn>');
+    // The package's folder entries go, as they hold nothing.
+    const entries = Object.entries({ ...files, 'xl/worksheets/sheet1.xml': sheet, [tablePath]: table }).filter(([k]) => !k.endsWith('/'));
+    const zipped = zipSync(Object.fromEntries(entries.map(([k, v]) => [k, strToU8(v)])));
+    const s = open(zipped);
+    expect([info(s, 'Region').filter, info(s, 'Region').filterKept]).toEqual([undefined, true]);
+    expect(info(s, 'Table').tables[0].filterKept).toBe(true);
+    // Another filter on the sheet leaves it as it was.
+    layout(s, 0, { kind: 'filter', filter: { rect: { r1: 0, c1: 0, r2: 3, c2: 1 }, columns: {}, table: 'Elsewhere' }, rows: [] });
+    expect(sheetXml(s, 1)).toContain(kept);
   });
 
   it("in a table, go in the table's part", async () => {

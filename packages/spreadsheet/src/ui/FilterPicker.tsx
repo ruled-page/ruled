@@ -1,13 +1,24 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
+import { Icon } from './icons';
 import { useDialog } from './useDialog';
 import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
 
+type ConditionItem = 'equal' | 'notEqual' | 'beginsWith' | 'endsWith' | 'contains' | 'notContains' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual' | 'between' | 'top10' | 'aboveAverage' | 'belowAverage' | 'before' | 'after' | 'custom';
+
+/** What Excel's Text, Number and Date Filters offer. */
+const CONDITION_ITEMS: Record<'text' | 'number' | 'date', ConditionItem[]> = {
+  text: ['equal', 'notEqual', 'beginsWith', 'endsWith', 'contains', 'notContains', 'custom'],
+  number: ['equal', 'notEqual', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'top10', 'aboveAverage', 'belowAverage', 'custom'],
+  date: ['equal', 'before', 'after', 'between', 'custom'],
+};
+
 /**
- * Excel's filter menu for a column: sort the filter's range by it, or pick
- * which of its values to show.
+ * Excel's filter menu for a column: sort the filter's range by it, filter
+ * it by a condition (Text, Number or Date Filters), or pick which of its
+ * values to show.
  */
 export function FilterPicker({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -16,12 +27,14 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   const choices = useMemo(() => (at ? store.filterChoices(at.col, at.rect) : undefined), [store, at]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [conditions, setConditions] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
   useEffect(() => {
     if (choices) setChecked(new Set(choices.allowed ?? choices.values.map((v) => v.text)));
     setSearch('');
+    setConditions(false);
   }, [choices]);
 
   useLayoutEffect(() => {
@@ -66,6 +79,20 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     void store.sortBy({ rect: choices.rect, keys: [{ col: at.col, descending }], header: true, caseSensitive: false, across: false });
     store.set('filterPicker', undefined);
   };
+  // Excel's Text, Number or Date Filters: a rule picked opens the Custom AutoFilter dialog, starting on it.
+  const items = CONDITION_ITEMS[choices.kind];
+  const pick = (item: ConditionItem) => {
+    store.set('filterPicker', undefined);
+    if (item === 'aboveAverage' || item === 'belowAverage') {
+      void store.setFilterCondition(choices.rect, at.col, { kind: 'average', above: item === 'aboveAverage' });
+      return;
+    }
+    const preset =
+      item === 'between'
+        ? { first: 'greaterThanOrEqual' as const, second: 'lessThanOrEqual' as const, and: true }
+        : { first: item === 'before' ? ('lessThan' as const) : item === 'after' ? ('greaterThan' as const) : item === 'custom' || item === 'top10' ? ('equal' as const) : item, and: true };
+    store.set('conditionDialog', { col: at.col, rect: choices.rect, mode: item === 'top10' ? 'top10' : 'custom', preset });
+  };
   const apply = () => {
     const everything = choices.values.every((v) => checked.has(v.text));
     void store.setFilter(choices.rect, at.col, everything ? undefined : checked);
@@ -84,6 +111,24 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
         <button className="wbe-btn wbe-ghost" onClick={() => sort(true)}>
           {t(kind === 'number' ? 'sort.descNumber' : kind === 'date' ? 'sort.descDate' : 'sort.descText')}
         </button>
+      </div>
+      <div className="wbe-filter-conditions">
+        <button className="wbe-btn wbe-ghost" aria-expanded={conditions} onClick={() => setConditions(!conditions)}>
+          <span>{t(choices.kind === 'number' ? 'filter.numberFilters' : choices.kind === 'date' ? 'filter.dateFilters' : 'filter.textFilters')}</span>
+          {choices.condition && <Icon name="check" size={14} />}
+          <Icon name={conditions ? 'chevronUp' : 'chevronDown'} size={14} />
+        </button>
+        {conditions && (
+          <ul>
+            {items.map((item) => (
+              <li key={item}>
+                <button className="wbe-btn wbe-ghost" onClick={() => pick(item)}>
+                  {t(`filter.item.${item}`)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <input className="wbe-filter-search" placeholder={t('filter.search')} aria-label={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
       <label className="wbe-filter-all">
@@ -114,7 +159,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
       </ul>
       <p className="wbe-filter-note">{t('filter.note')}</p>
       <div className="wbe-filter-actions">
-        {choices.allowed && (
+        {(choices.allowed || choices.condition) && (
           <button
             className="wbe-btn wbe-link"
             onClick={() => {

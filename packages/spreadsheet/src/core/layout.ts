@@ -1,6 +1,6 @@
 import { msg, type Text } from '../i18n/message';
 import { colToLetters, MAX_COLS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
-import type { CellChange, FilterState, LayoutOp, OutlineAxis, Rect, SheetInfo } from './types';
+import type { CellChange, FilterCondition, FilterState, LayoutOp, OutlineAxis, Rect, SheetInfo } from './types';
 import { elements, escapeXml, findTagEnd, firstElement, parseAttrs, setAttributes } from './xml';
 
 type Axis = 'rows' | 'cols';
@@ -38,7 +38,7 @@ export class SheetLayout {
   readonly collapsed: Record<Axis, Map<number, boolean>> = { rows: new Map(), cols: new Map() };
   readonly defaultColWidthPx: number;
   /** The file's layout, copied, as what changes are measured against. */
-  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'outline'>;
+  private readonly file: Pick<SheetInfo, 'colWidths' | 'rowHeights' | 'frozenRows' | 'frozenCols' | 'merges' | 'filter' | 'autoFilter' | 'filterKept' | 'outline'>;
   private readonly fileHidden: Record<'rows' | 'cols', Set<number>>;
   /** The rows the file's filter hides, which are hidden by it rather than by hand. */
   private readonly fileFiltered: Set<number>;
@@ -52,6 +52,7 @@ export class SheetLayout {
       merges: [...info.merges],
       filter: info.filter,
       autoFilter: info.autoFilter,
+      filterKept: info.filterKept,
       outline: info.outline,
     };
     this.defaultColWidthPx = info.defaultColWidthPx;
@@ -124,6 +125,11 @@ export class SheetLayout {
   /** Whether a row is hidden, by hand or by the filter. */
   rowHidden(row: number): boolean {
     return this.hidden('rows', row) || this.currentFiltered.has(row);
+  }
+
+  /** Whether the file's own filter is one the editor can't change, kept as the file has it. */
+  get fileFilterKept(): boolean {
+    return !!this.file.filterKept;
   }
 
   /** The filter as the file is to have it: its range, and the table whose it is, if any. */
@@ -245,8 +251,9 @@ export class SheetLayout {
       const was = [...this.fileFiltered].sort((a, b) => a - b).join();
       const now = [...this.currentFiltered].sort((a, b) => a - b).join();
       const rect = this.filter?.rect ?? this.fileFilter.rect;
-      const picked = !!this.filter && Object.keys(this.filter.columns).length > 0;
-      if (rect && (was !== now || JSON.stringify(this.filter?.columns ?? {}) !== JSON.stringify(this.file.filter?.columns ?? {}))) {
+      const picked = !!this.filter && Object.keys({ ...this.filter.columns, ...this.filter.conditions }).length > 0;
+      const criteria = (f: FilterState | null | undefined) => JSON.stringify([f?.columns ?? {}, f?.conditions ?? {}]);
+      if (rect && (was !== now || criteria(this.filter) !== criteria(this.file.filter))) {
         note(rangeToA1(rect), picked ? msg('core.change.filtered', { count: this.currentFiltered.size }) : msg('core.change.unfiltered'));
       }
       // The buttons themselves, put on a block or taken off the sheet.
@@ -324,7 +331,8 @@ export function writeLayout(xml: string, p: string, layout: SheetLayout): string
     const sheetRect = layout.fileFilter.table ? undefined : layout.fileFilter.rect;
     if (layout.filter && !layout.filter.table) xml = writeAutoFilter(xml, p, layout.filter, sheetRect);
     else if (layout.filter === null) xml = writeAutoFilter(xml, p, null, undefined);
-    else if (sheetRect) xml = writeAutoFilter(xml, p, null, sheetRect);
+    // One kept as the file has it stays so while another range is filtered.
+    else if (sheetRect && !layout.fileFilterKept) xml = writeAutoFilter(xml, p, null, sheetRect);
   }
   if (layout.merges) xml = writeMerges(xml, p, layout.merges);
   return xml;
@@ -332,19 +340,35 @@ export function writeLayout(xml: string, p: string, layout: SheetLayout): string
 
 /** A filter's <filterColumn> elements, with column ids counted from the range's first column. */
 function filterColumnsXml(p: string, filter: FilterState): string {
-  return Object.entries(filter.columns)
-    .sort(([a], [b]) => Number(a) - Number(b))
-    .map(([col, values]) => {
-      const blank = values.includes('') ? ' blank="1"' : '';
-      const items = values.filter((v) => v !== '').map((v) => `<${p}filter val="${escapeXml(v)}"/>`).join('');
-      return `<${p}filterColumn colId="${Number(col) - filter.rect.c1}"><${p}filters${blank}>${items}</${p}filters></${p}filterColumn>`;
-    })
+  const values = Object.entries(filter.columns).map(([col, picked]): [number, string] => {
+    const blank = picked.includes('') ? ' blank="1"' : '';
+    const items = picked.filter((v) => v !== '').map((v) => `<${p}filter val="${escapeXml(v)}"/>`).join('');
+    return [Number(col), `<${p}filters${blank}>${items}</${p}filters>`];
+  });
+  const conditions = Object.entries(filter.conditions ?? {}).map(([col, c]): [number, string] => [Number(col), conditionXml(p, c)]);
+  return [...values, ...conditions]
+    .sort(([a], [b]) => a - b)
+    .map(([col, inner]) => `<${p}filterColumn colId="${col - filter.rect.c1}">${inner}</${p}filterColumn>`)
     .join('');
 }
 
-/** The <autoFilter> element for a filter's range, with its values if any are picked. */
+/** A column's condition as Excel writes it, "equal" being the operator it leaves out. */
+function conditionXml(p: string, c: FilterCondition): string {
+  switch (c.kind) {
+    case 'custom': {
+      const rules = c.rules.map((r) => `<${p}customFilter${r.operator === 'equal' ? '' : ` operator="${r.operator}"`} val="${escapeXml(r.value)}"/>`).join('');
+      return `<${p}customFilters${c.and ? ' and="1"' : ''}>${rules}</${p}customFilters>`;
+    }
+    case 'top10':
+      return `<${p}top10${c.top ? '' : ' top="0"'}${c.percent ? ' percent="1"' : ''} val="${c.count}"${c.threshold !== undefined ? ` filterVal="${c.threshold}"` : ''}/>`;
+    case 'average':
+      return `<${p}dynamicFilter type="${c.above ? 'aboveAverage' : 'belowAverage'}"${c.average !== undefined ? ` val="${c.average}"` : ''}/>`;
+  }
+}
+
+/** The <autoFilter> element for a filter's range, with what it picks, if anything. */
 function autoFilterXml(p: string, rect: Rect, filter: FilterState | null): string {
-  const picked = filter && Object.keys(filter.columns).length ? filterColumnsXml(p, filter) : '';
+  const picked = filter ? filterColumnsXml(p, filter) : '';
   return `<${p}autoFilter ref="${rangeToA1(rect)}"${picked ? `>${picked}</${p}autoFilter>` : '/>'}`;
 }
 

@@ -2,7 +2,8 @@ import { msg, type Text } from '../i18n/message';
 import { applyLinkChange } from '../core/links';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
 import { findCell } from '../core/sheetScanner';
-import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import { conditionPasses, type FilterCell } from './filterConditions';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterCondition, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -47,8 +48,8 @@ export class SheetView {
     // The file's own filter, or only its buttons: the rows a filter hides are hidden by it, and showing them again clears it.
     const f = info.filter ?? (info.autoFilter ? { rect: info.autoFilter, columns: {} } : undefined);
     if (f) {
-      this.filter = { rect: f.rect, columns: new Map(Object.entries(f.columns).map(([c, v]) => [Number(c), new Set(v)])), table: f.table };
-      if (this.filter.columns.size) {
+      this.filter = viewFilter(f, !info.filter && info.filterKept);
+      if (this.filter.columns.size || this.filter.conditions.size) {
         for (const row of info.hiddenRows) if (row > f.rect.r1 && row <= f.rect.r2) this.filteredOut.add(row);
         info.hiddenRows = info.hiddenRows.filter((row) => !this.filteredOut.has(row));
       }
@@ -179,26 +180,23 @@ export class SheetView {
    * per column, the values whose rows stay visible; the table whose filter
    * it is, when it is one's.
    */
-  filter?: { rect: Rect; columns: Map<number, Set<string>>; table?: string };
+  filter?: ViewFilter;
   private readonly filteredOut = new Set<number>();
 
-  /** The rows of `rect` that `columns` would hide: those whose text in some filtered column isn't allowed. */
-  static rowsFilteredBy(rect: Rect, columns: Map<number, Set<string>>, textAt: (row: number, col: number) => string): number[] {
-    const out: number[] = [];
-    for (let row = rect.r1 + 1; row <= rect.r2; row++) {
-      for (const [col, allowed] of columns) {
-        if (!allowed.has(textAt(row, col))) {
-          out.push(row);
-          break;
-        }
-      }
-    }
-    return out;
+  /**
+   * The rows of `rect` a filter would hide: those whose text in a column
+   * filtered by values isn't one picked, or whose cell in a column filtered
+   * by a condition doesn't meet it.
+   */
+  static rowsFilteredBy(rect: Rect, columns: Map<number, Set<string>>, conditions: ReadonlyMap<number, FilterCondition>, cellAt: (row: number, col: number) => FilterCell): number[] {
+    const rows = Array.from({ length: Math.max(0, rect.r2 - rect.r1) }, (_, i) => rect.r1 + 1 + i);
+    const passes = [...conditions].map(([col, c]) => conditionPasses(c, rows.map((row) => cellAt(row, col))));
+    return rows.filter((row, i) => [...columns].some(([col, allowed]) => !allowed.has(cellAt(row, col).text)) || passes.some((p) => !p[i]));
   }
 
   /** Shows a filter, or none, and the rows it hides. */
   private applyFilter(filter: FilterState | null, rows: number[]): void {
-    this.filter = filter ? { rect: filter.rect, columns: new Map(Object.entries(filter.columns).map(([c, v]) => [Number(c), new Set(v)])), table: filter.table } : undefined;
+    this.filter = filter ? viewFilter(filter) : undefined;
     this.filteredOut.clear();
     for (const row of rows) this.filteredOut.add(row);
     this.layout();
@@ -209,11 +207,16 @@ export class SheetView {
    * or a table that shows filter buttons; with whether this column is
    * filtered.
    */
-  filterButtonAt(row: number, col: number): { rect: Rect; filtered: boolean } | undefined {
+  filterButtonAt(row: number, col: number): { rect: Rect; filtered: boolean; kept?: boolean } | undefined {
     const f = this.filter;
-    if (f && row === f.rect.r1 && col >= f.rect.c1 && col <= f.rect.c2) return { rect: f.rect, filtered: f.columns.has(col) };
+    if (f && row === f.rect.r1 && col >= f.rect.c1 && col <= f.rect.c2) return { rect: f.rect, filtered: f.columns.has(col) || f.conditions.has(col), ...(f.kept && { kept: true }) };
     const t = this.info.tables.find((x) => x.filterButtons && row === x.rect.r1 && col >= x.rect.c1 && col <= x.rect.c2);
-    return t && { rect: { ...t.rect, r2: t.rect.r2 - t.totalsRows }, filtered: false };
+    return t && { rect: { ...t.rect, r2: t.rect.r2 - t.totalsRows }, filtered: false, ...(t.filterKept && { kept: true }) };
+  }
+
+  /** Whether the filter picks anything: values in a column, or a condition. */
+  get filtering(): boolean {
+    return !!this.filter && (this.filter.columns.size > 0 || this.filter.conditions.size > 0);
   }
 
   /** Rows the editor's filter hides. */
@@ -436,4 +439,27 @@ function search(arr: Int32Array, v: number): number {
     else hi = mid - 1;
   }
   return -1;
+}
+
+/**
+ * The filter as the editor shows it: per column, the values picked or the
+ * condition, and whether it is one kept as the file has it, which the editor
+ * can't change.
+ */
+export interface ViewFilter {
+  rect: Rect;
+  columns: Map<number, Set<string>>;
+  conditions: Map<number, FilterCondition>;
+  table?: string;
+  kept?: boolean;
+}
+
+function viewFilter(f: FilterState, kept?: boolean): ViewFilter {
+  return {
+    rect: f.rect,
+    columns: new Map(Object.entries(f.columns).map(([c, v]) => [Number(c), new Set(v)])),
+    conditions: new Map(Object.entries(f.conditions ?? {}).map(([c, v]) => [Number(c), v])),
+    table: f.table,
+    ...(kept && { kept: true }),
+  };
 }

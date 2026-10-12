@@ -632,7 +632,7 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
         )}
       </span>
       {store.circular.length > 0 && <CircularReadout store={store} />}
-      {!!view?.filter?.columns.size && (
+      {view?.filtering && (
         <span className="wbe-status-filter">
           {t('status.filtered', { count: view.filteredCount })}
           <button className="wbe-link" onClick={() => void store.clearFilter()}>

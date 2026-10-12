@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { english } from '../src/i18n';
 import type { Answer, FindQuery, WorkbookStore } from '../src/state/store';
@@ -341,6 +342,9 @@ describe('filtering', () => {
         { text: '', count: 1 },
       ],
       allowed: undefined,
+      condition: undefined,
+      kind: 'number',
+      style: 0,
     });
     expect(store.filterChoices(9)).toBeUndefined();
   });
@@ -406,6 +410,49 @@ describe('filtering', () => {
     select(rect(1, 0));
     await store.toggleFilter();
     expect(toasts()).toEqual(['Select a cell in a block of data with headings to filter it.', "A table's filter buttons stay as they are: turn them on or off in Excel."]);
+  });
+
+  it('filters a column by a condition, working out a Top 10 when applied, and clears it', async () => {
+    await open();
+    select(rect(1, 0));
+    const range = rect(0, 0, 4, 3);
+    await store.setFilterCondition(range, 1, { kind: 'top10', top: true, percent: false, count: 2 });
+    const view = store.view!;
+    expect(view.filteredCount).toBe(2);
+    expect(store.filterChoices(1)?.condition).toEqual({ kind: 'top10', top: true, percent: false, count: 2, threshold: 3 });
+    expect([view.filterButtonAt(0, 1)?.filtered, view.filtering]).toEqual([true, true]);
+    // Values in one column, a condition in another: both must hold.
+    await store.setFilterCondition(range, 0, { kind: 'custom', and: false, rules: [{ operator: 'equal', value: '*an*' }] });
+    expect(column(0, 1, 4).filter((_, i) => view.gridRow(i + 1) >= 0)).toEqual(['Banana']);
+    await store.setFilterCondition(range, 1, { kind: 'average', above: false });
+    expect(store.filterChoices(1)?.condition).toEqual({ kind: 'average', above: false, average: 4 });
+    await store.setFilterCondition(range, 1, undefined);
+    await store.setFilterCondition(range, 0, undefined);
+    expect([view.filteredCount, view.filter?.conditions.size, view.filtering]).toEqual([0, 0, false]);
+    expect(actions()).toEqual(['Filter', 'Filter', 'Filter', 'Filter', 'Clear filter']);
+  });
+
+  it("names a column's filters by what it mostly holds", async () => {
+    await open();
+    expect(store.filterChoices(0, rect(0, 0, 4, 3))?.kind).toBe('text');
+    expect(store.filterChoices(2, rect(0, 0, 4, 3))?.kind).toBe('number');
+    await store.input(1, 7, '2026-01-05');
+    await store.input(2, 7, '2026-02-05');
+    expect(store.filterChoices(7, rect(0, 7, 2, 7))).toMatchObject({ kind: 'date', style: store.sheets[0].get(1, 7)!.style });
+  });
+
+  it("refuses to change a filter the editor can't, keeping it as the file has it", async () => {
+    const files = unzipSync(bytes);
+    const path = 'xl/worksheets/sheet3.xml';
+    files[path] = strToU8(strFromU8(files[path]).replace(/<autoFilter ref="A1:B4"\/>/, '<autoFilter ref="A1:B4"><filterColumn colId="0"><colorFilter dxfId="0"/></filterColumn></autoFilter>'));
+    store = await testStore();
+    await opened(store, zipSync(files), 'kept.xlsx');
+    store.setActive(2);
+    expect(store.view!.filterButtonAt(0, 0)).toEqual({ rect: rect(0, 0, 3, 1), filtered: false, kept: true });
+    await store.setFilter(rect(0, 0, 3, 1), 0, new Set(['North']));
+    await store.clearFilter();
+    expect(toasts()).toEqual(["This filter picks rows in a way the editor can't change (dates in a period, colours or icons). Change it in Excel."]);
+    expect(store.history).toHaveLength(0);
   });
 
   it("filters the range of a heading's button, in place of the filter there was", async () => {

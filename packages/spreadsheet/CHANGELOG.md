@@ -24,6 +24,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   opens its column's filter menu (or Alt+↓ does), which can sort by the
   column, and Ctrl+Shift+L (⇧⌘F on a Mac) turns them on and off. Clearing a
   filter keeps its buttons.
+- Filters by condition, as Excel's Text, Number and Date Filters: the
+  Custom AutoFilter dialog (two rules with And or Or, wildcards), Top 10, and
+  above or below the average, saved as Excel saves them. A file's filter by
+  dates in a period, colour or icon is kept as it is, and other filters on
+  its sheet no longer replace it.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

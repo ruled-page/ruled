@@ -8,7 +8,7 @@ import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, parseNotes, parsePeople, parseThreads, type Person } from './comments';
 import { readHyperlinks } from './hyperlinks';
-import type { Anchor, BlockedRegion, CellNote, DefinedName, Finding, Rect, SheetInfo, SheetObject } from './types';
+import type { Anchor, BlockedRegion, CellNote, DefinedName, FilterCondition, FilterOperator, FilterState, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
@@ -84,17 +84,57 @@ export function joinTexts(items: Text[], key: MessageKey = 'core.list.items'): T
  * blanks); undefined when a column filters some other way (by condition,
  * top ten, colour or date groups), which the editor leaves as it is.
  */
-function filterColumns(node: XmlNode | undefined, rect: Rect): Record<number, string[]> | undefined {
-  const out: Record<number, string[]> = {};
+/** The operators Excel writes on a custom filter; "equal" is left out. */
+const FILTER_OPERATORS = new Set<string>(['equal', 'notEqual', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual']);
+
+/**
+ * A filter's columns: those filtered by values, and those by a condition the
+ * editor can change (custom rules, Top 10, above or below the average).
+ * Undefined when a column is filtered some other way (dates in a period, by
+ * colour or icon), so that the filter is kept as the file has it.
+ */
+function filterColumns(node: XmlNode | undefined, rect: Rect): Pick<FilterState, 'columns' | 'conditions'> | undefined {
+  const columns: Record<number, string[]> = {};
+  const conditions: Record<number, FilterCondition> = {};
+  const on = (v: string | undefined, dflt: boolean) => (v === undefined ? dflt : v === '1' || v === 'true');
   for (const fc of children(node, 'filterColumn')) {
-    const filters = child(fc, 'filters');
-    if (!filters || fc.children.some((c) => c.name !== filters.name) || children(filters, 'dateGroupItem').length) return undefined;
-    const values = children(filters, 'filter').map((f) => attr(f, 'val') ?? '');
-    if (attr(filters, 'blank') === '1' || attr(filters, 'blank') === 'true') values.push('');
-    out[rect.c1 + Number(attr(fc, 'colId') ?? 0)] = values;
+    const col = rect.c1 + Number(attr(fc, 'colId') ?? 0);
+    const [el, ...rest] = fc.children;
+    // A column with only its button's settings filters nothing.
+    if (!el) continue;
+    if (rest.length) return undefined;
+    const kind = el.name.replace(/^\w+:/, '');
+    if (kind === 'filters') {
+      if (children(el, 'dateGroupItem').length) return undefined;
+      const values = children(el, 'filter').map((f) => attr(f, 'val') ?? '');
+      if (on(attr(el, 'blank'), false)) values.push('');
+      columns[col] = values;
+    } else if (kind === 'customFilters') {
+      const rules = children(el, 'customFilter').map((f) => ({ operator: attr(f, 'operator') ?? 'equal', value: attr(f, 'val') ?? '' }));
+      if (!rules.length || rules.length > 2 || rules.some((r) => !FILTER_OPERATORS.has(r.operator))) return undefined;
+      conditions[col] = { kind: 'custom', and: on(attr(el, 'and'), false), rules: rules as { operator: FilterOperator; value: string }[] };
+    } else if (kind === 'top10') {
+      const threshold = Number(attr(el, 'filterVal'));
+      conditions[col] = {
+        kind: 'top10',
+        top: on(attr(el, 'top'), true),
+        percent: on(attr(el, 'percent'), false),
+        count: Number(attr(el, 'val') ?? 10),
+        ...(Number.isFinite(threshold) && attr(el, 'filterVal') !== undefined && { threshold }),
+      };
+    } else if (kind === 'dynamicFilter' && (attr(el, 'type') === 'aboveAverage' || attr(el, 'type') === 'belowAverage')) {
+      const average = Number(attr(el, 'val'));
+      conditions[col] = { kind: 'average', above: attr(el, 'type') === 'aboveAverage', ...(Number.isFinite(average) && attr(el, 'val') !== undefined && { average }) };
+    } else {
+      return undefined;
+    }
   }
-  return out;
+  return { columns, ...(Object.keys(conditions).length && { conditions }) };
 }
+
+/** Whether a read filter picks anything: values in a column, or a condition. */
+const picks = (f: Pick<FilterState, 'columns' | 'conditions'> | null | undefined): f is Pick<FilterState, 'columns' | 'conditions'> =>
+  !!f && (Object.keys(f.columns).length > 0 || Object.keys(f.conditions ?? {}).length > 0);
 
 function colWidthPx(width: number): number {
   return Math.max(0, Math.round(width * 7));
@@ -535,8 +575,9 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     }
     if (child(meta, 'autoFilter')) {
       info.autoFilter = parseRange(attr(child(meta, 'autoFilter'), 'ref') ?? '') ?? undefined;
-      const columns = info.autoFilter && filterColumns(child(meta, 'autoFilter'), info.autoFilter);
-      if (info.autoFilter && columns && Object.keys(columns).length) info.filter = { rect: info.autoFilter, columns };
+      const read = info.autoFilter && filterColumns(child(meta, 'autoFilter'), info.autoFilter);
+      if (info.autoFilter && picks(read)) info.filter = { rect: info.autoFilter, ...read };
+      if (info.autoFilter && !read) info.filterKept = true;
       findings.push({
         kind: 'autoFilter',
         severity: 'info',
@@ -615,8 +656,9 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
           // A table's own filter, if the sheet has no other with values picked.
           const af = child(t, 'autoFilter');
           const afRect = af && parseRange(attr(af, 'ref') ?? '');
-          const columns = afRect && filterColumns(af, afRect);
-          if (afRect && columns && Object.keys(columns).length && !info.filter) info.filter = { rect: afRect, columns, table: tname };
+          const read = afRect && filterColumns(af, afRect);
+          if (afRect && picks(read) && !info.filter) info.filter = { rect: afRect, ...read, table: tname };
+          if (afRect && !read) info.tables[info.tables.length - 1].filterKept = true;
         }
         if (range && headerRows > 0) {
           blocked.push({

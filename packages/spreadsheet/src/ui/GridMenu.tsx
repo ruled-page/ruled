@@ -138,7 +138,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
               ]
             : [{ label: t('links.menu.insert'), onSelect: openDialog, disabled: locked }]),
         ];
-  const filtered = !!view.filter?.columns.size;
+  const filtered = view.filtering;
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },

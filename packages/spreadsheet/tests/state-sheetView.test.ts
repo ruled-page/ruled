@@ -168,10 +168,10 @@ describe("the editor's filter", () => {
       [4, 0, 'East'],
       [6, 0, 'Not in the table'],
     ]);
-  const textAt = (v: SheetView) => (row: number, col: number) => v.get(row, col)?.s ?? '';
+  const cellAt = (v: SheetView) => (row: number, col: number) => ({ text: v.get(row, col)?.s ?? '' });
   /** Filters as the store does: works out the rows to hide, then shows the change. */
   const filterBy = (v: SheetView, rect: Rect, columns: Map<number, Set<string>>) => {
-    const rows = columns.size ? SheetView.rowsFilteredBy(rect, columns, textAt(v)) : [];
+    const rows = columns.size ? SheetView.rowsFilteredBy(rect, columns, new Map(), cellAt(v)) : [];
     const filter = columns.size ? { rect, columns: Object.fromEntries([...columns].map(([c, set]) => [c, [...set]])) } : null;
     v.applyLayout({ kind: 'filter', filter, rows });
   };
