@@ -44,11 +44,11 @@ value without saying so.
   inputs change. The engine would need each sheet's names under names of
   their own, kept in step with renames.
 - **Dragging the fill handle doesn't copy links**, as copying and pasting
-  does. `copyLinks` in `src/core/links.ts` tiles them; filling upwards or
+  does. `copyLinks` in `packages/spreadsheet/src/core/links.ts` tiles them; filling upwards or
   leftwards needs the tiles lined up from the far end.
 - **The function list doesn't offer the workbook's names or tables** as it
   types, as Excel's does. They work in formulas; only the suggestions miss
-  them (`src/core/formulaAssist.ts`).
+  them (`packages/spreadsheet/src/core/formulaAssist.ts`).
 - **The report's "Notes and comments" count** is what the file had when it
   was opened, not what it has now.
 - **Deleting the rows that hold a sheet's last notes** leaves its comments
@@ -59,7 +59,7 @@ value without saying so.
   They can become devDependencies once the type declarations stop importing
   from them, for example by bundling the declarations into one file.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's
-  `_xlpm.` prefix** on their names, as `public/samples/kitchen-sink.xlsx`
+  `_xlpm.` prefix** on their names, as `examples/demo/public/samples/kitchen-sink.xlsx`
   does; desktop Excel opens it. Saving keeps formulas no one edited as the
   file has them, and formulas typed here get the prefix. Adding it on saving
   to formulas that lack it would mend such files.
@@ -72,6 +72,6 @@ value without saying so.
   given the wrong size by the engine, which then stops calculating the
   workbook.
 - **Some of the saved XML is rewritten with regular expressions**
-  (`src/core/writer.ts`, `src/core/restructure.ts`). They hold for what Excel
+  (`packages/spreadsheet/src/core/writer.ts`, `packages/spreadsheet/src/core/restructure.ts`). They hold for what Excel
   and other common tools write; unusual but valid XML, such as a `>` inside
   an attribute value, could defeat them.
