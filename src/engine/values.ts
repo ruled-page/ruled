@@ -123,6 +123,23 @@ export type Operand = Scalar | Matrix | Ref | Areas | Lambda;
 const NUMBER_TEXT = /^[+-]?(?:[$€£¥]\s*)?(?:\d{1,3}(?:,\d{3})+|\d*)(?:\.\d*)?(?:e[+-]?\d+)?(?:\s*[€£¥])?%?$/i;
 
 /** Text read as a number, as Excel reads "12" or "1,000" in arithmetic; undefined when it doesn't read as one. */
+/**
+ * x to the power y as Excel works it out: 0 to the power 0 is #NUM!, 0 to a
+ * negative power #DIV/0!, a negative number has its odd roots (-8 to the
+ * 1/3 is -2) and no others, and a result too large is #NUM!.
+ */
+export function power(x: number, y: number): Scalar {
+  if (x === 0 && y < 0) return DIV0;
+  if (x === 0 && y === 0) return NUM;
+  if (x < 0 && !Number.isInteger(y)) {
+    const root = Math.round(1 / y);
+    if (Math.abs(1 / y - root) > 1e-10 || root % 2 === 0) return NUM;
+    return -Math.exp(Math.log(-x) * y);
+  }
+  const r = Math.pow(x, y);
+  return Number.isFinite(r) ? r : NUM;
+}
+
 export function parseNumber(text: string): number | undefined {
   const s = text.trim();
   if (!s || !/\d/.test(s) || !NUMBER_TEXT.test(s)) return undefined;
@@ -132,10 +149,11 @@ export function parseNumber(text: string): number | undefined {
   return percent ? n / 100 : n;
 }
 
-const DATE_TEXT = /^(?:(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?)?$/;
+const DATE_TEXT = /^(?:(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?)?$/;
 const NAMED_DATE = /^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})$/;
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-const TIME_TEXT = /^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?$/;
+// 14:30, 4:5 pm and 4 pm.
+const TIME_TEXT = /^(\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?|(?=\s*[AaPp][Mm]))(?:\s*([AaPp])[Mm])?$/;
 
 /**
  * Text read as a date or time, as Excel reads "2024-01-10", "1/10/2024" or
@@ -151,9 +169,10 @@ export function parseDateText(text: string): number | undefined {
       if (h < 1 || h > 12) return undefined;
       h = (h % 12) + (/p/i.test(t[4]) ? 12 : 0);
     }
-    const m = Number(t[2]);
+    const m = Number(t[2] ?? 0);
     const sec = Number(t[3] ?? 0);
-    return m < 60 && sec < 60 ? (h * 3600 + m * 60 + sec) / 86400 : undefined;
+    // A sixtieth second, 23:59:60, is the next minute, as Excel reads it.
+    return m < 60 && sec <= 60 ? (h * 3600 + m * 60 + sec) / 86400 : undefined;
   }
   // 2-Feb-2026 and 2 February 2026.
   const named = NAMED_DATE.exec(text);

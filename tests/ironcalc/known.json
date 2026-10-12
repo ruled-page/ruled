@@ -8,16 +8,6 @@
   "DATE_AND_TIME/DATEVALUE_issue_1380.xlsx": [
     "DATEVALUE!B2"
   ],
-  "DATE_AND_TIME/EOMONTH.xlsx": [
-    "Sheet1!C11",
-    "Sheet1!C12",
-    "Sheet1!C50"
-  ],
-  "DATE_AND_TIME/TIMEVALUE.xlsx": [
-    "TIMEVALUE!B10",
-    "TIMEVALUE!B18",
-    "TIMEVALUE!B9"
-  ],
   "DATE_AND_TIME/TIMEVALUE_issue_1402.xlsx": [
     "Sheet1!B2"
   ],
@@ -352,48 +342,14 @@
     "Sheet1!D6",
     "Sheet1!D7"
   ],
-  "MATH_AND_TRIGONOMETRY/ATAN2_POWER.xlsx": [
-    "Sheet1!C27",
-    "Sheet1!C5"
-  ],
-  "MATH_AND_TRIGONOMETRY/COMBIN_COMBINA.xlsx": [
-    "COMBIN_COMBINA!C12",
-    "COMBIN_COMBINA!C5",
-    "COMBIN_COMBINA!D4",
-    "COMBIN_COMBINA!D6"
-  ],
   "MATH_AND_TRIGONOMETRY/MAX_MIN.xlsx": [
     "Sheet1!H42"
   ],
   "MATH_AND_TRIGONOMETRY/MMULT.xlsx": [
     "Sheet1!E30"
   ],
-  "MATH_AND_TRIGONOMETRY/MOD_QUOTIENT.xlsx": [
-    "DATEVALUE!D32",
-    "DATEVALUE!D38",
-    "DATEVALUE!D39",
-    "DATEVALUE!D40"
-  ],
-  "MATH_AND_TRIGONOMETRY/MULTINOMIAL.xlsx": [
-    "Sheet1!B27",
-    "Sheet1!F20",
-    "Sheet1!H20",
-    "Sheet1!H22"
-  ],
-  "MATH_AND_TRIGONOMETRY/POWER.xlsx": [
-    "Sheet1!D1",
-    "Sheet1!D3",
-    "Sheet1!F9",
-    "errors_are_per_element!A3"
-  ],
   "MATH_AND_TRIGONOMETRY/SEQUENCE.xlsx": [
     "Sheet1!C23"
-  ],
-  "MATH_AND_TRIGONOMETRY/SERIESSUM.xlsx": [
-    "Sheet1!C1",
-    "Sheet1!F7",
-    "Sheet1!G7",
-    "Sheet1!H7"
   ],
   "MATH_AND_TRIGONOMETRY/TRIGONOMETRIC.xlsx": [
     "COT_CSC_SEC!B44",
@@ -427,12 +383,6 @@
   "TEXT/CHAR.xlsx": [
     "Sheet1!B10"
   ],
-  "TEXT/DOLLARs.xlsx": [
-    "Sheet1!C11",
-    "Sheet1!C12",
-    "Sheet1!D11",
-    "Sheet1!D12"
-  ],
   "TEXT/FIND_SEARCH.xlsx": [
     "Sheet1!E29",
     "Sheet1!E30"
@@ -449,12 +399,6 @@
   ],
   "TEXT/TEXT.xlsx": [
     "NUMBERS!K12"
-  ],
-  "TEXT/TEXTSPLIT.xlsx": [
-    "Sheet1!B26",
-    "Sheet1!F26",
-    "Sheet1!J26",
-    "Sheet1!L26"
   ],
   "TEXT/T_VALUE_VALUETOTEXT.xlsx": [
     "Sheet1!C15",

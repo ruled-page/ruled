@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { apply, scalarOf, valuesOf, type Ctx } from './operands';
-import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseDateText, parseNumber, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseDateText, parseNumber, power, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -2073,8 +2073,9 @@ function factorial(n: number): number {
 /** n choose k, exact for the whole numbers Excel gives; #NUM! once too large for a number. */
 function choose(n: number, k: number): number {
   let r = 1;
-  for (let i = 1; i <= Math.min(k, n - k); i++) {
-    r = (r * (n - k + i)) / i;
+  const j = Math.min(k, n - k);
+  for (let i = 1; i <= j; i++) {
+    r = (r * (n - j + i)) / i;
     if (!Number.isFinite(r)) throw NUM;
   }
   return Math.round(r);
@@ -2798,11 +2799,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (n <= 0 || base <= 0 || base === 1) throw base === 1 ? DIV0 : NUM;
     return Math.log(n) / Math.log(base);
   }),
-  POWER: scalar(2, 2, ([x, y]) => {
-    const r = Math.pow(num(x), num(y));
-    if (num(x) === 0 && num(y) < 0) throw DIV0;
-    return Number.isFinite(r) ? r : NUM;
-  }),
+  POWER: scalar(2, 2, ([x, y]) => power(num(x), num(y))),
   PI: { min: 0, max: 0, fn: () => Math.PI },
   MOD: scalar(2, 2, ([n, d]) => {
     const a = num(n);
@@ -2811,8 +2808,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return Number((a - b * Math.floor(a / b)).toPrecision(15));
   }),
   QUOTIENT: scalar(2, 2, ([n, d]) => {
-    if (num(d) === 0) throw DIV0;
-    return Math.trunc(num(n) / num(d));
+    const [a, b] = [notBool(n), notBool(d)];
+    if (b === 0) throw DIV0;
+    return Math.trunc(a / b);
   }),
   ROUND: scalar(2, 2, ([x, d]) => excelRound(num(x), num(d), 'half')),
   ROUNDUP: scalar(2, 2, ([x, d]) => excelRound(num(x), num(d), 'up')),
@@ -3303,7 +3301,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     const type = Math.trunc(optional(t, 1));
     return weekday(dateArg(v, ctx), type, ctx);
   }),
-  EOMONTH: scalar(2, 2, ([v, m], ctx) => eomonth(dateArg(v, ctx), num(m), ctx, true)),
+  EOMONTH: scalar(2, 2, ([v, m], ctx) => {
+    if (typeof v === 'boolean' || typeof m === 'boolean') throw VALUE;
+    return eomonth(dateArg(v, ctx), num(m), ctx, true);
+  }),
   EDATE: scalar(2, 2, ([v, m], ctx) => {
     if (typeof v === 'boolean' || typeof m === 'boolean') throw VALUE;
     const d = eomonth(dateArg(v, ctx), num(m), ctx, false);
@@ -3416,6 +3417,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const t = text(scalarOf(a[0], ctx));
       const insensitive = flag(a, 4, ctx);
       if (given(a, 1) && textsOf(a[1], ctx).every((d) => d === '')) throw VALUE;
+      // With no delimiter at all there's nothing to split at.
+      if (![1, 2].some((i) => given(a, i) && textsOf(a[i], ctx).some((d) => d !== ''))) throw VALUE;
       const skip = optBool(a, 3, ctx, false);
       const pad = given(a, 5) ? scalarOf(a[5], ctx) : NA;
       const keep = (parts: string[]) => (skip ? parts.filter((p) => p !== '') : parts);
@@ -4116,7 +4119,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     },
   },
   DOLLARDE: scalar(2, 2, ([d, f]) => {
-    const fraction = Math.trunc(num(f));
+    if (typeof d === 'boolean') throw VALUE;
+    const fraction = Math.trunc(notBool(f));
     if (fraction < 0) throw NUM;
     if (fraction === 0) throw DIV0;
     const x = num(d);
@@ -4124,7 +4128,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return whole + ((x - whole) * 10 ** Math.ceil(Math.log10(fraction))) / fraction;
   }),
   DOLLARFR: scalar(2, 2, ([d, f]) => {
-    const fraction = Math.trunc(num(f));
+    if (typeof d === 'boolean') throw VALUE;
+    const fraction = Math.trunc(notBool(f));
     if (fraction < 0) throw NUM;
     if (fraction === 0) throw DIV0;
     const x = num(d);
@@ -4179,16 +4184,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       return stepWorkdays(d, left, (day) => workday(day, weekend, holidays, ctx), ctx);
     },
   },
+  // The time of day in text, a date and all: 4 pm, 16:05, 7/7/2026 4:35 PM.
   TIMEVALUE: scalar(1, 1, ([t]) => {
-    const m = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?\s*([ap]m)?\s*$/i.exec(text(t));
-    if (!m) throw VALUE;
-    let h = Number(m[1]);
-    const ampm = m[4]?.toLowerCase();
-    if (ampm) {
-      if (h < 1 || h > 12) throw VALUE;
-      h = (h % 12) + (ampm === 'pm' ? 12 : 0);
-    }
-    const v = (h * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0)) / 86400;
+    const v = parseDateText(text(t).trim());
+    if (v === undefined) throw VALUE;
     return v - Math.floor(v);
   }),
 
@@ -4232,6 +4231,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 1,
     max: MANY,
     fn: (a, ctx) => {
+      for (const x of a) if ((x instanceof Ref || x instanceof Matrix ? matrixOf(x, ctx).data : [x]).some((v) => typeof v === 'boolean')) throw VALUE;
       const ns = wholes(a, ctx);
       const total = sum(ns);
       if (total > 170) throw NUM;
@@ -4242,12 +4242,14 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 4,
     max: 4,
     fn: (a, ctx) => {
-      const x = num(scalarOf(a[0], ctx));
-      const n = num(scalarOf(a[1], ctx));
-      const m = num(scalarOf(a[2], ctx));
+      const [x, n, m] = [0, 1, 2].map((i) => notBool(scalarOf(a[i], ctx)));
       return numberMatrix(a[3], ctx)
         .flat()
-        .reduce((s, c, i) => s + c * x ** (n + i * m), 0);
+        .reduce((s, c, i) => {
+          const p = power(x, n + i * m);
+          if (isError(p)) throw p;
+          return s + c * (p as number);
+        }, 0);
     },
   },
   SUMX2MY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => x * x - y * y) },

@@ -3,7 +3,7 @@ import { stripFunctionPrefixes } from '../core/formula';
 import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
 import { FUNCTIONS } from './functions';
 import { apply, attempt, each, pairwise, scalarOf, valuesOf, type Ctx, type Host } from './operands';
-import { Areas, cancel, compare, err, isError, Lambda, Matrix, NAME, NULL, NUM, num, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, cancel, compare, err, isError, Lambda, Matrix, NAME, NULL, NUM, num, power, REF, Ref, text, VALUE, type Operand, type Scalar } from './values';
 
 export type { Ctx, Host };
 
@@ -272,7 +272,7 @@ const ARITHMETIC: Record<string, (x: number, y: number) => Scalar> = {
   '-': (x, y) => cancel(x - y, x, y),
   '*': (x, y) => x * y,
   '/': (x, y) => (y === 0 ? err('#DIV/0!') : x / y),
-  '^': (x, y) => (x === 0 && y < 0 ? err('#DIV/0!') : x === 0 && y === 0 ? err('#NUM!') : Math.pow(x, y)),
+  '^': power,
 };
 
 const COMPARISON: Record<string, (d: number) => boolean> = {
