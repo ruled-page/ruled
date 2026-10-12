@@ -240,7 +240,8 @@ export class Bonds {
   private priceOf(c: Coupons, rate: number, yld: number, redemption: number, frequency: number): number {
     const coupon = (100 * rate) / frequency;
     const accrued = (coupon * c.before) / c.period;
-    const dsc = c.after / c.period;
+    // The rest of the period, not the actual days to the next coupon, even where those differ (actual/360 and actual/365).
+    const dsc = (c.period - c.before) / c.period;
     if (c.count === 1) return (redemption + coupon) / (1 + (dsc * yld) / frequency) - accrued;
     const v = 1 + yld / frequency;
     let price = redemption / v ** (c.count - 1 + dsc);
