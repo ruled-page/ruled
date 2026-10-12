@@ -132,6 +132,8 @@ export function parseNumber(text: string): number | undefined {
 }
 
 const DATE_TEXT = /^(?:(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?)?$/;
+const NAMED_DATE = /^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})$/;
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const TIME_TEXT = /^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?$/;
 
 /**
@@ -151,6 +153,13 @@ export function parseDateText(text: string): number | undefined {
     const m = Number(t[2]);
     const sec = Number(t[3] ?? 0);
     return m < 60 && sec < 60 ? (h * 3600 + m * 60 + sec) / 86400 : undefined;
+  }
+  // 2-Feb-2026 and 2 February 2026.
+  const named = NAMED_DATE.exec(text);
+  if (named) {
+    const name = named[2].toLowerCase();
+    const month = MONTHS.findIndex((m) => name === m || name === m.slice(0, 3)) + 1;
+    return month ? parseDateText(`${named[3]}-${month}-${named[1]}`) : undefined;
   }
   const d = DATE_TEXT.exec(text);
   if (!d) return undefined;

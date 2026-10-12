@@ -1,4 +1,4 @@
-import { format } from 'numfmt';
+import { format, isDateFormat } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
 import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from '../core/bondMath';
 import { excelRound, numberText } from '../core/excelNumbers';
@@ -557,7 +557,8 @@ function withoutLeadingZeros(t: string): string {
 function indirect(args: Operand[], ctx: Ctx): Operand {
   const t = text(scalarOf(args[0], ctx)).trim();
   const a1 = args[1] === undefined ? true : bool(scalarOf(args[1], ctx));
-  const parsed = a1 ? parseA1Ref(withoutLeadingZeros(t), { allowTernary: false }) : parseR1C1Ref(t);
+  const bang = t.lastIndexOf('!') + 1;
+  const parsed = a1 ? parseA1Ref(withoutLeadingZeros(t), { allowTernary: false }) : parseR1C1Ref(t.slice(0, bang) + t.slice(bang).toUpperCase());
   if (parsed && 'range' in parsed && parsed.range) {
     const context = parsed.context ?? [];
     const sheet = context.length ? ctx.host.sheetIndex(context[0]) : ctx.sheet;
@@ -571,11 +572,13 @@ function indirect(args: Operand[], ctx: Ctx): Operand {
       return new Ref(sheet, Math.min(top, bottom), Math.min(left, right), Math.max(top, bottom), Math.max(left, right));
     }
     const r = parsed.range as { r0: number | null; c0: number | null; r1?: number | null; c1?: number | null; $r0?: boolean; $c0?: boolean; $r1?: boolean; $c1?: boolean };
-    const at = (v: number | null | undefined, abs: boolean | undefined, here: number, all: number) => (v === null || v === undefined ? all : abs ? v : here + v);
-    const r1 = at(r.r0, r.$r0, ctx.row, 0);
-    const c1 = at(r.c0, r.$c0, ctx.col, 0);
-    const r2 = at(r.r1 ?? r.r0, r.$r1 ?? r.$r0, ctx.row, MAX_ROWS - 1);
-    const c2 = at(r.c1 ?? r.c0, r.$c1 ?? r.$c0, ctx.col, MAX_COLS - 1);
+    // A relative row or column past the sheet's edge wraps around to the other side.
+    const at = (v: number | null | undefined, abs: boolean | undefined, here: number, all: number, size: number) =>
+      v === null || v === undefined ? all : abs ? v : (((here + v) % size) + size) % size;
+    const r1 = at(r.r0, r.$r0, ctx.row, 0, MAX_ROWS);
+    const c1 = at(r.c0, r.$c0, ctx.col, 0, MAX_COLS);
+    const r2 = at(r.r1 ?? r.r0, r.$r1 ?? r.$r0, ctx.row, MAX_ROWS - 1, MAX_ROWS);
+    const c2 = at(r.c1 ?? r.c0, r.$c1 ?? r.$c0, ctx.col, MAX_COLS - 1, MAX_COLS);
     if (Math.min(r1, r2, c1, c2) < 0) throw REF;
     return new Ref(sheet, Math.min(r1, r2), Math.min(c1, c2), Math.max(r1, r2), Math.max(c1, c2));
   }
@@ -801,6 +804,8 @@ function proper(s: string): string {
 
 function textFormat(value: Scalar, pattern: string, ctx: Ctx): string {
   const v = typeof value === 'number' && ctx.host.date1904 ? value + 1462 : value;
+  // A date format can't show a day before 1900 or after 9999.
+  if (typeof v === 'number' && (v < 0 || v >= 2958466) && isDateFormat(pattern)) throw VALUE;
   try {
     return format(pattern, v as number | string | boolean, { leap1900: true, throws: true, nbsp: false });
   } catch {
@@ -1000,7 +1005,7 @@ function splitOn(t: string, delims: string[], insensitive: boolean): string[] {
 function valueText(v: Scalar, strict: boolean): string {
   if (isError(v)) return v.error;
   if (typeof v === 'string') return strict ? `"${v.replace(/"/g, '""')}"` : v;
-  return text(v);
+  return typeof v === 'number' ? plainNumber(v) : text(v);
 }
 
 const groupThousands = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -3223,7 +3228,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return at + start;
   }),
   TEXT: scalar(2, 2, ([v, f], ctx) => textFormat(v, text(f), ctx)),
-  VALUE: scalar(1, 1, ([t], ctx) => (typeof t === 'number' ? t : dateValueOrNumber(text(t), ctx))),
+  // An empty cell is 0; a currency sign before or after the number is let go.
+  VALUE: scalar(1, 1, ([t], ctx) => (typeof t === 'number' ? t : t === null ? 0 : dateValueOrNumber(text(t).replace(/^\s*[€£¥]\s*|\s*[€£¥]\s*$/, ''), ctx))),
   CHAR: scalar(1, 1, ([n]) => {
     const k = Math.trunc(num(n));
     if (k < 1 || k > 255) throw VALUE;

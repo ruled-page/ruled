@@ -1,8 +1,6 @@
 {
   "DATE_AND_TIME/DATE.xlsx": [
-    "Sheet1!D10",
-    "Sheet1!D25",
-    "Sheet1!D9"
+    "Sheet1!D25"
   ],
   "DATE_AND_TIME/DATEVALUE.xlsx": [
     "DATEVALUE!B48"
@@ -410,17 +408,9 @@
     "INDEX!C9"
   ],
   "LOOKUP_AND_REFERENCE/INDIRECT.xlsx": [
-    "WrapAroud!A1048576",
-    "WrapAroud!E2",
-    "WrapAroud!F6",
-    "WrapAroud!G6",
-    "WrapAroud!H3",
-    "WrapAroud!H5",
-    "r1c1_notation!E3",
     "r1c1_reference_built_from_cells!A3",
     "r1c1_reference_built_from_cells!L4",
-    "r1c1_reference_built_from_cells!L5",
-    "r1c1_relative_to_the_cell!F6"
+    "r1c1_reference_built_from_cells!L5"
   ],
   "LOOKUP_AND_REFERENCE/ROW_COLUM.xlsx": [
     "Ranges!C18",
@@ -567,16 +557,6 @@
     "Sheet1!M7"
   ],
   "TEXT/TEXT.xlsx": [
-    "DATES!B25",
-    "DATES!B26",
-    "DATES!C25",
-    "DATES!C26",
-    "DATES!D25",
-    "DATES!D26",
-    "DATES!E25",
-    "DATES!E26",
-    "DATES!F25",
-    "DATES!F26",
     "NUMBERS!K12"
   ],
   "TEXT/TEXTBEFORE_TEXTAFTER.xlsx": [
@@ -597,17 +577,8 @@
     "Sheet1!L26"
   ],
   "TEXT/T_VALUE_VALUETOTEXT.xlsx": [
-    "Sheet1!C12",
-    "Sheet1!C14",
     "Sheet1!C15",
-    "Sheet1!C2",
-    "Sheet1!C9",
-    "Sheet1!D11",
-    "Sheet1!I16",
-    "Sheet1!I20",
-    "Sheet1!I3",
-    "Sheet1!I5",
-    "Sheet1!I7"
+    "Sheet1!I5"
   ],
   "simple_functions.xlsx": [
     "INDEX!I6"
