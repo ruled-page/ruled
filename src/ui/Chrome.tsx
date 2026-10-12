@@ -1,5 +1,6 @@
 import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { quoteSheetName, toA1 } from '../core/refs';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
@@ -540,6 +541,20 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
 }
 
 /** Which engine is calculating, what it cost to download, and how long opening, calculating and the last edit took. */
+/** Names the first cell where a circular reference closes, as Excel's status bar does; choosing it goes there. */
+function CircularReadout({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const first = store.circular[0];
+  const name = store.sheets[first.sheet]?.info.name;
+  const ref = toA1(first.row, first.col);
+  const where = first.sheet === store.active || !name ? ref : `${quoteSheetName(name)}!${ref}`;
+  return (
+    <button className="wbe-link wbe-status-circular" onClick={() => store.goTo(name ? `${quoteSheetName(name)}!${ref}` : ref)}>
+      {t('status.circular', { cell: where })}
+    </button>
+  );
+}
+
 function EngineReadout({ store }: { store: WorkbookStore }) {
   const t = useT();
   const info = store.engineInfo;
@@ -616,6 +631,7 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
           </>
         )}
       </span>
+      {store.circular.length > 0 && <CircularReadout store={store} />}
       {view?.filter && (
         <span className="wbe-status-filter">
           {t('status.filtered', { count: view.filteredCount })}

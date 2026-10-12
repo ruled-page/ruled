@@ -480,6 +480,8 @@ export class WorkbookStore {
   styles: DisplayStyle[] = [];
   findings: Finding[] = [];
   calc?: CalcReport;
+  /** Where circular references close, for the status bar to name the first, as Excel's does. */
+  circular: { sheet: number; row: number; col: number }[] = [];
   date1904 = false;
   timings: Record<string, number> = {};
   active = 0;
@@ -1397,6 +1399,7 @@ export class WorkbookStore {
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     for (const n of r.noteRedo ?? []) this.sheets[n.sheet]?.setNote(n.row, n.col, n.note);
+    this.noteCircular(r.circular, false);
     this.editedCount = r.editedCount;
     if (r.rejected) this.toast('error', r.rejected);
     if (r.skipped) {
@@ -1553,6 +1556,7 @@ export class WorkbookStore {
     this.names = r.names ?? [];
     this.findings = res.report ? [...r.findings.filter((f) => f.kind !== 'formulaEngine'), ...res.report.findings] : r.findings;
     this.calc = res.report;
+    this.noteCircular(res.report?.circular, true);
     for (const u of res.updates) this.sheets[u.sheet]?.apply(u);
     this.editedCount = res.editedCount;
     this.changeSeq++;
@@ -1585,11 +1589,19 @@ export class WorkbookStore {
     }
   }
 
+  /** Keeps where circular references close; a workbook that opens with one warns of it (an edit's warning comes with the edit). */
+  private noteCircular(list: { sheet: number; row: number; col: number }[] | undefined, opening: boolean): void {
+    if (!list) return;
+    if (opening && list.length) this.toast('warn', msg('core.calc.circular'));
+    this.circular = list;
+  }
+
   /** Set while the engine is being built after the user turned recalculation on. */
   recalcStarting = false;
 
   private applyCalc(report: CalcReport): void {
     this.calc = report;
+    this.noteCircular(report.circular, true);
     this.emit({ type: 'calculated', ms: report.buildMs, formulas: report.formulaCells, live: report.liveCells, notCalculated: report.unsupported + report.mismatched });
     this.findings = [...this.findings.filter((f) => f.kind !== 'formulaEngine'), ...report.findings];
     for (const a of report.liveArrays ?? []) this.sheets[a.sheet]?.unblockArray(a.rect);

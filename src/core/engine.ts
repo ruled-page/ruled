@@ -131,6 +131,8 @@ export interface FormulaEngine {
   calculate(formula: string, sheet: number): EngineValue | EngineValue[][];
   /** Formula cells that depend on any of the given cells, directly or indirectly. */
   dependentsOf(cells: Pos[], limit?: number): Pos[];
+  /** The formula cells where a circular reference closes (a formula that reads itself, directly or through others), by sheet, row and column. */
+  circular(): Pos[];
   destroy(): void;
 }
 

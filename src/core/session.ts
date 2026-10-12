@@ -358,6 +358,8 @@ export class WorkbookSession {
   private readonly people: Map<string, Person>;
   /** Per sheet: the file's notes and threads by cell, made when first needed. */
   private fileNotes?: Map<number, CellNote>[];
+  /** Where circular references closed after the last edit. */
+  private circularCells: { sheet: number; row: number; col: number }[] = [];
   /** The names defined as LAMBDAs, in capitals, which formulas call as functions; worked out again when names change. */
   private lambdas?: Set<string>;
   /** The file's defined names, as opened; model.names holds them as they now are. */
@@ -1044,7 +1046,9 @@ export class WorkbookSession {
       });
     }
 
+    this.circularCells = engine.circular();
     this.report = {
+      circular: this.circularCells,
       buildMs: Math.round(performance.now() - t0),
       formulaCells,
       liveCells: formulaCells - unsupported - mismatched,
@@ -1677,13 +1681,25 @@ export class WorkbookSession {
   // Editing
 
   apply(op: EditOp): EditResult {
+    const r = this.applyEdit(op);
+    const engine = this.engine;
+    if (!engine) return r;
+    // Where circular references close now; a new one is warned of, as Excel warns.
+    const now = engine.circular();
+    const before = new Set(this.circularCells.map((p) => `${p.sheet}:${p.row}:${p.col}`));
+    this.circularCells = now;
+    if (now.some((p) => !before.has(`${p.sheet}:${p.row}:${p.col}`))) r.warnings.push(msg('core.calc.circular'));
+    return { ...r, circular: now };
+  }
+
+  private applyEdit(op: EditOp): EditResult {
     this.ensureEngine();
-    if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.apply(o)));
+    if (op.type === 'batch') return mergeEditResults(op.ops.map((o) => this.applyEdit(o)));
     if (op.type === 'comment') return this.applyComment(op);
     if (op.type === 'layout') return this.applyLayout([{ sheet: op.sheet, op: op.op }]);
     if (op.type === 'name') return this.applyName(op.change);
     // Names go back first, so the formulas put back with them find them.
-    if (op.type === 'restore' && op.names?.length) return mergeEditResults([this.applyNames(op.names), this.apply({ ...op, names: undefined })]);
+    if (op.type === 'restore' && op.names?.length) return mergeEditResults([this.applyNames(op.names), this.applyEdit({ ...op, names: undefined })]);
     let notes: { undo: NoteSnapshot[]; redo: NoteSnapshot[] } | undefined;
     const writes = new Map<string, Write>();
     const warnings: Text[] = [];

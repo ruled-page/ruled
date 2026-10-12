@@ -192,6 +192,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.unsupported.tooLarge': 'Bereiche oder Matrizen, die zu groß zum Berechnen sind',
   'core.calc.reasonCount': '{{reason}} ({{n, number}})',
   'core.calc.mismatch': 'Anders berechnet als in Excel',
+  'core.calc.circular': 'Es gibt Zirkelbezüge: Formeln, die sich direkt oder über andere Zellen auf ihre eigene Zelle beziehen. Sie ergeben 0, wie in Excel. Ändern Sie eine der Formeln, um den Zirkel aufzulösen.',
 
   'core.cellReason.function': 'Verwendet die Funktion {{name}}, die dieser Editor nicht berechnen kann.',
   'core.cellReason.tableRefs': 'Verwendet Tabellenbezüge (Tabelle[Spalte]), die dieser Editor nicht berechnen kann.',

@@ -188,6 +188,7 @@ export const core = {
   /** One entry in the list of what isn't calculated: {{reason}} is a core.unsupported message, {{n}} how many formulas. */
   'core.calc.reasonCount': '{{reason}} ({{n, number}})',
   'core.calc.mismatch': 'Calculated differently from Excel',
+  'core.calc.circular': 'There are circular references: formulas that refer to their own cell, directly or through other cells. They calculate as 0, as in Excel. Change one of the formulas to end the circle.',
 
   // Why a formula cell isn't calculated, shown when it is selected.
   'core.cellReason.function': "Uses the {{name}} function, which this editor can't calculate.",

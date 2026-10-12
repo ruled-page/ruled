@@ -141,6 +141,8 @@ export class NativeEngine implements FormulaEngine, Host {
   private readonly nameUsers = new Map<string, Set<Formula>>();
   /** Formulas naming a sheet that isn't in the engine yet, by the sheet's name in lower case. */
   private readonly waiting = new Map<string, Set<Formula>>();
+  /** Formulas read while being worked out: where a circular reference closes. */
+  private readonly circles = new Set<Formula>();
   /** Formulas with three-dimensional references, which a sheet added within their run of sheets joins. */
   private readonly spans = new Set<Formula>();
   private readonly volatile = new Set<Formula>();
@@ -208,7 +210,11 @@ export class NativeEngine implements FormulaEngine, Host {
       if (!(c instanceof Formula)) return c;
       if (c.dirty) this.compute(c);
       // A formula read while it is being worked out reads round in a circle: 0, as Excel shows.
-      return c.busy ? 0 : c.value;
+      if (c.busy) {
+        this.circles.add(c);
+        return 0;
+      }
+      return c.value;
     }
     if (sh.anchors.size) {
       for (const a of sh.anchors) {
@@ -304,6 +310,15 @@ export class NativeEngine implements FormulaEngine, Host {
     return out ?? 0;
   }
 
+  circular(): { sheet: number; row: number; col: number }[] {
+    const out: { sheet: number; row: number; col: number }[] = [];
+    for (const f of this.circles) {
+      if (this.sheets[f.sheet]?.get(f.row, f.col) === f) out.push({ sheet: f.sheet, row: f.row, col: f.col });
+      else this.circles.delete(f);
+    }
+    return out.sort((a, b) => a.sheet - b.sheet || a.row - b.row || a.col - b.col);
+  }
+
   dependentsOf(cells: { sheet: number; row: number; col: number }[], limit = 200_000): { sheet: number; row: number; col: number }[] {
     const seen = new Set<Formula>();
     const queue: Formula[] = [];
@@ -368,6 +383,7 @@ export class NativeEngine implements FormulaEngine, Host {
         }
         if (skipSubtotals && c.template.subtotal) continue;
         if (c.dirty) this.compute(c);
+        if (c.busy) this.circles.add(c);
         f(c.busy ? 0 : c.value, row, col);
       }
     }
@@ -660,6 +676,8 @@ export class NativeEngine implements FormulaEngine, Host {
     if (this.depth >= MAX_DEPTH) throw new Deferred(f);
     f.busy = true;
     this.depth++;
+    // It closes a circle again only if it is read while being worked out again.
+    this.circles.delete(f);
     try {
       f.link = undefined;
       const measured = f.measured;
@@ -671,6 +689,8 @@ export class NativeEngine implements FormulaEngine, Host {
         if (e instanceof Deferred) throw e;
         out = isError(e) ? e : VALUE;
       }
+      // Where a circle closes it shows 0, as the formulas in the circle read it.
+      if (this.circles.has(f)) out = 0;
       this.store(f, out, ctx);
       if (measured?.rows !== f.measured?.rows || measured?.cols !== f.measured?.cols) f.reshaped = true;
       f.dirty = false;

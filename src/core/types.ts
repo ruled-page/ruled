@@ -532,6 +532,8 @@ export interface CalcReport {
   off?: boolean;
   /** The file's dynamic array formulas that are calculated here: their saved spill ranges, no longer locked. */
   liveArrays?: { sheet: number; rect: Rect }[];
+  /** Where circular references close, as Excel lists them; none when there are none. */
+  circular?: { sheet: number; row: number; col: number }[];
 }
 
 export interface CellUpdate {
@@ -715,4 +717,6 @@ export interface EditResult {
   noteRedo?: NoteSnapshot[];
   /** Changes made to the names, those that undo them, and every name as it now is. */
   names?: { applied: NameChange[]; undo: NameChange[]; list: DefinedName[] };
+  /** Where circular references close now, when formulas are being calculated. */
+  circular?: { sheet: number; row: number; col: number }[];
 }

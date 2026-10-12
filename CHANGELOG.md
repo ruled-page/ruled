@@ -40,6 +40,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   calculating and the last edit take, and `npm run engine:bench` measures
   them.
 - Copying numbers as HTML gives them to 15 significant digits, as Excel does.
+- Circular references calculate as 0, as in Excel; making one warns, and
+  the status bar names where one closes until it is broken.
 
 ## 0.1.0 (2026-10-08)
 

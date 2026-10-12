@@ -79,6 +79,10 @@ back as .xlsx without losing what the editor can't display.
   Formulas it can't calculate keep Excel's saved value and are marked; when
   their inputs change they are marked stale, and Excel recalculates them on
   open.
+- Circular references (a formula that reads its own cell, directly or
+  through others) calculate as 0, as in Excel. Making one warns, and while
+  any remain the status bar names where one closes, as Excel's does;
+  choosing it goes there.
 - Dynamic arrays, as in Excel 365: a formula whose result is an array
   (SORT, UNIQUE, FILTER, SEQUENCE, TAKE and the other array functions, or a
   range such as `=B2:B9*2`) spills its values into the cells below and to
@@ -971,6 +975,14 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
 `npm run notices` writes from the builds and the package ships.
 
 ## Known limits
+
+- BESSELI, BESSELJ, BESSELK and BESSELY use the published approximations
+  Excel uses, and match Excel's results to about eight significant digits
+  rather than fifteen: for some arguments Excel takes a route that isn't
+  documented.
+- Iterative calculation isn't done: a workbook that turns it on (File,
+  Options, Formulas in Excel) has its circular references calculated as 0,
+  as with it off, and Excel iterates them when it opens the file.
 
 - Saved files have been checked with openpyxl, ExcelJS, Microsoft's Open XML
   SDK validator and this editor, not with Excel itself, and only on workbooks

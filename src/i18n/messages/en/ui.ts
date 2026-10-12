@@ -93,6 +93,7 @@ export const ui = {
   'status.recalcOff_other': 'Live recalculation off ({{count, number}} formulas)',
   'status.turnOn': 'Turn on',
   'status.turnOnTitle': 'Building the engine for a workbook this size takes a while and uses a lot of memory',
+  'status.circular': 'Circular references: {{cell}}',
   'status.live_one': '{{count, number}} formula recalculates live',
   'status.live_other': '{{count, number}} formulas recalculate live',
   'status.engineSize': '{{kB, number}} kB to load',

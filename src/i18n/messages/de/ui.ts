@@ -91,6 +91,7 @@ export const ui: Record<keyof typeof en, string> = {
   'status.recalcOff_other': 'Live-Neuberechnung aus ({{count, number}} Formeln)',
   'status.turnOn': 'Einschalten',
   'status.turnOnTitle': 'Für eine Arbeitsmappe dieser Größe dauert das Erstellen des Berechnungsmoduls eine Weile und braucht viel Arbeitsspeicher',
+  'status.circular': 'Zirkelbezüge: {{cell}}',
   'status.live_one': '{{count, number}} Formel wird live neu berechnet',
   'status.live_other': '{{count, number}} Formeln werden live neu berechnet',
   'status.engineSize': '{{kB, number}} kB geladen',
