@@ -17,6 +17,7 @@ export const SAMPLES: Sample[] = [
   { file: 'formatting.xlsx', title: 'sample.formatting.title', detail: 'sample.formatting.detail' },
   { file: 'pivot.xlsx', title: 'sample.pivot.title', detail: 'sample.pivot.detail' },
   { file: 'big.xlsx', title: 'sample.big.title', detail: 'sample.big.detail' },
+  { file: 'lookups.xlsx', title: 'sample.lookups.title', detail: 'sample.lookups.detail' },
 ];
 
 export const SCHEMA_SAMPLES: Sample[] = [

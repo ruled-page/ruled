@@ -49,4 +49,6 @@ export const de: Record<keyof typeof en, string> = {
   'sample.pivot.detail': 'Eine PivotTable und nach unten ausgefüllte Formeln, die Excel in einer kompakten, gemeinsamen Form speichert.',
   'sample.big.title': '100.000 Zeilen',
   'sample.big.detail': '1,1 Millionen Zellen und 300.000 Formeln. Erstellen Sie die Datei mit npm run samples.',
+  'sample.lookups.title': '80.000 Nachschlagevorgänge',
+  'sample.lookups.detail': '20.000 Bestellungen schlagen 20.000 Produkte nach, mit Summen je Kategorie: Ändern Sie einen Preis, und jede Bestellung wird neu berechnet. Erstellen Sie die Datei mit npm run samples.',
 };

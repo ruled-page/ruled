@@ -7,6 +7,12 @@
  *   records and is marked to refresh on open, so Excel rebuilds it.
  * - public/samples/big.xlsx: 100,000 rows x 12 columns with 300,000 formulas,
  *   for measuring load and recalculation time.
+ * - public/samples/lookups.xlsx: 20,000 orders looking up 20,000 products
+ *   (80,000 lookups) and totals by category, for trying lookup-heavy
+ *   recalculation.
+ *
+ * `--no-big` leaves out the two large ones; `--only=lookups` (or any other
+ * sample's name) writes just that one.
  *
  * public/samples/kitchen-sink.xlsx comes from scripts/gen_kitchen_sink.py.
  */
@@ -223,6 +229,102 @@ async function bigSample(rowCount = 100_000) {
   summary.commit();
   await wb.commit();
   console.log(`Wrote big.xlsx (${rowCount.toLocaleString()} rows)`);
+}
+
+async function lookupSample(count = 20_000) {
+  const rand = rng(7);
+  const CATEGORIES = ['Audio', 'Bags', 'Batteries', 'Cables', 'Cameras', 'Chargers', 'Desks', 'Drives', 'Headsets', 'Keyboards', 'Lamps', 'Monitors', 'Mice', 'Networking', 'Paper', 'Pens', 'Printers', 'Seating', 'Storage', 'Tablets'];
+  const WORDS = ['Compact', 'Classic', 'Deluxe', 'Eco', 'Pro', 'Slim', 'Smart', 'Travel', 'Ultra', 'Value'];
+  const sku = (i) => `P${String(i + 1).padStart(5, '0')}`;
+  const products = Array.from({ length: count }, (_, i) => {
+    const category = CATEGORIES[i % CATEGORIES.length];
+    return { sku: sku(i), name: `${WORDS[Math.floor(rand() * WORDS.length)]} ${category.toLowerCase()} ${i + 1}`, category, price: Math.round((2 + rand() * 400) * 100) / 100, stock: Math.floor(rand() * 60) };
+  });
+  const bySku = new Map(products.map((p) => [p.sku, p]));
+  const path = join(outDir, 'lookups.xlsx');
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: path, useSharedStrings: true, useStyles: true });
+
+  const ps = wb.addWorksheet('Products', { views: [{ state: 'frozen', ySplit: 1 }] });
+  ps.columns = [
+    { header: 'SKU', key: 'sku', width: 9 },
+    { header: 'Name', key: 'name', width: 26 },
+    { header: 'Category', key: 'category', width: 13 },
+    { header: 'Price', key: 'price', width: 10, style: { numFmt: '#,##0.00' } },
+    { header: 'Stock', key: 'stock', width: 8 },
+  ];
+  for (const p of products) ps.addRow(p).commit();
+  ps.commit();
+
+  const last = count + 1;
+  const table = `Products!$A$2:$E$${last}`;
+  const os = wb.addWorksheet('Orders', { views: [{ state: 'frozen', ySplit: 1 }] });
+  os.columns = [
+    { header: 'Order', key: 'order', width: 10 },
+    { header: 'SKU', key: 'sku', width: 9 },
+    { header: 'Quantity', key: 'qty', width: 9 },
+    { header: 'Product', key: 'name', width: 26 },
+    { header: 'Category', key: 'category', width: 13 },
+    { header: 'Price', key: 'price', width: 10, style: { numFmt: '#,##0.00' } },
+    { header: 'Amount', key: 'amount', width: 12, style: { numFmt: '#,##0.00' } },
+    { header: 'In stock', key: 'stocked', width: 9 },
+  ];
+  const totals = new Map(CATEGORIES.map((c) => [c, { orders: 0, amount: 0, short: 0 }]));
+  for (let i = 0; i < count; i++) {
+    const n = i + 2;
+    // One order in a hundred names a product that isn't in the list.
+    const code = rand() < 0.01 ? `P9${String(Math.floor(rand() * 10000)).padStart(4, '0')}` : sku(Math.floor(rand() * count));
+    const p = bySku.get(code);
+    const qty = 1 + Math.floor(rand() * 40);
+    const price = p ? p.price : 0;
+    const stocked = (p ? p.stock : 0) >= qty ? 'Yes' : 'Short';
+    if (p) {
+      const t = totals.get(p.category);
+      t.orders++;
+      t.amount += qty * price;
+      if (stocked === 'Short') t.short++;
+    }
+    os.addRow({
+      order: `SO-${100001 + i}`,
+      sku: code,
+      qty,
+      name: { formula: `IFERROR(VLOOKUP(B${n},${table},2,FALSE),"Unknown SKU")`, result: p ? p.name : 'Unknown SKU' },
+      category: { formula: `IFERROR(INDEX(Products!$C$2:$C$${last},MATCH(B${n},Products!$A$2:$A$${last},0)),"")`, result: p ? p.category : '' },
+      price: { formula: `IFERROR(VLOOKUP(B${n},Products!$A:$E,4,FALSE),0)`, result: price },
+      amount: { formula: `C${n}*F${n}`, result: qty * price },
+      stocked: { formula: `IF(IFERROR(VLOOKUP(B${n},${table},5,FALSE),0)>=C${n},"Yes","Short")`, result: stocked },
+    }).commit();
+  }
+  os.commit();
+
+  const ss = wb.addWorksheet('Summary');
+  ss.columns = [
+    { header: 'Category', key: 'category', width: 13 },
+    { header: 'Orders', key: 'orders', width: 9 },
+    { header: 'Amount', key: 'amount', width: 14, style: { numFmt: '#,##0.00' } },
+    { header: 'Short of stock', key: 'short', width: 14 },
+  ];
+  const orders = (col) => `Orders!$${col}$2:$${col}$${last}`;
+  CATEGORIES.forEach((c, i) => {
+    const n = i + 2;
+    const t = totals.get(c);
+    ss.addRow({
+      category: c,
+      orders: { formula: `COUNTIFS(${orders('E')},A${n})`, result: t.orders },
+      amount: { formula: `SUMIFS(${orders('G')},${orders('E')},A${n})`, result: t.amount },
+      short: { formula: `COUNTIFS(${orders('E')},A${n},${orders('H')},"Short")`, result: t.short },
+    }).commit();
+  });
+  const end = CATEGORIES.length + 1;
+  const sum = (key) => [...totals.values()].reduce((s, t) => s + t[key], 0);
+  ss.addRow({
+    category: 'Total',
+    orders: { formula: `SUM(B2:B${end})`, result: sum('orders') },
+    amount: { formula: `SUM(C2:C${end})`, result: sum('amount') },
+    short: { formula: `SUM(D2:D${end})`, result: sum('short') },
+  }).commit();
+  ss.commit();
+  await wb.commit();
+  console.log(`Wrote lookups.xlsx (${count.toLocaleString()} orders and products)`);
 }
 
 /**
@@ -551,9 +653,8 @@ async function supplierSamples() {
   ]);
 }
 
-await pivotSample();
-await schemaSamples();
-await supplierSamples();
-await validationSample();
-if (!process.argv.includes('--no-big')) await bigSample();
+const only = process.argv.find((a) => a.startsWith('--only='))?.slice('--only='.length);
+const large = !process.argv.includes('--no-big');
+const samples = { pivot: pivotSample, schemas: schemaSamples, suppliers: supplierSamples, validation: validationSample, ...(large && { big: bigSample, lookups: lookupSample }) };
+for (const [name, write] of Object.entries(samples)) if (!only || only === name) await write();
 void readFileSync;

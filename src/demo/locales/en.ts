@@ -48,6 +48,8 @@ export const en = {
   'sample.pivot.detail': 'A pivot table plus filled-down formulas, which Excel stores in a compact shared form.',
   'sample.big.title': '100,000 rows',
   'sample.big.detail': '1.1 million cells and 300,000 formulas. Create it with npm run samples.',
+  'sample.lookups.title': '80,000 lookups',
+  'sample.lookups.detail': '20,000 orders looking up 20,000 products, with totals by category: change a price and every order recalculates. Create it with npm run samples.',
 };
 
 export type DemoKey = keyof typeof en extends infer K ? (K extends `${infer Base}_${'one' | 'other'}` ? Base : K) : never;
