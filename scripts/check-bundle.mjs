@@ -2,7 +2,7 @@
  * Checks the built bundles against size budgets, and that the calculation
  * engine is only in the worker, never in code the page itself loads.
  *
- * Needs `npm run build` and `npm run build:lib` first. A budget is the
+ * Needs `npm run build` (the demo and portal) and `npm run build:lib` first. A budget is the
  * gzipped size, a little above today's, so growth is a decision rather than
  * an accident: raise it here when the growth is wanted.
  */
@@ -16,20 +16,20 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 /** [directory, file name pattern, gzipped kB]. */
 const BUDGETS = [
   // The demo page, before a workbook is opened.
-  ['dist/assets', /^sites-.*\.js$/, 275],
-  ['dist/assets', /^workbook\.worker-.*\.js$/, 300],
+  ['examples/demo/dist/assets', /^index-.*\.js$/, 275],
+  ['examples/demo/dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // The calculation engine, which the worker loads when a workbook is first opened.
-  ['dist/assets', /^worker-native-.*\.js$/, 60],
+  ['examples/demo/dist/assets', /^worker-native-.*\.js$/, 60],
   // Loaded only for workbooks with charts.
-  ['dist/assets', /^ChartView-.*\.js$/, 75],
-  ['dist-lib/react', /^workbook-editor\.js$/, 175],
-  ['dist-lib/react/assets', /^workbook\.worker\.js$/, 300],
+  ['examples/demo/dist/assets', /^ChartView-.*\.js$/, 75],
+  ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 175],
+  ['packages/spreadsheet/dist/react/assets', /^workbook\.worker\.js$/, 300],
   // React and the worker included.
-  ['dist-lib/standalone', /^workbook-editor\.js$/, 565],
+  ['packages/spreadsheet/dist/standalone', /^workbook-editor\.js$/, 565],
 ];
 
 /** Directories of code that runs on the page, where the engine must not be. */
-const PAGE_CODE = ['dist/assets', 'dist-lib/react'];
+const PAGE_CODE = ['examples/demo/dist/assets', 'examples/react-portal/dist/assets', 'packages/spreadsheet/dist/react'];
 
 const problems = [];
 for (const [dir, pattern, kB] of BUDGETS) {

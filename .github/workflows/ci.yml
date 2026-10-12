@@ -38,7 +38,7 @@ jobs:
       # Size budgets, and the calculation engine kept out of the page's code.
       - run: npm run check:bundle
       - name: Round-trip the sample workbooks
-        run: node dist-verify/verify.js public/samples --structure
+        run: node packages/spreadsheet/dist-verify/verify.js examples/demo/public/samples --structure
       # Microsoft's Open XML SDK checks every saved copy is as valid as its original.
       - uses: actions/setup-dotnet@v4
         with:
@@ -76,7 +76,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.browser }}
+      - run: npm run e2e -- --project=${{ matrix.browser }}
         env:
           E2E_BROWSERS: all
       - uses: actions/upload-artifact@v4
@@ -84,8 +84,8 @@ jobs:
         with:
           name: playwright-report-${{ matrix.browser }}
           path: |
-            playwright-report
-            test-results
+            packages/e2e/playwright-report
+            packages/e2e/test-results
           retention-days: 7
 
   examples:
@@ -97,17 +97,17 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           # Angular's CLI needs a newer Node 22 than the rest of the project.
-          node-version-file: examples/angular/.node-version
+          node-version-file: examples/angular-portal/.node-version
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            examples/angular/package-lock.json
+            examples/angular-portal/package-lock.json
       - run: npm ci
       - run: npm ci
-        working-directory: examples/angular
+        working-directory: examples/angular-portal
       - run: npm run build:lib
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/angular.spec.ts e2e/package.spec.ts
+      - run: npm run e2e -- angular.spec.ts package.spec.ts
         env:
           E2E_ANGULAR: '1'
           E2E_HOST_APP: '1'
@@ -118,6 +118,6 @@ jobs:
         with:
           name: playwright-report-angular
           path: |
-            playwright-report
-            test-results
+            packages/e2e/playwright-report
+            packages/e2e/test-results
           retention-days: 7

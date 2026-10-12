@@ -13,9 +13,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    // Workspace packages are read from their source, as Vite reads them.
+    "customConditions": ["source"]
   },
-  "include": ["src", "tests", "packages", "e2e", "vite.config.ts", "vite.glide.ts", "playwright.config.ts"],
+  "include": ["packages", "examples", "vite.config.ts"],
   // Built against the packed library by scripts/host-app.mjs, which needs it built first.
-  "exclude": ["e2e/host-app"]
+  "exclude": ["packages/e2e/host-app", "examples/angular-portal", "**/dist", "**/node_modules"]
 }

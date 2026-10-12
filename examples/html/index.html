@@ -18,10 +18,10 @@
       <button id="save">Save from the host</button>
     </header>
     <!-- Run `npm run build:lib` first; this page loads the standalone build. -->
-    <workbook-editor id="editor" save-handler="event" src="/samples/forecast.xlsx"></workbook-editor>
+    <workbook-editor id="editor" save-handler="event" src="/examples/demo/public/samples/forecast.xlsx"></workbook-editor>
     <pre id="received">What the host receives on save appears here.</pre>
     <script type="module">
-      import { defineSchema } from '/dist-lib/standalone/workbook-editor.js';
+      import { defineSchema } from '/packages/spreadsheet/dist/standalone/workbook-editor.js';
 
       const editor = document.getElementById('editor');
       editor.options = {

@@ -16,6 +16,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+/** The package released: the editor, @sitepen/spreadsheet. */
+const pkg = join(root, 'packages', 'spreadsheet');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const run = (command) => execSync(command, { cwd: root, stdio: 'inherit' });
 const fail = (message) => {
@@ -43,23 +45,23 @@ if (last !== '0.0.0' && !later(next, last)) fail(`${next} doesn't come after the
 // Untracked files can't reach the package, which ships only what package.json lists.
 if (git('status', '--porcelain', '--untracked-files=no')) fail('Commit or put aside your changes first: a release is made from a clean working tree.');
 
-const changelogPath = join(root, 'CHANGELOG.md');
+const changelogPath = join(pkg, 'CHANGELOG.md');
 const changelog = readFileSync(changelogPath, 'utf8');
 const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
 if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
 
 for (const script of ['typecheck', 'lint', 'test', 'build', 'build:lib', 'check:bundle', 'validate:saves']) run(`npm run ${script}`);
 
-run(`npm version ${next} --no-git-tag-version --allow-same-version`);
+run(`npm version ${next} --no-git-tag-version --allow-same-version -w @sitepen/spreadsheet`);
 const date = new Date().toISOString().slice(0, 10);
 writeFileSync(changelogPath, changelog.replace(unreleased[0], () => `## Unreleased\n\n## ${next} (${date})\n${unreleased[1]}`));
-run('node scripts/notices.mjs');
+run('npm run notices');
 
-git('add', 'package.json', 'package-lock.json', 'CHANGELOG.md', 'THIRD-PARTY-NOTICES.md');
+git('add', 'packages/spreadsheet/package.json', 'package-lock.json', 'packages/spreadsheet/CHANGELOG.md', 'packages/spreadsheet/THIRD-PARTY-NOTICES.md');
 git('commit', '-m', `Release ${next}`);
-git('tag', '-a', `v${next}`, '-m', `workbook-editor ${next}`);
+git('tag', '-a', `v${next}`, '-m', `@sitepen/spreadsheet ${next}`);
 
 const releases = join(root, 'releases');
 mkdirSync(releases, { recursive: true });
-const [{ filename }] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', releases], { cwd: root, encoding: 'utf8' }));
+const [{ filename }] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', releases], { cwd: pkg, encoding: 'utf8' }));
 console.log(`\nReleased ${next}: tagged v${next}, packed releases/${filename}. Push the tag and share or publish the tarball when ready.`);

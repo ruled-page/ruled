@@ -1,10 +1,10 @@
 /**
  * Builds the example sites, each its own Cloudflare Pages project, into
- * dist-sites/:
+ * dist-sites/ (each example's wrangler.jsonc names its project and folder):
  *
- *   demo     the editor demo with the sample workbooks  (project workbook-editor-poc)
- *   portal   the editor embedded in a React supplier portal  (workbook-editor-portal)
- *   angular  the editor embedded in an Angular app  (workbook-editor-angular)
+ *   demo     the editor demo with the sample workbooks  (examples/demo, project workbook-editor-poc)
+ *   portal   the editor embedded in a React supplier portal  (examples/react-portal, workbook-editor-portal)
+ *   angular  the editor embedded in an Angular app  (examples/angular-portal, workbook-editor-angular)
  *
  *   node scripts/build-sites.mjs            all three
  *   node scripts/build-sites.mjs portal     just one (or several)
@@ -15,7 +15,7 @@
  * 22.22.3 or later, which Angular's CLI requires.
  */
 import { execSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, readdirSync, rmSync } from 'node:fs';
 
 const ALL = ['demo', 'portal', 'angular'];
 const wanted = process.argv.slice(2);
@@ -48,12 +48,11 @@ if (sites.includes('angular') && !nodeIsNewEnoughForAngular()) {
   process.exit(1);
 }
 
-if (sites.includes('demo')) run('npx vite build', { env: { SITE: 'demo' } });
+if (sites.includes('demo')) run('npm run build -w @sitepen/demo', { env: { SITE: '1' } });
 
 if (sites.includes('portal')) {
-  run('npx vite build', { env: { SITE: 'portal' } });
-  // The portal is its own site, so its page is the site's index, and it needs only its own workbooks.
-  renameSync('dist-sites/portal/embedded.html', 'dist-sites/portal/index.html');
+  run('npm run build -w @sitepen/react-portal', { env: { SITE: '1' } });
+  // The portal shares the demo's public folder, and needs only its own workbooks from it.
   for (const file of readdirSync('dist-sites/portal/samples')) {
     if (!file.startsWith('supplier-')) rmSync(`dist-sites/portal/samples/${file}`);
   }
@@ -62,11 +61,11 @@ if (sites.includes('portal')) {
 if (sites.includes('angular')) {
   // The Angular app loads the editor's standalone build.
   run('npm run build:lib');
-  if (!existsSync('examples/angular/node_modules')) run('npm ci', { cwd: 'examples/angular' });
-  run('npx ng build', { cwd: 'examples/angular' });
+  if (!existsSync('examples/angular-portal/node_modules')) run('npm ci', { cwd: 'examples/angular-portal' });
+  run('npx ng build', { cwd: 'examples/angular-portal' });
   rmSync('dist-sites/angular', { recursive: true, force: true });
-  cpSync('examples/angular/dist/browser', 'dist-sites/angular', { recursive: true });
-  copyFileSync('public/_headers', 'dist-sites/angular/_headers');
+  cpSync('examples/angular-portal/dist/browser', 'dist-sites/angular', { recursive: true });
+  copyFileSync('examples/demo/public/_headers', 'dist-sites/angular/_headers');
 }
 
 console.log(`\nBuilt ${sites.map((s) => `dist-sites/${s}`).join(', ')}`);

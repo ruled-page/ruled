@@ -1,0 +1,15 @@
+{
+  "name": "@sitepen/e2e",
+  "version": "0.0.0",
+  "description": "End-to-end tests of the editor, its examples and its packed library, in real browsers",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@sitepen/spreadsheet": "0.1.0",
+    "@sitepen/demo": "0.0.0"
+  }
+}

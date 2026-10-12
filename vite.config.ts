@@ -1,43 +1,41 @@
 import { fileURLToPath } from 'node:url';
+import { defaultClientConditions, defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
-import { glidePatches } from './vite.glide.ts';
+import { glidePatches } from './packages/spreadsheet/vite.glide.ts';
 
-// Glide's build-time dependencies conflict with @vitejs/plugin-react's optional
-// Babel 8 peer, so JSX is compiled by Vite's built-in Oxc transform instead.
+/**
+ * The unit tests of every package and example, run together so coverage
+ * spans them all; `npm run engine:bench` and the other benchmarks run the
+ * packages' bench/ instead. Workspace packages are read from their source
+ * (their exports' "source" condition) rather than their builds.
+ */
+const source = { conditions: ['source', ...defaultClientConditions] };
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  // The worker's own chunks (each calculation engine is one) are named for it, so the bundle check tells them from the page's.
-  worker: { format: 'es', rolldownOptions: { output: { chunkFileNames: 'assets/worker-[name]-[hash].js' } } },
   plugins: [glidePatches()],
-  // The grid's markdown cells are never shown, so their parser isn't needed.
-  resolve: { alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) }] },
-  // The dev server bundles Glide ahead of time, outside the plugins above.
-  optimizeDeps: { rolldownOptions: { plugins: [glidePatches()] } },
-  // Two pages: the editor demo, and the editor embedded in a host app. Each is
-  // also built on its own as a site to publish (SITE=demo or SITE=portal).
-  build:
-    process.env.SITE === 'demo' || process.env.SITE === 'portal'
-      ? { outDir: `dist-sites/${process.env.SITE}`, emptyOutDir: true, rolldownOptions: { input: process.env.SITE === 'demo' ? 'index.html' : 'embedded.html' } }
-      : { rolldownOptions: { input: { main: 'index.html', embedded: 'embedded.html' } } },
+  resolve: {
+    ...source,
+    // The grid's markdown cells are never shown, so their parser isn't needed.
+    alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('packages/spreadsheet/src/editor/shims/marked.ts', import.meta.url)) }],
+  },
+  ssr: { resolve: { conditions: ['source', ...defaultServerConditions] } },
   test: {
     environment: 'node',
-    // `npm run engine:bench` runs the engine comparison in bench/ instead.
-    include: process.env.ENGINE_BENCH ? ['bench/**/*.bench.ts', 'packages/*/bench/**/*.bench.ts'] : ['tests/**/*.test.ts', 'packages/*/tests/**/*.test.ts'],
-    setupFiles: ['tests/setup.ts'],
+    include: process.env.ENGINE_BENCH ? ['packages/*/bench/**/*.bench.ts'] : ['packages/*/tests/**/*.test.ts', 'examples/*/tests/**/*.test.ts'],
+    setupFiles: ['packages/spreadsheet/tests/setup.ts'],
     testTimeout: 60_000,
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.ts'],
-      // The React screens and the apps' entry points are tested in a browser by the Playwright suite (e2e/).
+      include: ['packages/*/src/**/*.{ts,tsx}', 'examples/{demo,react-portal}/src/**/*.{ts,tsx}'],
+      // The React screens and the apps' entry points are tested in a browser by the Playwright suite (packages/e2e).
       exclude: [
-        'src/ui/**/*.tsx',
-        'src/ui/useDialog.ts',
-        'src/editor/{WorkbookEditor.tsx,ErrorBoundary.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
-        'src/demo/{main.tsx,Welcome.tsx,i18n.ts}',
-        'src/embedded/{*.tsx,i18n.ts,format.ts}',
-        'src/{demo,embedded}/locales/**',
-        'src/i18n/messages/**',
-        'src/sites.ts',
+        'packages/spreadsheet/src/ui/**/*.tsx',
+        'packages/spreadsheet/src/ui/useDialog.ts',
+        'packages/spreadsheet/src/editor/{WorkbookEditor.tsx,ErrorBoundary.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
+        'examples/demo/src/{main.tsx,Welcome.tsx,i18n.ts,sites.ts}',
+        'examples/react-portal/src/{*.tsx,i18n.ts,format.ts,sites.ts}',
+        'examples/*/src/locales/**',
+        'packages/spreadsheet/src/i18n/messages/**',
       ],
       reporter: ['text-summary', 'html'],
       // Just under what the suite reaches, so coverage can't quietly slip.

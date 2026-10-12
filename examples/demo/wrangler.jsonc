@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The editor demo's Cloudflare Pages project. The portal and Angular sites
+  // have their own, in sites/portal and sites/angular. `npm run deploy:demo`
+  // builds and uploads dist-sites/demo as the production deployment.
+  "name": "workbook-editor-poc",
+  "pages_build_output_dir": "../../dist-sites/demo",
+  "compatibility_date": "2026-10-07"
+}

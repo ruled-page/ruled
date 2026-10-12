@@ -1,0 +1,59 @@
+{
+  "name": "@sitepen/spreadsheet",
+  "version": "0.1.0",
+  "description": "Edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas: a React component, and a <workbook-editor> web component",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Anthony Gubler",
+  "scripts": {
+    "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json",
+    "build:verify": "vite build -c vite.verify.config.ts",
+    "validate:saves": "node scripts/validate-saves.mjs",
+    "notices": "node scripts/notices.mjs"
+  },
+  "exports": {
+    ".": {
+      "source": "./src/editor/index.ts",
+      "types": "./dist/types/editor/index.d.ts",
+      "import": "./dist/react/workbook-editor.js"
+    },
+    "./standalone": {
+      "source": "./src/editor/standalone.ts",
+      "types": "./dist/types/editor/standalone.d.ts",
+      "import": "./dist/standalone/workbook-editor.js"
+    },
+    "./style.css": "./dist/react/workbook-editor.css",
+    "./worker": "./dist/react/assets/workbook.worker.js",
+    "./internal/*": {
+      "source": "./src/*"
+    },
+    "./testing/*": {
+      "source": "./tests/*"
+    }
+  },
+  "files": [
+    "dist/react",
+    "dist/standalone",
+    "dist/types",
+    "CHANGELOG.md",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "dependencies": {
+    "@borgar/fx": "^5.1.3",
+    "@glideapps/glide-data-grid": "^6.0.3",
+    "@sitepen/formula-engine": "0.1.0",
+    "chart.js": "^4.5.1",
+    "fflate": "^0.8.3",
+    "i18next": "^26.4.2",
+    "lodash": "^4.18.1",
+    "marked": "^4.3.0",
+    "numfmt": "^3.2.6",
+    "react-i18next": "^17.0.16",
+    "react-responsive-carousel": "^3.2.23"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  }
+}

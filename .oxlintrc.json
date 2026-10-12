@@ -27,7 +27,7 @@
   "overrides": [
     {
       // Expected results copied from Excel and Microsoft's documentation, as written there.
-      "files": ["tests/**", "packages/*/tests/**"],
+      "files": ["packages/*/tests/**", "examples/*/tests/**"],
       "rules": { "no-loss-of-precision": "off" }
     },
     {
@@ -36,5 +36,5 @@
       "rules": { "vitest/expect-expect": "off" }
     }
   ],
-  "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "sites", "public", "e2e/host-app", "examples"]
+  "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "public", "packages/e2e/host-app", "examples/angular-portal", "examples/html"]
 }
