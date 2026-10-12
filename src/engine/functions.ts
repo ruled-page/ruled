@@ -536,11 +536,20 @@ function xlookup(args: Operand[], ctx: Ctx): Operand {
   return vertical ? slice(args[2], ctx, at, 0, at, ret.cols - 1) : slice(args[2], ctx, 0, at, ret.rows - 1, at);
 }
 
+/** Codes 128 to 159 as Excel's character set has them (Windows-1252); a space where it has none. */
+const WINDOWS_1252 = '€ ‚ƒ„…†‡ˆ‰Š‹Œ Ž  ‘’“”•–—˜™š›œ žŸ';
+
+/** Row numbers as Excel reads them in text, A01 and 05:05 being A1 and 5:5. */
+function withoutLeadingZeros(t: string): string {
+  const bang = t.lastIndexOf('!') + 1;
+  return t.slice(0, bang) + t.slice(bang).replace(/(^|[A-Za-z$:])0+(?=\d)/g, '$1');
+}
+
 /** A reference written as text, for INDIRECT: A1 or R1C1, with a sheet or not, or a defined name. */
 function indirect(args: Operand[], ctx: Ctx): Operand {
   const t = text(scalarOf(args[0], ctx)).trim();
   const a1 = args[1] === undefined ? true : bool(scalarOf(args[1], ctx));
-  const parsed = a1 ? parseA1Ref(t, { allowTernary: false }) : parseR1C1Ref(t);
+  const parsed = a1 ? parseA1Ref(withoutLeadingZeros(t), { allowTernary: false }) : parseR1C1Ref(t);
   if (parsed && 'range' in parsed && parsed.range) {
     const context = parsed.context ?? [];
     const sheet = context.length ? ctx.host.sheetIndex(context[0]) : ctx.sheet;
@@ -572,13 +581,23 @@ function offset(args: Operand[], ctx: Ctx): Operand {
   if (!(base instanceof Ref)) throw VALUE;
   const rows = Math.trunc(num(scalarOf(args[1], ctx)));
   const cols = Math.trunc(num(scalarOf(args[2], ctx)));
-  const height = args[3] === undefined || args[3] === null ? base.rows : Math.trunc(num(scalarOf(args[3], ctx)));
-  const width = args[4] === undefined || args[4] === null ? base.cols : Math.trunc(num(scalarOf(args[4], ctx)));
-  if (height < 1 || width < 1) throw REF;
-  const r1 = base.r1 + rows;
-  const c1 = base.c1 + cols;
-  if (r1 < 0 || c1 < 0 || r1 + height > MAX_ROWS || c1 + width > MAX_COLS) throw REF;
-  return new Ref(base.sheet, r1, c1, r1 + height - 1, c1 + width - 1);
+  // A size of zero is #REF!; a fraction of one counts as one, and a negative size reaches up or left from the corner.
+  const size = (a: Operand | undefined, whole: number) => {
+    if (a === undefined || a === null) return whole;
+    const n = num(scalarOf(a, ctx));
+    if (n === 0) throw REF;
+    return Math.trunc(n) || Math.sign(n);
+  };
+  const height = size(args[3], base.rows);
+  const width = size(args[4], base.cols);
+  const top = base.r1 + rows;
+  const left = base.c1 + cols;
+  const r1 = height < 0 ? top + height + 1 : top;
+  const c1 = width < 0 ? left + width + 1 : left;
+  const r2 = r1 + Math.abs(height) - 1;
+  const c2 = c1 + Math.abs(width) - 1;
+  if (r1 < 0 || c1 < 0 || r2 >= MAX_ROWS || c2 >= MAX_COLS) throw REF;
+  return new Ref(base.sheet, r1, c1, r2, c2);
 }
 
 // -----------------------------------------------------------------------------
@@ -2886,6 +2905,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     max: 1,
     fn: ([r], ctx) => {
       if (r === undefined) return ctx.row + 1;
+      if (isError(r)) throw r;
       if (!(r instanceof Ref)) throw VALUE;
       return r.rows === 1 || ctx.legacy ? r.r1 + 1 : Matrix.build(r.rows, 1, (i) => r.r1 + i + 1);
     },
@@ -2895,6 +2915,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     max: 1,
     fn: ([r], ctx) => {
       if (r === undefined) return ctx.col + 1;
+      if (isError(r)) throw r;
       if (!(r instanceof Ref)) throw VALUE;
       return r.cols === 1 || ctx.legacy ? r.c1 + 1 : Matrix.build(1, r.cols, (_i, j) => r.c1 + j + 1);
     },
@@ -3120,12 +3141,13 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   CHAR: scalar(1, 1, ([n]) => {
     const k = Math.trunc(num(n));
     if (k < 1 || k > 255) throw VALUE;
-    return String.fromCharCode(k);
+    return k >= 128 && k < 160 && WINDOWS_1252[k - 128] !== ' ' ? WINDOWS_1252[k - 128] : String.fromCharCode(k);
   }),
   CODE: scalar(1, 1, ([t]) => {
     const s = text(t);
     if (!s) throw VALUE;
-    return s.charCodeAt(0);
+    const at = WINDOWS_1252.indexOf(s[0]);
+    return at >= 0 && s[0] !== ' ' ? 128 + at : s.charCodeAt(0);
   }),
   UNICHAR: scalar(1, 1, ([n]) => String.fromCodePoint(Math.trunc(num(n)))),
   UNICODE: scalar(1, 1, ([t]) => {

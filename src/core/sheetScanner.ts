@@ -298,10 +298,11 @@ export function scanSheet(xml: string, sst: string[], richStrings: Set<number> =
             }
 
             const f = findElement(xml, fTag, cTagEnd + 1, innerEnd);
-            if (f) {
-              const fa = parseAttrs(f.attrs);
-              const text = f.inner !== null ? decodeEntities(f.inner) : '';
-              const ft = fa.t ?? 'normal';
+            const fa = f ? parseAttrs(f.attrs) : {};
+            const text = f?.inner ? decodeEntities(f.inner) : '';
+            const ft = fa.t ?? 'normal';
+            // An empty <f ca="1"/> marks a cell a volatile formula spilled into: it holds a value, not a formula.
+            if (f && (text || ft !== 'normal')) {
               flags |= CellFlag.Formula;
               if (vText === undefined) flags |= CellFlag.NoCache;
               if (ft === 'shared') {
