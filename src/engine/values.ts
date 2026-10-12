@@ -131,13 +131,46 @@ export function parseNumber(text: string): number | undefined {
   return percent ? n / 100 : n;
 }
 
+const DATE_TEXT = /^(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?)?$/;
+const TIME_TEXT = /^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?$/;
+
+/**
+ * Text read as a date or time, as Excel reads "2024-01-10", "1/10/2024" or
+ * "14:30" in arithmetic: a serial number in the 1900 date system (a
+ * workbook in the 1904 system reads such text 1,462 days late here).
+ * Undefined when it isn't one, or names a day that doesn't exist.
+ */
+export function parseDateText(text: string): number | undefined {
+  const t = TIME_TEXT.exec(text);
+  if (t) {
+    let h = Number(t[1]);
+    if (t[4]) {
+      if (h < 1 || h > 12) return undefined;
+      h = (h % 12) + (/p/i.test(t[4]) ? 12 : 0);
+    }
+    const m = Number(t[2]);
+    const sec = Number(t[3] ?? 0);
+    return m < 60 && sec < 60 ? (h * 3600 + m * 60 + sec) / 86400 : undefined;
+  }
+  const d = DATE_TEXT.exec(text);
+  if (!d) return undefined;
+  const [y, mo, day] = d[1] ? [Number(d[1]), Number(d[2]), Number(d[3])] : [Number(d[6]), Number(d[4]), Number(d[5])];
+  const at = new Date(Date.UTC(y, mo - 1, day));
+  if (y < 1900 || at.getUTCFullYear() !== y || at.getUTCMonth() !== mo - 1 || at.getUTCDate() !== day) return undefined;
+  let serial = at.getTime() / 86400000 + 25569;
+  // The 1900 system counts a 29 February 1900 that never was.
+  if (serial < 61) serial -= 1;
+  const time = d[7] === undefined ? 0 : (Number(d[7]) * 3600 + Number(d[8]) * 60 + Number(d[9] ?? 0)) / 86400;
+  return serial + time;
+}
+
 /** A value in arithmetic: blank 0, TRUE 1, text that reads as a number; anything else is #VALUE!. Errors are thrown. */
 export function num(v: Scalar): number {
   if (typeof v === 'number') return v;
   if (v === null) return 0;
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (typeof v === 'string') {
-    const n = parseNumber(v);
+    const n = parseNumber(v) ?? parseDateText(v);
     if (n === undefined) throw VALUE;
     return n;
   }

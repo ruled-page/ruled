@@ -62,13 +62,13 @@ export function intersect(ref: Ref, ctx: Ctx): Scalar {
 }
 
 /**
- * An operand as values: a reference read, arrays as they are. Ranges are
- * worked on whole, in older formulas too (whose final result alone meets
- * the formula's row or column), so array formulas entered with
- * Ctrl+Shift+Enter in one cell, =SUM(A1:A9*B1:B9), work as Excel's do.
+ * An operand as values: a reference read, arrays as they are. Where one
+ * value is wanted, an older formula (from before dynamic arrays) meets a
+ * range at its own row or column, as Excel does; array formulas, entered
+ * with Ctrl+Shift+Enter, aren't older formulas here, and work on it whole.
  */
 export function valuesOf(op: Operand, ctx: Ctx): Scalar | Matrix {
-  if (op instanceof Ref) return op.single ? ctx.host.value(op.sheet, op.r1, op.c1) : ctx.host.read(op);
+  if (op instanceof Ref) return op.single ? ctx.host.value(op.sheet, op.r1, op.c1) : ctx.legacy ? intersect(op, ctx) : ctx.host.read(op);
   if (op instanceof Lambda) return err('#CALC!');
   if (op instanceof Areas) return VALUE;
   return op;

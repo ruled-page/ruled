@@ -1117,7 +1117,9 @@ export class WorkbookSession {
         const saved = this.edits[s].has(cellKey(r, col)) ? undefined : this.savedSpill(s, i, r, col);
         const fixed = !!saved && !m.scan!.fmeta.get(i)?.dynamic;
         if (saved) this.spills[s].set(cellKey(r, col), { rows: saved.r2 - saved.r1 + 1, cols: saved.c2 - saved.c1 + 1, ...(fixed && { fixed }) });
-        row[col] = saved ? spillFormula(raw, saved.r2 - saved.r1 + 1, saved.c2 - saved.c1 + 1, fixed) : raw;
+        // An array formula entered with Ctrl+Shift+Enter in one cell works on whole ranges, where an ordinary older formula meets its row or column.
+        const oneCellArray = !saved && !this.edits[s].has(cellKey(r, col)) && m.scan!.fmeta.get(i)?.kind === 'array';
+        row[col] = saved ? spillFormula(raw, saved.r2 - saved.r1 + 1, saved.c2 - saved.c1 + 1, fixed) : oneCellArray ? spillFormula(raw, 1, 1, true) : raw;
       }
       rows[r] = row;
     }

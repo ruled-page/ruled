@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
-import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseNumber, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -40,7 +40,8 @@ const math1 = (f: (x: number) => number | Scalar): FunctionSpec =>
     return typeof r === 'number' && !Number.isFinite(r) ? NUM : r;
   });
 
-const optional = (v: Scalar | undefined, d: number) => (v === undefined || v === null ? d : num(v));
+/** An optional number: left off the end, the default; an empty cell or argument is 0, as in Excel. */
+const optional = (v: Scalar | undefined, d: number) => (v === undefined ? d : num(v));
 
 // -----------------------------------------------------------------------------
 // Numbers in arguments, as aggregates count them
@@ -1960,7 +1961,45 @@ function choose(n: number, k: number): number {
 
 const gcd2 = (a: number, b: number): number => (b === 0 ? a : gcd2(b, a % b));
 
-/** Whole, non-negative numbers from the arguments, for GCD, LCM and MULTINOMIAL. */
+/**
+ * The whole numbers GCD and LCM take, by Excel's rules for them: from cells
+ * and arrays as well as typed, text read as a number (or, written without
+ * spaces around it, a date), an empty cell as 0; TRUE, FALSE and other text
+ * are #VALUE!, as is having no values at all; an argument left out is #N/A;
+ * a value below 0, or 2^53 or more, is #NUM!.
+ */
+function divisorArgs(a: Operand[], ctx: Ctx): number[] {
+  const out: number[] = [];
+  let any = false;
+  const take = (v: Scalar) => {
+    any = true;
+    if (v === null) return void out.push(0);
+    if (isError(v)) throw v;
+    if (typeof v === 'boolean') throw VALUE;
+    let n = typeof v === 'number' ? v : parseNumber(v);
+    if (n === undefined) {
+      if (v !== (v as string).trim()) throw VALUE;
+      n = dateValue(v as string, ctx);
+    }
+    if (n < 0 || n >= 2 ** 53) throw NUM;
+    out.push(Math.trunc(n));
+  };
+  // An empty cell in a range is 0; an empty cell given alone is nothing.
+  for (const x of a) {
+    if (x === null || x === undefined) throw NA;
+    if (x instanceof Ref && x.single) {
+      const v = ctx.host.value(x.sheet, x.r1, x.c1);
+      if (v !== null) take(v);
+    } else if (x instanceof Ref || x instanceof Matrix) matrixOf(x, ctx).data.forEach(take);
+    else if (x instanceof Areas) for (const r of x.refs) matrixOf(r, ctx).data.forEach(take);
+    else if (x instanceof Lambda) throw VALUE;
+    else take(x);
+  }
+  if (!any) throw VALUE;
+  return out;
+}
+
+/** Whole, non-negative numbers from the arguments, for MULTINOMIAL. */
 function wholes(a: Operand[], ctx: Ctx): number[] {
   const out = list(a, ctx).map(Math.trunc);
   if (out.some((n) => n < 0)) throw NUM;
@@ -2623,7 +2662,11 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   FLOOR: scalar(2, 2, ([x, s]) => {
     const n = num(x);
     const k = num(s);
-    if (k === 0) throw DIV0;
+    // Of nothing, nothing; of anything else, there is no multiple of 0 to fall to.
+    if (k === 0) {
+      if (n === 0) return 0;
+      throw DIV0;
+    }
     if (n > 0 && k < 0) throw NUM;
     return excelRound(Math.floor(n / k) * k, 10, 'half');
   }),
@@ -3960,8 +4003,17 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     if (a < 0 || b < 0 || (a === 0 && b > 0)) throw NUM;
     return b === 0 ? 1 : choose(a + b - 1, b);
   }),
-  GCD: { min: 1, max: MANY, fn: (a, ctx) => wholes(a, ctx).reduce(gcd2, 0) },
-  LCM: { min: 1, max: MANY, fn: (a, ctx) => wholes(a, ctx).reduce((l, n) => (l === 0 || n === 0 ? 0 : (l / gcd2(l, n)) * n), 1) },
+  GCD: { min: 1, max: MANY, fn: (a, ctx) => divisorArgs(a, ctx).reduce(gcd2, 0) },
+  LCM: {
+    min: 1,
+    max: MANY,
+    fn: (a, ctx) =>
+      divisorArgs(a, ctx).reduce((l, n) => {
+        const r = l === 0 || n === 0 ? 0 : (l / gcd2(l, n)) * n;
+        if (r >= 2 ** 53) throw NUM;
+        return r;
+      }, 1),
+  },
   MULTINOMIAL: {
     min: 1,
     max: MANY,
@@ -3988,17 +4040,21 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   SUMX2PY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => x * x + y * y) },
   SUMXMY2: { min: 2, max: 2, fn: (a, ctx) => pairSum(a, ctx, (x, y) => (x - y) ** 2) },
   SQRTPI: math1((x) => (x < 0 ? NUM : Math.sqrt(x * Math.PI))),
+  // The number is read first, so text that isn't one is #VALUE! even with a significance of 0.
   'CEILING.PRECISE': scalar(1, 2, ([x, s]) => {
+    const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.ceil(num(x) / k) * k, 10, 'half');
+    return k === 0 ? 0 : excelRound(Math.ceil(n / k) * k, 10, 'half');
   }),
   'ISO.CEILING': scalar(1, 2, ([x, s]) => {
+    const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.ceil(num(x) / k) * k, 10, 'half');
+    return k === 0 ? 0 : excelRound(Math.ceil(n / k) * k, 10, 'half');
   }),
   'FLOOR.PRECISE': scalar(1, 2, ([x, s]) => {
+    const n = num(x);
     const k = Math.abs(optional(s, 1));
-    return k === 0 ? 0 : excelRound(Math.floor(num(x) / k) * k, 10, 'half');
+    return k === 0 ? 0 : excelRound(Math.floor(n / k) * k, 10, 'half');
   }),
 
   // Number bases and Roman numerals
