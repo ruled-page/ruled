@@ -17,6 +17,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - AutoComplete: text typed into a cell, or the formula bar, is finished from
   the entries above and below it in its column, as in Excel. Hosts can turn
   it off with `features.autoComplete`.
+- Excel's Sort dialog, from "Custom sort…" in the cell menu: sort by
+  several levels, by a custom list's order, with case mattering, or left to
+  right.
 - Dynamic array formulas, typed or from the file, spill their values into
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are

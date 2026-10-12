@@ -188,6 +188,14 @@ describe('changing a sheet’s links', () => {
     expect(change.add).toEqual([{ rect: rect(3, 0), target: 'a' }]);
   });
 
+  it('moves links in one column with their columns when sorted left to right', () => {
+    const a: Hyperlink = { rect: rect(1, 1), target: 'a' };
+    const wide: Hyperlink = { rect: rect(1, 2, 1, 3), target: 'wide' };
+    const change = sortLinks([a, wide], rect(0, 1, 3, 3), 1, [3, 2, 1], true);
+    expect(change.remove).toEqual([a]);
+    expect(change.add).toEqual([{ rect: rect(1, 3), target: 'a' }]);
+  });
+
   it('describes how the links differ from the file’s', () => {
     expect(linkDifferences([big, other], [other, { rect: big.rect, target: 'https://new.example' }, { rect: rect(9, 0), location: 'Data!B2' }])).toEqual([
       { ref: 'A1:C3', address: 'https://new.example', was: true },

@@ -34,6 +34,7 @@ import {
   type CellUpdate,
   type DisplayStyle,
   type EditOp,
+  type SortKey,
   type CfResult,
   type DefinedName,
   type EditResult,
@@ -1794,35 +1795,40 @@ export class WorkbookSession {
         break;
       }
       case 'sort': {
-        const { rect } = op;
+        const { rect, across } = op;
         const merged = this.mergesOf(op.sheet).find((m) => m.r1 <= rect.r2 && m.r2 >= rect.r1 && m.c1 <= rect.c2 && m.c2 >= rect.c1);
         if (merged) return this.emptyResult(msg('core.edit.sortMerged', { range: rangeToA1(merged) }));
-        const top = op.header ? rect.r1 + 1 : rect.r1;
+        // The rows (or, across, the columns) that are reordered.
+        const first = across ? rect.c1 : op.header ? rect.r1 + 1 : rect.r1;
+        const last = across ? rect.c2 : rect.r2;
         // As in Excel, a formula's spilled results can't be moved apart.
-        const spill = this.spillIn(op.sheet, { ...rect, r1: top });
+        const spill = this.spillIn(op.sheet, across ? rect : { ...rect, r1: first });
         if (spill) return this.emptyResult(msg('core.edit.sortSpill', { range: rangeToA1(spill) }));
-        const rows = Array.from({ length: Math.max(0, rect.r2 - top + 1) }, (_, i) => top + i);
-        const order = rows
-          .map((row, i) => ({ row, i, keys: op.keys.map((k) => this.cellValue(op.sheet, row, k.col)) }))
+        const lists = op.keys.map((k) => k.list && new Map(k.list.map((item, i) => [item.toLowerCase(), i] as const)));
+        const valueAt = (line: number, k: SortKey) => ('row' in k ? this.cellValue(op.sheet, k.row, line) : this.cellValue(op.sheet, line, k.col));
+        const order = Array.from({ length: Math.max(0, last - first + 1) }, (_, i) => first + i)
+          .map((line, i) => ({ line, i, keys: op.keys.map((k) => valueAt(line, k)) }))
           .sort((a, b) => {
             for (let k = 0; k < op.keys.length; k++) {
-              const d = compareForSort(a.keys[k], b.keys[k], op.keys[k].descending);
+              const d = compareForSort(a.keys[k], b.keys[k], op.keys[k].descending, { list: lists[k], caseSensitive: op.caseSensitive });
               if (d) return d;
             }
             return a.i - b.i;
           });
         let lost = 0;
         order.forEach((from, i) => {
-          const row = top + i;
-          if (from.row === row) return;
-          for (let col = rect.c1; col <= rect.c2; col++) {
-            const r = this.copiedContent(op.sheet, from.row, col, row, col);
+          const line = first + i;
+          if (from.line === line) return;
+          const [a, b] = across ? [rect.r1, rect.r2] : [rect.c1, rect.c2];
+          for (let x = a; x <= b; x++) {
+            const [fromRow, fromCol, row, col] = across ? [x, from.line, x, line] : [from.line, x, line, x];
+            const r = this.copiedContent(op.sheet, fromRow, fromCol, row, col);
             if (r.lost) lost++;
             put({ sheet: op.sheet, row, col, content: r.content, style: r.style });
           }
         });
         if (lost) warnings.push(msg('core.edit.sortedAsValues', { count: lost }));
-        links.push(...this.linkChange(op.sheet, sortLinks(this.linksOf(op.sheet).list, rect, top, order.map((o) => o.row))));
+        links.push(...this.linkChange(op.sheet, sortLinks(this.linksOf(op.sheet).list, rect, first, order.map((o) => o.line), across)));
         break;
       }
       case 'restore': {
@@ -2493,15 +2499,28 @@ export class WorkbookSession {
  * Excel's sort order: numbers, then text (ignoring case), then logicals, then
  * errors, reversed when descending; blank cells always go last.
  */
-export function compareForSort(a: EngineValue, b: EngineValue, descending: boolean): number {
+export function compareForSort(
+  a: EngineValue,
+  b: EngineValue,
+  descending: boolean,
+  { list, caseSensitive }: { list?: ReadonlyMap<string, number>; caseSensitive?: boolean } = {},
+): number {
   const blankA = a === null || a === '';
   const blankB = b === null || b === '';
   if (blankA || blankB) return blankA === blankB ? 0 : blankA ? 1 : -1;
+  // A custom list's entries, matched ignoring case, in its order (or the reverse); everything else after them.
+  if (list) {
+    const at = (v: EngineValue) => (typeof v === 'string' ? list.get(v.toLowerCase()) : undefined);
+    const ia = at(a);
+    const ib = at(b);
+    if (ia !== undefined || ib !== undefined) return ia === undefined ? 1 : ib === undefined ? -1 : descending ? ib - ia : ia - ib;
+  }
   const rank = (v: EngineValue) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : typeof v === 'boolean' ? 2 : 3);
   let d = rank(a) - rank(b);
   if (!d) {
     if (typeof a === 'number' && typeof b === 'number') d = a - b;
-    else if (typeof a === 'string' && typeof b === 'string') d = a.localeCompare(b, undefined, { sensitivity: 'base', numeric: false });
+    else if (typeof a === 'string' && typeof b === 'string')
+      d = a.localeCompare(b, undefined, caseSensitive ? { sensitivity: 'case', caseFirst: 'lower' } : { sensitivity: 'base', numeric: false });
     else if (typeof a === 'boolean' && typeof b === 'boolean') d = Number(a) - Number(b);
   }
   return descending ? -d : d;

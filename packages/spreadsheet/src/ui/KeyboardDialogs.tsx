@@ -244,7 +244,7 @@ export function CellsDialog({ store }: { store: WorkbookStore }) {
               {t('dialog.cancel')}
             </button>
             <button type="submit" className="wbe-btn wbe-primary">
-              {t('cells.ok')}
+              {t('dialog.ok')}
             </button>
           </div>
         </div>

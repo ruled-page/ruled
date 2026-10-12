@@ -190,6 +190,11 @@ back as .xlsx without losing what the editor can't display.
   and columns, sort, filter by values, or find and replace (⌘F / Ctrl+F),
   with Excel's wildcards: * for any run of characters, ? for any one, and ~
   before either to mean it literally.
+  "Custom sort…" opens Excel's Sort dialog: levels, each a column (named by
+  its heading) and an order (A to Z, Smallest to Largest or Oldest to Newest,
+  the reverse, or a custom list such as the months), whether the block has
+  headings, a case-sensitive sort, and sorting left to right. Sorting by
+  cell colour, font colour or icon isn't offered.
   Cutting and pasting moves cells, and references to them follow. Rows
   inserted into an Excel table, or typed or pasted just below one without a
   totals row, become part of it with its calculated columns and formats.
@@ -1099,8 +1104,10 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
   collapsed groups hid hidden, as in Excel. A group whose total row is also
   the total row of a group around it expands with that group, as the file
   marks only the row as collapsed.
-- Sorting reorders rows as Excel does (formulas move as if copied; references
-  from elsewhere don't follow). A selected range keeps its first row in place
+- Sorting reorders rows (or, left to right, columns) as Excel does (formulas
+  move as if copied; references from elsewhere don't follow). Values not in a
+  custom list come after the ones that are, and a case-sensitive sort puts
+  lower case first. A selected range keeps its first row in place
   only when it looks like headings (text over numbers, or bold over plain). Filtering by values is saved as
   Excel saves it, with the rows it hides; in a table it is the table's
   filter. A file's own filter by values can be changed and cleared; one by

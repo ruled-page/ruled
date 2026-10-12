@@ -585,6 +585,13 @@ export interface CellSnapshot {
   style: number;
 }
 
+/**
+ * What a sort orders by: a column's values (a row's, sorting across), smallest
+ * or A first unless `descending`, or the order of a custom list such as the
+ * months, values not in the list coming after the ones that are.
+ */
+export type SortKey = ({ col: number } | { row: number }) & { descending: boolean; list?: readonly string[] };
+
 export type EditOp =
   /** Text typed into a cell, parsed the way Excel parses input. */
   | { type: 'input'; sheet: number; row: number; col: number; text: string }
@@ -613,9 +620,12 @@ export type EditOp =
   | { type: 'inputs'; sheet: number; cells: { row: number; col: number; text: string }[] }
   /**
    * Reorders the rows of `rect` by the given columns, as Excel's sort does:
-   * cells move with their formats, and formulas move as if copied.
+   * cells move with their formats, and formulas move as if copied. With
+   * `across`, its columns are reordered by the given rows instead, as Excel's
+   * "Sort left to right" does, and a header row doesn't apply. Text compares
+   * ignoring case unless `caseSensitive`, which puts lower case first.
    */
-  | { type: 'sort'; sheet: number; rect: Rect; keys: { col: number; descending: boolean }[]; header: boolean }
+  | { type: 'sort'; sheet: number; rect: Rect; keys: SortKey[]; header: boolean; caseSensitive?: boolean; across?: boolean }
   /** Changes how a sheet is laid out, rather than what its cells hold. */
   | { type: 'layout'; sheet: number; op: LayoutOp }
   /**

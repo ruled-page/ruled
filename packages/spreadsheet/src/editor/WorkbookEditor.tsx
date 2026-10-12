@@ -35,6 +35,7 @@ const comments = lazyModule(() => import('../ui/CommentPopup'));
 const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
 const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
 const fillDialogs = lazyModule(() => import('../ui/FillDialogs'));
+const sortDialog = lazyModule(() => import('../ui/SortDialog'));
 
 /** The editor's parts, in the order F6 visits them. */
 const REGIONS = ['.wbe-toolbar', '.wbe-format-bar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
@@ -248,6 +249,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Names = nameDialogs.useModule(!!store.nameDialog || store.nameManagerOpen);
   const Links = linkDialog.useModule(store.linkDialog);
   const Fill = fillDialogs.useModule(store.seriesDialog || store.customListsOpen);
+  const Sort = sortDialog.useModule(!!store.sortDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
   // A file chosen from the empty state takes its button away; the focus goes on to the sheet.
@@ -368,6 +370,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.linkDialog && Links && <Links.LinkDialog store={store} />}
       {ready && store.seriesDialog && Fill && <Fill.SeriesDialog store={store} />}
       {ready && store.customListsOpen && Fill && <Fill.CustomListsDialog store={store} />}
+      {ready && store.sortDialog && Sort && <Sort.SortDialog store={store} />}
       <ShortcutsDialog store={store} />
       <ConfirmDialog store={store} />
       <Toasts store={store} />

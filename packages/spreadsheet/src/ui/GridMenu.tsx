@@ -142,6 +142,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
+    { label: t('sort.menu.custom'), onSelect: () => store.openSortDialog(), disabled: locked },
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
     ...(filtered ? [{ label: t('menu.clearFilter'), onSelect: () => void store.clearFilter() }] : []),
   ];

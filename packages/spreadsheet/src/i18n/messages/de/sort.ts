@@ -1,0 +1,31 @@
+import type { sort as en } from '../en/sort';
+
+/** German messages for Excel's Sort dialog; every English key needs one (the type checks it). */
+export const sort: Record<keyof typeof en, string> = {
+  'sort.menu.custom': 'Benutzerdefiniertes Sortieren…',
+  'sort.title': 'Sortieren',
+  'sort.column': 'Spalte {{column}}',
+  'sort.row': 'Zeile {{row}}',
+  'sort.sortBy': 'Sortieren nach',
+  'sort.thenBy': 'Dann nach',
+  'sort.columnHeading': 'Spalte',
+  'sort.rowHeading': 'Zeile',
+  'sort.order': 'Reihenfolge',
+  'sort.ascText': 'A bis Z',
+  'sort.descText': 'Z bis A',
+  'sort.ascNumber': 'Nach Größe (aufsteigend)',
+  'sort.descNumber': 'Nach Größe (absteigend)',
+  'sort.ascDate': 'Vom ältesten zum neuesten',
+  'sort.descDate': 'Vom neuesten zum ältesten',
+  'sort.list': 'Benutzerdefinierte Liste: {{list}}',
+  'sort.addLevel': 'Ebene hinzufügen',
+  'sort.deleteLevel': 'Ebene {{level}} löschen',
+  'sort.moveUp': 'Ebene {{level}} nach oben',
+  'sort.moveDown': 'Ebene {{level}} nach unten',
+  'sort.headers': 'Daten haben Überschriften',
+  'sort.options': 'Optionen',
+  'sort.caseSensitive': 'Groß-/Kleinschreibung beachten',
+  'sort.topToBottom': 'Von oben nach unten sortieren',
+  'sort.leftToRight': 'Von links nach rechts sortieren',
+  'sort.duplicate': '{{line}} wird mehr als einmal sortiert. Löschen Sie die doppelte Ebene, und versuchen Sie es erneut.',
+};

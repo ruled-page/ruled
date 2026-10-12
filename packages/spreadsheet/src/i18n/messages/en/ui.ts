@@ -287,7 +287,6 @@ export const ui = {
   'cells.shiftUp': 'Shift cells up',
   'cells.entireRow': 'Entire row',
   'cells.entireColumn': 'Entire column',
-  'cells.ok': 'OK',
   'menu.insertRowsBelow_one': 'Insert {{count, number}} row below',
   'menu.insertRowsBelow_other': 'Insert {{count, number}} rows below',
   'menu.deleteRows_one': 'Delete {{count, number}} row',
@@ -493,6 +492,7 @@ export const ui = {
   'editor.typedChartTitled': '{{type}} chart “{{title}}”',
   'editor.chartSheet': '{{chart}} fills this whole sheet. It is kept in the file and Excel redraws it from your edited data; it isn’t shown here.',
 
+  'dialog.ok': 'OK',
   'dialog.cancel': 'Cancel',
   'dialog.empty': '(empty)',
   'dialog.more_one': '…and {{count, number}} more.',

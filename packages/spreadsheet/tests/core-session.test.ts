@@ -122,6 +122,41 @@ describe('sorting', () => {
     ]);
   });
 
+  it("sorts by a custom list's order, values not in it coming after, and the list backwards", () => {
+    const s = open();
+    s.apply({ type: 'pasteText', sheet: 0, row: 30, col: 0, values: [['Mar'], ['jan'], ['Zed'], ['Feb']] });
+    const months = ['Jan', 'Feb', 'Mar', 'Apr'];
+    const rect = { r1: 30, c1: 0, r2: 33, c2: 0 };
+    const column = () => [30, 31, 32, 33].map((r) => value(s, r, 0));
+    s.apply({ type: 'sort', sheet: 0, rect, keys: [{ col: 0, descending: false, list: months }], header: false });
+    expect(column()).toEqual(['jan', 'Feb', 'Mar', 'Zed']);
+    s.apply({ type: 'sort', sheet: 0, rect, keys: [{ col: 0, descending: true, list: months }], header: false });
+    expect(column()).toEqual(['Mar', 'Feb', 'jan', 'Zed']);
+  });
+
+  it('sorts text with case mattering, lower case first, when asked to', () => {
+    const s = open();
+    s.apply({ type: 'pasteText', sheet: 0, row: 30, col: 0, values: [['b'], ['B'], ['a'], ['A']] });
+    const rect = { r1: 30, c1: 0, r2: 33, c2: 0 };
+    const column = () => [30, 31, 32, 33].map((r) => value(s, r, 0));
+    s.apply({ type: 'sort', sheet: 0, rect, keys: [{ col: 0, descending: false }], header: false });
+    // Ignoring case, ties keep their order.
+    expect(column()).toEqual(['a', 'A', 'b', 'B']);
+    s.apply({ type: 'sort', sheet: 0, rect, keys: [{ col: 0, descending: true }], header: false, caseSensitive: true });
+    expect(column()).toEqual(['B', 'b', 'A', 'a']);
+  });
+
+  it('sorts left to right, columns by the values in a row', () => {
+    const s = open();
+    s.apply({ type: 'pasteText', sheet: 0, row: 40, col: 0, values: [['c', 'a', 'b'], ['3', '1', '2']] });
+    s.apply({ type: 'sort', sheet: 0, rect: { r1: 40, c1: 0, r2: 41, c2: 2 }, keys: [{ row: 40, descending: false }], header: true, across: true });
+    expect([0, 1, 2].map((c) => [value(s, 40, c), value(s, 41, c)])).toEqual([
+      ['a', 1],
+      ['b', 2],
+      ['c', 3],
+    ]);
+  });
+
   it('refuses to sort through a merged cell', () => {
     const r = open().apply({ type: 'sort', sheet: 0, rect: { r1: 0, c1: 0, r2: 3, c2: 4 }, keys: [{ col: 0, descending: false }], header: false });
     expect(said(r).rejected).toBe('Sorting would move part of the merged cell D1:E2. Unmerge it, or sort around it.');

@@ -266,6 +266,44 @@ describe('sorting', () => {
   });
 });
 
+describe('the Sort dialog', () => {
+  it('opens on the block around the active cell, with its headings', async () => {
+    await open();
+    store.setSelection({ row: 2, col: 1, rects: [rect(2, 1)] });
+    store.openSortDialog();
+    expect(store.sortDialog).toEqual({ rect: rect(0, 0, 4, 3), header: true });
+    store.setSelection({ row: 10, col: 10, rects: [rect(10, 10)] });
+    store.set('sortDialog', undefined);
+    store.openSortDialog();
+    expect(store.sortDialog).toBeUndefined();
+    expect(toasts()).toEqual(['Select a cell in a block of data to sort it.']);
+  });
+
+  it('names columns by their headings or letters, and rows by number, with the kind of value they hold', async () => {
+    await open();
+    const named = (header: boolean, across: boolean) => store.sortLines(rect(0, 0, 4, 3), header, across).map((l) => [english.text(l.label), l.kind]);
+    expect(named(true, false)).toEqual([
+      ['Name', 'text'],
+      ['Qty', 'number'],
+      ['Price', 'number'],
+      ['Total', 'number'],
+    ]);
+    expect(named(false, false)[1]).toEqual(['Column B', 'text']);
+    expect(named(false, true)[2]).toEqual(['Row 3', 'text']);
+    await store.input(1, 7, '2026-01-05');
+    expect(store.sortLines(rect(0, 7, 1, 7), true, false).map((l) => [english.text(l.label), l.kind])).toEqual([['Column H', 'date']]);
+  });
+
+  it('sorts by its levels, as one step that undoes at once', async () => {
+    await open();
+    await store.sortBy({ rect: rect(0, 0, 4, 3), keys: [{ col: 1, descending: true }], header: true, caseSensitive: false, across: false });
+    expect(column(0, 0, 4)).toEqual(['Name', 'Banana', 'Pear', 'Fig', 'apple']);
+    expect(actions()).toEqual(['Sort']);
+    await store.undo();
+    expect(column(0, 1, 4)).toEqual(['Pear', 'apple', 'Fig', 'Banana']);
+  });
+});
+
 describe('the block a sort or filter applies to', () => {
   it('is the selection when more than one cell is selected', async () => {
     await open();

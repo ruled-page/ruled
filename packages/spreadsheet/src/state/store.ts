@@ -7,7 +7,7 @@ import { shiftFormula } from '@sitepen/formula-engine/formula';
 import { formulaReferences } from '../core/formulaAssist';
 import type { NameTarget } from '../core/names';
 import { linkDestination, replaceLinks, resolvePlace, type LinkFields } from '../core/links';
-import { inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '@sitepen/formula-engine/refs';
+import { colToLetters, inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '@sitepen/formula-engine/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { describeMatch, textMatches } from '../schema/json';
 import { withHooksFrom } from '../schema/hooks';
@@ -34,6 +34,7 @@ import {
   type LayoutOp,
   type ReadOnlyCells,
   type SeriesOptions,
+  type SortKey,
   type ListValidation,
   type NameChange,
   type NameRef,
@@ -541,6 +542,8 @@ export class WorkbookStore {
   linkDialog = false;
   /** Excel's Fill Series dialog, for the selection. */
   seriesDialog = false;
+  /** Excel's Sort dialog, open for the block the selection's sort applies to. */
+  sortDialog?: { rect: Rect; header: boolean };
   /** Excel's Insert or Delete dialog, open for the selection. */
   cellsDialog?: 'insert' | 'delete';
   /** Excel's Custom Lists dialog, opened from the Fill Series dialog. */
@@ -2273,6 +2276,60 @@ export class WorkbookStore {
   }
 
   /**
+   * What Excel's Sort dialog starts with: the block a sort applies to (the
+   * selection, or the data around the active cell) and whether its first row
+   * looks like headings. Says so, and gives nothing, where there's no block.
+   */
+  sortSetup(): { rect: Rect; header: boolean } | undefined {
+    const rect = this.dataRegion();
+    if (!rect || (rect.r2 <= rect.r1 && rect.c2 <= rect.c1)) {
+      this.toast('info', msg('store.sort.noData'));
+      return undefined;
+    }
+    const sel = this.selection.rects[0];
+    const selected = !!sel && sel.r1 === rect.r1 && sel.r2 === rect.r2 && sel.c1 === rect.c1 && sel.c2 === rect.c2;
+    return { rect, header: rect.r2 > rect.r1 && (!selected || this.looksLikeHeadings(rect)) };
+  }
+
+  /**
+   * The columns of a block a sort can order its rows by (or, `across`, the
+   * rows it can order its columns by), as the Sort dialog lists them: named by
+   * their heading, or as "Column B" or "Row 3", with the kind of value they
+   * hold first, which names their orders (A to Z, Smallest to Largest, Oldest
+   * to Newest).
+   */
+  sortLines(rect: Rect, header: boolean, across: boolean): { index: number; label: Text; kind: 'text' | 'number' | 'date' }[] {
+    const view = this.view;
+    if (!view) return [];
+    const [a, b] = across ? [rect.r1, rect.r2] : [rect.c1, rect.c2];
+    return Array.from({ length: b - a + 1 }, (_, i) => {
+      const index = a + i;
+      const heading = !across && header ? this.shownText(view, rect.r1, index) : '';
+      const label: Text = heading || (across ? msg('sort.row', { row: index + 1 }) : msg('sort.column', { column: colToLetters(index) }));
+      let kind: 'text' | 'number' | 'date' = 'text';
+      const [start, end] = across ? [rect.c1, rect.c2] : [header ? rect.r1 + 1 : rect.r1, rect.r2];
+      for (let j = start; j <= end; j++) {
+        const rec = across ? view.get(index, j) : view.get(j, index);
+        if (!rec || rec.t === VT.None) continue;
+        if (rec.t === VT.Number) kind = isDateStyle(this.styles[rec.style] ?? this.styles[0]) ? 'date' : 'number';
+        break;
+      }
+      return { index, label, kind };
+    });
+  }
+
+  /** Opens Excel's Sort dialog for the block around the selection, if there is one. */
+  openSortDialog(): void {
+    const setup = this.sortSetup();
+    if (setup) this.set('sortDialog', setup);
+  }
+
+  /** Sorts as Excel's Sort dialog does: by one level after another, down the rows or across the columns. */
+  sortBy(sort: { rect: Rect; keys: SortKey[]; header: boolean; caseSensitive: boolean; across: boolean }): Promise<EditResult | undefined> {
+    return this.edit({ type: 'sort', sheet: this.active, ...sort, header: sort.header && !sort.across });
+  }
+
+  /**
    * Whether a range's first row looks like headings rather than data, as
    * Excel guesses it: text above a column of numbers, dates or logicals, or
    * bold above plain.
@@ -3585,6 +3642,7 @@ export class WorkbookStore {
       | 'nameManagerOpen'
       | 'linkDialog'
       | 'seriesDialog'
+      | 'sortDialog'
       | 'cellsDialog'
       | 'customListsOpen'
       | 'schemaDraft'

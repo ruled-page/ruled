@@ -1752,6 +1752,47 @@
   width: 520px;
 }
 
+.wbe .wbe-sort-dialog {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.wbe .wbe-sort-levels {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Each level, and the headings above them, on the same columns. */
+.wbe .wbe-sort-level {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.wbe .wbe-sort-heading {
+  font-weight: 600;
+}
+
+.wbe .wbe-sort-level .wbe-select {
+  width: 100%;
+}
+
+.wbe .wbe-sort-tools {
+  display: flex;
+  min-width: 96px;
+}
+
+.wbe .wbe-sort-add {
+  justify-self: start;
+  margin-top: 8px;
+}
+
+.wbe .wbe-sort-options {
+  margin-top: 16px;
+}
+
 .wbe .wbe-series-dialog,
 .wbe .wbe-lists-dialog {
   max-height: 100%;
@@ -1873,6 +1914,20 @@
   .wbe .wbe-series-groups,
   .wbe .wbe-lists-body {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A level's name and buttons above its two pickers. */
+  .wbe .wbe-sort-level {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .wbe .wbe-sort-name,
+  .wbe .wbe-sort-tools {
+    grid-column: 1 / -1;
+  }
+
+  .wbe .wbe-sort-heading {
+    display: none;
   }
 }
 

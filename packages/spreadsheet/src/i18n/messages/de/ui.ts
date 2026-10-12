@@ -285,7 +285,6 @@ export const ui: Record<keyof typeof en, string> = {
   'cells.shiftUp': 'Zellen nach oben verschieben',
   'cells.entireRow': 'Ganze Zeile',
   'cells.entireColumn': 'Ganze Spalte',
-  'cells.ok': 'OK',
   'menu.insertRowsBelow_one': '{{count, number}} Zeile unterhalb einfügen',
   'menu.insertRowsBelow_other': '{{count, number}} Zeilen unterhalb einfügen',
   'menu.deleteRows_one': '{{count, number}} Zeile löschen',
@@ -488,6 +487,7 @@ export const ui: Record<keyof typeof en, string> = {
   'editor.typedChartTitled': 'Das Diagramm „{{title}}“ ({{type}})',
   'editor.chartSheet': '{{chart}} füllt dieses ganze Blatt aus. Es bleibt in der Datei erhalten, und Excel zeichnet es aus Ihren bearbeiteten Daten neu; es wird hier nicht angezeigt.',
 
+  'dialog.ok': 'OK',
   'dialog.cancel': 'Abbrechen',
   'dialog.empty': '(leer)',
   'dialog.more_one': '…und {{count, number}} weitere.',

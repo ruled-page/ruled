@@ -41,7 +41,8 @@ const PATHS = {
   decimalsMore: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 20V8M15 11l3-3 3 3',
   decimalsFewer: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 8v12M15 17l3 3 3-3',
   clearFormat: 'M4 7V4h13v3M10.5 4v16M8 20h5M15 15l5 5M20 15l-5 5',
-  chevronDown: 'M6 9l6 6 6-6'
+  chevronDown: 'M6 9l6 6 6-6',
+  chevronUp: 'M6 15l6-6 6 6'
 } satisfies Record<string, string>;
 
 export type IconName = keyof typeof PATHS;

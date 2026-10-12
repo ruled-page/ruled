@@ -276,9 +276,9 @@ export function copyLinks(from: readonly Hyperlink[], src: Rect, to: readonly Hy
  * The change that moves links with their rows when `rect`'s rows are sorted:
  * `rowFrom[i]` is the row whose cells now sit in row `top + i`. Links on one
  * row inside the range move with it; links across rows, or reaching outside
- * the range, stay where they are.
+ * the range, stay where they are. Sorted `across`, the same goes for columns.
  */
-export function sortLinks(links: readonly Hyperlink[], rect: Rect, top: number, rowFrom: readonly number[]): { add: Hyperlink[]; remove: Hyperlink[] } {
+export function sortLinks(links: readonly Hyperlink[], rect: Rect, top: number, rowFrom: readonly number[], across = false): { add: Hyperlink[]; remove: Hyperlink[] } {
   const to = new Map<number, number>();
   rowFrom.forEach((from, i) => {
     if (from !== top + i) to.set(from, top + i);
@@ -286,10 +286,13 @@ export function sortLinks(links: readonly Hyperlink[], rect: Rect, top: number, 
   const add: Hyperlink[] = [];
   const remove: Hyperlink[] = [];
   for (const l of links) {
-    const row = to.get(l.rect.r1);
-    if (row === undefined || l.rect.r2 !== l.rect.r1 || l.rect.c1 < rect.c1 || l.rect.c2 > rect.c2) continue;
+    const r = l.rect;
+    // Sorting across, columns move rather than rows.
+    const line = to.get(across ? r.c1 : r.r1);
+    const within = across ? r.c2 === r.c1 && r.r1 >= rect.r1 && r.r2 <= rect.r2 : r.r2 === r.r1 && r.c1 >= rect.c1 && r.c2 <= rect.c2;
+    if (line === undefined || !within) continue;
     remove.push(l);
-    add.push({ ...fieldsOf(l), rect: { ...l.rect, r1: row, r2: row } });
+    add.push({ ...fieldsOf(l), rect: across ? { ...r, c1: line, c2: line } : { ...r, r1: line, r2: line } });
   }
   return { add, remove };
 }
