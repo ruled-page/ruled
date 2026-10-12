@@ -178,7 +178,8 @@ summary.write_formula("B14", '=TEXTJOIN(", ",TRUE,A5:A8)', None, ", ".join(REGIO
 summary.write("A15", "Regions (CONCAT)")
 summary.write_formula("B15", "=CONCAT(A5:A8)", None, "".join(REGIONS))
 summary.write("A16", "Margin (LET)")
-summary.write_formula("B16", "=LET(revenue,F9,cost,F9*0.6,revenue-cost)", money, grand - grand * 0.6)
+# LET's names are stored with an _xlpm. prefix, as Excel saves them; without it Excel reads them as undefined names.
+summary.write_formula("B16", "=LET(_xlpm.revenue,F9,_xlpm.cost,F9*0.6,_xlpm.revenue-_xlpm.cost)", money, grand - grand * 0.6)
 summary.write("A17", "Margin after tax")
 summary.write_formula("B17", "=B16*(1-TaxRate)", money, (grand - grand * 0.6) * (1 - TAX_RATE))
 summary.write_url("A19", "https://example.com/sales-handbook", string="Sales handbook")
