@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DisplayStyle, SheetInfo } from '../src/core/types';
-import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../src/state/overflow';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, verticalShift, type Overflow } from '../src/state/overflow';
 import { sheet, style, type FileCell } from './state-fixtures';
 
 /** 7px a character; columns are 64px, so a cell holds 7 characters after padding. */
@@ -143,5 +143,23 @@ describe("Excel's widths for numbers", () => {
   it('scales with the font size, and a little for bold', () => {
     expect(excelTextWidth('12', style({ fontSizePx: 29.4 }))).toBeCloseTo(28);
     expect(excelTextWidth('12', style({ bold: true }))).toBeCloseTo(14 * 1.04);
+  });
+});
+
+describe('indents and vertical alignment', () => {
+  it('indent left- and right-aligned text by three spaces a level, never centred text', () => {
+    expect([indentPx(style({ indent: 2 }), 'left'), indentPx(style({ indent: 2 }), 'right'), indentPx(style({ indent: 2 }), 'center')]).toEqual([18, 18, 0]);
+    const o = (align: Overflow['align']): Overflow => ({ col: 0, from: 0, to: 1, text: 'x', style: style({ indent: 1 }), align, width: 100 });
+    expect([overflowTextX(o('left'), 64), overflowTextX(o('right'), 64)]).toEqual([CELL_PADDING + 9, 64 - CELL_PADDING - 100 - 9]);
+    // An indent pushes text further into the next cells: "twelve chars" fits in two columns, but not with six levels.
+    expect(spills([[0, 1, 'twelve chars']], [style({ indent: 6 })])).toEqual([[1, 1, 3, 'left']]);
+  });
+
+  it("move text from Glide's centre to Excel's top, middle or bottom, bottom unless set", () => {
+    // A 40px row, 12px of text and 2px of padding: centred, the text starts at 14.
+    expect([verticalShift('top', 40, 12, 2, false), verticalShift('center', 40, 12, 2, false), verticalShift(undefined, 40, 12, 2, false)]).toEqual([-12, 0, 12]);
+    expect(verticalShift('distributed', 40, 12, 2, false)).toBe(0);
+    // Wrapped text taller than its cell Glide starts at the top: at the bottom, its last lines show.
+    expect([verticalShift('top', 20, 30, 2, true), verticalShift('bottom', 20, 30, 2, true)]).toEqual([0, -14]);
   });
 });

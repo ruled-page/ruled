@@ -62,6 +62,20 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
       <Icon name={icon} />
     </button>
   );
+  // Excel's vertical alignment: bottom unless set, and pressing the one that's on goes back to bottom.
+  const vAlign = s.vAlign === 'top' || s.vAlign === 'center' ? s.vAlign : 'bottom';
+  const valign = (value: 'top' | 'center' | 'bottom', icon: Parameters<typeof Icon>[0]['name']) => (
+    <button
+      className="wbe-btn wbe-icon"
+      aria-pressed={vAlign === value}
+      disabled={disabled}
+      onClick={() => void store.formatCells({ vAlign: vAlign === value ? null : value })}
+      title={t(`format.valign.${value}`)}
+      aria-label={t(`format.valign.${value}`)}
+    >
+      <Icon name={icon} />
+    </button>
+  );
   return (
     <div className="wbe-format-bar" role="group" aria-label={t('format.label')}>
       <Select
@@ -127,6 +141,19 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
         {align('left', 'alignLeft')}
         {align('center', 'alignCenter')}
         {align('right', 'alignRight')}
+      </div>
+      <div className="wbe-btn-group">
+        {valign('top', 'alignTop')}
+        {valign('center', 'alignMiddle')}
+        {valign('bottom', 'alignBottom')}
+      </div>
+      <div className="wbe-btn-group">
+        <button className="wbe-btn wbe-icon" disabled={disabled || !s.indent} onClick={() => void store.stepIndent(-1)} title={t('format.indentLess')} aria-label={t('format.indentLess')}>
+          <Icon name="indentLess" />
+        </button>
+        <button className="wbe-btn wbe-icon" disabled={disabled || s.indent >= 15} onClick={() => void store.stepIndent(1)} title={t('format.indentMore')} aria-label={t('format.indentMore')}>
+          <Icon name="indentMore" />
+        </button>
       </div>
       <button className="wbe-btn wbe-icon" aria-pressed={s.wrap} disabled={disabled} onClick={() => void store.formatCells({ wrap: !s.wrap })} title={t('format.wrap')} aria-label={t('format.wrap')}>
         <Icon name="wrap" />

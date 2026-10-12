@@ -38,6 +38,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   rules, data bars, color scales, icon sets, formula rules, Clear Rules and
   the Rules Manager. Tab buttons no longer submit a dialog they sit in, and a
   menu taller than the window scrolls.
+- Vertical alignment and indent: cells are drawn with their file's top,
+  middle or bottom alignment (bottom, Excel's default, unless set) and its
+  indent, and the format bar sets both.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

@@ -59,8 +59,12 @@ back as .xlsx without losing what the editor can't display.
   sheet's locked cells and a schema's read-only cells as they were, saying
   how many.
 - Format cells from the format bar: font and size, bold, italic, underline
-  and strikethrough, font and fill colours, borders, alignment and wrapping,
-  number formats (with more or fewer decimals), and clearing formats. Each
+  and strikethrough, font and fill colours, borders, alignment (left,
+  centre or right; top, middle or bottom) and indent, wrapping, number
+  formats (with more or fewer decimals), and clearing formats. Text sits at
+  the bottom of its cell unless set otherwise, as in Excel, and each indent
+  level moves it in by three spaces (Increase Indent aligns text left, as
+  Excel's does). Each
   change makes only the formats it needs, keeping everything else about the
   cell's format, and is undone in one step. Hosts can turn the bar off with
   `features.format`.

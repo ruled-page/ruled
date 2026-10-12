@@ -2111,6 +2111,18 @@ export class WorkbookStore {
     return this.formatCells({ numFmt: stepDecimals(this.activeStyle.numFmt, delta) });
   }
 
+  /**
+   * Excel's Increase and Decrease Indent: one level more or fewer than the
+   * active cell has (up to 15), for the whole selection. Indenting text that
+   * isn't left- or right-aligned aligns it left, as Excel does.
+   */
+  stepIndent(delta: 1 | -1): Promise<void> {
+    const s = this.activeStyle;
+    const indent = Math.max(0, Math.min(15, (s.indent ?? 0) + delta));
+    const aligned = s.hAlign === 'left' || s.hAlign === 'right' || s.hAlign === 'distributed';
+    return this.formatCells({ indent, ...(indent > 0 && !aligned && { hAlign: 'left' as const }) });
+  }
+
   /** Merged cells the selection covers some of. */
   mergesInSelection(): Rect[] {
     const view = this.view;

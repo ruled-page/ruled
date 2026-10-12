@@ -42,7 +42,12 @@ const PATHS = {
   decimalsFewer: 'M3 18h.01M7 13a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0zM18 8v12M15 17l3 3 3-3',
   clearFormat: 'M4 7V4h13v3M10.5 4v16M8 20h5M15 15l5 5M20 15l-5 5',
   chevronDown: 'M6 9l6 6 6-6',
-  chevronUp: 'M6 15l6-6 6 6'
+  chevronUp: 'M6 15l6-6 6 6',
+  alignTop: 'M4 4h16M9 8h6v12H9z',
+  alignMiddle: 'M4 12h4M16 12h4M9 6h6v12H9z',
+  alignBottom: 'M4 20h16M9 4h6v12H9z',
+  indentMore: 'M4 5h16M11 10h9M11 14h9M4 19h16M4 9l3 3-3 3',
+  indentLess: 'M4 5h16M11 10h9M11 14h9M4 19h16M7 9l-3 3 3 3'
 } satisfies Record<string, string>;
 
 export type IconName = keyof typeof PATHS;

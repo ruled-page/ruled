@@ -201,6 +201,21 @@ describe('formats', () => {
     await store.undo();
     expect(store.activeStyle.fill).toBe('#FF0000');
   });
+
+  it("indent as Excel's buttons do: a level at a time, aligning text left, up to 15", async () => {
+    await open();
+    await store.formatCells({ hAlign: 'center' });
+    await store.stepIndent(1);
+    expect(store.activeStyle).toMatchObject({ indent: 1, hAlign: 'left' });
+    await store.formatCells({ hAlign: 'right', indent: 15 });
+    await store.stepIndent(1);
+    expect(store.activeStyle).toMatchObject({ indent: 15, hAlign: 'right' });
+    await store.stepIndent(-1);
+    expect(store.activeStyle.indent).toBe(14);
+    await store.formatCells({ indent: 0 });
+    await store.stepIndent(-1);
+    expect(store.activeStyle).toMatchObject({ indent: 0, hAlign: 'right' });
+  });
 });
 
 describe('layout changes and inserted rows', () => {

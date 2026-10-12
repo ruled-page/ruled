@@ -34,7 +34,8 @@ import { clipboardFormats } from '../state/clipboardFormats';
 import { effectiveStyle } from '../state/cellStyle';
 import { alignment, displayText, editText } from '../state/format';
 import { cellLink, type CellLink } from '../state/links';
-import { CELL_PADDING, excelTextWidth, fitNumber, overflowTextX, rowOverflows, type Overflow } from '../state/overflow';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, verticalShift, type Overflow } from '../state/overflow';
+import { wrappedLines } from '../state/autofit';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { textCellEditor } from './CellEditor';
@@ -92,6 +93,20 @@ function gridStyles(p: GridPalette) {
     measureCtx.font = fontFor(style);
     return measureCtx.measureText(text).width;
   };
+  /** The height Glide gives a line of text in a font, as it measures it. */
+  const ems = new Map<string, number>();
+  const emHeight = (style: DisplayStyle) => {
+    const font = fontFor(style);
+    let em = ems.get(font);
+    if (em === undefined) {
+      measureCtx ??= document.createElement('canvas').getContext('2d');
+      if (!measureCtx) return style.fontSizePx;
+      measureCtx.font = font;
+      const m = measureCtx.measureText('ABCi09jgqpy');
+      ems.set(font, (em = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent));
+    }
+    return em;
+  };
   const cache = new Map<string, Partial<Theme>>();
   /** A cell's theme override: its fill (or the edited or locked fill), text colour and font. */
   const cellTheme = (style: DisplayStyle, color: string | undefined, edited: boolean, locked = false): Partial<Theme> | undefined => {
@@ -132,6 +147,7 @@ function gridStyles(p: GridPalette) {
     rowHeader: { bgCell: p.headerBg, textDark: p.rowHeaderText, baseFontStyle: p.headerFontSize, fontFamily: p.headerFont } as Partial<Theme>,
     fontFor,
     measure,
+    emHeight,
     cellTheme,
     decorate,
   };
@@ -464,10 +480,33 @@ export function SheetGrid({
       if (cf?.bar) drawDataBar(ctx, rect, cf.bar);
       if (cf?.icon) drawIcon(ctx, cf.icon.set, cf.icon.index, rect.x + 3, rect.y + (rect.height - 14) / 2);
       if (!own && !cf?.hideValue) {
-        drawContent();
-        if ((style.strike || style.underline) && args.cell.kind === GridCellKind.Text && args.cell.displayData) {
-          g.decorate(ctx, rect, args.cell.displayData, args.cell.contentAlign ?? 'left', style);
+        // Glide centres text; Excel's vertical alignment (bottom unless set) and indent move it.
+        const text = args.cell.kind === GridCellKind.Text ? args.cell.displayData : '';
+        const align = args.cell.kind === GridCellKind.Text ? (args.cell.contentAlign ?? 'left') : 'left';
+        let dx = 0;
+        let dy = 0;
+        let clip = false;
+        if (text) {
+          dx = align === 'right' ? -indentPx(style, 'right') : indentPx(style, align);
+          const em = g.emHeight(style);
+          const lines = style.wrap ? wrappedLines(text, rect.width - CELL_PADDING * 2 - Math.abs(dx), (s) => g.measure(s, style)) : 1;
+          const content = em + args.theme.lineHeight * em * (lines - 1);
+          dy = verticalShift(style.vAlign, rect.height, content, args.theme.cellVerticalPadding, style.wrap);
+          // Text moved past an edge of its cell is cut there, as Excel cuts it.
+          const top = rect.height / 2 - content / 2 + dy;
+          clip = top < 0 || top + content > rect.height;
         }
+        if (clip) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(rect.x, rect.y, rect.width, rect.height);
+          ctx.clip();
+        }
+        ctx.translate(dx, dy);
+        drawContent();
+        if ((style.strike || style.underline) && text) g.decorate(ctx, rect, text, align, style);
+        ctx.translate(-dx, -dy);
+        if (clip) ctx.restore();
       }
       if (through) {
         const font = g.fontFor(through.style);
@@ -476,11 +515,12 @@ export function SheetGrid({
         ctx.fillStyle = through.color ?? through.style.color ?? (through.style.fill ? palette.textOnFill : palette.text);
         ctx.textAlign = 'left';
         const x = rect.x - offsetBetween(through.col, col) + overflowTextX(through, view.colWidth(through.col));
-        ctx.fillText(through.text, x, rect.y + rect.height / 2 + getMiddleCenterBias(ctx, font));
+        const lift = verticalShift(through.style.vAlign, rect.height, g.emHeight(through.style), args.theme.cellVerticalPadding, false);
+        ctx.fillText(through.text, x, rect.y + rect.height / 2 + lift + getMiddleCenterBias(ctx, font));
         // Underlined text, such as a link's, keeps its line as it runs on into the next cells.
         if (through.style.underline || through.style.strike) {
           const width = g.measure(through.text, through.style);
-          const mid = rect.y + rect.height / 2;
+          const mid = rect.y + rect.height / 2 + lift;
           const thickness = through.style.bold ? 1.5 : 1;
           if (through.style.strike) ctx.fillRect(x, mid, width, thickness);
           if (through.style.underline) ctx.fillRect(x, mid + through.style.fontSizePx * 0.45, width, thickness);

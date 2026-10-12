@@ -5,6 +5,29 @@ import type { SheetView } from './sheetView';
 /** Horizontal padding Glide leaves inside a cell, in pixels. */
 export const CELL_PADDING = 4.5;
 
+/** Pixels each level of Excel's indent moves text: three spaces of the default font. */
+export const INDENT_PX = 9;
+
+/** How far an indent moves text in from its edge: left- or right-aligned text only, as Excel indents. */
+export function indentPx(style: Pick<DisplayStyle, 'indent'>, align: 'left' | 'right' | 'center'): number {
+  return align === 'center' ? 0 : (style.indent ?? 0) * INDENT_PX;
+}
+
+/**
+ * How far to move text down from where Glide puts it, centred in its cell
+ * (wrapped text that's too tall at the top instead), to sit where Excel's
+ * vertical alignment puts it: at the top, in the middle, or at the bottom,
+ * Excel's default. `content` is the text's height and `pad` the cell's
+ * padding.
+ */
+export function verticalShift(vAlign: string | undefined, height: number, content: number, pad: number, wrapped: boolean): number {
+  const centred = height / 2 - content / 2;
+  const glide = wrapped ? Math.max(pad, centred) : centred;
+  const middle = vAlign === 'center' || vAlign === 'justify' || vAlign === 'distributed';
+  const want = vAlign === 'top' ? pad : middle ? height / 2 - content / 2 : height - pad - content;
+  return want - glide;
+}
+
 /** Text that spills out of its cell into empty neighbours, as Excel draws it. */
 export interface Overflow {
   /** The cell the text belongs to. */
@@ -50,9 +73,9 @@ export function rowOverflows(
     if (!text) continue;
     const width = measure(text, style);
     const own = view.colWidth(col);
-    const extra = width + CELL_PADDING * 2 - own;
-    if (extra <= 0) continue;
     const align = alignment(rec, style);
+    const extra = width + CELL_PADDING * 2 + indentPx(style, align) - own;
+    if (extra <= 0) continue;
     // Walk visible columns outwards until the text fits or a cell is in the way.
     const spill = (dir: 1 | -1, need: number) => {
       let g = gc;
@@ -79,8 +102,8 @@ export function rowOverflows(
 
 /** Left edge of the text, relative to the left edge of its own cell. */
 export function overflowTextX(o: Overflow, ownWidth: number): number {
-  if (o.align === 'left') return CELL_PADDING;
-  if (o.align === 'right') return ownWidth - CELL_PADDING - o.width;
+  if (o.align === 'left') return CELL_PADDING + indentPx(o.style, 'left');
+  if (o.align === 'right') return ownWidth - CELL_PADDING - o.width - indentPx(o.style, 'right');
   return ownWidth / 2 - o.width / 2;
 }
 

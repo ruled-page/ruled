@@ -42,6 +42,17 @@ describe('formatting cells', () => {
     expect(style(t, 1, 2)).toMatchObject({ numFmt: 'General' });
   });
 
+  it('sets vertical alignment and indent, bottom and no indent being the defaults it leaves out', () => {
+    const s = open();
+    format(s, [rect(0, 0)], { vAlign: 'top', indent: 2, hAlign: 'left' });
+    format(s, [rect(0, 1)], { vAlign: 'center' });
+    const t = open(s.save());
+    expect(style(t, 0, 0)).toMatchObject({ vAlign: 'top', indent: 2, hAlign: 'left' });
+    expect(style(t, 0, 1)).toMatchObject({ vAlign: 'center', indent: 0 });
+    format(t, [rect(0, 0)], { vAlign: 'bottom', indent: 0 });
+    expect(style(open(t.save()), 0, 0)).toMatchObject({ vAlign: undefined, indent: 0 });
+  });
+
   it('formats empty cells too, and every cell of a merge, so its borders show', () => {
     const s = open();
     format(s, [rect(1, 0, 1, 1), rect(6, 0)], { fill: '#00B050' }, { borders: { where: 'outside' } });
