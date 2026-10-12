@@ -131,7 +131,7 @@ export function parseNumber(text: string): number | undefined {
   return percent ? n / 100 : n;
 }
 
-const DATE_TEXT = /^(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?)?$/;
+const DATE_TEXT = /^(?:(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})\/(\d{1,2})\/(\d{4}))(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?)?$/;
 const TIME_TEXT = /^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?(?:\s*([AaPp])[Mm])?$/;
 
 /**
@@ -155,12 +155,18 @@ export function parseDateText(text: string): number | undefined {
   const d = DATE_TEXT.exec(text);
   if (!d) return undefined;
   const [y, mo, day] = d[1] ? [Number(d[1]), Number(d[2]), Number(d[3])] : [Number(d[6]), Number(d[4]), Number(d[5])];
+  let hours = d[7] === undefined ? 0 : Number(d[7]);
+  if (d[10]) {
+    if (hours < 1 || hours > 12) return undefined;
+    hours = (hours % 12) + (/p/i.test(d[10]) ? 12 : 0);
+  }
+  const time = d[7] === undefined ? 0 : (hours * 3600 + Number(d[8]) * 60 + Number(d[9] ?? 0)) / 86400;
+  // The 1900 system counts a 29 February 1900 that never was, as day 60.
+  if (y === 1900 && mo === 2 && day === 29) return 60 + time;
   const at = new Date(Date.UTC(y, mo - 1, day));
   if (y < 1900 || at.getUTCFullYear() !== y || at.getUTCMonth() !== mo - 1 || at.getUTCDate() !== day) return undefined;
   let serial = at.getTime() / 86400000 + 25569;
-  // The 1900 system counts a 29 February 1900 that never was.
   if (serial < 61) serial -= 1;
-  const time = d[7] === undefined ? 0 : (Number(d[7]) * 3600 + Number(d[8]) * 60 + Number(d[9] ?? 0)) / 86400;
   return serial + time;
 }
 

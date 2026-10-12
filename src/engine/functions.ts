@@ -8,7 +8,7 @@ import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
 import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
 import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
 import { scalarOf, valuesOf, type Ctx } from './operands';
-import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseNumber, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
+import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseDateText, parseNumber, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 
 /**
  * Excel's functions, as this engine works them out. A function either takes
@@ -670,13 +670,11 @@ function dateArg(v: Scalar, ctx: Ctx): number {
 /** A date written as text, ISO (2026-10-09) or month first (10/9/2026), as a serial number. */
 function dateValue(t: string, ctx: Ctx): number {
   const s = t.trim();
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
-  if (m) return serialOf(+m[1], +m[2], +m[3], ctx.host.date1904);
-  m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(s);
-  if (m) {
-    const y = +m[3] < 100 ? (+m[3] < 30 ? 2000 : 1900) + +m[3] : +m[3];
-    return serialOf(y, +m[1], +m[2], ctx.host.date1904);
-  }
+  const serial = parseDateText(s);
+  if (serial !== undefined) return serial - (ctx.host.date1904 ? 1462 : 0);
+  // Two-digit years, 1/10/26, as Excel reads them: below 30 this century.
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(s);
+  if (m) return serialOf((+m[3] < 30 ? 2000 : 1900) + +m[3], +m[1], +m[2], ctx.host.date1904);
   const n = Number(s);
   if (s && Number.isFinite(n)) return n;
   throw VALUE;
@@ -1918,7 +1916,8 @@ function jsDate(serial: number, ctx: Ctx): Date {
 
 /** The ISO 8601 week a date falls in: weeks start on Monday, and week 1 holds the year's first Thursday. */
 function isoWeek(serial: number, ctx: Ctx): number {
-  const d = jsDate(serial, ctx);
+  // Before March 1900 Excel's weekdays are a day out (it counts a 29 February 1900): its 1 January 1900 is a Sunday.
+  const d = jsDate(!ctx.host.date1904 && serial < 61 ? serial - 1 : serial, ctx);
   const day = (d.getUTCDay() + 6) % 7;
   const thursday = new Date(d.getTime() + (3 - day) * DAY_MS);
   const first = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
@@ -3165,11 +3164,22 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   HOUR: scalar(1, 1, ([v], ctx) => Math.floor(round15((dateArg(v, ctx) % 1) * 24))),
   MINUTE: scalar(1, 1, ([v], ctx) => Math.floor(round15((dateArg(v, ctx) * 1440) % 60))),
   SECOND: scalar(1, 1, ([v], ctx) => Math.round((dateArg(v, ctx) * 86400) % 60) % 60),
-  WEEKDAY: scalar(1, 2, ([v, t], ctx) => weekday(dateArg(v, ctx), optional(t, 1), ctx)),
+  WEEKDAY: scalar(1, 2, ([v, t], ctx) => {
+    // An error in the date comes first, then a kind of week that isn't a number, then a date out of range.
+    if (isError(v)) throw v;
+    const type = Math.trunc(optional(t, 1));
+    return weekday(dateArg(v, ctx), type, ctx);
+  }),
   EOMONTH: scalar(2, 2, ([v, m], ctx) => eomonth(dateArg(v, ctx), num(m), ctx, true)),
   EDATE: scalar(2, 2, ([v, m], ctx) => eomonth(dateArg(v, ctx), num(m), ctx, false)),
   DAYS: scalar(2, 2, ([e, s], ctx) => Math.floor(dateArg(e, ctx)) - Math.floor(dateArg(s, ctx))),
-  DATEVALUE: scalar(1, 1, ([t], ctx) => Math.floor(dateValue(text(t), ctx))),
+  // Only text naming a day that exists; a number, even one written as text, is #VALUE!.
+  DATEVALUE: scalar(1, 1, ([t], ctx) => {
+    if (typeof t !== 'string') throw isError(t) ? t : VALUE;
+    const serial = parseDateText(t.trim());
+    if (serial === undefined || serial >= serialOf(9999, 12, 31, false) + 1) throw VALUE;
+    return Math.floor(serial) - (ctx.host.date1904 ? 1462 : 0);
+  }),
   DATEDIF: scalar(3, 3, ([s, e, u], ctx) => datedif(dateArg(s, ctx), dateArg(e, ctx), text(u).toUpperCase(), ctx)),
   NETWORKDAYS: { min: 2, max: 3, fn: (a, ctx) => workdays(dateArg(scalarOf(a[0], ctx), ctx), dateArg(scalarOf(a[1], ctx), ctx), holidaysOf(a[2], ctx), ctx) },
   WORKDAY: {
@@ -3966,7 +3976,10 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
 
   // Weeks and working days
   WEEKNUM: scalar(1, 2, ([v, t], ctx) => {
+    // TRUE and FALSE aren't dates or kinds of week here, though an error in the date comes first.
+    if (typeof v === 'boolean') throw VALUE;
     const serial = dateArg(v, ctx);
+    if (typeof t === 'boolean') throw VALUE;
     const type = Math.trunc(optional(t, 1));
     if (type === 21) return isoWeek(serial, ctx);
     const starts: Record<number, number> = { 1: 0, 17: 0, 2: 1, 11: 1, 12: 2, 13: 3, 14: 4, 15: 5, 16: 6 };
