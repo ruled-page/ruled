@@ -904,6 +904,7 @@ export class WorkbookSession {
           return c.kind === 'formula' ? displayFormula(c.formula) : undefined;
         },
       },
+      this.model.iteration,
     );
     this.engine = engine;
 
@@ -953,12 +954,17 @@ export class WorkbookSession {
       }
     });
 
+    // Iterating, Excel stops working a circle round once no value moves by
+    // more than the maximum change, so values in and after one agree to that.
+    const closing = this.model.iteration ? engine.circular() : [];
+    const looped = new Set([...closing, ...(closing.length ? engine.dependentsOf(closing) : [])].map((p) => `${p.sheet}:${p.row}:${p.col}`));
     let mismatched = 0;
     for (let round = 0; round < 6 && candidates.length; round++) {
       const differing = candidates.filter((p) => {
         const grid = sheets[p.sheet].scan!.grid;
         const idx = findCell(grid, p.row, p.col);
-        const within = tolerance(functionNames(grid.formulas.get(idx) ?? ''));
+        const loose = looped.has(`${p.sheet}:${p.row}:${p.col}`) ? this.model.iteration!.delta : 0;
+        const within = Math.max(tolerance(functionNames(grid.formulas.get(idx) ?? '')), loose);
         return !valuesMatch(gridValue(grid, idx), engine.value(p.sheet, p.row, p.col), within) || this.spillDiffers(p);
       });
       if (!differing.length) break;
@@ -1046,7 +1052,7 @@ export class WorkbookSession {
       });
     }
 
-    this.circularCells = engine.circular();
+    this.circularCells = this.circles(engine);
     this.report = {
       circular: this.circularCells,
       buildMs: Math.round(performance.now() - t0),
@@ -1687,11 +1693,16 @@ export class WorkbookSession {
     const engine = this.engine;
     if (!engine) return r;
     // Where circular references close now; a new one is warned of, as Excel warns.
-    const now = engine.circular();
+    const now = this.circles(engine);
     const before = new Set(this.circularCells.map((p) => `${p.sheet}:${p.row}:${p.col}`));
     this.circularCells = now;
     if (now.some((p) => !before.has(`${p.sheet}:${p.row}:${p.col}`))) r.warnings.push(msg('core.calc.circular'));
     return { ...r, circular: now };
+  }
+
+  /** Where circular references close: none to speak of when the workbook iterates them, as Excel neither warns nor names them then. */
+  private circles(engine: FormulaEngine): { sheet: number; row: number; col: number }[] {
+    return this.model.iteration ? [] : engine.circular();
   }
 
   private applyEdit(op: EditOp): EditResult {

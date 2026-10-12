@@ -83,6 +83,14 @@ back as .xlsx without losing what the editor can't display.
   through others) calculate as 0, as in Excel. Making one warns, and while
   any remain the status bar names where one closes, as Excel's does;
   choosing it goes there.
+- Iterative calculation, when a workbook turns it on (File, Options,
+  Formulas in Excel): circular references are worked round instead, each
+  pass reading the values from the one before, until no value moves by more
+  than the maximum change or the most passes are made. Such a circle is
+  neither warned of nor named, as in Excel, and values in and after one are
+  compared with Excel's saved values to within the maximum change. The
+  setting is taken from the file and kept when it is saved; the editor has no
+  control of its own to change it.
 - Dynamic arrays, as in Excel 365: a formula whose result is an array
   (SORT, UNIQUE, FILTER, SEQUENCE, TAKE and the other array functions, or a
   range such as `=B2:B9*2`) spills its values into the cells below and to
@@ -980,9 +988,12 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
   Excel uses, and match Excel's results to about eight significant digits
   rather than fifteen: for some arguments Excel takes a route that isn't
   documented.
-- Iterative calculation isn't done: a workbook that turns it on (File,
-  Options, Formulas in Excel) has its circular references calculated as 0,
-  as with it off, and Excel iterates them when it opens the file.
+- Iterative calculation starts from 0, where Excel starts from the values
+  saved in the file, so a formula that never settles (one counting
+  itself up, say) gives a different value from the one Excel saved. Within a
+  pass, formulas are worked out in the order they read each other, not in
+  Excel's calculation order, so a circle that hasn't settled when the passes
+  run out can stop at a different value.
 
 - Saved files have been checked with openpyxl, ExcelJS, Microsoft's Open XML
   SDK validator and this editor, not with Excel itself, and only on workbooks

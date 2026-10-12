@@ -90,5 +90,5 @@ export const nativeEngine: EngineKind = {
   id: 'native',
   name: 'Native',
   unsupportedReason,
-  create: (sheets, names, date1904, lookups) => new NativeEngine(sheets, names, date1904, lookups),
+  create: (sheets, names, date1904, lookups, iteration) => new NativeEngine(sheets, names, date1904, lookups, iteration),
 };

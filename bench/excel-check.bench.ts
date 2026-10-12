@@ -7,7 +7,7 @@ import { functionNames, isDynamicArrayFormula, toFileFormula } from '../src/core
 import { dynamicArrayMetadata } from '../src/core/writer';
 import { OoxmlPackage } from '../src/core/zip';
 import { nativeEngine } from '../src/engine/native';
-import { checkEngine, DATA, FAMILIES, NAMES } from '../tests/excel-checks/cases';
+import { checkEngine, DATA, FAMILIES, ITERATIONS, NAMES } from '../tests/excel-checks/cases';
 
 /**
  * Writes tests/excel-checks/<family>.xlsx for each family of check formulas:
@@ -42,7 +42,10 @@ const ERROR_TYPES: Record<string, number> = {
 
 it('writes the Excel check workbooks', async () => {
   for (const [family, formulas] of Object.entries(FAMILIES)) {
+    // FAMILY=name writes that family's workbook alone.
+    if (process.env.FAMILY && process.env.FAMILY !== family) continue;
     const engine = checkEngine(family);
+    const iteration = ITERATIONS[family];
     const answers: Answer[] = formulas.map((_f, i) => engine.value(0, i, 0) as Answer);
     const lambdas = new Set(Object.keys(NAMES[family] ?? {}));
     const missing = formulas.filter((f) => nativeEngine.unsupportedReason(toFileFormula(f).slice(1), lambdas));
@@ -68,7 +71,7 @@ it('writes the Excel check workbooks', async () => {
       ws.getCell(`C${r}`).value = ours === null ? '(nothing)' : (ours as ExcelJS.CellValue);
       const same =
         typeof ours === 'number'
-          ? `AND(ISNUMBER(B${r}),ABS(B${r}-C${r})<=${tolerance(functionNames(toFileFormula(f).slice(1)))}*MAX(1,ABS(C${r})))`
+          ? `AND(ISNUMBER(B${r}),ABS(B${r}-C${r})<=${Math.max(tolerance(functionNames(toFileFormula(f).slice(1))), iteration?.delta ?? 0)}*MAX(1,ABS(C${r})))`
           : typeof ours === 'string'
             ? `AND(ISTEXT(B${r}),EXACT(B${r},C${r}))`
             : typeof ours === 'boolean'
@@ -104,6 +107,10 @@ it('writes the Excel check workbooks', async () => {
         if (d) xml = xml.replace(new RegExp(`<c r="B${r}"([^>]*)><f>`), `<c r="B${r}"$1 cm="${cm}"><f t="array" ref="B${r}">`);
       });
       pkg.setText(sheet, xml);
+    }
+    if (iteration) {
+      const xml = pkg.text('xl/workbook.xml')!;
+      pkg.setText('xl/workbook.xml', xml.replace(/<calcPr\b/, `<calcPr iterate="1" iterateCount="${iteration.count}" iterateDelta="${iteration.delta}"`));
     }
     const names = Object.entries(NAMES[family] ?? {});
     if (names.length) {

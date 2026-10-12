@@ -136,6 +136,17 @@ export interface FormulaEngine {
   destroy(): void;
 }
 
+/**
+ * Iterative calculation, as a workbook's calculation settings turn it on: a
+ * formula in a circular reference reads the others' values from the pass
+ * before, and the circle is worked round until no value moves by more than
+ * `delta` or `count` passes are done.
+ */
+export interface Iteration {
+  count: number;
+  delta: number;
+}
+
 /** What the editor tells an engine about cells beyond their contents. */
 export interface EngineLookups {
   /** A cell's formula as the formula bar shows it ("=SUM(A1:A3)"), for FORMULATEXT; undefined when it holds none. */
@@ -152,7 +163,7 @@ export interface EngineKind {
    * LAMBDAs, in capitals, which formulas call as functions.
    */
   unsupportedReason(fileFormula: string, lambdas?: ReadonlySet<string>): Unsupported | undefined;
-  create(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean, lookups?: EngineLookups): FormulaEngine;
+  create(sheets: (EngineSheet | null)[], names: EngineName[], date1904: boolean, lookups?: EngineLookups, iteration?: Iteration): FormulaEngine;
 }
 
 let fallback: EngineKind | undefined;

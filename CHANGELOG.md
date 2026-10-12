@@ -42,6 +42,12 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Copying numbers as HTML gives them to 15 significant digits, as Excel does.
 - Circular references calculate as 0, as in Excel; making one warns, and
   the status bar names where one closes until it is broken.
+- Workbooks with iterative calculation on work their circular references
+  round, up to the file's number of passes or until nothing moves by more
+  than its maximum change, without warning of them.
+- #CALC!, #SPILL! and the other errors Excel saves as #VALUE! for older
+  readers are read as the errors they are, so checks on open compare the
+  real error.
 
 ## 0.1.0 (2026-10-08)
 

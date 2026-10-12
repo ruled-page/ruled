@@ -1,4 +1,4 @@
-import type { EngineSheet, FormulaEngine } from '../../src/core/engine';
+import type { EngineSheet, FormulaEngine, Iteration } from '../../src/core/engine';
 import { engineFormula, toFileFormula } from '../../src/core/formula';
 import { nativeEngine } from '../../src/engine/native';
 
@@ -718,6 +718,20 @@ export const FAMILIES: Record<string, string[]> = {
     '=SUM(FORECAST({4,5},{1;2},{1;2}))',
     '=ROWS(WRAPROWS({1,2},2000000))',
   ],
+  // Circular references worked round, in workbooks with iterative calculation on (ITERATIONS).
+  iteration: ['=Loop!A1', '=Loop!B1', '=Loop!C1', '=Loop!D1', '=Loop!E1', '=Loop!F1', '=Loop!A1+Loop!B1'],
+  // A formula counting itself up never settles, so it has a workbook to itself: every pass is made.
+  'iteration-counter': ['=Loop!A1'],
+};
+
+/**
+ * Families checked with iterative calculation on, as their workbooks are
+ * saved for Excel: open one first in a fresh Excel, which takes the setting
+ * from the first workbook it opens.
+ */
+export const ITERATIONS: Record<string, Iteration> = {
+  iteration: { count: 100, delta: 0.001 },
+  'iteration-counter': { count: 100, delta: 0.001 },
 };
 
 type DataCell = string | number | boolean | null;
@@ -729,6 +743,9 @@ type DataCell = string | number | boolean | null;
  * and beside it; the references read a quarter's months and a total sheet.
  */
 export const DATA: Record<string, Record<string, DataCell[][]>> = {
+  // Interest on a balance including it; halving the distance to 2; a pair meeting at 2 and 1; an error going round.
+  iteration: { Loop: [['=B1*0.1', '=100+A1', '=C1/2+1', '=E1/2', '=D1+1', '=F1+1/0']] },
+  'iteration-counter': { Loop: [['=A1+1']] },
   'edge-cases': {
     Data: [
       [null, 5, 1, 1],
@@ -809,10 +826,16 @@ export const NAMES: Record<string, Record<string, string>> = {
 export function checkEngine(family: string): FormulaEngine {
   const written = [FAMILIES[family].map((f) => [f]), ...Object.values(DATA[family] ?? {})];
   const names = Object.entries(NAMES[family] ?? {}).map(([name, f]) => ({ name, formula: toFileFormula(f).slice(1) }));
-  return nativeEngine.create(checkSheets(family), names, false, {
-    formulaText: (s, row, col) => {
-      const v = written[s]?.[row]?.[col];
-      return typeof v === 'string' && v.startsWith('=') ? v : undefined;
+  return nativeEngine.create(
+    checkSheets(family),
+    names,
+    false,
+    {
+      formulaText: (s, row, col) => {
+        const v = written[s]?.[row]?.[col];
+        return typeof v === 'string' && v.startsWith('=') ? v : undefined;
+      },
     },
-  });
+    ITERATIONS[family],
+  );
 }

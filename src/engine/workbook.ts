@@ -1,4 +1,4 @@
-import type { ArrayDims, EngineChange, EngineLookups, EngineName, EngineSheet, EngineWrite, FormulaEngine, RawContent } from '../core/engine';
+import type { ArrayDims, EngineChange, EngineLookups, EngineName, EngineSheet, EngineWrite, FormulaEngine, Iteration, RawContent } from '../core/engine';
 import type { EngineValue } from '../core/engineValue';
 import { engineFormula } from '../core/formula';
 import { MAX_COLS, MAX_ROWS } from '../core/refs';
@@ -115,6 +115,11 @@ interface NameDef {
   template: Template;
 }
 
+/** Whether a value moved by more than the maximum change between passes: numbers by more than `delta`, anything else at all. */
+function moved(a: Scalar, b: Scalar, delta: number): boolean {
+  return typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) > delta : !same(a, b);
+}
+
 function same(a: Scalar | undefined, b: Scalar | undefined): boolean {
   if (isError(a) || isError(b)) return isError(a) && isError(b) && a.error === b.error;
   return Object.is(a, b);
@@ -157,6 +162,7 @@ export class NativeEngine implements FormulaEngine, Host {
     names: EngineName[],
     date1904: boolean,
     private readonly lookups?: EngineLookups,
+    private readonly iteration?: Iteration,
   ) {
     this.date1904 = date1904;
     this.sheets = sheets.map((s, i) => {
@@ -169,6 +175,7 @@ export class NativeEngine implements FormulaEngine, Host {
       if (s) this.load(i, s.rows, false);
     });
     this.settle(this.dirtied);
+    this.iterate();
     this.dirtied = [];
   }
 
@@ -185,6 +192,7 @@ export class NativeEngine implements FormulaEngine, Host {
     this.byName.set(content.name.toLowerCase(), sheet);
     this.load(sheet, content.rows, false);
     this.settle(this.dirtied);
+    this.iterate();
     this.dirtied = [];
     // Formulas that named it before it was here read it now.
     const users = [...(this.waiting.get(content.name.toLowerCase()) ?? [])];
@@ -209,10 +217,10 @@ export class NativeEngine implements FormulaEngine, Host {
     if (c !== undefined) {
       if (!(c instanceof Formula)) return c;
       if (c.dirty) this.compute(c);
-      // A formula read while it is being worked out reads round in a circle: 0, as Excel shows.
+      // A formula read while it is being worked out reads round in a circle: 0, as Excel shows, or iterating, its value from the pass before.
       if (c.busy) {
         this.circles.add(c);
-        return 0;
+        return this.iteration ? c.value : 0;
       }
       return c.value;
     }
@@ -320,6 +328,10 @@ export class NativeEngine implements FormulaEngine, Host {
   }
 
   dependentsOf(cells: { sheet: number; row: number; col: number }[], limit = 200_000): { sheet: number; row: number; col: number }[] {
+    return this.dependentFormulas(cells, limit).map((f) => ({ sheet: f.sheet, row: f.row, col: f.col }));
+  }
+
+  private dependentFormulas(cells: { sheet: number; row: number; col: number }[], limit = 200_000): Formula[] {
     const seen = new Set<Formula>();
     const queue: Formula[] = [];
     const add = (f: Formula) => {
@@ -334,7 +346,7 @@ export class NativeEngine implements FormulaEngine, Host {
       const area = f.spill ?? f.room();
       if (area) this.readersIn(area, add);
     }
-    return queue.slice(0, limit).map((f) => ({ sheet: f.sheet, row: f.row, col: f.col }));
+    return queue.slice(0, limit);
   }
 
   destroy(): void {
@@ -384,7 +396,7 @@ export class NativeEngine implements FormulaEngine, Host {
         if (skipSubtotals && c.template.subtotal) continue;
         if (c.dirty) this.compute(c);
         if (c.busy) this.circles.add(c);
-        f(c.busy ? 0 : c.value, row, col);
+        f(c.busy && !this.iteration ? 0 : c.value, row, col);
       }
     }
     if (!sh.spilled.size) return;
@@ -631,6 +643,7 @@ export class NativeEngine implements FormulaEngine, Host {
     try {
       run();
       this.settle(this.dirtied);
+      this.iterate();
       for (const f of this.dirtied) {
         if (this.sheets[f.sheet]?.get(f.row, f.col) !== f) continue;
         if (!same(f.prev, f.value) || f.reshaped) this.noteChange(f.sheet, f.row, f.col, f.value);
@@ -646,6 +659,28 @@ export class NativeEngine implements FormulaEngine, Host {
 
   private noteChange(sheet: number, row: number, col: number, value: Scalar): void {
     this.changes?.set(`${sheet}:${row}:${col}`, { sheet, row, col, value });
+  }
+
+  /**
+   * With iterative calculation on, works the circles the last change closed
+   * round again: every formula in or after one, pass after pass (the first
+   * was the one just made), until none moves by more than the maximum change
+   * or the passes run out, as Excel does.
+   */
+  private iterate(): void {
+    const iteration = this.iteration;
+    if (!iteration) return;
+    const closing = this.dirtied.filter((f) => this.circles.has(f) && this.sheets[f.sheet]?.get(f.row, f.col) === f);
+    if (!closing.length) return;
+    const round = [...new Set([...closing, ...this.dependentFormulas(closing)])];
+    for (let pass = 1; pass < iteration.count; pass++) {
+      const before = round.map((f) => f.value);
+      // Formulas the change hadn't reached yet keep the value they had before it, for the changes it reports.
+      for (const f of round) if (f.prev === undefined && this.changes) this.dirty(f);
+      else f.dirty = true;
+      this.settle(round);
+      if (round.every((f, i) => !moved(before[i], f.value, iteration.delta))) break;
+    }
   }
 
   /** Works out every dirty formula among `list`, deepest first where reading one needs another worked out first. */
@@ -689,8 +724,8 @@ export class NativeEngine implements FormulaEngine, Host {
         if (e instanceof Deferred) throw e;
         out = isError(e) ? e : VALUE;
       }
-      // Where a circle closes it shows 0, as the formulas in the circle read it.
-      if (this.circles.has(f)) out = 0;
+      // Where a circle closes it shows 0, as the formulas in the circle read it, unless iterating.
+      if (this.circles.has(f) && !this.iteration) out = 0;
       this.store(f, out, ctx);
       if (measured?.rows !== f.measured?.rows || measured?.cols !== f.measured?.cols) f.reshaped = true;
       f.dirty = false;

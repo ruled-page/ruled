@@ -12,6 +12,7 @@ import type { Anchor, BlockedRegion, CellNote, DefinedName, Finding, Rect, Sheet
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
+import type { Iteration } from './engine';
 
 export type { DefinedName } from './types';
 
@@ -31,6 +32,8 @@ export interface WorkbookModel {
   styles: StyleBook;
   names: DefinedName[];
   date1904: boolean;
+  /** Iterative calculation, when the workbook turns it on: circular references are worked round rather than read as 0. */
+  iteration?: Iteration;
   findings: Finding[];
   /** The workbook carries a VBA project. */
   /** A VBA project or Excel 4.0 macro sheets. */
@@ -192,6 +195,14 @@ export function dynamicArrayMetadata(xml: string | undefined): Set<number> {
   return out;
 }
 
+/** Iterative calculation from the workbook's calculation settings, when on: Excel's defaults are 100 passes and a maximum change of 0.001. */
+function iterationOf(calcPr: XmlNode | undefined): Iteration | undefined {
+  if (!['1', 'true'].includes(attr(calcPr, 'iterate') ?? '')) return undefined;
+  const count = Math.trunc(Number(attr(calcPr, 'iterateCount') ?? 100));
+  const delta = Number(attr(calcPr, 'iterateDelta') ?? 0.001);
+  return { count: count >= 1 && count <= 32767 ? count : 100, delta: Number.isFinite(delta) && delta >= 0 ? delta : 0.001 };
+}
+
 /** The error codes a rich value's errorType numbers, from 0. */
 const RICH_ERRORS = ['#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!', '#CONNECT!', '#BLOCKED!', '#UNKNOWN!', '#FIELD!', '#CALC!'];
 
@@ -251,6 +262,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const persons = new Map(people.map((p) => [p.id, p.displayName]));
 
   const date1904 = ['1', 'true'].includes(attr(child(wb, 'workbookPr'), 'date1904') ?? '');
+  const iteration = iterationOf(child(wb, 'calcPr'));
   const metadataXml = relOfType('sheetMetadata').map((r) => pkg.text(r.target)).find((x) => x);
   const dynamic = dynamicArrayMetadata(metadataXml);
   const richPart = (type: string) => relOfType(type).map((r) => pkg.text(r.target)).find((x) => x);
@@ -777,6 +789,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     styles,
     names,
     date1904,
+    ...(iteration && { iteration }),
     findings,
     hasMacros: vba || macroSheets,
     hasActiveContent: controls + objects > 0,
