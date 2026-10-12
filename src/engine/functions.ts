@@ -761,10 +761,25 @@ function workdays(start: number, end: number, holidays: Set<number>, ctx: Ctx): 
   return n;
 }
 
+/** Holidays are dates: text, TRUE or FALSE among them is #VALUE!, and a negative number #NUM!. */
 function holidaysOf(op: Operand | undefined, ctx: Ctx): Set<number> {
   const out = new Set<number>();
-  if (op !== undefined) numbers([op], ctx, (n) => out.add(Math.floor(n)));
+  if (op === undefined) return out;
+  for (const v of matrixOf(op, ctx).data) {
+    if (v === null) continue;
+    if (isError(v)) throw v;
+    if (typeof v !== 'number') throw VALUE;
+    if (v < 0) throw NUM;
+    out.add(Math.floor(v));
+  }
   return out;
+}
+
+/** The dates and day counts the working-day functions take, which can't be TRUE or FALSE. */
+function workdayArgs(a: Operand[], ctx: Ctx, endDate: boolean): [number, number] {
+  const [x, y] = [scalarOf(a[0], ctx), scalarOf(a[1], ctx)];
+  if (typeof x === 'boolean' || typeof y === 'boolean') throw VALUE;
+  return [Math.floor(dateArg(x, ctx)), Math.floor(endDate ? dateArg(y, ctx) : num(y))];
 }
 
 // -----------------------------------------------------------------------------
@@ -2308,12 +2323,17 @@ function fromRadix(v: Scalar, radix: number): number {
 function toRadix(n: number, radix: number, places: Scalar | undefined): string {
   const bits = RADIX_BITS[radix];
   if (n < -(2 ** (bits - 1)) || n >= 2 ** (bits - 1)) throw NUM;
+  // Places, when given, must be 1 to 10 even for a negative number, which always takes ten digits.
+  let width: number | undefined;
+  if (places !== undefined) {
+    if (typeof places === 'boolean') throw VALUE;
+    width = Math.trunc(num(places));
+    if (width < 1 || width > 10) throw NUM;
+  }
   if (n < 0) return (n + 2 ** bits).toString(radix).toUpperCase();
   const digits = n.toString(radix).toUpperCase();
-  if (places === undefined || places === null) return digits;
-  if (typeof places === 'boolean') throw VALUE;
-  const width = Math.trunc(num(places));
-  if (width < digits.length || width > 10) throw NUM;
+  if (width === undefined) return digits;
+  if (width < digits.length) throw NUM;
   return digits.padStart(width, '0');
 }
 
@@ -2572,10 +2592,17 @@ function complexText(z: Complex, unit: string): string {
   if (!Number.isFinite(z.re) || !Number.isFinite(z.im)) throw NUM;
   const re = round15(z.re);
   const im = round15(z.im);
-  if (im === 0) return numberText(re);
-  const imaginary = im === 1 ? '' : im === -1 ? '-' : numberText(im);
+  if (im === 0) return plainNumber(re);
+  const imaginary = im === 1 ? '' : im === -1 ? '-' : plainNumber(im);
   if (re === 0) return imaginary + unit;
-  return `${numberText(re)}${im > 0 ? '+' : ''}${imaginary}${unit}`;
+  return `${plainNumber(re)}${im > 0 ? '+' : ''}${imaginary}${unit}`;
+}
+
+/** A number written out in full where it fits: 1E-16 is 0.0000000000000001. */
+function plainNumber(n: number): string {
+  const plain = n.toLocaleString('en-US', { useGrouping: false, maximumSignificantDigits: 15 });
+  // Past twenty characters Excel takes the exponent after all: 1E-20.
+  return plain.length <= 20 ? plain : numberText(n);
 }
 
 const ONE: Complex = { re: 1, im: 0 };
@@ -2597,6 +2624,12 @@ const coshC = (z: Complex): Complex => ({ re: Math.cosh(z.re) * Math.cos(z.im), 
  * sec and the rest give them (tan z = (sin 2a + i sinh 2b) / (cos 2a + cosh 2b)),
  * which keep the digits Excel shows; #NUM! where the function is infinite.
  */
+/** cosh 2x − cos 2y, which near zero is taken as 2(sinh² x + sin² y) rather than lose every digit. */
+function coshMinusCos(x: number, y: number): number {
+  const d = Math.cosh(2 * x) - Math.cos(2 * y);
+  return d > 1e-4 ? d : 2 * (Math.sinh(x) ** 2 + Math.sin(y) ** 2);
+}
+
 function halves(re: number, im: number, denominator: number): Complex {
   if (denominator === 0) throw NUM;
   return { re: re / denominator, im: im / denominator };
@@ -2626,7 +2659,9 @@ function complexes(args: Operand[], ctx: Ctx): Complex[] {
   };
   for (const a of args) {
     if (a === undefined) continue;
-    if (a instanceof Ref) ctx.host.each(a, take);
+    // An empty cell on its own is 0, so a product over one is 0.
+    if (a instanceof Ref && a.rows === 1 && a.cols === 1) out.push(complexOf(scalarOf(a, ctx)));
+    else if (a instanceof Ref) ctx.host.each(a, take);
     else if (a instanceof Areas) for (const r of a.refs) ctx.host.each(r, take);
     else if (a instanceof Matrix) a.data.forEach(take);
     else if (a instanceof Lambda) throw VALUE;
@@ -3237,13 +3272,20 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     return Math.floor(serial) - (ctx.host.date1904 ? 1462 : 0);
   }),
   DATEDIF: scalar(3, 3, ([s, e, u], ctx) => datedif(dateArg(s, ctx), dateArg(e, ctx), text(u).toUpperCase(), ctx)),
-  NETWORKDAYS: { min: 2, max: 3, fn: (a, ctx) => workdays(dateArg(scalarOf(a[0], ctx), ctx), dateArg(scalarOf(a[1], ctx), ctx), holidaysOf(a[2], ctx), ctx) },
+  NETWORKDAYS: {
+    min: 2,
+    max: 3,
+    fn: (a, ctx) => {
+      const [start, end] = workdayArgs(a, ctx, true);
+      return workdays(start, end, holidaysOf(a[2], ctx), ctx);
+    },
+  },
   WORKDAY: {
     min: 2,
     max: 3,
     fn: (a, ctx) => {
-      const s = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
-      const left = Math.trunc(num(scalarOf(a[1], ctx)));
+      // A fraction of a day back is a whole day back.
+      const [s, left] = workdayArgs(a, ctx, false);
       const holidays = holidaysOf(a[2], ctx);
       return stepWorkdays(s, left, (d) => weekday(d, 2, ctx) <= 5 && !holidays.has(d), ctx);
     },
@@ -4062,8 +4104,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 4,
     fn: (a, ctx) => {
-      const start = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
-      const end = Math.floor(dateArg(scalarOf(a[1], ctx), ctx));
+      const [start, end] = workdayArgs(a, ctx, true);
       const weekend = weekendOf(a[2], ctx);
       const holidays = holidaysOf(a[3], ctx);
       const step = end >= start ? 1 : -1;
@@ -4076,8 +4117,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
     min: 2,
     max: 4,
     fn: (a, ctx) => {
-      const d = Math.floor(dateArg(scalarOf(a[0], ctx), ctx));
-      const left = Math.trunc(num(scalarOf(a[1], ctx)));
+      const [d, left] = workdayArgs(a, ctx, false);
       const weekend = weekendOf(a[2], ctx);
       if (weekend.every(Boolean)) throw VALUE;
       const holidays = holidaysOf(a[3], ctx);
@@ -4385,7 +4425,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   // Complex numbers
   COMPLEX: scalar(2, 3, ([re, im, suffix]) => {
     if (typeof re === 'boolean' || typeof im === 'boolean') throw VALUE;
-    const unit = suffix === undefined || suffix === null ? 'i' : text(suffix);
+    const unit = suffix === undefined || suffix === null || suffix === '' ? 'i' : text(suffix);
     if (unit !== 'i' && unit !== 'j') throw VALUE;
     return complexText({ re: num(re), im: num(im) }, unit);
   }),
@@ -4430,13 +4470,13 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
   IMSIN: complex1(sinC),
   IMCOS: complex1(cosC),
   IMTAN: complex1(({ re: a, im: b }) => halves(Math.sin(2 * a), Math.sinh(2 * b), Math.cos(2 * a) + Math.cosh(2 * b))),
-  IMCOT: complex1(({ re: a, im: b }) => halves(Math.sin(2 * a), -Math.sinh(2 * b), Math.cosh(2 * b) - Math.cos(2 * a))),
+  IMCOT: complex1(({ re: a, im: b }) => halves(Math.sin(2 * a), -Math.sinh(2 * b), coshMinusCos(b, a))),
   IMSEC: complex1(({ re: a, im: b }) => halves(2 * Math.cos(a) * Math.cosh(b), 2 * Math.sin(a) * Math.sinh(b), Math.cos(2 * a) + Math.cosh(2 * b))),
-  IMCSC: complex1(({ re: a, im: b }) => halves(2 * Math.sin(a) * Math.cosh(b), -2 * Math.cos(a) * Math.sinh(b), Math.cosh(2 * b) - Math.cos(2 * a))),
+  IMCSC: complex1(({ re: a, im: b }) => halves(2 * Math.sin(a) * Math.cosh(b), -2 * Math.cos(a) * Math.sinh(b), coshMinusCos(b, a))),
   IMSINH: complex1(sinhC),
   IMCOSH: complex1(coshC),
   IMSECH: complex1(({ re: a, im: b }) => halves(2 * Math.cosh(a) * Math.cos(b), -2 * Math.sinh(a) * Math.sin(b), Math.cosh(2 * a) + Math.cos(2 * b))),
-  IMCSCH: complex1(({ re: a, im: b }) => halves(2 * Math.sinh(a) * Math.cos(b), -2 * Math.cosh(a) * Math.sin(b), Math.cosh(2 * a) - Math.cos(2 * b))),
+  IMCSCH: complex1(({ re: a, im: b }) => halves(2 * Math.sinh(a) * Math.cos(b), -2 * Math.cosh(a) * Math.sin(b), coshMinusCos(a, b))),
 
   // References and sheets
   ADDRESS: scalar(2, 5, ([r, c, absolute, a1, sheet]) => {
