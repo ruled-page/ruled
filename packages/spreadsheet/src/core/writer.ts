@@ -4,6 +4,7 @@ import { writeDefinedNames } from './definedNames';
 import { isDynamicArrayFormula } from '@sitepen/formula-engine/formula';
 import { writeHyperlinks, type SheetLinks } from './hyperlinks';
 import { writeValidations } from './validations';
+import { writeConditionalFormats } from './conditionalFormat';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import type { CellState } from './session';
@@ -51,6 +52,8 @@ export interface SaveInput {
   links?: (SheetLinks | undefined)[];
   /** The sheets whose data validation rules have been changed, to be written as they now are. */
   validations?: ReadonlySet<number>;
+  /** The sheets whose conditional formatting has been changed, to be written as it now is. */
+  conditionalFormats?: ReadonlySet<number>;
 }
 
 type Patch =
@@ -83,6 +86,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     const links = input.links?.[s];
     if (links?.changed) xml = writeHyperlinks(pkg, m.path, xml, m.scan.prefix, links.list);
     if (input.validations?.has(s)) xml = writeValidations(xml, m.scan.prefix, m.info.listValidations, m.info.ruleValidations);
+    if (input.conditionalFormats?.has(s)) xml = writeConditionalFormats(xml, m.scan.prefix, m.info.conditionalFormats);
     if (xml !== m.xml) pkg.setText(m.path, xml);
     // A table's filter is kept in the table's own part: the new one set, a table's that went cleared.
     if (layout?.filter !== undefined) {
@@ -123,7 +127,7 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
   if (input.properties) setCustomProperties(pkg, input.properties);
 
-  if (model.styles.additions.length || Object.values(model.styles.addedParts).some((a) => a.length)) {
+  if (model.styles.additions.length || model.styles.addedDxfs.length || Object.values(model.styles.addedParts).some((a) => a.length)) {
     const stylesRel = pkg.rels(model.workbookPath).find((r) => r.type === 'styles');
     const xml = stylesRel ? pkg.text(stylesRel.target) : undefined;
     if (stylesRel && xml) pkg.setText(stylesRel.target, appendStyles(xml, model));
@@ -680,9 +684,25 @@ function appendStyles(xml: string, model: WorkbookModel): string {
 
   const xfs = adds.map((a) => a.xfRaw);
   const close = new RegExp(`</${p}cellXfs>`).exec(out);
-  if (close) {
+  if (close && xfs.length) {
     out = out.slice(0, close.index) + xfs.join('') + out.slice(close.index);
     out = out.replace(new RegExp(`(<${p}cellXfs\\b[^>]*\\bcount=")(\\d+)(")`), (_, a: string, _n: string, b: string) => `${a}${model.styles.display.length}${b}`);
+  }
+
+  // Differential formats new conditional formatting rules use, after the file's, whose ids they follow on from.
+  const dxfs = model.styles.addedDxfs.map((d) => (p ? d.replace(/<(\/?)(\w)/g, `<$1${p}$2`) : d));
+  if (dxfs.length) {
+    const block = firstElement(out, 'dxfs');
+    const count = model.styles.dxfs.length;
+    if (block) {
+      const openTag = `<${block.qname}${block.attrs.replace(/\s*count="\d+"/, '')} count="${count}">`;
+      out = out.slice(0, block.start) + openTag + (block.inner ?? '') + dxfs.join('') + `</${block.qname}>` + out.slice(block.end);
+    } else {
+      // In its place after cellStyles, before tableStyles, colors and extLst.
+      const after = ['tableStyles', 'colors', 'extLst'].map((n) => firstElement(out, n)).find(Boolean);
+      const at = after ? after.start : new RegExp(`</${p}styleSheet>`).exec(out)!.index;
+      out = out.slice(0, at) + `<${p}dxfs count="${count}">${dxfs.join('')}</${p}dxfs>` + out.slice(at);
+    }
   }
   return out;
 }

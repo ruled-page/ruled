@@ -204,6 +204,16 @@ back as .xlsx without losing what the editor can't display.
   before erasing several rules in the selection, or taking one to cells
   without it. Rules are saved as Excel saves them; a sheet with a rule the
   editor can't read keeps its rules as they are.
+  "Conditional formatting" has Excel's menu: Highlight Cells Rules (greater
+  than, less than, between, equal to, text that contains, duplicate values)
+  and Top/Bottom Rules (top or bottom items or percent, above or below the
+  average), each with Excel's six formats; Data Bars, Color Scales and Icon
+  Sets; a rule using a formula; clearing rules from the selection or the
+  sheet; and Excel's Rules Manager, to edit, delete, reorder and re-range
+  rules and set Stop If True. Rules are saved as Excel saves them, new
+  formats joining the workbook's; Excel 2010's part of a rule follows it,
+  and a rule only Excel 2010 has can be moved, re-ranged or deleted but not
+  changed. New data bars are Excel 2007's, with no negative-value colour.
   Filters have Excel's buttons on their headings, as do tables that have
   them: a button (or Alt+↓ on the heading) opens the column's filter menu,
   which sorts the range by the column, picks the values whose rows show, or

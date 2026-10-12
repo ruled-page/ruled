@@ -239,6 +239,25 @@ function parseDxf(node: XmlNode, theme: string[], indexed: string[]): DiffStyle 
 
 const flag = (node: XmlNode | undefined) => !!node && attr(node, 'val') !== '0' && attr(node, 'val') !== 'false';
 
+/** A differential format as Excel writes it: only the font, fill and border it sets, the fill's colour as bgColor. */
+export function dxfXml(style: DiffStyle): string {
+  const font =
+    (style.bold ? '<b/>' : '') +
+    (style.italic ? '<i/>' : '') +
+    (style.strike ? '<strike/>' : '') +
+    (style.underline ? '<u/>' : '') +
+    (style.color ? `<color rgb="${argb(style.color)}"/>` : '');
+  const fill = style.fill ? `<fill><patternFill><bgColor rgb="${argb(style.fill)}"/></patternFill></fill>` : '';
+  const edge = (side: 'left' | 'right' | 'top' | 'bottom') => {
+    const e = style.border?.[side];
+    if (!e) return '';
+    const kind = BORDER_NAMES[`${e.width}${e.pattern}`] ?? 'thin';
+    return `<${side} style="${kind}">${e.color ? `<color rgb="${argb(e.color)}"/>` : '<color auto="1"/>'}</${side}>`;
+  };
+  const border = style.border ? `<border>${edge('left')}${edge('right')}${edge('top')}${edge('bottom')}</border>` : '';
+  return `<dxf>${font ? `<font>${font}</font>` : ''}${fill}${border}</dxf>`;
+}
+
 interface FontInfo {
   bold: boolean;
   italic: boolean;
@@ -505,6 +524,16 @@ export class StyleBook {
     this.additions.push({ xfRaw: xf });
     this.derived.set(key, index);
     return { index, created: true };
+  }
+
+  /** Differential formats added for new conditional formatting rules, to be written after the file's. */
+  readonly addedDxfs: string[] = [];
+
+  /** The id of a differential format for a new conditional formatting rule, added after the file's. */
+  addDxf(style: DiffStyle): number {
+    this.dxfs.push(style);
+    this.addedDxfs.push(dxfXml(style));
+    return this.dxfs.length - 1;
   }
 
   /** A font, fill or border by id, the file's or one added since. */

@@ -29,6 +29,8 @@ import {
   type BorderPlacement,
   type Finding,
   type FilterCondition,
+  type DiffStyle,
+  type CfRule,
   type FilterState,
   type FormatChange,
   type PastePart,
@@ -61,6 +63,7 @@ import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
 import { averageOf, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
 import type { DraftPlace } from './validationDraft';
+import type { CfQuick } from './cfRules';
 import { withoutRects, type ListContext } from '../core/validationRules';
 import type { EngineInfo, WorkStats } from '../core/engineIds';
 import { SheetView } from './sheetView';
@@ -550,6 +553,12 @@ export class WorkbookStore {
   linkDialog = false;
   /** Excel's Fill Series dialog, for the selection. */
   seriesDialog = false;
+  /** One of Excel's quick conditional formatting dialogs, for the selection's ranges, or changing a rule in the Rules Manager (`edit`, its place there). */
+  cfDialog?: { kind: CfQuick; rects: Rect[]; values?: string[]; style?: DiffStyle; edit?: number };
+  /** Excel's Conditional Formatting Rules Manager, with the sheet's rules as they are being changed, applied together on OK. */
+  cfManager?: { rules: CfRule[] };
+  /** The gallery of Excel's data bars, color scales and icon sets, open for the selection's ranges. */
+  cfGallery?: { rects: Rect[] };
   /** Excel's Data Validation dialog, open for the selection's ranges, starting on the rule they have. */
   validationDialog?: { rects: Rect[]; rule?: ListValidation | RuleValidation };
   /** Excel's Sort dialog, open for the block the selection's sort applies to. */
@@ -1420,8 +1429,15 @@ export class WorkbookStore {
     if (r.undo.length || r.layout?.applied.length || r.noteUndo?.length || r.names?.applied.length) this.changeSeq++;
     if (r.names) this.names = r.names.list;
     for (const c of r.layout?.applied ?? []) {
-      this.sheets[c.sheet]?.applyLayout(c.op);
+      const view = this.sheets[c.sheet];
+      view?.applyLayout(c.op);
       this.colVersion++;
+      // New rules are evaluated again in the worker; with none left, nothing is formatted.
+      if (view && c.op.kind === 'conditionalFormats') {
+        this.cfRuns.delete(c.sheet);
+        if (c.op.rules.length) queueMicrotask(() => this.refreshConditionalFormats(c.sheet));
+        else view.setConditionalFormats({ sheet: c.sheet, styles: [], cells: [], skipped: 0 });
+      }
     }
     for (const s of r.newStyles) this.styles[s.index] = s.style;
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
@@ -3532,6 +3548,54 @@ export class WorkbookStore {
     await this.changeLayout({ kind: 'validations', lists, rules }, msg(rule ? 'validation.history.set' : 'validation.history.clear'));
   }
 
+  /** Whether conditional formatting can't be changed on the sheet shown, saying why: it is protected, or isn't a worksheet. */
+  private cfLocked(): boolean {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return true;
+    if (view.info.protected) {
+      this.toast('warn', msg('core.reason.protected'));
+      return true;
+    }
+    return false;
+  }
+
+  /** Opens one of Excel's quick conditional formatting dialogs (Greater Than, Top 10 Items, New Formatting Rule…) for the selection. */
+  openCfDialog(kind: CfQuick): void {
+    if (!this.cfLocked()) this.set('cfDialog', { kind, rects: this.selection.rects.map((r) => ({ ...r })) });
+  }
+
+  /** Adds a conditional formatting rule, first in the order, as Excel adds a new one. */
+  async addConditionalFormat(rule: CfRule): Promise<void> {
+    const view = this.view;
+    if (!view || this.cfLocked()) return;
+    await this.setConditionalFormats([rule, ...view.info.conditionalFormats], msg('cf.history.add'));
+  }
+
+  /** Excel's Clear Rules: from the selected cells, the rest of each rule's cells keeping it, or from the whole sheet. */
+  async clearConditionalFormats(scope: 'selection' | 'sheet'): Promise<void> {
+    const view = this.view;
+    if (!view || this.cfLocked()) return;
+    const cuts = this.selection.rects;
+    const rules = scope === 'sheet' ? [] : view.info.conditionalFormats.map((r) => ({ ...r, rects: withoutRects(r.rects, cuts) })).filter((r) => r.rects.length);
+    await this.setConditionalFormats(rules, msg('cf.history.clear'));
+  }
+
+  /** Sets the sheet's conditional formatting rules, in order, as one step that undoes at once. */
+  async setConditionalFormats(rules: CfRule[], label: Text = msg('cf.history.manage')): Promise<void> {
+    await this.changeLayout({ kind: 'conditionalFormats', rules: rules.map((r, i) => ({ ...r, priority: i + 1 })) }, label);
+  }
+
+  /** Opens the gallery of Excel's data bars, color scales and icon sets, for the selection. */
+  openCfGallery(): void {
+    if (!this.cfLocked()) this.set('cfGallery', { rects: this.selection.rects.map((r) => ({ ...r })) });
+  }
+
+  /** Opens Excel's Conditional Formatting Rules Manager on the sheet's rules. */
+  openCfManager(): void {
+    const view = this.view;
+    if (view && !this.cfLocked()) this.set('cfManager', { rules: [...view.info.conditionalFormats] });
+  }
+
   /** Applies a rule's alert as Excel does; resolves false when the value is rejected. */
   private async alert(dv: ValidationAlert, fallbackTitle: Text): Promise<boolean> {
     // The workbook's own title and message are shown as written.
@@ -3787,6 +3851,9 @@ export class WorkbookStore {
       | 'nameManagerOpen'
       | 'linkDialog'
       | 'seriesDialog'
+      | 'cfDialog'
+      | 'cfManager'
+      | 'cfGallery'
       | 'validationDialog'
       | 'sortDialog'
       | 'cellsDialog'

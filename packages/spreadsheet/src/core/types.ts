@@ -170,6 +170,12 @@ export interface CfRule {
   colorScale?: { cfvo: Cfvo[]; colors: string[] };
   dataBar?: { cfvo: Cfvo[]; color: string; negativeColor?: string; showValue: boolean; gradient: boolean; minLength: number; maxLength: number };
   iconSet?: { set: string; cfvo: Cfvo[]; reverse: boolean; showValue: boolean };
+  /** The file's format for it (its dxfId), kept when the rule is written again; a new rule's format is added. */
+  dxfId?: number;
+  /** The id of its Excel 2010 settings, kept in the sheet's extensions. */
+  extId?: string;
+  /** Written only in the sheet's Excel 2010 extensions, which keep it as they have it: it can be moved, re-ranged or deleted, not changed. */
+  x14Only?: boolean;
 }
 
 /** What conditional formatting does to one cell. */
@@ -678,7 +684,9 @@ export type LayoutOp =
   /** Hyperlinks added and removed; the same change the other way round undoes it. */
   | { kind: 'links'; add: Hyperlink[]; remove: Hyperlink[] }
   /** The sheet's data validation rules, all of them, as Excel's Data Validation dialog leaves them; the ones before undo it. */
-  | { kind: 'validations'; lists: ListValidation[]; rules: RuleValidation[] };
+  | { kind: 'validations'; lists: ListValidation[]; rules: RuleValidation[] }
+  /** The sheet's conditional formatting rules, all of them, in priority order; the ones before undo it. */
+  | { kind: 'conditionalFormats'; rules: CfRule[] };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

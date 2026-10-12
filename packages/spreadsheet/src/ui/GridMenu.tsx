@@ -5,6 +5,7 @@ import { ContextMenu, type MenuItem } from './ContextMenu';
 import { APPLE, mod } from './keys';
 import { openDefineName } from '../state/names';
 import { useT } from '../i18n/react';
+import type { CfQuick } from '../state/cfRules';
 
 /** The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find. */
 export function GridMenu({ store }: { store: WorkbookStore }) {
@@ -139,12 +140,27 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
             : [{ label: t('links.menu.insert'), onSelect: openDialog, disabled: locked }]),
         ];
   const filtered = view.filtering;
+  // Excel's Conditional Formatting menu, in its groups: quick rules, the galleries, a formula rule, clearing and the Rules Manager.
+  const quick = (kinds: CfQuick[]): MenuItem[] => kinds.map((kind) => ({ label: t(`cf.quick.${kind}`), onSelect: () => store.openCfDialog(kind) }));
+  const cfItems: MenuItem[] = [
+    ...quick(['greaterThan', 'lessThan', 'between', 'equal', 'textContains', 'duplicate']),
+    { separator: true },
+    ...quick(['top', 'topPercent', 'bottom', 'bottomPercent', 'aboveAverage', 'belowAverage']),
+    { separator: true },
+    { label: t('cf.menu.gallery'), onSelect: () => store.openCfGallery() },
+    ...quick(['formula']),
+    { separator: true },
+    { label: t('cf.menu.clearSelection'), onSelect: () => void store.clearConditionalFormats('selection') },
+    { label: t('cf.menu.clearSheet'), onSelect: () => void store.clearConditionalFormats('sheet') },
+    { label: t('cf.menu.manage'), onSelect: () => store.openCfManager() },
+  ];
   const dataItems: MenuItem[] = [
     { label: t('menu.sortAscending'), onSelect: () => void store.sort(false), disabled: locked },
     { label: t('menu.sortDescending'), onSelect: () => void store.sort(true), disabled: locked },
     { label: t('sort.menu.custom'), onSelect: () => store.openSortDialog(), disabled: locked },
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
     { label: t('validation.menu'), onSelect: () => void store.openValidationDialog(), disabled: locked },
+    { label: t('cf.menu'), items: cfItems, disabled: locked },
     {
       label: t(view.filter && !view.filter.table ? 'menu.filterOff' : 'menu.filterOn'),
       hint: APPLE ? '⇧⌘F' : t('keys.filterToggle'),

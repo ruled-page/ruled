@@ -1757,6 +1757,106 @@
   overflow-y: auto;
 }
 
+.wbe .wbe-cf-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.wbe .wbe-cf-value,
+.wbe .wbe-cf-ranges {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  font: inherit;
+  min-width: 0;
+}
+
+.wbe .wbe-cf-value {
+  width: 9em;
+}
+
+.wbe .wbe-cf-ranges {
+  width: 100%;
+}
+
+/* A format's sample, as Excel's dialogs show one. */
+.wbe .wbe-cf-sample {
+  display: inline-block;
+  min-width: 7em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  text-align: center;
+}
+
+.wbe .wbe-cf-gallery {
+  display: grid;
+  gap: 4px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin: 4px 0 12px;
+}
+
+.wbe .wbe-cf-gallery .wbe-btn {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.wbe .wbe-cf-swatch {
+  display: inline-block;
+  width: 36px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid var(--wbe-border);
+  flex: none;
+}
+
+.wbe .wbe-cf-gallery h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: inherit;
+}
+
+.wbe .wbe-modal.wbe-cf-dialog {
+  width: 560px;
+}
+
+.wbe .wbe-cf-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.wbe .wbe-cf-scope {
+  max-width: 20em;
+}
+
+.wbe .wbe-cf-rules {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wbe .wbe-cf-rules th,
+.wbe .wbe-cf-rules td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--wbe-border);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.wbe .wbe-cf-rules tr.wbe-active td {
+  background: var(--wbe-accent-soft);
+}
+
+.wbe .wbe-cf-rules label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .wbe .wbe-validation-panel {
   display: grid;
   gap: 10px;
@@ -3435,6 +3535,9 @@
   position: fixed;
   z-index: 60;
   min-width: 220px;
+  /* A menu taller than the window scrolls rather than running off it. */
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
   padding: 4px;
   background: var(--wbe-surface);
   border: 1px solid var(--wbe-border-strong);

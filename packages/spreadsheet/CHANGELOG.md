@@ -33,6 +33,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   set, change and clear the rules of the selected cells, with their input
   messages and error alerts. An input message now shows only where the file
   says to show it, as in Excel.
+- Conditional formatting rules can be added, changed and removed, from the
+  cell menu's Conditional formatting: Excel's Highlight Cells and Top/Bottom
+  rules, data bars, color scales, icon sets, formula rules, Clear Rules and
+  the Rules Manager. Tab buttons no longer submit a dialog they sit in, and a
+  menu taller than the window scrolls.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

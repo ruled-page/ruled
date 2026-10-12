@@ -269,6 +269,7 @@ export const core = {
   'core.change.filterOn': 'Filter buttons added',
   'core.change.filterOff': 'Filter buttons removed',
   'core.change.validations': 'Data validation rules changed',
+  'core.change.conditionalFormats': 'Conditional formatting changed',
   'core.validation.kept': "This sheet has validation rules the editor can't read, so its rules are kept as the file has them. Change them in Excel.",
   'core.change.unmerged': 'Unmerged the cells',
   'core.change.tableGrew_one': 'Table {{table}} took in {{count, number}} more row',

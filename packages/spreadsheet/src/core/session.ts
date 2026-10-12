@@ -52,6 +52,7 @@ import {
   type Rect,
   type SheetGrid,
   type SheetInfo,
+  type CfRule,
   type LayoutOp,
 } from './types';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
@@ -353,6 +354,8 @@ export class WorkbookSession {
   private links: (SheetLinks | undefined)[] = [];
   /** Per sheet whose validation rules have been changed, the rules the file had. */
   private fileValidations = new Map<number, Pick<SheetInfo, 'listValidations' | 'ruleValidations'>>();
+  /** Per sheet whose conditional formatting has been changed, the rules the file had. */
+  private fileConditionalFormats = new Map<number, CfRule[]>();
   /**
    * Per sheet: where each HYPERLINK formula's link went when the screen was
    * last told, so a link that changes while its value doesn't is told too.
@@ -459,10 +462,12 @@ export class WorkbookSession {
   /** How each sheet's layout and hyperlinks differ from the file's. */
   private layoutNotes(): CellChange[] {
     const validations = new Set(this.validationsChanged());
+    const formats = new Set(this.conditionalFormatsChanged());
     return this.model.sheets.flatMap((m, s) => [
       ...(this.layouts[s]?.notes(m.info.name) ?? []),
       ...(this.links[s]?.notes(m.info.name) ?? []),
       ...(validations.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.validations') }] : []),
+      ...(formats.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.conditionalFormats') }] : []),
     ]);
   }
 
@@ -1923,7 +1928,15 @@ export class WorkbookSession {
     }
     const undo: LayoutChange[] = [];
     for (const { sheet, op } of changes) {
-      undo.unshift({ sheet, op: op.kind === 'links' ? this.linksOf(sheet).apply(op) : op.kind === 'validations' ? this.applyValidations(sheet, op) : this.layoutOf(sheet).apply(op) });
+      const back =
+        op.kind === 'links'
+          ? this.linksOf(sheet).apply(op)
+          : op.kind === 'validations'
+            ? this.applyValidations(sheet, op)
+            : op.kind === 'conditionalFormats'
+              ? this.applyConditionalFormats(sheet, op)
+              : this.layoutOf(sheet).apply(op);
+      undo.unshift({ sheet, op: back });
     }
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
   }
@@ -1936,6 +1949,22 @@ export class WorkbookSession {
     info.listValidations = op.lists;
     info.ruleValidations = op.rules;
     return undo;
+  }
+
+  /** Sets a sheet's conditional formatting, a new rule's format joining the workbook's; returns the change that puts back the rules before. */
+  private applyConditionalFormats(sheet: number, op: Extract<LayoutOp, { kind: 'conditionalFormats' }>): LayoutOp {
+    const info = this.sheet(sheet).info;
+    if (!this.fileConditionalFormats.has(sheet)) this.fileConditionalFormats.set(sheet, info.conditionalFormats);
+    const undo: LayoutOp = { kind: 'conditionalFormats', rules: info.conditionalFormats };
+    info.conditionalFormats = op.rules.map((r) => (r.style && r.dxfId === undefined && !r.x14Only ? { ...r, dxfId: this.model.styles.addDxf(r.style) } : r));
+    return undo;
+  }
+
+  /** The sheets whose conditional formatting differs from the file's. */
+  private conditionalFormatsChanged(): number[] {
+    // A format given a place in the workbook's styles is the same format.
+    const plain = (rules: CfRule[]) => JSON.stringify(rules.map((r) => ({ ...r, dxfId: undefined })));
+    return [...this.fileConditionalFormats].flatMap(([s, file]) => (plain(file) === plain(this.sheet(s).info.conditionalFormats) ? [] : [s]));
   }
 
   /** The sheets whose validation rules differ from the file's. */
@@ -2371,6 +2400,7 @@ export class WorkbookSession {
       ...(this.nameNotes().length && { names: { file: this.fileNames, now: this.model.names } }),
       links: this.links,
       validations: new Set(this.validationsChanged()),
+      conditionalFormats: new Set(this.conditionalFormatsChanged()),
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

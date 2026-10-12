@@ -1,3 +1,4 @@
+import { cf } from './cf';
 import { charts } from './charts';
 import { core } from './core';
 import { designer } from './designer';
@@ -13,4 +14,4 @@ import { ui } from './ui';
 import { validation } from './validation';
 
 /** Every message, in German. */
-export const de = { ...ui, ...designer, ...store, ...schema, ...core, ...charts, ...sheets, ...names, ...links, ...fill, ...outline, ...sort, ...validation };
+export const de = { ...ui, ...designer, ...store, ...schema, ...core, ...charts, ...sheets, ...names, ...links, ...fill, ...outline, ...sort, ...validation, ...cf };

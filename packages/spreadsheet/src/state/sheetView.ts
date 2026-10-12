@@ -131,6 +131,9 @@ export class SheetView {
         info.listValidations = op.lists;
         info.ruleValidations = op.rules;
         break;
+      case 'conditionalFormats':
+        info.conditionalFormats = op.rules;
+        break;
       case 'outline': {
         const was = info.outline?.[op.axis];
         const levels = { ...was?.levels };

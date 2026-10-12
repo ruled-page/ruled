@@ -118,7 +118,8 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
     item.onSelect();
   };
 
-  const render = (list: MenuItem[], top: boolean) =>
+  // The first item is the menu's one tab stop, so a menu tall enough to scroll can be reached from the keyboard.
+  const render = (list: MenuItem[], top: boolean, first = list.findIndex((item) => !('separator' in item) && !item.disabled)) =>
     list.map((item, i) =>
       'separator' in item ? (
         // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- a separator, not a control
@@ -127,7 +128,7 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
         <button
           key={i}
           role="menuitem"
-          tabIndex={-1}
+          tabIndex={i === first ? 0 : -1}
           data-index={i}
           aria-haspopup="menu"
           aria-expanded={open?.index === i}
@@ -144,7 +145,7 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
         <button
           key={i}
           role="menuitem"
-          tabIndex={-1}
+          tabIndex={i === first ? 0 : -1}
           data-index={i}
           className={item.danger ? 'wbe-danger' : undefined}
           disabled={item.disabled}

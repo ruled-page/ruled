@@ -1,6 +1,7 @@
 import type { EngineValue } from '@sitepen/formula-engine';
 import { makeShifter } from '@sitepen/formula-engine/formula';
-import { cellKey, MAX_COLS, parseRange } from '@sitepen/formula-engine/refs';
+import { cellKey, MAX_COLS, parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { placeSheetElement } from './hyperlinks';
 import type { StyleBook } from './styles';
 import type { CfCell, CfResult, CfRule, Cfvo, DiffStyle, Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';
@@ -43,6 +44,7 @@ export function parseConditionalFormats(meta: XmlNode, styles: StyleBook): CfRul
       formulas: (x14 ? children(r, 'f') : children(r, 'formula')).map((f) => f.text.trim()),
       text: attr(r, 'text'),
     };
+    if (dxfId !== undefined) rule.dxfId = Number(dxfId);
     if (attr(r, 'rank') !== undefined) rule.rank = Number(attr(r, 'rank'));
     if (flag(r, 'percent', false)) rule.percent = true;
     if (flag(r, 'bottom', false)) rule.bottom = true;
@@ -103,8 +105,13 @@ export function parseConditionalFormats(meta: XmlNode, styles: StyleBook): CfRul
         }
       }
       const rule = ruleOf(r, rects, x14);
-      const extId = descendants(child(r, 'extLst'), 'id')[0]?.text.trim();
-      if (extId) byExtId.set(extId, rule);
+      // A rule of Excel 2010's own, in the extensions only, goes by its id there.
+      const extId = x14 ? attr(r, 'id') : descendants(child(r, 'extLst'), 'id')[0]?.text.trim();
+      if (extId) {
+        rule.extId = extId;
+        byExtId.set(extId, rule);
+      }
+      if (x14) rule.x14Only = true;
       rules.push(rule);
     }
   }
@@ -445,4 +452,96 @@ export function evaluateConditionalFormats(rules: CfRule[], sheet: number, ctx: 
     cells.push(cell);
   }
   return { sheet, styles, cells, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Writing rules
+
+/** Icon sets Excel 2007 knows; others are Excel 2010's, kept in the sheet's extensions. */
+const ICON_SETS_2007 = new Set([
+  '3Arrows', '3ArrowsGray', '3Flags', '3TrafficLights1', '3TrafficLights2', '3Signs', '3Symbols', '3Symbols2',
+  '4Arrows', '4ArrowsGray', '4RedToBlack', '4Rating', '4TrafficLights', '5Arrows', '5ArrowsGray', '5Rating', '5Quarters',
+]);
+
+const escapeText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const quoteAttr = (s: string) => escapeText(s).replace(/"/g, '&quot;');
+const argb = (hex: string) => `FF${hex.replace(/^#/, '').toUpperCase()}`;
+
+/** A threshold as Excel 2007 writes one: Excel 2010's automatic ends are its minimum and maximum. */
+function cfvoXml(p: string, c: Cfvo, icons: boolean): string {
+  const type = c.type === 'autoMin' ? 'min' : c.type === 'autoMax' ? 'max' : c.type;
+  return `<${p}cfvo type="${type}"${c.val !== undefined && type !== 'min' && type !== 'max' ? ` val="${quoteAttr(c.val)}"` : ''}${icons && !c.gte ? ' gte="0"' : ''}/>`;
+}
+
+/** One rule as Excel writes it in a worksheet's <conditionalFormatting>, with its place in the order. */
+function cfRuleXml(p: string, r: CfRule, priority: number): string {
+  const attrs = [`type="${r.type}"`];
+  if (r.dxfId !== undefined) attrs.push(`dxfId="${r.dxfId}"`);
+  attrs.push(`priority="${priority}"`);
+  if (r.stopIfTrue) attrs.push('stopIfTrue="1"');
+  if (r.type === 'aboveAverage') {
+    if (r.aboveAverage === false) attrs.push('aboveAverage="0"');
+    if (r.equalAverage) attrs.push('equalAverage="1"');
+    if (r.stdDev !== undefined) attrs.push(`stdDev="${r.stdDev}"`);
+  }
+  if (r.rank !== undefined) attrs.push(`rank="${r.rank}"`);
+  if (r.percent) attrs.push('percent="1"');
+  if (r.bottom) attrs.push('bottom="1"');
+  if (r.operator) attrs.push(`operator="${r.operator}"`);
+  if (r.text !== undefined) attrs.push(`text="${quoteAttr(r.text)}"`);
+  let body = r.formulas.map((f) => `<${p}formula>${escapeText(f)}</${p}formula>`).join('');
+  if (r.colorScale) {
+    const { cfvo, colors } = r.colorScale;
+    body += `<${p}colorScale>${cfvo.map((c) => cfvoXml(p, c, false)).join('')}${colors.map((c) => `<${p}color rgb="${argb(c)}"/>`).join('')}</${p}colorScale>`;
+  }
+  if (r.dataBar) {
+    const b = r.dataBar;
+    const lengths = (b.minLength !== 10 ? ` minLength="${b.minLength}"` : '') + (b.maxLength !== 90 ? ` maxLength="${b.maxLength}"` : '');
+    body += `<${p}dataBar${lengths}${b.showValue ? '' : ' showValue="0"'}>${b.cfvo.map((c) => cfvoXml(p, c, false)).join('')}<${p}color rgb="${argb(b.color)}"/></${p}dataBar>`;
+  }
+  if (r.iconSet) {
+    const i = r.iconSet;
+    const set = ICON_SETS_2007.has(i.set) ? i.set : '3TrafficLights1';
+    const named = set === '3TrafficLights1' ? '' : ` iconSet="${set}"`;
+    body += `<${p}iconSet${named}${i.reverse ? ' reverse="1"' : ''}${i.showValue ? '' : ' showValue="0"'}>${i.cfvo.map((c) => cfvoXml(p, c, true)).join('')}</${p}iconSet>`;
+  }
+  if (r.extId) {
+    body +=
+      `<${p}extLst><${p}ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">` +
+      `<x14:id>${escapeText(r.extId)}</x14:id></${p}ext></${p}extLst>`;
+  }
+  return `<${p}cfRule ${attrs.join(' ')}>${body}</${p}cfRule>`;
+}
+
+/**
+ * The worksheet with its conditional formatting as `rules` have it, in
+ * their order: each rule in a <conditionalFormatting> of its own, in its
+ * place among the worksheet's elements. Excel 2010's part of a rule, in the
+ * sheet's extensions, follows its rule's ranges and place, and goes with it.
+ */
+export function writeConditionalFormats(xml: string, p: string, rules: readonly CfRule[]): string {
+  const priority = new Map(rules.map((r, i) => [r, i + 1]));
+  const blocks = rules
+    .filter((r) => !r.x14Only && r.rects.length)
+    .map((r) => `<${p}conditionalFormatting sqref="${r.rects.map(rangeToA1).join(' ')}">${cfRuleXml(p, r, priority.get(r)!)}</${p}conditionalFormatting>`);
+  xml = placeSheetElement(xml, 'conditionalFormatting', blocks.join(''));
+  const byId = new Map(rules.filter((r) => r.extId && r.rects.length).map((r) => [r.extId!, r]));
+  const ext = /<(\w+:)?ext\b[^>]*\buri="\{78C0D931-6437-407d-A8EE-F0AAD7539E65\}"[^>]*>[\s\S]*?<\/\1?ext>/.exec(xml);
+  if (!ext) return xml;
+  const patched = ext[0].replace(/<(\w+:)conditionalFormatting\b([^>]*)>([\s\S]*?)<\/\1conditionalFormatting>/g, (_all, q: string, attrs: string, body: string) => {
+    let ranges: Rect[] | undefined;
+    const kept = body.replace(/<(\w+:)cfRule\b([^>]*)>([\s\S]*?)<\/\1cfRule>/g, (rule, _q: string, ruleAttrs: string) => {
+      const r = byId.get(/\bid="([^"]*)"/.exec(ruleAttrs)?.[1] ?? '');
+      if (!r) return '';
+      ranges = r.rects;
+      return r.x14Only ? rule.replace(/\bpriority="\d+"/, `priority="${priority.get(r)}"`) : rule;
+    });
+    if (!ranges) return '';
+    const sqref = kept.replace(/(<(\w+:)?sqref>)[^<]*(<\/(\w+:)?sqref>)/, (_m, open: string, _a: string, close: string) => `${open}${ranges!.map(rangeToA1).join(' ')}${close}`);
+    return `<${q}conditionalFormatting${attrs}>${sqref}</${q}conditionalFormatting>`;
+  });
+  // An extension left with no rules goes, and the extensions too when none is left.
+  const empty = !/conditionalFormatting\b/.test(patched);
+  xml = xml.slice(0, ext.index) + (empty ? '' : patched) + xml.slice(ext.index + ext[0].length);
+  return xml.replace(/<(\w+:)?extLst>\s*<\/\1?extLst>/, '');
 }
