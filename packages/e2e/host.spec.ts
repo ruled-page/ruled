@@ -48,7 +48,7 @@ test('the element says when a workbook opens or can’t be loaded, and keeps it 
   expect(edits).toBe(1);
 
   // Another workbook, while this one has an unsaved edit: the user is asked first.
-  await page.evaluate(() => document.getElementById('editor')!.setAttribute('src', '/samples/orders.xlsx'));
+  await page.evaluate(() => document.getElementById('editor')!.setAttribute('src', '/examples/demo/public/samples/orders.xlsx'));
   await page.getByRole('button', { name: 'Discard and open' }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { heard: string[] }).heard)).toEqual(['opened orders.xlsx']);
 

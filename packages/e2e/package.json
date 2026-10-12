@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "test": "playwright test"
+    "test": "NODE_OPTIONS=--conditions=source playwright test"
   },
   "dependencies": {
     "@sitepen/spreadsheet": "0.1.0",

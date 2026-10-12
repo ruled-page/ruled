@@ -55,7 +55,7 @@ test('shows placeholders, and never loads the chart library, when the host turns
   await page.evaluate(() => {
     const editor = document.createElement('workbook-editor');
     editor.options = { warnOnUnload: false, features: { charts: false } };
-    editor.setAttribute('src', '/samples/kitchen-sink.xlsx');
+    editor.setAttribute('src', '/examples/demo/public/samples/kitchen-sink.xlsx');
     document.getElementById('editor')!.replaceWith(editor);
   });
   await expect(page.getByRole('tab', { name: 'Monthly Chart' })).toBeVisible();
