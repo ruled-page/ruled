@@ -154,7 +154,6 @@ function criterion(c: Scalar): (v: Scalar) => boolean {
   if (isError(c)) return (v) => isError(v) && v.error === c.error;
   if (typeof c === 'number') return (v) => (typeof v === 'number' ? round15(v) === round15(c) : typeof v === 'string' && v.trim() !== '' && Number(v) === c);
   if (typeof c === 'boolean') return (v) => v === c;
-  if (c === null) return (v) => v === null || v === '';
   const m = /^(<=|>=|<>|<|>|=)?([\s\S]*)$/.exec(c)!;
   const op = m[1] ?? '';
   const rest = m[2];
@@ -568,6 +567,7 @@ function flat(op: Operand, ctx: Ctx): { values: Scalar[]; rows: number; cols: nu
 
 function match(args: Operand[], ctx: Ctx): number {
   const target = scalarOf(args[0], ctx);
+  if (isError(target)) throw target;
   const { values, rows, cols } = flat(args[1], ctx);
   if (rows > 1 && cols > 1) throw NA;
   const type = args[2] === undefined ? 1 : Math.sign(num(scalarOf(args[2], ctx)));
@@ -1736,8 +1736,6 @@ function betaInverse(p: Scalar, alpha: Scalar, beta: Scalar, lo: Scalar | undefi
 
 /** The smallest number of successes whose cumulative binomial probability reaches alpha. */
 function binomialInverse(n: number, p: number, alpha: number): number {
-  if (p === 0) return 0;
-  if (p === 1) return n;
   if (n > 2 ** 53) throw NUM;
   if (n > SUMMED_TRIALS) {
     // The cumulative probability only rises with k: halve the range it could be in.
@@ -2331,11 +2329,11 @@ const trig = (f: (x: number) => number, divides = false): FunctionSpec =>
 // Database functions and Treasury bills
 
 /**
- * A database criterion: as COUNTIF's, except that a blank matches anything
- * and plain text matches text beginning with it, as Excel's filters do.
+ * A database criterion: as COUNTIF's, except that plain text matches text
+ * beginning with it, as Excel's filters do. (A blank condition is passed
+ * over before this, so it lets every record through.)
  */
 function dbCriterion(c: Scalar): (v: Scalar) => boolean {
-  if (c === null || c === '') return () => true;
   if (typeof c === 'string' && !/^(<=|>=|<>|<|>|=)/.test(c) && !Number.isFinite(Number(c)) && !/^(true|false)$/i.test(c)) return criterion(`${c}*`);
   return criterion(c);
 }
