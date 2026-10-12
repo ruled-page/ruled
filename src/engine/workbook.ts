@@ -665,7 +665,8 @@ export class NativeEngine implements FormulaEngine, Host {
    * With iterative calculation on, works the circles the last change closed
    * round again: every formula in or after one, pass after pass (the first
    * was the one just made), until none moves by more than the maximum change
-   * or the passes run out, as Excel does.
+   * or the passes run out, as Excel does. Excel makes one pass fewer than its
+   * maximum iterations: a formula counting itself up from 0 reaches 99 in 100.
    */
   private iterate(): void {
     const iteration = this.iteration;
@@ -673,7 +674,7 @@ export class NativeEngine implements FormulaEngine, Host {
     const closing = this.dirtied.filter((f) => this.circles.has(f) && this.sheets[f.sheet]?.get(f.row, f.col) === f);
     if (!closing.length) return;
     const round = [...new Set([...closing, ...this.dependentFormulas(closing)])];
-    for (let pass = 1; pass < iteration.count; pass++) {
+    for (let pass = 1; pass < iteration.count - 1; pass++) {
       const before = round.map((f) => f.value);
       // Formulas the change hadn't reached yet keep the value they had before it, for the changes it reports.
       for (const f of round) if (f.prev === undefined && this.changes) this.dirty(f);

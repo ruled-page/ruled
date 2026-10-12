@@ -86,7 +86,8 @@ back as .xlsx without losing what the editor can't display.
 - Iterative calculation, when a workbook turns it on (File, Options,
   Formulas in Excel): circular references are worked round instead, each
   pass reading the values from the one before, until no value moves by more
-  than the maximum change or the most passes are made. Such a circle is
+  than the maximum change or the most passes are made (one fewer than the
+  maximum iterations, as Excel makes). Such a circle is
   neither warned of nor named, as in Excel, and values in and after one are
   compared with Excel's saved values to within the maximum change. The
   setting is taken from the file and kept when it is saved; the editor has no

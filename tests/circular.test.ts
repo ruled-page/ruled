@@ -59,9 +59,10 @@ describe('iterative calculation', () => {
   it('stops at the first pass that moves nothing by more than the maximum change, or when the passes run out', () => {
     // Halving the distance to 2 each pass: 1, 1.5, 1.75 and so on.
     expect(engine([['A1/2+1']]).value(0, 0, 0)).toBe(2 - 2 ** -10);
-    expect(engine([['A1/2+1']], { count: 3, delta: 0.001 }).value(0, 0, 0)).toBe(1.75);
-    // A formula counting itself up counts once a pass.
-    expect(engine([['A1+1']]).value(0, 0, 0)).toBe(100);
+    // Excel makes one pass fewer than its maximum iterations.
+    expect(engine([['A1/2+1']], { count: 3, delta: 0.001 }).value(0, 0, 0)).toBe(1.5);
+    // A formula counting itself up counts once a pass: to 99 in 100 iterations, as Excel does.
+    expect(engine([['A1+1']]).value(0, 0, 0)).toBe(99);
   });
 
   it('is read from the workbook, and a circle that iterates is neither warned of nor named', () => {
