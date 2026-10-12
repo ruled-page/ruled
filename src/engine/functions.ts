@@ -340,12 +340,14 @@ function lookupIn(values: Scalar[], target: Scalar, mode: number, last = false):
     } else for (let i = 0; i < values.length; i++) if (eq(values[i])) return i;
     return -1;
   }
-  // XLOOKUP's -1 and 1: an exact match, else the next smaller or larger; searching from the last, the last of equals.
+  // XLOOKUP's -1 and 1: an exact match, else the next smaller or larger, in Excel's order of numbers, text,
+  // then TRUE and FALSE; searching from the last, the last of equals.
+  if (isError(target)) throw target;
   let best = -1;
   for (let k = 0; k < values.length; k++) {
     const i = last ? values.length - 1 - k : k;
     const v = values[i];
-    if (v === null || isError(v) || typeof v !== typeof target) continue;
+    if (v === null || isError(v)) continue;
     const d = compare(v, target);
     if (d === 0) return i;
     if (mode < 0 ? d < 0 : d > 0) {
@@ -361,12 +363,26 @@ function lookupIn(values: Scalar[], target: Scalar, mode: number, last = false):
  * or larger (1).
  */
 function binaryMatch(values: Scalar[], target: Scalar, mode: number, descending: boolean): number {
-  // Ascending, the last value not above it; descending, the last not below.
-  const at = approximate(values, target, descending);
-  if (at >= 0 && compare(values[at], target) === 0) return at;
+  if (isError(target)) throw target;
+  // Empty cells after the last value aren't searched.
+  let n = values.length;
+  while (n > 0 && values[n - 1] === null) n--;
+  // Ascending, the first value not below it, so the first of equals; descending, the first below it,
+  // so the last of equals (as Excel finds them), in Excel's order of numbers, text, then TRUE and FALSE.
+  let lo = 0;
+  let hi = n;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    const d = compare(values[mid], target);
+    if (descending ? d >= 0 : d < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  const equal = descending ? lo - 1 : lo;
+  if (equal >= 0 && equal < n && compare(values[equal], target) === 0) return equal;
   if (mode === 0 || mode === 2) return -1;
-  if (descending ? mode > 0 : mode < 0) return at;
-  return at + 1 < values.length ? at + 1 : -1;
+  // Next smaller ascending, or next larger descending, comes before it; the other after.
+  if (descending ? mode > 0 : mode < 0) return lo - 1;
+  return lo < n ? lo : -1;
 }
 
 /** A key for a value, for finding exact matches by it: numbers to 15 digits, text without regard to case. */
@@ -490,17 +506,31 @@ function index(args: Operand[], ctx: Ctx): Operand {
 function xlookup(args: Operand[], ctx: Ctx): Operand {
   const target = scalarOf(args[0], ctx);
   const look = flat(args[1], ctx);
-  if (look.rows > 1 && look.cols > 1) throw VALUE;
+  // Sizes as written: a whole column is read only as far as it is used, and is empty past that.
+  const size = args[1] instanceof Ref ? args[1] : look;
+  if (size.rows > 1 && size.cols > 1) throw VALUE;
   const ret = args[2] instanceof Ref ? { rows: args[2].rows, cols: args[2].cols } : matrixOf(args[2], ctx);
-  const vertical = look.cols === 1 && look.rows > 1 ? true : look.rows === 1 && look.cols > 1 ? false : ret.rows >= ret.cols;
-  if ((vertical ? ret.rows : ret.cols) !== look.values.length) throw VALUE;
-  const mode = args[4] === undefined || args[4] === null ? 0 : num(scalarOf(args[4], ctx));
-  const search = args[5] === undefined || args[5] === null ? 1 : num(scalarOf(args[5], ctx));
+  const vertical = size.cols === 1 && size.rows > 1 ? true : size.rows === 1 && size.cols > 1 ? false : ret.rows >= ret.cols;
+  if ((vertical ? ret.rows : ret.cols) !== (vertical ? size.rows : size.cols)) throw VALUE;
+  const mode = given(args, 4) ? Math.trunc(num(scalarOf(args[4], ctx))) : 0;
+  const search = given(args, 5) ? Math.trunc(num(scalarOf(args[5], ctx))) : 1;
+  // Wildcards can't be searched for by halves.
+  if (![-1, 0, 1, 2].includes(mode) || ![-2, -1, 1, 2].includes(search) || (mode === 2 && Math.abs(search) === 2)) throw VALUE;
   let at: number;
-  if (Math.abs(search) === 2) at = binaryMatch(look.values, target, mode, search < 0);
+  if (target === null) {
+    // Nothing looked for finds an empty cell: the first (or last) one, past the used part if need be.
+    const length = vertical ? size.rows : size.cols;
+    const empty = (i: number) => (i < look.values.length ? look.values[i] === null : true);
+    at = -1;
+    for (let k = 0; k < Math.min(length, look.values.length + 1) && at < 0; k++) {
+      const i = search < 0 ? length - 1 - k : k;
+      if (empty(i)) at = i;
+    }
+  } else if (Math.abs(search) === 2) at = binaryMatch(look.values, target, mode, search < 0);
   else at = lookupIn(look.values, target, mode, search < 0);
   if (at < 0) {
-    if (args[3] !== undefined) return valuesOf(args[3], ctx);
+    // An empty if_not_found is as good as none.
+    if (given(args, 3)) return valuesOf(args[3], ctx);
     throw NA;
   }
   return vertical ? slice(args[2], ctx, at, 0, at, ret.cols - 1) : slice(args[2], ctx, 0, at, ret.rows - 1, at);
@@ -2838,7 +2868,7 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       if (rows > 1 && cols > 1) throw VALUE;
       const mode = given(a, 2) ? Math.trunc(num(scalarOf(a[2], ctx))) : 0;
       const search = given(a, 3) ? Math.trunc(num(scalarOf(a[3], ctx))) : 1;
-      if (![-1, 0, 1, 2].includes(mode) || ![-2, -1, 1, 2].includes(search)) throw VALUE;
+      if (![-1, 0, 1, 2].includes(mode) || ![-2, -1, 1, 2].includes(search) || (mode === 2 && Math.abs(search) === 2)) throw VALUE;
       const find = finder(values, mode, search, a[0] instanceof Matrix || (a[0] instanceof Ref && !a[0].single));
       return eachValue(a[0], ctx, (target) => {
         if (isError(target)) throw target;

@@ -166,7 +166,8 @@ describe('lookup functions', () => {
       ['XMATCH(TRUE(),{FALSE()},-1)', 1],
       ['XMATCH(D4,{1,0})', NA],
       ['XMATCH(DATE(2026,2,1),E1:E2)', 2],
-      ['XMATCH(5.77,A1:A5,2,2)', 4],
+      // Wildcards can't be searched for by halves, whatever is looked for.
+      ['XMATCH(5.77,A1:A5,2,2)', VALUE],
       ['XMATCH("z*",B1:B5,2)', NA],
       ['XMATCH({"red","blue"},B1:B5)', [[1, 5]]],
       ['XMATCH(1,{1,2},3)', VALUE],
