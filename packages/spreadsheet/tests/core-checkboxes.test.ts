@@ -7,7 +7,7 @@ import type { Rect } from '../src/core/types';
 import { checkboxState } from '../src/state/checkbox';
 import type { WorkbookStore } from '../src/state/store';
 import { strToU8, zipSync } from 'fflate';
-import { parts } from './helpers';
+import { open as openSample, parts } from './helpers';
 import { opened, testStore } from './storeHarness';
 
 vi.setConfig({ testTimeout: 10_000 });
@@ -111,6 +111,21 @@ describe('checkboxes in a workbook', () => {
     const u = open(t.save());
     expect(style(u, 0, 1).checkbox).toBeUndefined();
     expect(u.current(0, 0, 1).content).toEqual({ kind: 'bool', value: true });
+  });
+});
+
+describe("a workbook XlsxWriter made, as Excel 365 does", () => {
+  it('has its checkboxes read: ticked, unticked, and one a formula works out', () => {
+    const s = openSample('kitchen-sink.xlsx');
+    const at = (ref: string) => {
+      const col = ref.charCodeAt(0) - 65;
+      const row = Number(ref.slice(1)) - 1;
+      return { style: s.model.styles.get(s.current(0, row, col).style), content: s.current(0, row, col).content };
+    };
+    expect(['H5', 'H6', 'H7', 'H8', 'H9'].map((r) => at(r).style.checkbox)).toEqual([true, true, true, true, true]);
+    expect(at('H5').content).toEqual({ kind: 'bool', value: true });
+    expect(at('H9').content).toMatchObject({ kind: 'formula' });
+    expect(at('H4').style.checkbox).toBeUndefined();
   });
 });
 

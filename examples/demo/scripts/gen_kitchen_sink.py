@@ -1,7 +1,7 @@
 """
 Builds public/samples/kitchen-sink.xlsx: a workbook that exercises most of
 the features the editor has to preserve or warn about (charts, a chart
-sheet, a table, conditional formatting, validation, comments, sparklines,
+sheet, a table, conditional formatting, validation, checkboxes, comments, sparklines,
 pictures, array and spill formulas, functions the in-app engine lacks).
 
 XlsxWriter does not calculate formulas, so every formula is written with the
@@ -158,6 +158,13 @@ for q in range(4):
                           sum(x[5] for x in data if quarters[q][0] <= x[0] < quarters[q][1]))
 summary.write_formula("F9", "=SUM(F5:F8)", money_bold, grand)
 summary.write_formula("G9", "=SUM(G5:G8)", pct_bold, 1.0)
+
+# Excel 365 checkboxes: whether each region's figures are reviewed, and one worked out from them.
+reviewed = [True, False, True, False]
+summary.write("H4", "Reviewed", header)
+for r, done in enumerate(reviewed):
+    summary.insert_checkbox(4 + r, 7, done)
+summary.write_formula("H9", "=AND(H5:H8)", wb.add_format({"checkbox": True}), all(reviewed))
 
 summary.write("A11", "Tax rate")
 summary.write_formula("B11", "=TaxRate", pct, TAX_RATE)

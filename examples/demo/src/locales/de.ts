@@ -39,7 +39,7 @@ export const de: Record<keyof typeof en, string> = {
   'sample.priceListOld.detail': 'Eine umbenannte Spalte: Das Schema passt daher nicht, und die Datei wird als gewöhnliche Arbeitsmappe geöffnet.',
   'sample.salesReport.title': 'Umsatzbericht',
   'sample.salesReport.detail':
-    'Diagramme, ein Diagrammblatt, eine Tabelle, Datenüberprüfung, Notizen, Bilder, ein ausgeblendetes Blatt sowie LET-, dynamische Matrix- und Strg+Umschalt+Eingabe-Formeln.',
+    'Diagramme, ein Diagrammblatt, eine Tabelle, Datenüberprüfung, Kontrollkästchen, Notizen, Bilder, ein ausgeblendetes Blatt sowie LET-, dynamische Matrix- und Strg+Umschalt+Eingabe-Formeln.',
   'sample.orders.title': 'Bestellprotokoll',
   'sample.orders.detail':
     'Die Datenüberprüfung von Excel: Dropdownlisten (direkt eingegeben, benannt, mit OFFSET und abhängig mit INDIRECT) sowie Regeln für Zahlen, Datumsangaben, Textlänge und benutzerdefinierte Formeln.',
