@@ -1,4 +1,5 @@
 import { mergeEditResults } from '../core/editResult';
+import { moveInsertLanding } from '../core/refTransform';
 import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
 import { invertIndexMap, isSheetOp, nearestVisible, nextSheetName, sheetIndexMap, sheetOpProblem, type SheetOp, type WorkbookOp } from '../core/sheetRules';
@@ -434,6 +435,12 @@ function describeStructure(op: WorkbookOp, sheets: SheetView[]): Text {
       const sheet = sheets[op.toSheet]?.info.name;
       return sheet === undefined ? msg('store.history.movedElsewhere', { range }) : msg('store.history.movedTo', { range, sheet });
     }
+    case 'moveInsert':
+      return msg('store.history.moved', { range: rangeLabel(op.src) });
+    case 'insertCells':
+      return msg('store.history.insertedCells', { range: rangeLabel(op.rect) });
+    case 'deleteCells':
+      return msg('store.history.deletedCells', { range: rangeLabel(op.rect) });
   }
 }
 
@@ -529,6 +536,8 @@ export class WorkbookStore {
   linkDialog = false;
   /** Excel's Fill Series dialog, for the selection. */
   seriesDialog = false;
+  /** Excel's Insert or Delete dialog, open for the selection. */
+  cellsDialog?: 'insert' | 'delete';
   /** Excel's Custom Lists dialog, opened from the Fill Series dialog. */
   customListsOpen = false;
   /** The user's lists couldn't be kept in the browser's storage, so they last until the page closes. */
@@ -1622,6 +1631,10 @@ export class WorkbookStore {
     if (op.type === 'move') {
       rect = { r1: op.row, c1: op.col, r2: op.row + op.src.r2 - op.src.r1, c2: op.col + op.src.c2 - op.src.c1 };
       this.active = op.toSheet;
+    } else if (op.type === 'moveInsert') {
+      rect = moveInsertLanding(op);
+    } else if (op.type === 'insertCells' || op.type === 'deleteCells') {
+      rect = op.rect;
     } else if (op.type === 'insertRows') {
       return this.selectLines('rows', [[op.at, op.at + op.count - 1]], { row: op.at, col: sel.col });
     } else if (op.type === 'insertCols') {
@@ -1654,6 +1667,52 @@ export class WorkbookStore {
   deleteCols(): Promise<boolean> {
     const r = this.selection.rects[0] ?? { r1: 0, r2: 0, c1: this.selection.col, c2: this.selection.col };
     return this.restructure({ type: 'deleteCols', sheet: this.active, at: r.c1, count: r.c2 - r.c1 + 1 });
+  }
+
+  /**
+   * Inserts blank cells over the selection, the cells there moving down or
+   * right to make room, or inserts the rows or columns it spans, as Excel's
+   * Insert dialog does. References to the cells that move follow them.
+   */
+  insertCells(shift: 'down' | 'right' | 'rows' | 'cols'): Promise<boolean> {
+    if (shift === 'rows') return this.insertRows('above');
+    if (shift === 'cols') return this.insertCols('left');
+    const rect = this.oneRange();
+    return rect ? this.restructure({ type: 'insertCells', sheet: this.active, rect, shift }) : Promise.resolve(false);
+  }
+
+  /** Deletes the selected cells, the cells below or to the right moving up or left to close the gap, or deletes the rows or columns they span. */
+  deleteCells(shift: 'up' | 'left' | 'rows' | 'cols'): Promise<boolean> {
+    if (shift === 'rows') return this.deleteRows();
+    if (shift === 'cols') return this.deleteCols();
+    const rect = this.oneRange();
+    return rect ? this.restructure({ type: 'deleteCells', sheet: this.active, rect, shift }) : Promise.resolve(false);
+  }
+
+  /**
+   * Excel's Ctrl+Shift+= and Ctrl+-: selected rows or columns are inserted
+   * or deleted straight away; for cells, its dialog asks which way the
+   * others move.
+   */
+  changeCells(kind: 'insert' | 'delete'): void {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return;
+    if (view.info.protected) return this.toast('warn', msg('core.reason.protected'));
+    const { lines } = this.selection;
+    if (lines) {
+      const axis = lines === 'cols' ? 'cols' : 'rows';
+      void (kind === 'insert' ? this.insertCells(axis) : this.deleteCells(axis));
+    } else if (this.oneRange()) {
+      this.set('cellsDialog', kind);
+    }
+  }
+
+  /** The selection, when it's one range; Excel inserts and deletes cells one range at a time. */
+  private oneRange(): Rect | undefined {
+    const { rects } = this.selection;
+    if (rects.length === 1) return rects[0];
+    this.toast('warn', msg('store.cells.oneRange'));
+    return undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -2732,6 +2791,20 @@ export class WorkbookStore {
     return true;
   }
 
+  /**
+   * Moves the selected cells in between others, as dragging the selection's
+   * border with Shift does in Excel: the cells from `row` down (or from `col`
+   * right) make room for them, and the cells after where they were close up.
+   */
+  dragInsert(row: number, col: number, shift: 'down' | 'right'): Promise<boolean> {
+    const src = this.selection.rects[0];
+    if (!src || this.selection.rects.length !== 1) return Promise.resolve(false);
+    // Dropped on the edge they already have, nothing moves.
+    const across = shift === 'right';
+    if (across ? col >= src.c1 && col <= src.c2 + 1 && row === src.r1 : row >= src.r1 && row <= src.r2 + 1 && col === src.c1) return Promise.resolve(false);
+    return this.restructure({ type: 'moveInsert', sheet: this.active, src, row, col, shift });
+  }
+
   /** Typing still being checked before its edit is queued. */
   private readonly typing = new Set<Promise<void>>();
 
@@ -3504,6 +3577,7 @@ export class WorkbookStore {
       | 'nameManagerOpen'
       | 'linkDialog'
       | 'seriesDialog'
+      | 'cellsDialog'
       | 'customListsOpen'
       | 'schemaDraft'
       | 'designerPick',

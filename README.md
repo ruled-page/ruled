@@ -22,8 +22,15 @@ back as .xlsx without losing what the editor can't display.
   them follow, and holding Ctrl (Option on a Mac) copies them instead, their
   formulas' references shifting as when pasted. A dashed outline shows where
   they'll land, Escape gives up, and dropping them on cells that hold
-  something asks first. (Excel's Shift+drag, which inserts them between
-  cells, isn't there yet.)
+  something asks first. Holding Shift puts them in between the cells there
+  instead, at the cell edge a line marks, those cells making room and the
+  ones after where they were closing up; a total over a list keeps all its
+  rows when one is dragged to its top or bottom.
+- Insert or delete cells as Excel's Insert and Delete dialogs do (Ctrl++
+  and Ctrl+-, or "Insert cells…" and "Delete cells…" in the cell menu): the
+  cells below or to the right move along, or whole rows or columns go in or
+  out. With whole rows or columns selected, the keys insert or delete them
+  straight away.
 - Fill as in Excel. Dragging the fill handle continues numbers, dates,
   quarters, "Item 1" → "Item 2", and lists: day and month names, short and
   full, in the editor's language as well as English (Montag, Mo., Januar and
@@ -1061,8 +1068,8 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
 - Glide can freeze columns but not rows, so frozen rows are a second grid
   above the scrolling one. Arrow keys and sideways scrolling carry across;
   a drag or shift-selection can't span the two.
-- Inserting or deleting rows and columns, and moving cells with cut and
-  paste, rebuild the workbook in the worker: every reference to cells that
+- Inserting or deleting rows, columns and cells, and moving cells with cut
+  and paste or by dragging, rebuild the workbook in the worker: every reference to cells that
   move follows them (formulas on all sheets, names, merges, validation,
   conditional formatting, links, tables, pivot sources, charts, pictures and
   notes), references to deleted cells become #REF!, and changes that would
@@ -1071,7 +1078,13 @@ packages, listed with their licence texts in `THIRD-PARTY-NOTICES.md`, which
   array's spill, which spills again afterwards; cutting and pasting part of
   one is refused. Each one rebuilds the calculation engine, which takes a moment on
   large workbooks, and up to 20 can be undone. Cells moved to another sheet
-  leave merges and tables behind, so such moves are refused.
+  leave merges and tables behind, so such moves are refused. When cells are
+  inserted or deleted, only ranges within the columns (or rows) that move
+  follow them; a range reaching outside them stays as it was, and pictures
+  and charts move only with whole rows and columns. Inserting or deleting
+  cells, or Shift+dragging them, inside a table, a merged cell, an array
+  formula or a pivot table is refused, except that Shift+drag can reorder a
+  table's rows while its header and totals stay put.
 - Outlines: Excel's Auto Outline, outline styles and outline settings (where
   summaries go, whether the outline symbols show) aren't offered, and the
   bars show on any sheet with groups; what a file sets is kept and saved.

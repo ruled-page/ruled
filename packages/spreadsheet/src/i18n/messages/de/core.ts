@@ -242,6 +242,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.structure.splitsTable':
     'Damit würde ein Teil der Tabelle „{{table}}“ verschoben. Verschieben Sie die ganze Tabelle oder nur Zellen außerhalb davon.',
   'core.structure.splitsMerge': 'Damit würde ein Teil der verbundenen Zelle {{range}} verschoben. Verschieben Sie sie ganz.',
+  'core.structure.moveInsertSplits': 'Diese Zellen können nicht dorthin: Der Platz für sie würde sie auseinanderreißen.',
   'core.structure.mergeToOtherSheet': 'Verbundene Zellen können nur innerhalb ihres Blatts verschoben werden. Kopieren Sie sie stattdessen.',
   'core.structure.tableToOtherSheet': 'Tabellen können nur innerhalb ihres Blatts verschoben werden.',
   'core.structure.brokenRefs_one':
@@ -277,6 +278,10 @@ export const core: Record<keyof typeof en, string> = {
   'core.change.tableGrew_other': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeilen',
   'core.change.insertedRows_one': '{{count, number}} Zeile eingefügt',
   'core.change.insertedRows_other': '{{count, number}} Zeilen eingefügt',
+  'core.change.insertedCellsDown': 'Zellen eingefügt, die Zellen darunter nach unten verschoben',
+  'core.change.insertedCellsRight': 'Zellen eingefügt, die Zellen rechts davon nach rechts verschoben',
+  'core.change.deletedCellsUp': 'Zellen gelöscht, die Zellen darunter nach oben verschoben',
+  'core.change.deletedCellsLeft': 'Zellen gelöscht, die Zellen rechts davon nach links verschoben',
   'core.change.insertedColumns_one': '{{count, number}} Spalte eingefügt',
   'core.change.insertedColumns_other': '{{count, number}} Spalten eingefügt',
   'core.change.deletedRows_one': '{{count, number}} Zeile gelöscht',

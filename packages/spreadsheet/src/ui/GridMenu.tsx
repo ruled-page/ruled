@@ -89,6 +89,8 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
       : menu.kind === 'row' || wholeRows
         ? [...rowItems, ...rowLayout]
         : [
+            { label: t('menu.insertCells'), hint: mod(t, '+'), onSelect: () => store.set('cellsDialog', 'insert'), disabled: locked || sel.rects.length !== 1 },
+            { label: t('menu.deleteCells'), hint: mod(t, '-'), onSelect: () => store.set('cellsDialog', 'delete'), disabled: locked || sel.rects.length !== 1, danger: true },
             { label: t('menu.rows'), items: [...rowItems, { separator: true }, ...rowLayout] },
             { label: t('menu.columns'), items: [...colItems, { separator: true }, ...colLayout] },
             ...(rows * cols > 1 ? [{ label: t('menu.merge'), onSelect: () => void store.mergeCells(), disabled: locked }] : []),

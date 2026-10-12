@@ -221,6 +221,8 @@ export function SheetGrid({
   const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
   /** Where the selection being dragged by its border would land, and whether it would be copied. */
   const [cellDrag, setCellDrag] = useState<{ rect: Rect; copy: boolean } | null>(null);
+  // Where Shift+dragged cells would go in between others, in the host's pixels.
+  const [insertGuide, setInsertGuide] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const styles = store.styles;
   const date1904 = store.date1904;
   const locale = store.locale;
@@ -1058,10 +1060,22 @@ export function SheetGrid({
     const col = lineLevelWith('cols', x, y);
     return row === undefined || col === undefined ? undefined : { row, col };
   };
+  /** Where a block of cells is on this pane, in the host's pixels. */
+  const boxOf = (r: Rect) => {
+    const grid = ref.current;
+    if (!grid || !host.current) return undefined;
+    const a = grid.getBounds(Math.max(0, view.gridCol(r.c1)) + 1, view.gridRow(r.r1) - rowStart);
+    const b = grid.getBounds(Math.max(0, view.gridCol(r.c2)) + 1, view.gridRow(r.r2) - rowStart);
+    if (!a || !b) return undefined;
+    const h = host.current.getBoundingClientRect();
+    return { left: a.x - h.left, top: a.y - h.top, right: b.x + b.width - h.left, bottom: b.y + b.height - h.top };
+  };
   /**
    * Drags the selection by its border: its cells move where it is dropped,
    * or with Ctrl (Option on a Mac) held, are copied there, as in Excel. A
-   * dashed outline shows where they'll go; Escape gives up.
+   * dashed outline shows where they'll go. With Shift, they go in between the
+   * cells there instead, at the cell edge nearest the pointer, which a line
+   * shows. Escape gives up.
    */
   const dragSelection = (e: ReactMouseEvent) => {
     const src = store.selection.rects[0];
@@ -1071,30 +1085,56 @@ export function SheetGrid({
     e.stopPropagation();
     // Where in the selection it was picked up, so it keeps that point under the pointer.
     const off = { row: Math.min(Math.max(from.row - src.r1, 0), src.r2 - src.r1), col: Math.min(Math.max(from.col - src.c1, 0), src.c2 - src.c1) };
+    const height = src.r2 - src.r1;
+    const width = src.c2 - src.c1;
     let drop: Rect | undefined;
+    let insert: { row: number; col: number; shift: 'down' | 'right' } | undefined;
     let copy = false;
+    let pointer = { x: e.clientX, y: e.clientY };
     const copying = (m: MouseEvent | KeyboardEvent) => (APPLE ? m.altKey : m.ctrlKey);
     const show = () => {
-      setCellDrag(drop ? { rect: drop, copy } : null);
+      setCellDrag(drop && !insert ? { rect: drop, copy } : null);
       if (host.current) host.current.style.cursor = copy ? 'copy' : 'move';
     };
-    const move = (m: MouseEvent) => {
-      const at = cellUnder(m.clientX, m.clientY);
+    const update = (m: MouseEvent | KeyboardEvent) => {
+      const at = cellUnder(pointer.x, pointer.y);
       copy = copying(m);
+      insert = undefined;
+      setInsertGuide(null);
       if (at) {
         const row = Math.max(0, at.row - off.row);
         const col = Math.max(0, at.col - off.col);
-        drop = { r1: row, c1: col, r2: row + src.r2 - src.r1, c2: col + src.c2 - src.c1 };
+        drop = { r1: row, c1: col, r2: row + height, c2: col + width };
+        const cell = m.shiftKey && !copy ? boxOf({ r1: at.row, c1: at.col, r2: at.row, c2: at.col }) : undefined;
+        const h = host.current?.getBoundingClientRect();
+        if (cell && h) {
+          // The edge nearest the pointer, for the cell's shape: top or bottom puts the cells between rows, left or right between columns.
+          const x = (pointer.x - h.left - cell.left) / (cell.right - cell.left);
+          const y = (pointer.y - h.top - cell.top) / (cell.bottom - cell.top);
+          const across = Math.min(x, 1 - x) < Math.min(y, 1 - y);
+          insert = across ? { row, col: x < 0.5 ? at.col : at.col + 1, shift: 'right' } : { row: y < 0.5 ? at.row : at.row + 1, col, shift: 'down' };
+          const box = across ? boxOf({ r1: row, c1: at.col, r2: row + height, c2: at.col }) : boxOf({ r1: at.row, c1: col, r2: at.row, c2: col + width });
+          if (box)
+            setInsertGuide(
+              across
+                ? { left: x < 0.5 ? box.left : box.right, top: box.top, width: 0, height: box.bottom - box.top }
+                : { left: box.left, top: y < 0.5 ? box.top : box.bottom, width: box.right - box.left, height: 0 },
+            );
+        }
       }
       show();
+    };
+    const move = (m: MouseEvent) => {
+      pointer = { x: m.clientX, y: m.clientY };
+      update(m);
     };
     const key = (k: KeyboardEvent) => {
       if (k.key === 'Escape') {
         drop = undefined;
+        insert = undefined;
         end();
       } else {
-        copy = copying(k);
-        show();
+        update(k);
       }
     };
     const end = () => {
@@ -1103,14 +1143,17 @@ export function SheetGrid({
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('keyup', key, true);
       setCellDrag(null);
+      setInsertGuide(null);
       if (host.current) host.current.style.cursor = '';
     };
     const up = () => {
       // The click that ends the drag isn't one on the grid.
       swallowNextClick();
       const to = drop;
+      const between = insert;
       end();
-      if (to && (to.r1 !== src.r1 || to.c1 !== src.c1)) void store.dragSelection(to.r1, to.c1, copy);
+      if (between) void store.dragInsert(between.row, between.col, between.shift);
+      else if (to && (to.r1 !== src.r1 || to.c1 !== src.c1)) void store.dragSelection(to.r1, to.c1, copy);
     };
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
@@ -1228,6 +1271,14 @@ export function SheetGrid({
         store.selectAll();
         return;
       }
+      // Ctrl++ (Ctrl+Shift+= on a US keyboard) inserts and Ctrl+- deletes, as in Excel, in place of the browser's zoom.
+      const insert = e.key === '+' || (e.key === '=' && e.shiftKey);
+      if ((insert || e.key === '-') && (e.ctrlKey || e.metaKey) && !e.altKey) {
+        e.cancel();
+        e.preventDefault();
+        store.changeCells(insert ? 'insert' : 'delete');
+        return;
+      }
       onKeyDown?.(e);
     },
     [store, onKeyDown],
@@ -1324,6 +1375,7 @@ export function SheetGrid({
       {hoverNote && <NoteTip {...hoverNote} />}
       {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
       {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
+      {insertGuide && <div className="wbe-insert-guide" style={insertGuide} />}
       <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
     </div>
   );

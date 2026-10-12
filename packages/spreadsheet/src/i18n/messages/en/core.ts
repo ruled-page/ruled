@@ -235,6 +235,7 @@ export const core = {
   'core.structure.deletesTable': 'That would delete all of table "{{table}}". Delete the table in Excel.',
   'core.structure.splitsTable': 'That would move part of table "{{table}}". Move the whole table, or cells outside it.',
   'core.structure.splitsMerge': 'That would move part of the merged cell {{range}}. Move all of it.',
+  'core.structure.moveInsertSplits': "Those cells can't go there: making room for them would split them up.",
   'core.structure.mergeToOtherSheet': 'Merged cells can only be moved within their sheet. Copy them instead.',
   'core.structure.tableToOtherSheet': 'Tables can only be moved within their sheet.',
   /** {{error}} is Excel's error code, #REF!. */
@@ -270,6 +271,10 @@ export const core = {
   'core.change.tableGrew_other': 'Table {{table}} took in {{count, number}} more rows',
   'core.change.insertedRows_one': 'Inserted {{count, number}} row',
   'core.change.insertedRows_other': 'Inserted {{count, number}} rows',
+  'core.change.insertedCellsDown': 'Inserted cells, moving the cells below down',
+  'core.change.insertedCellsRight': 'Inserted cells, moving the cells to the right along',
+  'core.change.deletedCellsUp': 'Deleted cells, moving the cells below up',
+  'core.change.deletedCellsLeft': 'Deleted cells, moving the cells to the right back',
   'core.change.insertedColumns_one': 'Inserted {{count, number}} column',
   'core.change.insertedColumns_other': 'Inserted {{count, number}} columns',
   'core.change.deletedRows_one': 'Deleted {{count, number}} row',

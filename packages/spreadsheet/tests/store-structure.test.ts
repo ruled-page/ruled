@@ -495,3 +495,87 @@ describe("dragging the selection's border", () => {
     expect(cell(1, 1)?.n).toBe(3);
   });
 });
+
+describe('inserting and deleting cells', () => {
+  it('inserts cells, moving those below down with references following, and selects them', async () => {
+    await open();
+    select(rect(1, 1));
+    expect(await store.insertCells('down')).toBe(true);
+    expect(column(1, 1, 5)).toEqual([undefined, 3, 1, 2, 10]);
+    expect([cell(1, 3)?.f, cell(1, 3)?.n]).toEqual(['B3*C2', 6]);
+    expect(store.selection.rects).toEqual([rect(1, 1)]);
+    expect(actions()).toEqual(['Inserted cells B2']);
+  });
+
+  it('deletes cells, closing the gap, as one step that undoes at once', async () => {
+    await open();
+    select(rect(1, 0, 2, 0));
+    expect(await store.deleteCells('up')).toBe(true);
+    expect(column(0, 0, 4)).toEqual(['Name', 'Fig', 'Banana', undefined, undefined]);
+    expect(actions()).toEqual(['Deleted cells A2:A3']);
+    await store.undo();
+    expect(column(0, 0, 4)).toEqual(['Name', 'Pear', 'apple', 'Fig', 'Banana']);
+  });
+
+  it('inserts or deletes whole rows or columns when asked to', async () => {
+    await open();
+    const each = async (step: () => Promise<boolean>) => {
+      select(rect(1, 0));
+      expect(await step()).toBe(true);
+    };
+    await each(() => store.insertCells('rows'));
+    await each(() => store.deleteCells('cols'));
+    await each(() => store.insertCells('cols'));
+    await each(() => store.deleteCells('rows'));
+    expect(actions()).toEqual(['Inserted 1 row', 'Deleted 1 column', 'Inserted 1 column', 'Deleted 1 row']);
+    expect(column(1, 0, 1)).toEqual(['Qty', 3]);
+  });
+
+  it('inserts or deletes selected rows straight away from the keyboard, and asks about cells', async () => {
+    await open();
+    store.selectLines('rows', [[1, 1]], { row: 1, col: 0 });
+    store.changeCells('insert');
+    await vi.waitFor(() => expect(actions()).toEqual(['Inserted 1 row']));
+    store.selectLines('cols', [[0, 0]], { row: 0, col: 0 });
+    store.changeCells('delete');
+    await vi.waitFor(() => expect(actions()).toEqual(['Inserted 1 row', 'Deleted 1 column']));
+    select(rect(2, 1, 3, 1));
+    store.changeCells('delete');
+    expect(store.cellsDialog).toBe('delete');
+  });
+
+  it('turns down several ranges at once, and protected sheets', async () => {
+    await open();
+    store.setSelection({ row: 1, col: 1, rects: [rect(1, 1), rect(3, 1)] });
+    store.changeCells('insert');
+    expect(await store.deleteCells('up')).toBe(false);
+    expect(store.cellsDialog).toBeUndefined();
+    store.setActive(3);
+    store.changeCells('insert');
+    expect(toasts()).toEqual([
+      'Cells are inserted and deleted one range at a time: select a single range.',
+      'Cells are inserted and deleted one range at a time: select a single range.',
+      'This sheet is protected in Excel, so it is read-only here.',
+    ]);
+  });
+
+  it('moves cells in between others with Shift+drag, selecting where they land', async () => {
+    await open();
+    select(rect(1, 0, 1, 3));
+    expect(await store.dragInsert(4, 0, 'down')).toBe(true);
+    expect(column(0, 0, 4)).toEqual(['Name', 'apple', 'Fig', 'Pear', 'Banana']);
+    expect([cell(3, 3)?.f, cell(0, 5)?.f, cell(0, 5)?.n]).toEqual(['B4*C4', 'SUM(D2:D5)', 18]);
+    expect(store.selection.rects).toEqual([rect(3, 0, 3, 3)]);
+    expect(actions()).toEqual(['Moved A2:D2']);
+  });
+
+  it('leaves cells dropped on their own edge, or a selection of several areas, where they are', async () => {
+    await open();
+    select(rect(1, 0, 1, 3));
+    expect(await store.dragInsert(2, 0, 'down')).toBe(false);
+    expect(await store.dragInsert(1, 4, 'right')).toBe(false);
+    store.setSelection({ row: 1, col: 1, rects: [rect(1, 1), rect(3, 1)] });
+    expect(await store.dragInsert(6, 1, 'down')).toBe(false);
+    expect(actions()).toEqual([]);
+  });
+});

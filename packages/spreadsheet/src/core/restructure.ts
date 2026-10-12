@@ -1,6 +1,21 @@
 import { msg, TextError } from '../i18n/message';
 import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
-import { refMapFor, splits, transformFormula, transformSqref, type FormulaContext, type LineOp, type RefMap, type StructuralOp } from './refTransform';
+import {
+  isCellShift,
+  isLineOp,
+  moveInsertSpan,
+  moveInsertSteps,
+  refMapFor,
+  reorderedWithin,
+  splits,
+  transformFormula,
+  transformSqref,
+  type CellShiftOp,
+  type FormulaContext,
+  type LineOp,
+  type RefMap,
+  type StructuralOp,
+} from './refTransform';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { countElements, decodeEntities, elements, escapeXml, findTagEnd, replaceElements } from './xml';
@@ -85,7 +100,8 @@ export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: Structu
       if (r.type === 'comments') rewriteText(pkg, r.target, (xml) => comments(xml, s, map));
       if (r.type === 'threadedComment') rewriteText(pkg, r.target, (xml) => threads(xml, s, map));
       if (r.type === 'vmlDrawing') rewriteText(pkg, r.target, (xml) => vmlNotes(xml, s, map));
-      if (r.type === 'drawing' && op.type !== 'move') rewriteText(pkg, r.target, (xml) => anchors(xml, op));
+      // Pictures and charts move with whole rows and columns, not with cells shifting past them, as in Excel.
+      if (r.type === 'drawing' && isLineOp(op)) rewriteText(pkg, r.target, (xml) => anchors(xml, op));
     }
   });
   return { broken };
@@ -141,6 +157,19 @@ function check(model: WorkbookModel, op: StructuralOp, spilling: ReadonlySet<str
   if (op.type === 'insertCols' && scan && scan.maxCol + op.count >= MAX_COLS) {
     throw new TextError(msg('core.structure.noRoomRight'));
   }
+  // Shift+drag makes room for its cells first.
+  const room = op.type === 'insertCells' ? op : op.type === 'moveInsert' ? (moveInsertSteps(op)[0] as CellShiftOp) : undefined;
+  if (room && scan) {
+    const down = room.shift === 'down';
+    const count = down ? room.rect.r2 - room.rect.r1 + 1 : room.rect.c2 - room.rect.c1 + 1;
+    if (down ? scan.maxRow + count >= MAX_ROWS : scan.maxCol + count >= MAX_COLS) throw new TextError(msg(down ? 'core.structure.noRoomBelow' : 'core.structure.noRoomRight'));
+  }
+  // Merged cells can't be torn apart by cells moving past them.
+  if (isCellShift(op) || op.type === 'moveInsert') {
+    for (const merge of m.info.merges) {
+      if (splits(op, merge)) throw new TextError(msg('core.structure.splitsMerge', { range: rangeToA1(merge) }));
+    }
+  }
   if (op.type === 'move') {
     const h = op.src.r2 - op.src.r1;
     const w = op.src.c2 - op.src.c1;
@@ -165,10 +194,23 @@ function check(model: WorkbookModel, op: StructuralOp, spilling: ReadonlySet<str
     if (op.type === 'deleteRows' && header >= op.at && header < op.at + op.count && !(t.rect.r1 >= op.at && t.rect.r2 < op.at + op.count)) {
       throw new TextError(msg('core.structure.deletesTableHeader', { table: t.name }));
     }
-    if ((op.type === 'deleteRows' && t.rect.r1 >= op.at && t.rect.r2 < op.at + op.count) || (op.type === 'deleteCols' && t.rect.c1 >= op.at && t.rect.c2 < op.at + op.count)) {
+    if (
+      (op.type === 'deleteRows' && t.rect.r1 >= op.at && t.rect.r2 < op.at + op.count) ||
+      (op.type === 'deleteCols' && t.rect.c1 >= op.at && t.rect.c2 < op.at + op.count) ||
+      (op.type === 'deleteCells' && inRect(op.rect, t.rect.r1, t.rect.c1) && inRect(op.rect, t.rect.r2, t.rect.c2))
+    ) {
       throw new TextError(msg('core.structure.deletesTable', { table: t.name }));
     }
-    if (op.type === 'move' && splits(op, t.rect)) throw new TextError(msg('core.structure.splitsTable', { table: t.name }));
+    if (op.type === 'moveInsert' && reorderedWithin(op, t.rect)) {
+      // Rows (or columns) can be reordered within a table, but its header and totals rows stay as they are.
+      const [a, b] = moveInsertSpan(op);
+      const across = op.src.c1 <= t.rect.c2 && op.src.c2 >= t.rect.c1;
+      const moves = (row: number) => (op.shift === 'down' ? across && row >= a && row <= b : row >= op.src.r1 && row <= op.src.r2);
+      const fixed = [...(t.headerRows ? [t.rect.r1] : []), ...(t.totalsRows ? [t.rect.r2] : [])];
+      if (fixed.some(moves)) throw new TextError(msg('core.structure.splitsTable', { table: t.name }));
+    } else if ((op.type === 'move' || op.type === 'moveInsert' || isCellShift(op)) && splits(op, t.rect)) {
+      throw new TextError(msg('core.structure.splitsTable', { table: t.name }));
+    }
   }
   if (op.type === 'move') {
     for (const merge of m.info.merges) {

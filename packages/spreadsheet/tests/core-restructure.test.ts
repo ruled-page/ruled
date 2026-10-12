@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
-import type { StructuralOp } from '../src/core/refTransform';
+import { moveInsertLanding, type StructuralOp } from '../src/core/refTransform';
 import { english, errorText } from '../src/i18n';
 import { loadedFormula, loadedValue, parts, sample, sheetIndex } from './helpers';
 
@@ -267,6 +267,100 @@ describe('moving cells', () => {
     const lookups = sheetIndex(s, 'Lookups');
     const { xml } = after({ type: 'move', sheet: lookups, src: { r1: 13, c1: 1, r2: 13, c2: 1 }, toSheet: lookups, row: 19, col: 7 }, ks, 'k.xlsx');
     expect(sheetXml(xml, 3)).toMatch(/<c r="H20"[^>]*><f t="array" ref="H20">SUM\(Data!D2:D201\*Data!E2:E201\)<\/f>/);
+  });
+});
+
+describe('shifting cells', () => {
+  const values = (s: WorkbookSession, refs: string[]) => refs.map((r) => loadedValue(s, 'Data', r));
+
+  it('inserts cells, moving those below down within their columns, with references following', () => {
+    const { next, file, xml } = after({ type: 'insertCells', sheet: DATA, rect: { r1: 1, c1: 0, r2: 1, c2: 0 }, shift: 'down' });
+    expect(values(file, ['A1', 'A2', 'A3', 'A7'])).toEqual([1, null, 2, 6]);
+    expect(['A1', 'A2', 'A3'].map((r) => loadedFormula(file, 'Calc', r))).toEqual(['Data!A1*2', 'Data!A3*2', 'Data!A4*2']);
+    // Ranges within the column grow, as with rows; the table beside it and the picture over F5:H9 stay where they are.
+    const sheet = sheetXml(xml, 1);
+    expect(sheet).toContain('<protectedRange name="P" sqref="A1:A7"/>');
+    expect(xml['xl/workbook.xml']).toContain('<definedName name="Here" localSheetId="0">$A$5</definedName>');
+    expect(file.model.sheets[DATA].info.tables[0].rect).toEqual({ r1: 0, c1: 2, r2: 2, c2: 4 });
+    expect(anchors(xml['xl/drawings/drawing1.xml'], 'row')).toEqual([4, 8]);
+    expect(next.changes()[0]).toMatchObject({ sheet: 'Data', ref: 'A2', note: { key: 'core.change.insertedCellsDown' } });
+  });
+
+  it('inserts cells to the right, leaving ranges that reach outside their rows as they were', () => {
+    const { file, xml } = after({ type: 'insertCells', sheet: DATA, rect: { r1: 4, c1: 0, r2: 4, c2: 0 }, shift: 'right' });
+    expect(values(file, ['A5', 'B5', 'A6'])).toEqual([null, 5, 6]);
+    expect(xml['xl/threadedComments/threadedComment1.xml']).toContain('ref="B5"');
+    expect(sheetXml(xml, 1)).toContain('<protectedRange name="P" sqref="A1:A6"/>');
+  });
+
+  it('deletes cells, closing the gap from below or from the right, and the references to them go', () => {
+    const up = after({ type: 'deleteCells', sheet: DATA, rect: { r1: 1, c1: 0, r2: 1, c2: 0 }, shift: 'up' });
+    expect(values(up.file, ['A1', 'A2', 'A5', 'A6'])).toEqual([1, 3, 6, null]);
+    expect(['A1', 'A3'].map((r) => loadedFormula(up.file, 'Calc', r))).toEqual(['Data!A1*2', 'Data!A2*2']);
+    expect(loadedFormula(up.file, 'Calc', 'A2')).toContain('#REF!');
+    expect(up.next.changes()[0]).toMatchObject({ ref: 'A2', note: { key: 'core.change.deletedCellsUp' } });
+    const left = after({ type: 'deleteCells', sheet: DATA, rect: { r1: 4, c1: 0, r2: 4, c2: 0 }, shift: 'left' });
+    expect(values(left.file, ['A4', 'A5', 'A6'])).toEqual([4, null, 6]);
+    expect(left.xml['xl/threadedComments/threadedComment1.xml']).not.toContain('ref="A5"');
+  });
+
+  it('moves cells in between others with Shift+drag, as one change', () => {
+    const op: StructuralOp = { type: 'moveInsert', sheet: DATA, src: { r1: 0, c1: 0, r2: 0, c2: 0 }, row: 4, col: 0, shift: 'down' };
+    const { next, file } = after(op);
+    expect(values(file, ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'])).toEqual([2, 3, 4, 1, 5, 6, null]);
+    expect(['A1', 'A2', 'A3'].map((r) => loadedFormula(file, 'Calc', r))).toEqual(['Data!A4*2', 'Data!A1*2', 'Data!A2*2']);
+    expect(moveInsertLanding(op)).toEqual({ r1: 3, c1: 0, r2: 3, c2: 0 });
+    expect(next.changes().filter((c) => c.note)).toEqual([expect.objectContaining({ ref: 'A1', note: { key: 'core.change.movedTo', params: { where: 'A5' } } })]);
+  });
+
+  it('keeps a total over a list whole when one of its rows is dragged to the top or the bottom, and lets one dragged out go', async () => {
+    const wb = new ExcelJS.Workbook();
+    const list = wb.addWorksheet('List');
+    [10, 20, 30, 40].forEach((n, i) => (list.getCell(`A${i + 1}`).value = n));
+    list.getCell('C1').value = { formula: 'SUM(A1:A4)', result: 100 };
+    const s = WorkbookSession.open(new Uint8Array(await wb.xlsx.writeBuffer()), 'list.xlsx');
+    const one = (r: number) => ({ r1: r, c1: 0, r2: r, c2: 0 });
+    const toEnd = s.restructure({ type: 'moveInsert', sheet: 0, src: one(0), row: 4, col: 0, shift: 'down' });
+    expect(['A1', 'A4'].map((r) => loadedValue(toEnd, 'List', r))).toEqual([20, 10]);
+    expect(loadedFormula(toEnd, 'List', 'C1')).toBe('SUM(A1:A4)');
+    const toTop = s.restructure({ type: 'moveInsert', sheet: 0, src: one(3), row: 0, col: 0, shift: 'down' });
+    expect(['A1', 'A4'].map((r) => loadedValue(toTop, 'List', r))).toEqual([40, 30]);
+    expect(loadedFormula(toTop, 'List', 'C1')).toBe('SUM(A1:A4)');
+    const out = s.restructure({ type: 'moveInsert', sheet: 0, src: one(1), row: 6, col: 0, shift: 'down' });
+    expect(loadedValue(out, 'List', 'A6')).toBe(20);
+    expect(loadedFormula(out, 'List', 'C1')).toBe('SUM(A1:A3)');
+  });
+
+  it("reorders a table's rows, but never its header", () => {
+    const s = WorkbookSession.open(bytes, 'rich.xlsx');
+    const next = s.restructure({ type: 'moveInsert', sheet: DATA, src: { r1: 2, c1: 2, r2: 2, c2: 4 }, row: 1, col: 2, shift: 'down' });
+    expect(['C2', 'C3'].map((r) => loadedValue(next, 'Data', r))).toEqual([4, 1]);
+    expect(next.model.sheets[DATA].info.tables[0].rect).toEqual({ r1: 0, c1: 2, r2: 2, c2: 4 });
+    const header = 'That would move part of table "T". Move the whole table, or cells outside it.';
+    expect(thrown(() => s.restructure({ type: 'moveInsert', sheet: DATA, src: { r1: 1, c1: 2, r2: 1, c2: 4 }, row: 0, col: 2, shift: 'down' }))).toBe(header);
+    expect(thrown(() => s.restructure({ type: 'moveInsert', sheet: DATA, src: { r1: 0, c1: 2, r2: 2, c2: 2 }, row: 0, col: 4, shift: 'right' }))).toBe(header);
+    expect(thrown(() => s.restructure({ type: 'moveInsert', sheet: DATA, src: { r1: 1, c1: 2, r2: 1, c2: 2 }, row: 1, col: 4, shift: 'down' }))).toBe(header);
+  });
+
+  it('refuses a Shift+drag that would split the cells being moved', () => {
+    const s = WorkbookSession.open(bytes, 'rich.xlsx');
+    const src = { r1: 0, c1: 0, r2: 2, c2: 0 };
+    expect(thrown(() => s.restructure({ type: 'moveInsert', sheet: DATA, src, row: 1, col: 0, shift: 'down' }))).toBe(
+      "Those cells can't go there: making room for them would split them up.",
+    );
+  });
+
+  it("refuse to split a table or a merged cell, delete a whole table, or push data off the sheet", async () => {
+    const s = WorkbookSession.open(bytes, 'rich.xlsx');
+    expect(thrown(() => s.restructure({ type: 'insertCells', sheet: DATA, rect: { r1: 0, c1: 3, r2: 0, c2: 3 }, shift: 'down' }))).toMatch(/move part of table "T"/);
+    expect(thrown(() => s.restructure({ type: 'deleteCells', sheet: DATA, rect: { r1: 0, c1: 2, r2: 2, c2: 4 }, shift: 'up' }))).toMatch(/delete all of table "T"/);
+    expect(thrown(() => s.restructure({ type: 'insertCells', sheet: DATA, rect: { r1: 0, c1: 0, r2: 1_048_570, c2: 0 }, shift: 'down' }))).toMatch(/off the bottom/);
+    expect(thrown(() => s.restructure({ type: 'insertCells', sheet: DATA, rect: { r1: 0, c1: 0, r2: 0, c2: 16_380 }, shift: 'right' }))).toMatch(/off the right/);
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('M').mergeCells('B2:C2');
+    const m = WorkbookSession.open(new Uint8Array(await wb.xlsx.writeBuffer()), 'm.xlsx');
+    expect(thrown(() => m.restructure({ type: 'insertCells', sheet: 0, rect: { r1: 0, c1: 1, r2: 0, c2: 1 }, shift: 'down' }))).toBe('That would move part of the merged cell B2:C2. Move all of it.');
+    expect(thrown(() => m.restructure({ type: 'deleteCells', sheet: 0, rect: { r1: 0, c1: 1, r2: 0, c2: 2 }, shift: 'up' }))).toBeUndefined();
   });
 });
 

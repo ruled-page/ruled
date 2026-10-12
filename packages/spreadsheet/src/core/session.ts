@@ -56,7 +56,7 @@ import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
 import { csvPackage, isCsvFile } from './csvWorkbook';
 import { restructure } from './restructure';
-import { refMapFor, type RefMap, type StructuralOp } from './refTransform';
+import { refMapFor, type LineOp, type RefMap } from './refTransform';
 import { applySheetOp } from './sheetOps';
 import { isSheetOp, sheetIndexMap, type SheetOp, type WorkbookOp } from './sheetRules';
 import { OoxmlPackage, type PackageLimits } from './zip';
@@ -2350,8 +2350,8 @@ export class WorkbookSession {
   // Structural changes
 
   /**
-   * The workbook after inserting or deleting rows or columns, moving cells,
-   * or adding, renaming, deleting, moving, hiding or unhiding a sheet, as a
+   * The workbook after inserting or deleting rows, columns or cells, moving
+   * cells, or adding, renaming, deleting, moving, hiding or unhiding a sheet, as a
    * new session. The current state is written out, the change is applied to
    * every part that refers to what changed, and the result is opened. This
    * session is left as it was, so undo can return to it.
@@ -2539,17 +2539,21 @@ function describeStructure(op: WorkbookOp, names: string[]): CellChange {
   if (op.type === 'growTable') {
     return { sheet: names[op.sheet], ref: op.table, before: '', after: '', note: msg('core.change.tableGrew', { table: op.table, count: op.rows }) };
   }
-  if (op.type === 'move') {
+  if (op.type === 'move' || op.type === 'moveInsert') {
     const h = op.src.r2 - op.src.r1;
     const w = op.src.c2 - op.src.c1;
     const dst = rangeToA1({ r1: op.row, c1: op.col, r2: op.row + h, c2: op.col + w });
-    const where = op.toSheet !== op.sheet ? `${names[op.toSheet]}!${dst}` : dst;
+    const where = op.type === 'move' && op.toSheet !== op.sheet ? `${names[op.toSheet]}!${dst}` : dst;
     return { sheet: names[op.sheet], ref: rangeToA1(op.src), before: '', after: '', note: msg('core.change.movedTo', { where }) };
+  }
+  if (op.type === 'insertCells' || op.type === 'deleteCells') {
+    const notes = { down: 'core.change.insertedCellsDown', right: 'core.change.insertedCellsRight', up: 'core.change.deletedCellsUp', left: 'core.change.deletedCellsLeft' } as const;
+    return { sheet: names[op.sheet], ref: rangeToA1(op.rect), before: '', after: '', note: msg(notes[op.shift]) };
   }
   const rows = op.type === 'insertRows' || op.type === 'deleteRows';
   const end = op.at + op.count - 1;
   const ref = rows ? `${op.at + 1}:${end + 1}` : `${colToLetters(op.at)}:${colToLetters(end)}`;
-  const notes: Record<Exclude<StructuralOp['type'], 'move' | 'growTable'>, MessageKey> = {
+  const notes: Record<LineOp['type'], MessageKey> = {
     insertRows: 'core.change.insertedRows',
     insertCols: 'core.change.insertedColumns',
     deleteRows: 'core.change.deletedRows',

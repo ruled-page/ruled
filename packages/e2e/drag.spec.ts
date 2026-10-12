@@ -38,3 +38,28 @@ test("moves cells by dragging the selection's border, and copies them with Ctrl 
   await expect(shown(page, 'E6')).toHaveText('2');
   await expect(shown(page, 'B6')).toHaveText('2');
 });
+
+test('moves cells in between others with Shift held, a line showing where they go', async ({ page }) => {
+  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const box = (await canvas.boundingBox())!;
+  const x = box.x + 40 + 32;
+  await goTo(page, 'A3:D3');
+  await page.mouse.move(x, box.y + 24 + 20 * 3);
+  await page.mouse.down();
+  await page.keyboard.down('Shift');
+  // Near the top edge of row 2: in between the headings and Bolts.
+  await page.mouse.move(x, box.y + 24 + 20 + 3, { steps: 5 });
+  await expect(page.locator('.wbe-insert-guide')).toBeVisible();
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(page.locator('.wbe-insert-guide')).toHaveCount(0);
+  await expect(shown(page, 'A2')).toHaveText('Nuts');
+  await expect(shown(page, 'A3')).toHaveText('Bolts');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('A2');
+  await goTo(page, 'D2');
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('=B2*C2');
+  // The grand total still takes in both rows.
+  await goTo(page, 'Summary!B1');
+  await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('=SUM(Lines!D2:D3)');
+  await expect(shown(page, 'B1')).toHaveText('8');
+});

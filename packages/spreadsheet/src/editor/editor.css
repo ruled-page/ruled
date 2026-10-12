@@ -1135,6 +1135,15 @@
   z-index: 5;
 }
 
+.wbe .wbe-insert-guide {
+  position: absolute;
+  box-sizing: content-box;
+  margin: -2px 0 0 -2px;
+  border: 2px solid var(--wbe-accent);
+  pointer-events: none;
+  z-index: 5;
+}
+
 .wbe .wbe-grid-host {
   direction: ltr;
 }

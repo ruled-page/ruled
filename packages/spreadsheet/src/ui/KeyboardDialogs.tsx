@@ -31,6 +31,7 @@ function shortcuts(t: Translator): { group: string; keys: [string, string][] }[]
         [m('X', 'C', 'V'), t('shortcuts.clipboard')],
         [t('keys.accept'), t('shortcuts.complete')],
         [t('keys.f4'), t('shortcuts.absolute')],
+        [m('+', '-'), t('shortcuts.insertDelete')],
       ],
     },
     {
@@ -161,6 +162,89 @@ export function SizeDialog({ store, axis }: { store: WorkbookStore; axis: 'cols'
             </button>
             <button type="submit" className="wbe-btn wbe-primary" disabled={!valid}>
               {t(`${k}.set`)}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+const CELL_SHIFTS = {
+  insert: [
+    ['right', 'cells.shiftRight'],
+    ['down', 'cells.shiftDown'],
+    ['rows', 'cells.entireRow'],
+    ['cols', 'cells.entireColumn'],
+  ],
+  delete: [
+    ['left', 'cells.shiftLeft'],
+    ['up', 'cells.shiftUp'],
+    ['rows', 'cells.entireRow'],
+    ['cols', 'cells.entireColumn'],
+  ],
+} as const;
+
+/**
+ * Excel's Insert and Delete dialogs for the selection: which way the cells
+ * beside it move, or whole rows or columns. Like Excel's, it starts on moving
+ * cells sideways for a selection taller than it is wide, and up or down
+ * otherwise.
+ */
+export function CellsDialog({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const kind = store.cellsDialog;
+  const dialog = useRef<HTMLFormElement>(null);
+  const initial = useRef<HTMLInputElement>(null);
+  const id = useId();
+  const [choice, setChoice] = useState(1);
+  const opened = useRef<typeof kind>(undefined);
+  if (opened.current !== kind) {
+    opened.current = kind;
+    const r = store.selection.rects[0];
+    if (kind) setChoice(r && r.r2 - r.r1 > r.c2 - r.c1 ? 0 : 1);
+  }
+  const close = () => store.set('cellsDialog', undefined);
+  useDialog(dialog, !!kind, close, { modal: true, initial });
+  if (!kind) return null;
+  const options = CELL_SHIFTS[kind];
+  const apply = () => {
+    close();
+    void (kind === 'insert' ? store.insertCells(CELL_SHIFTS.insert[choice][0]) : store.deleteCells(CELL_SHIFTS.delete[choice][0]));
+  };
+  return (
+    <div className="wbe-modal-backdrop" onMouseDown={close}>
+      <form
+        ref={dialog}
+        className="wbe-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${id}-title`}
+        tabIndex={-1}
+        onMouseDown={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          apply();
+        }}
+      >
+        <div className="wbe-modal-content">
+          <fieldset className="wbe-series-group">
+            <legend>
+              <h2 id={`${id}-title`}>{t(`cells.${kind}.title`)}</h2>
+            </legend>
+            {options.map(([shift, label], i) => (
+              <label key={shift}>
+                <input type="radio" name={`${id}-shift`} ref={i === choice ? initial : undefined} checked={i === choice} onChange={() => setChoice(i)} />
+                {t(label)}
+              </label>
+            ))}
+          </fieldset>
+          <div className="wbe-modal-actions">
+            <button type="button" className="wbe-btn" onClick={close}>
+              {t('dialog.cancel')}
+            </button>
+            <button type="submit" className="wbe-btn wbe-primary">
+              {t('cells.ok')}
             </button>
           </div>
         </div>

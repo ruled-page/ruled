@@ -9,6 +9,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   on a Mac) held, as in Excel; dropping them on cells that hold something
   asks first.
 - A drag that ends off the grid no longer swallows the next click.
+- Shift+dragging the selection's border moves the cells in between others,
+  as in Excel, with a line marking where they'll go.
+- Insert and delete cells, moving the others down or right (or up or left),
+  or whole rows or columns, from Excel's keys (Ctrl++ and Ctrl+-) or the
+  cell menu, through Excel's Insert and Delete dialogs.
 - Dynamic array formulas, typed or from the file, spill their values into
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are
