@@ -56,6 +56,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Charts stay where they are anchored as the sheet scrolls past rows of
+  different heights, rather than dropping back into view, and stop at the
+  scrollbars rather than covering them.
 - Custom number formats: "More number formats…" in the format bar opens
   Excel's Custom list, to type a format code or pick one of Excel's or the
   workbook's own, with the active cell shown in it as it is typed. Codes

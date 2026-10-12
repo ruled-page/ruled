@@ -1517,7 +1517,7 @@ export function SheetGrid({
       {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
       {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
       {insertGuide && <div className="wbe-insert-guide" style={insertGuide} />}
-      <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} top={header ? 24 : 0} />
+      <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} scrollRow={visible.current.y} top={header ? 24 : 0} />
     </div>
   );
 }

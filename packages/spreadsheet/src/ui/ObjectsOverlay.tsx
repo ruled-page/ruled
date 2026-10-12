@@ -4,6 +4,7 @@ import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { ChartSlot } from './ChartSlot';
+import { GLIDE_SCROLLER } from './glideDom';
 import { Icon } from './icons';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
@@ -65,6 +66,7 @@ export function ObjectsOverlay({
   tick,
   rowStart,
   rowCount,
+  scrollRow,
   top,
 }: {
   store: WorkbookStore;
@@ -74,11 +76,14 @@ export function ObjectsOverlay({
   /** The grid rows this pane shows; objects anchored above them are drawn by the pane above, and continued here. */
   rowStart: number;
   rowCount: number;
+  /** The first of the pane's rows the grid draws, scrolled to. */
+  scrollRow: number;
   /** Height of the column header above the cells. */
   top: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [bars, setBars] = useState({ right: 0, bottom: 0 });
 
   useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -86,6 +91,20 @@ export function ObjectsOverlay({
     if (!grid || !el) return;
     const origin = el.getBoundingClientRect();
     const firstRow = view.visibleRows[rowStart];
+    // Objects stop at the pane's scrollbars, as Excel's stop at its window's.
+    const scroller = el.parentElement?.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`);
+    if (scroller) {
+      const shown = getComputedStyle(scroller).scrollbarWidth !== 'none';
+      // Scrollbars drawn over the grid, as macOS draws them, take no room of their own.
+      const bar = (room: number, overflows: boolean) => (!shown ? 0 : room > 0 ? room : overflows ? 10 : 0);
+      const next = {
+        right: bar(scroller.offsetWidth - scroller.clientWidth, scroller.scrollHeight > scroller.clientHeight),
+        bottom: bar(scroller.offsetHeight - scroller.clientHeight, scroller.scrollWidth > scroller.clientWidth),
+      };
+      setBars((prev) => (prev.right === next.right && prev.bottom === next.bottom ? prev : next));
+    }
+    // Glide places rows above the first it draws a row out, so objects are placed from that row.
+    const scrolled = Math.max(0, scrollRow);
     // Objects in scrolling columns slide under the frozen ones (and the row numbers) as Excel's do.
     let frozenCols = 0;
     for (let c = 0; c < view.info.frozenCols; c++) if (view.gridCol(c) >= 0) frozenCols++;
@@ -103,14 +122,18 @@ export function ObjectsOverlay({
       // Anchored in the frozen rows above: this pane shows whatever reaches below them.
       const above = gr < 0 ? rowsHeight(view, obj.from.row, firstRow) - obj.from.rowOffPx : 0;
       if (above >= size.height) return;
-      const a = grid.getBounds(gc + 1, Math.max(gr, 0));
+      const ref = Math.max(gr, scrolled);
+      const refRow = view.visibleRows[rowStart + ref];
+      // Far above what's shown: nothing of it reaches the pane.
+      if (refRow === undefined || refRow - obj.from.row > 5000) return;
+      const a = grid.getBounds(gc + 1, ref);
       if (!a) return;
       const left = a.x + obj.from.colOffPx;
       out.push({
         key: `${i}`,
         obj,
         left: left - origin.left,
-        top: (gr < 0 ? a.y - above : a.y + obj.from.rowOffPx) - origin.top,
+        top: a.y - rowsHeight(view, obj.from.row, refRow) + obj.from.rowOffPx - origin.top,
         width: size.width,
         height: size.height,
         clipLeft: obj.from.col >= view.info.frozenCols ? Math.max(0, freezeX - left) : 0,
@@ -118,10 +141,10 @@ export function ObjectsOverlay({
       });
     });
     setBoxes(out);
-  }, [view, gridRef, tick, rowStart, rowCount]);
+  }, [view, gridRef, tick, rowStart, rowCount, scrollRow]);
 
   return (
-    <div className="wbe-objects-overlay" ref={host} style={{ top }}>
+    <div className="wbe-objects-overlay" ref={host} style={{ top, right: bars.right, bottom: bars.bottom }}>
       {boxes.map((b) => {
         const style: CSSProperties = {
           left: b.left,

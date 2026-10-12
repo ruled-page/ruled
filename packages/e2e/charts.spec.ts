@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { openSample, serverUrl, setCell } from './helpers';
+import { goTo, openSample, serverUrl, setCell } from './helpers';
 
 /** How many pixels a chart's canvas has drawn on. */
 const inked = (chart: Locator) =>
@@ -69,4 +69,40 @@ test('shows placeholders, and never loads the chart library, when the host turns
   await page.getByRole('tab', { name: 'Monthly Chart' }).click();
   await expect(page.getByText('Line chart “Monthly revenue 2026” fills this whole sheet.')).toBeVisible();
   expect(chartCode).toEqual([]);
+});
+
+test('keeps a chart where it is anchored as the sheet scrolls past a tall row, and out of the scrollbars', async ({ page }) => {
+  await openSample(page, 'Sales report');
+  const pie = page.getByRole('img', { name: 'Pie chart “Share of revenue”' });
+  await expect(pie).toBeVisible();
+  // Row 19, where the pie chart starts, made 200 pixels tall.
+  await goTo(page, 'A19');
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Rows' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Row height…' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('dialog', { name: 'Height of row 19' }).getByRole('textbox').fill('150');
+  await page.keyboard.press('Enter');
+  const top = async () => (await pie.boundingBox())!.y;
+  await expect.poll(top).toBeGreaterThan(0);
+  const before = await top();
+
+  // Scrolled until row 19 has gone above the panes' join, the chart goes up with it.
+  const grid = page.locator('canvas[data-testid="data-grid-canvas"]').last();
+  const box = (await grid.boundingBox())!;
+  await page.mouse.move(box.x + 200, box.y + box.height / 2);
+  await page.mouse.wheel(0, 500);
+  await expect.poll(async () => Math.round(before - (await top()))).toBe(500);
+
+  // Charts stop short of each pane's scrollbars.
+  const overlaps = await page.locator('.wbe-objects-overlay').evaluateAll((overlays) =>
+    overlays.filter((o) => {
+      const scroller = o.parentElement!.querySelector<HTMLElement>('.dvn-scroller')!;
+      const s = scroller.getBoundingClientRect();
+      const r = o.getBoundingClientRect();
+      return r.bottom > s.top + scroller.clientHeight + 0.5 || r.right > s.left + scroller.clientWidth + 0.5;
+    }).length,
+  );
+  expect(overlaps).toBe(0);
 });
