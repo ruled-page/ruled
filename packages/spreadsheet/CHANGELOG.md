@@ -56,6 +56,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   its row taller or shorter in the same undoable step. Rows sized by hand
   keep their height until AutoFit fits them again, and fitted rows are
   saved without Excel's custom height mark, so Excel keeps fitting them.
+- Insert Chart: "Insert chart" in the cell menu, or Alt+F1, charts the
+  selection (or the data around the active cell) as a column, bar, line,
+  area, pie, doughnut or scatter chart, working out the series and
+  categories as Excel does, and saves it as a chart part Excel opens.
 - Excel 365 checkboxes: cells with the checkbox format show a box, ticked
   for TRUE. Click it or press Space to tick or untick, Delete unticks and
   then removes them, and the format bar's Checkbox button inserts them.

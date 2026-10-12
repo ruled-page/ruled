@@ -1431,6 +1431,13 @@ export function SheetGrid({
           return;
         }
       }
+      // Alt+F1 inserts a column chart of the data, as in Excel.
+      if (e.key === 'F1' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && store.features.charts) {
+        e.cancel();
+        e.preventDefault();
+        void store.insertChart('column');
+        return;
+      }
       // Ctrl+Shift+L, or ⇧⌘F on a Mac, turns the filter buttons on or off, as in Excel.
       const letter = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {

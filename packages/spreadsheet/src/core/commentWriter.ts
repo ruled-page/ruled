@@ -540,7 +540,7 @@ export function addRel(pkg: OoxmlPackage, from: string, type: string, to: string
 }
 
 /** Removes a part, the relationship to it from `from`, its own relationships and its content type. */
-function removePart(pkg: OoxmlPackage, from: string, rel: Relationship): void {
+export function removePart(pkg: OoxmlPackage, from: string, rel: Relationship): void {
   const path = relsPathFor(from);
   const xml = pkg.text(path);
   if (xml !== undefined) pkg.setText(path, replaceElements(xml, 'Relationship', (el, text) => (parseAttrs(el.attrs).Id === rel.id ? '' : text)));

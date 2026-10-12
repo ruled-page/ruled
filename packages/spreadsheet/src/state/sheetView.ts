@@ -139,6 +139,9 @@ export class SheetView {
       case 'conditionalFormats':
         info.conditionalFormats = op.rules;
         break;
+      case 'objects':
+        info.objects = op.objects;
+        break;
       case 'outline': {
         const was = info.outline?.[op.axis];
         const levels = { ...was?.levels };

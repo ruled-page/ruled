@@ -3,6 +3,10 @@ export const charts = {
   /** A series the workbook doesn't name, called what Excel calls it. */
   'charts.seriesName': 'Series{{n}}',
   'charts.noData': 'There is no data to plot.',
+  'charts.menu.insert': 'Insert chart',
+  'charts.history.insert': 'Insert chart',
+  /** The title Excel gives a new chart of several series, written into the file. */
+  'charts.placeholderTitle': 'Chart Title',
   'charts.seriesCount_one': '{{count, number}} series.',
   'charts.seriesCount_other': '{{count, number}} series.',
   /** {{points}} lists charts.point (charts.xy on a scatter chart), perhaps ending with charts.more. */

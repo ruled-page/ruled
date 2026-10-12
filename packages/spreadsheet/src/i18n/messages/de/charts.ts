@@ -4,6 +4,10 @@ import type { charts as en } from '../en/charts';
 export const charts: Record<keyof typeof en, string> = {
   'charts.seriesName': 'Datenreihe{{n}}',
   'charts.noData': 'Es gibt keine Daten zum Darstellen.',
+  'charts.menu.insert': 'Diagramm einfügen',
+  'charts.history.insert': 'Diagramm einfügen',
+  /** The title Excel gives a new chart of several series, written into the file. */
+  'charts.placeholderTitle': 'Diagrammtitel',
   'charts.seriesCount_one': '{{count, number}} Datenreihe.',
   'charts.seriesCount_other': '{{count, number}} Datenreihen.',
   'charts.series': '{{name}}: {{points}}.',

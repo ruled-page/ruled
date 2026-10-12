@@ -277,6 +277,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.change.filterOff': 'Filterschaltflächen entfernt',
   'core.change.validations': 'Datenüberprüfungsregeln geändert',
   'core.change.conditionalFormats': 'Bedingte Formatierung geändert',
+  'core.change.objects': 'Diagramme, Bilder oder Formen geändert',
+  'core.chart.noData': 'Es gibt nichts darzustellen: Wählen Sie Zellen mit Zahlen aus.',
   'core.validation.kept': 'Dieses Blatt hat Gültigkeitsregeln, die der Editor nicht lesen kann; seine Regeln bleiben daher, wie die Datei sie hat. Ändern Sie sie in Excel.',
   'core.change.unmerged': 'Zellverbund aufgehoben',
   'core.change.tableGrew_one': 'Tabelle {{table}} umfasst {{count, number}} weitere Zeile',

@@ -76,7 +76,7 @@ export class SheetLinks {
 // Writing
 
 /** An element directly inside the worksheet, after <sheetData>. */
-interface Sibling {
+export interface Sibling {
   name: string;
   start: number;
   end: number;
@@ -87,7 +87,7 @@ interface Sibling {
  * comments and processing instructions are stepped over, and each element
  * ends at its closing tag (worksheet elements don't nest in themselves).
  */
-function siblings(xml: string, from: number): Sibling[] {
+export function siblings(xml: string, from: number): Sibling[] {
   const out: Sibling[] = [];
   let pos = from;
   for (;;) {
@@ -166,7 +166,7 @@ function nameEnd(xml: string, from: number, to: number): number {
 }
 
 /** The root element's start tag: its name, where its ">" is, whether it closes itself, and its attributes. */
-function rootTag(xml: string): { qname: string; end: number; empty: boolean; attrs: Record<string, string> } | undefined {
+export function rootTag(xml: string): { qname: string; end: number; empty: boolean; attrs: Record<string, string> } | undefined {
   let lt = xml.indexOf('<');
   while (lt >= 0 && (xml.charCodeAt(lt + 1) === 63 || xml.charCodeAt(lt + 1) === 33)) lt = xml.indexOf('<', findTagEnd(xml, lt) + 1);
   if (lt < 0) return undefined;

@@ -1,5 +1,6 @@
 import type { Text } from '../i18n/message';
 import type { ChartSpec } from './charts';
+import type { NewChartKind } from './chartWriter';
 /** Inclusive, 0-based cell rectangle. */
 export interface Rect {
   r1: number;
@@ -244,6 +245,10 @@ export interface SheetObject {
   to?: Anchor;
   /** Size in pixels when the object is anchored to one cell only. */
   sizePx?: { w: number; h: number };
+  /** Where it is in the file: its sheet's drawing part, and which of the part's anchors it is. Missing for objects added since. */
+  source?: { drawing: string; anchor: number };
+  /** A chart added in the editor: its chart part, as it is saved. */
+  chartXml?: string;
 }
 
 export interface BlockedRegion extends Rect {
@@ -696,7 +701,11 @@ export type LayoutOp =
   /** The sheet's data validation rules, all of them, as Excel's Data Validation dialog leaves them; the ones before undo it. */
   | { kind: 'validations'; lists: ListValidation[]; rules: RuleValidation[] }
   /** The sheet's conditional formatting rules, all of them, in priority order; the ones before undo it. */
-  | { kind: 'conditionalFormats'; rules: CfRule[] };
+  | { kind: 'conditionalFormats'; rules: CfRule[] }
+  /** The sheet's charts, pictures and shapes, where they now sit; any left out are deleted. */
+  | { kind: 'objects'; objects: SheetObject[] }
+  /** Excel's Insert Chart: a chart of `chart`'s kind plotting `rect`, placed between `from` and `to`; `title` is Excel's "Chart Title" in the user's language. */
+  | { kind: 'insertChart'; chart: NewChartKind; rect: Rect; from: Anchor; to: Anchor; title: string };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

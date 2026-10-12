@@ -9,7 +9,8 @@ import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from '
 import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import type { CellState } from './session';
 import { findCell, type ScanResult } from './sheetScanner';
-import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid } from './types';
+import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid, type SheetObject } from './types';
+import { writeObjects } from './drawingWriter';
 import type { Person } from './comments';
 import { BAGS_CONTENT_TYPE, BAGS_PART, BAGS_REL } from './checkboxes';
 import { addRel, setOverride, writeComments } from './commentWriter';
@@ -55,6 +56,8 @@ export interface SaveInput {
   validations?: ReadonlySet<number>;
   /** The sheets whose conditional formatting has been changed, to be written as it now is. */
   conditionalFormats?: ReadonlySet<number>;
+  /** The sheets whose charts, pictures or shapes have been changed, with the objects the file had. */
+  objects?: ReadonlyMap<number, SheetObject[]>;
 }
 
 type Patch =
@@ -88,6 +91,8 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
     if (links?.changed) xml = writeHyperlinks(pkg, m.path, xml, m.scan.prefix, links.list);
     if (input.validations?.has(s)) xml = writeValidations(xml, m.scan.prefix, m.info.listValidations, m.info.ruleValidations);
     if (input.conditionalFormats?.has(s)) xml = writeConditionalFormats(xml, m.scan.prefix, m.info.conditionalFormats);
+    const objects = input.objects?.get(s);
+    if (objects) xml = writeObjects(pkg, m.path, xml, m.scan.prefix, objects, m.info.objects);
     if (xml !== m.xml) pkg.setText(m.path, xml);
     // A table's filter is kept in the table's own part: the new one set, a table's that went cleared.
     if (layout?.filter !== undefined) {

@@ -1,5 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { goTo, openSample, serverUrl, setCell } from './helpers';
+import { readFile } from 'node:fs/promises';
+import { unzipSync } from 'fflate';
+import { goTo, openFile, openSample, ordersWorkbook, serverUrl, setCell } from './helpers';
 
 /** How many pixels a chart's canvas has drawn on. */
 const inked = (chart: Locator) =>
@@ -105,4 +107,34 @@ test('keeps a chart where it is anchored as the sheet scrolls past a tall row, a
     }).length,
   );
   expect(overlaps).toBe(0);
+});
+
+test('inserts a chart of the selection from the cell menu or Alt+F1, saves it as a chart part, and undoes it', async ({ page }) => {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  await goTo(page, 'A1:C3');
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Insert chart' }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Column', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  // Two series, Qty and Price, over the items: Excel's placeholder title and a drawing of them.
+  const chart = page.getByRole('img', { name: 'Column chart “Chart Title”' });
+  await expect(chart).toBeVisible();
+  await expect(chart).toHaveAccessibleDescription(/^2 series\. Qty: Bolts 2 and Nuts 4\./);
+  await expect.poll(() => inked(chart)).toBeGreaterThan(1000);
+
+  // Alt+F1 charts one column, named by its heading.
+  await goTo(page, 'D1:D3');
+  await page.keyboard.press('Alt+F1');
+  await expect(page.getByRole('img', { name: 'Column chart “Total”' })).toBeVisible();
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Save as Excel/ }).click();
+  const files = unzipSync(new Uint8Array(await readFile(await (await download).path())));
+  expect(Object.keys(files).filter((f) => /^xl\/charts\/chart\d+\.xml$/.test(f))).toHaveLength(2);
+  expect(Object.keys(files)).toContain('xl/drawings/drawing1.xml');
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('img', { name: 'Column chart “Total”' })).toHaveCount(0);
+  await expect(chart).toBeVisible();
 });

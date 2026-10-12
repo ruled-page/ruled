@@ -168,6 +168,13 @@ back as .xlsx without losing what the editor can't display.
   doughnut and scatter charts, and columns, lines and areas combined, on
   two axes if need be. Other kinds show as placeholders. Screen readers
   hear each chart's name and its series and values.
+- Insert a chart, as Excel's Insert Chart does: "Insert chart" in the cell
+  menu (column, bar, line, area, pie, doughnut or scatter) or Alt+F1 for a
+  column chart. It plots the selection, or the data around the active cell:
+  a first row of text names the series, a first column of text or dates
+  gives the categories, and series run down the columns unless the data is
+  wider than it is tall. The chart is drawn at once and saved as a chart
+  part Excel opens and edits.
 - Notes and threaded comments are marked in the corner of their cell and
   shown when you point at the cell or select it. From the cell menu, or with
   Shift+F2 as in Excel, you can add, edit and delete a note, and read a

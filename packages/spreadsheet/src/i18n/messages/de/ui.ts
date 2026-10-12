@@ -222,6 +222,7 @@ export const ui: Record<keyof typeof en, string> = {
   'shortcuts.clear': 'Ausgewählte Zellen leeren',
   'shortcuts.insertDelete': 'Zellen, Zeilen oder Spalten einfügen oder löschen',
   'shortcuts.filterToggle': 'Filterschaltflächen hinzufügen oder entfernen',
+  'shortcuts.insertChart': 'Säulendiagramm der Daten einfügen',
   'shortcuts.filterMenu': 'Filtermenü einer Überschrift öffnen',
   'shortcuts.undoRedo': 'Rückgängig, Wiederholen',
   'shortcuts.clipboard': 'Ausschneiden, Kopieren, Einfügen',
@@ -249,6 +250,7 @@ export const ui: Record<keyof typeof en, string> = {
   'keys.menu': 'Umschalt+F10, Menütaste',
   'keys.shiftF2': 'Umschalt+F2',
   'keys.filterToggle': 'Strg+Umschalt+L',
+  'keys.altF1': 'Alt+F1',
   'keys.altDown': 'Alt+Nach-unten',
 
   'columnWidth.title': 'Breite von Spalte {{column}}',

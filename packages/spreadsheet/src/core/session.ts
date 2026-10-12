@@ -54,7 +54,11 @@ import {
   type SheetInfo,
   type CfRule,
   type LayoutOp,
+  type SheetObject,
 } from './types';
+import { parseChart } from './charts';
+import { chartFromRange, chartPartXml, type ChartCell, type NewChartKind } from './chartWriter';
+import { parseXml } from './xml';
 import { joinTexts, readWorkbook, type SheetModel, type WorkbookModel } from './workbook';
 import { buildPackage, removeMacros, writeWorkbook, type SaveInput } from './writer';
 import { csvPackage, isCsvFile } from './csvWorkbook';
@@ -182,6 +186,17 @@ function valueContent(v: EngineValue): CellContent {
 function valueRaw(v: EngineValue): RawContent {
   return toRaw(valueContent(v));
 }
+
+/** How a chart's kind is named, as "{{type}} chart". */
+const CHART_KIND_TYPES: Record<NewChartKind, MessageKey> = {
+  column: 'core.chartType.column',
+  bar: 'core.chartType.bar',
+  line: 'core.chartType.line',
+  area: 'core.chartType.area',
+  pie: 'core.chartType.pie',
+  doughnut: 'core.chartType.doughnut',
+  scatter: 'core.chartType.scatter',
+};
 
 /**
  * A cell's content as people read it: the formula, or the value as text.
@@ -356,6 +371,8 @@ export class WorkbookSession {
   private fileValidations = new Map<number, Pick<SheetInfo, 'listValidations' | 'ruleValidations'>>();
   /** Per sheet whose conditional formatting has been changed, the rules the file had. */
   private fileConditionalFormats = new Map<number, CfRule[]>();
+  /** The sheets' charts, pictures and shapes as the file had them, for the sheets whose objects have changed. */
+  private fileObjects = new Map<number, SheetObject[]>();
   /**
    * Per sheet: where each HYPERLINK formula's link went when the screen was
    * last told, so a link that changes while its value doesn't is told too.
@@ -463,11 +480,13 @@ export class WorkbookSession {
   private layoutNotes(): CellChange[] {
     const validations = new Set(this.validationsChanged());
     const formats = new Set(this.conditionalFormatsChanged());
+    const objects = new Set(this.objectsChanged().keys());
     return this.model.sheets.flatMap((m, s) => [
       ...(this.layouts[s]?.notes(m.info.name) ?? []),
       ...(this.links[s]?.notes(m.info.name) ?? []),
       ...(validations.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.validations') }] : []),
       ...(formats.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.conditionalFormats') }] : []),
+      ...(objects.has(s) ? [{ sheet: m.info.name, ref: '', before: '', after: '', note: msg('core.change.objects') }] : []),
     ]);
   }
 
@@ -1926,6 +1945,16 @@ export class WorkbookSession {
         if (table) return this.emptyResult(msg('core.layout.mergeTable', { table: table.name }));
       }
     }
+    // A chart inserted is made here, from the cells as they are now, and set among the sheet's objects.
+    if (changes.some((c) => c.op.kind === 'insertChart')) {
+      const made: LayoutChange[] = [];
+      for (const c of changes) {
+        const op = c.op.kind === 'insertChart' ? this.insertedChart(c.sheet, c.op) : c.op;
+        if (!op) return this.emptyResult(msg('core.chart.noData'));
+        made.push({ sheet: c.sheet, op });
+      }
+      changes = made;
+    }
     const undo: LayoutChange[] = [];
     for (const { sheet, op } of changes) {
       const back =
@@ -1935,7 +1964,11 @@ export class WorkbookSession {
             ? this.applyValidations(sheet, op)
             : op.kind === 'conditionalFormats'
               ? this.applyConditionalFormats(sheet, op)
-              : this.layoutOf(sheet).apply(op);
+              : op.kind === 'objects'
+                ? this.applyObjects(sheet, op)
+                : op.kind === 'insertChart'
+                  ? op
+                  : this.layoutOf(sheet).apply(op);
       undo.unshift({ sheet, op: back });
     }
     return { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
@@ -1958,6 +1991,61 @@ export class WorkbookSession {
     const undo: LayoutOp = { kind: 'conditionalFormats', rules: info.conditionalFormats };
     info.conditionalFormats = op.rules.map((r) => (r.style && r.dxfId === undefined && !r.x14Only ? { ...r, dxfId: this.model.styles.addDxf(r.style) } : r));
     return undo;
+  }
+
+  /** Sets a sheet's charts, pictures and shapes, returning the change that puts back the ones before. */
+  private applyObjects(sheet: number, op: Extract<LayoutOp, { kind: 'objects' }>): LayoutOp {
+    const info = this.sheet(sheet).info;
+    if (!this.fileObjects.has(sheet)) this.fileObjects.set(sheet, info.objects);
+    const undo: LayoutOp = { kind: 'objects', objects: info.objects };
+    info.objects = op.objects;
+    return undo;
+  }
+
+  /**
+   * Excel's Insert Chart: the sheet's objects with a new chart plotting the
+   * range's cells as they are now. Undefined when the range has no numbers.
+   */
+  private insertedChart(sheet: number, op: Extract<LayoutOp, { kind: 'insertChart' }>): LayoutOp | undefined {
+    const info = this.sheet(sheet).info;
+    const date1904 = this.model.date1904;
+    const at = (row: number, col: number): ChartCell => {
+      const v = this.cellValue(sheet, row, col);
+      const format = this.model.styles.get(this.current(sheet, row, col).style).numFmt || 'General';
+      let date = false;
+      try {
+        date = typeof v === 'number' && format !== 'General' && isDateFormat(format);
+      } catch {
+        date = false;
+      }
+      const value = v !== null && typeof v === 'object' ? null : v;
+      const text =
+        typeof value === 'number' ? String(formatNumber(format, date && date1904 ? value + 1462 : value, { throws: false })) : typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : (value ?? '');
+      return { value, date, format, text };
+    };
+    const chart = chartFromRange(op.rect, at, info.name, op.chart, op.title);
+    if (!chart.series.some((s) => s.values.points.some((p) => p !== null))) return undefined;
+    const xml = chartPartXml(chart);
+    const names = new Set(info.objects.map((o) => o.name));
+    let n = info.objects.filter((o) => o.kind === 'chart').length + 1;
+    while (names.has(`Chart ${n}`)) n++;
+    const object: SheetObject = {
+      kind: 'chart',
+      name: `Chart ${n}`,
+      title: chart.title ?? (chart.series.length === 1 ? chart.series[0].name?.text : undefined),
+      chartType: msg(CHART_KIND_TYPES[op.chart]),
+      chart: parseChart(parseXml(xml), this.model.chartContext),
+      from: op.from,
+      to: op.to,
+      chartXml: xml,
+    };
+    return { kind: 'objects', objects: [...info.objects, object] };
+  }
+
+  /** The sheets whose charts, pictures or shapes differ from the file's, with the file's. */
+  private objectsChanged(): Map<number, SheetObject[]> {
+    const key = (list: SheetObject[]) => JSON.stringify(list.map((o) => [o.source, o.from, o.to, o.sizePx, o.chartXml]));
+    return new Map([...this.fileObjects].filter(([s, file]) => key(file) !== key(this.sheet(s).info.objects)));
   }
 
   /** The sheets whose conditional formatting differs from the file's. */
@@ -2401,6 +2489,7 @@ export class WorkbookSession {
       links: this.links,
       validations: new Set(this.validationsChanged()),
       conditionalFormats: new Set(this.conditionalFormatsChanged()),
+      objects: this.objectsChanged(),
       changedIn: (sheet, rect) => {
         // Rows or columns inserted or deleted on the sheet, cells edited before or since, and formulas recalculated.
         if (this.baked.structure.some((c) => c.sheet === this.model.sheets[sheet]?.info.name)) return true;

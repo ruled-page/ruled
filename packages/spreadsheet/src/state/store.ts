@@ -35,6 +35,7 @@ import {
   type FormatChange,
   type PastePart,
   type LayoutOp,
+  type Anchor,
   type ReadOnlyCells,
   type SeriesOptions,
   type SortKey,
@@ -55,6 +56,7 @@ import { parseClipboardText, transposeGrid } from './clipboard';
 import { csvFileName, sheetCsv } from './csv';
 import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit';
 import { checkboxState } from './checkbox';
+import type { NewChartKind } from '../core/chartWriter';
 import { displayText, editText, exactText, isDateStyle } from './format';
 import { excelTextWidth } from './overflow';
 import { builtInLists, cleanLists, loadUserLists, saveUserLists } from './fillLists';
@@ -491,6 +493,17 @@ function download(blob: Blob, fileName: string): void {
 const sameRect = (a: Rect, b: Rect) => a.r1 === b.r1 && a.c1 === b.c1 && a.r2 === b.r2 && a.c2 === b.c2;
 
 const rangeLabel = (r: Rect) => (r.r1 === r.r2 && r.c1 === r.c2 ? toA1(r.r1, r.c1) : `${toA1(r.r1, r.c1)}:${toA1(r.r2, r.c2)}`);
+
+/** The cell an object `w` by `h` pixels from `from` ends in, as a drawing's "to" anchor. */
+function anchorAfter(view: SheetView, from: Anchor, w: number, h: number): Anchor {
+  let col = from.col;
+  let x = w + from.colOffPx;
+  while (col < MAX_COLS - 1 && x >= view.colWidth(col)) x -= view.colWidth(col++);
+  let row = from.row;
+  let y = h + from.rowOffPx;
+  while (row < MAX_ROWS - 1 && y >= view.rowHeight(row)) y -= view.rowHeight(row++);
+  return { col, row, colOffPx: Math.round(x), rowOffPx: Math.round(y) };
+}
 
 export class WorkbookStore {
   status: 'empty' | 'loading' | 'ready' | 'error' = 'empty';
@@ -3120,6 +3133,30 @@ export class WorkbookStore {
     }
     const unbox: EditOp = { type: 'format', sheet: this.active, rects, change: { checkbox: false } };
     await this.edit({ type: 'batch', ops: [clear, unbox] }, 'undo', { label: msg('checkbox.history.remove') });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Charts
+
+  /**
+   * Excel's Insert Chart: a chart of the selection, or of the data around the
+   * active cell, the size of Excel's default chart and placed a column to the
+   * right of the data, level with its top. One undoable step.
+   */
+  async insertChart(kind: NewChartKind): Promise<void> {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return;
+    const sel = this.selection.rects[0];
+    const picked = sel && (sel.r1 !== sel.r2 || sel.c1 !== sel.c2) ? sel : this.dataRegion();
+    // Whole rows or columns are charted as far as the sheet has anything in them.
+    const rect = picked && { ...picked, r2: Math.min(picked.r2, Math.max(view.info.maxRow, picked.r1)), c2: Math.min(picked.c2, Math.max(view.info.maxCol, picked.c1)) };
+    if (!rect) {
+      this.toast('info', msg('core.chart.noData'));
+      return;
+    }
+    const from: Anchor = { row: rect.r1, col: Math.min(rect.c2 + 2, MAX_COLS - 1), rowOffPx: 0, colOffPx: 0 };
+    const title = this.t('charts.placeholderTitle');
+    await this.changeLayout({ kind: 'insertChart', chart: kind, rect, from, to: anchorAfter(view, from, 480, 288), title }, msg('charts.history.insert'));
   }
 
   // ---------------------------------------------------------------------------

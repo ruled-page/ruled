@@ -6,6 +6,10 @@ import { APPLE, mod } from './keys';
 import { openDefineName } from '../state/names';
 import { useT } from '../i18n/react';
 import type { CfQuick } from '../state/cfRules';
+import type { NewChartKind } from '../core/chartWriter';
+
+/** The charts Insert Chart offers, in Excel's order. */
+const CHART_KINDS: NewChartKind[] = ['column', 'bar', 'line', 'area', 'pie', 'doughnut', 'scatter'];
 
 /** The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find. */
 export function GridMenu({ store }: { store: WorkbookStore }) {
@@ -161,6 +165,15 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { label: t('menu.filter'), onSelect: () => store.set('filterPicker', { col: sel.col, x: menu.x, y: menu.y }) },
     { label: t('validation.menu'), onSelect: () => void store.openValidationDialog(), disabled: locked },
     { label: t('cf.menu'), items: cfItems, disabled: locked },
+    ...(store.features.charts
+      ? [
+          {
+            label: t('charts.menu.insert'),
+            disabled: view.info.kind !== 'worksheet' || !!view.info.protected,
+            items: CHART_KINDS.map((k) => ({ label: t(`core.chartType.${k}`), onSelect: () => void store.insertChart(k) })),
+          },
+        ]
+      : []),
     {
       label: t(view.filter && !view.filter.table ? 'menu.filterOff' : 'menu.filterOn'),
       hint: APPLE ? '⇧⌘F' : t('keys.filterToggle'),

@@ -224,6 +224,7 @@ export const ui = {
   'shortcuts.clear': 'Clear the selected cells',
   'shortcuts.insertDelete': 'Insert or delete cells, rows or columns',
   'shortcuts.filterToggle': 'Add or remove filter buttons',
+  'shortcuts.insertChart': 'Insert a column chart of the data',
   'shortcuts.filterMenu': "Open a heading's filter menu",
   'shortcuts.undoRedo': 'Undo, redo',
   'shortcuts.clipboard': 'Cut, copy, paste',
@@ -251,6 +252,7 @@ export const ui = {
   'keys.menu': 'Shift+F10, Menu key',
   'keys.shiftF2': 'Shift+F2',
   'keys.filterToggle': 'Ctrl+Shift+L',
+  'keys.altF1': 'Alt+F1',
   'keys.altDown': 'Alt+Down arrow',
 
   'columnWidth.title': 'Width of column {{column}}',

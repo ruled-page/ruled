@@ -46,6 +46,8 @@ export interface WorkbookModel {
   people: Person[];
   /** The workbook's structure is protected: sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
   structureLocked: boolean;
+  /** What chart references are resolved against: the theme, the sheets and the names. */
+  chartContext: ChartContext;
 }
 
 const EMU_PER_PX = 9525;
@@ -187,8 +189,9 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
   if (!xml) return [];
   const rels = new Map(pkg.rels(path).map((r) => [r.id, r]));
   const out: SheetObject[] = [];
-  for (const anchor of parseXml(xml).children) {
+  for (const [i, anchor] of parseXml(xml).children.entries()) {
     if (!anchor.name.endsWith('Anchor')) continue;
+    const source = { drawing: path, anchor: i };
     const from = anchorOf(child(anchor, 'from'));
     const to = anchorOf(child(anchor, 'to'));
     const ext = child(anchor, 'ext');
@@ -201,13 +204,13 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
     if (rel && (rel.type === 'chart' || rel.type === 'chartEx')) {
       const { title, type, chart } = readChart(pkg, rel.target, ctx);
       // Excel's newer kinds of chart (chartEx: waterfall, treemap…) aren't read.
-      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx });
+      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx, source });
     } else if (descendants(anchor, 'pic').length) {
-      out.push({ kind: 'image', name, from, to, sizePx });
+      out.push({ kind: 'image', name, from, to, sizePx, source });
     } else if (descendants(anchor, 'sp').length || descendants(anchor, 'grpSp').length || descendants(anchor, 'cxnSp').length) {
-      out.push({ kind: 'shape', name, from, to, sizePx });
+      out.push({ kind: 'shape', name, from, to, sizePx, source });
     } else if (descendants(anchor, 'graphicFrame').length) {
-      out.push({ kind: 'shape', name, from, to, sizePx });
+      out.push({ kind: 'shape', name, from, to, sizePx, source });
     }
   }
   return out;
@@ -845,5 +848,6 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     properties: readCustomProperties(pkg),
     people,
     structureLocked: ['1', 'true'].includes(attr(child(wb, 'workbookProtection'), 'lockStructure') ?? ''),
+    chartContext,
   };
 }
