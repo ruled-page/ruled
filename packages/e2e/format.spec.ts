@@ -39,6 +39,43 @@ test('formats cells from the format bar, and saves the formats', async ({ page }
   expect(lines.getCell('C2').alignment).toMatchObject({ horizontal: 'center' });
 });
 
+test('types a custom number format, shows the active cell in it, and saves it', async ({ page }) => {
+  const bar = page.getByRole('group', { name: 'Format' });
+  const numberFormat = bar.getByRole('combobox', { name: 'Number format' });
+  await goTo(page, 'C2:C3');
+  await numberFormat.selectOption('more');
+  const dialog = page.getByRole('dialog', { name: 'Number format' });
+  const type = dialog.getByRole('textbox', { name: 'Type' });
+  await expect(type).toBeFocused();
+  await expect(type).toHaveValue('General');
+  await expect(dialog.getByRole('listbox', { name: 'Formats' })).toHaveValue('General');
+
+  await type.fill('"abc');
+  await expect(dialog.getByRole('status', { name: 'Sample' })).toHaveText('');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await expect(dialog.getByText('This number format cannot be used')).toBeVisible();
+  await expect(type).toHaveAttribute('aria-invalid', 'true');
+
+  await type.fill('0.0 "kg"');
+  await expect(dialog.getByRole('status', { name: 'Sample' })).toHaveText('3.0 kg');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(shown(page, 'C3')).toHaveText('0.5 kg');
+  await expect(numberFormat).toHaveValue('custom');
+
+  // The workbook's own code is listed after Excel's, and picking one shows it.
+  await numberFormat.selectOption('more');
+  await expect(dialog.getByRole('listbox', { name: 'Formats' })).toHaveValue('0.0 "kg"');
+  await dialog.getByRole('listbox', { name: 'Formats' }).selectOption('0%');
+  await expect(type).toHaveValue('0%');
+  await expect(dialog.getByRole('status', { name: 'Sample' })).toHaveText('300%');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(shown(page, 'C2')).toHaveText('3.0 kg');
+
+  const lines = (await save(page)).getWorksheet('Lines')!;
+  expect(lines.getCell('C3').numFmt).toBe('0.0 "kg"');
+});
+
 test('undoes a format change, and clears formats', async ({ page }) => {
   const bar = page.getByRole('group', { name: 'Format' });
   await goTo(page, 'A2');

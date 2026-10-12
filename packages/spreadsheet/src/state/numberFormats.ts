@@ -1,3 +1,4 @@
+import { isValidFormat } from 'numfmt';
 import { builtinNumFmt } from '../core/styles';
 
 /** The number formats the format bar offers, as Excel's Home tab lists them. */
@@ -61,6 +62,21 @@ export function numberFormatCode(kind: NumberFormatKind, locale: string): string
 /** Which of the kinds a format code is, if any. */
 export function numberFormatKind(code: string, locale: string): NumberFormatKind | undefined {
   return NUMBER_FORMAT_KINDS.find((k) => numberFormatCode(k, locale) === code);
+}
+
+/** Excel's built-in formats, in the order its Custom list shows them. */
+const LISTED_IDS = [0, 1, 2, 3, 4, 37, 38, 39, 40, 5, 6, 7, 8, 9, 10, 11, 48, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47, 49, 41, 42, 43, 44];
+
+/** The codes Excel's Custom list offers: its built-in formats, then the workbook's own, each once. */
+export function listedFormatCodes(workbookCodes: Iterable<string>, locale: string): string[] {
+  const codes = new Set(LISTED_IDS.map((id) => builtinNumFmt(id, locale)));
+  for (const code of workbookCodes) if (code) codes.add(code);
+  return [...codes];
+}
+
+/** Whether a typed format code is one Excel could use. */
+export function usableFormat(code: string): boolean {
+  return code !== '' && isValidFormat(code);
 }
 
 /**

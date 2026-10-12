@@ -45,6 +45,10 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   set the line borders are drawn with, from Excel's thirteen styles; files'
   dash-dot, dash-dot-dot, slanted dash-dot and hair borders are drawn and
   kept as themselves rather than as dashes and dots.
+- Custom number formats: "More number formats…" in the format bar opens
+  Excel's Custom list, to type a format code or pick one of Excel's or the
+  workbook's own, with the active cell shown in it as it is typed. Codes
+  Excel couldn't use are refused.
 - The cell menu, the filter menu, Find, the report and the smaller dialogs
   load when first used, or once the page is idle, which keeps the editor's
   first download smaller.

@@ -188,7 +188,11 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
         className="wbe-format-number"
         value={kind ?? 'custom'}
         disabled={disabled}
-        onChange={(e) => void store.formatCells({ numFmt: numberFormatCode(e.target.value as NumberFormatKind, store.locale) })}
+        onChange={(e) =>
+          e.target.value === 'more'
+            ? store.set('numberFormatOpen', true)
+            : void store.formatCells({ numFmt: numberFormatCode(e.target.value as NumberFormatKind, store.locale) })
+        }
         aria-label={t('format.numberFormat')}
         title={t('format.numberFormat')}
       >
@@ -202,6 +206,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
             {t(`format.number.${k}`)}
           </option>
         ))}
+        <option value="more">{t('format.number.more')}</option>
       </Select>
       <div className="wbe-btn-group">
         <button className="wbe-btn wbe-icon" disabled={disabled} onClick={() => void store.stepDecimals(1)} title={t('format.decimalsMore')} aria-label={t('format.decimalsMore')}>

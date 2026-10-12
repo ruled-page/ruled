@@ -1894,6 +1894,36 @@
   width: 520px;
 }
 
+.wbe .wbe-modal.wbe-number-format-dialog {
+  width: 420px;
+}
+
+/* The active cell as the typed code shows it, in a box like a cell's. */
+.wbe .wbe-number-sample {
+  display: block;
+  min-height: 1.9em;
+  padding: 4px 6px;
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface-alt);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wbe .wbe-number-list {
+  width: 100%;
+  margin-top: 8px;
+  padding: 2px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius-sm);
+  background: var(--wbe-surface);
+  color: var(--wbe-text);
+  font: inherit;
+  font-size: var(--wbe-font-size-sm);
+}
+
 .wbe .wbe-sort-levels {
   display: grid;
   gap: 6px;

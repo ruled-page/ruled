@@ -563,6 +563,8 @@ export class WorkbookStore {
   validationDialog?: { rects: Rect[]; rule?: ListValidation | RuleValidation };
   /** Excel's Sort dialog, open for the block the selection's sort applies to. */
   sortDialog?: { rect: Rect; header: boolean };
+  /** Excel's Custom number formats, open for the selection. */
+  numberFormatOpen = false;
   /** Excel's Insert or Delete dialog, open for the selection. */
   cellsDialog?: 'insert' | 'delete';
   /** Excel's Custom Lists dialog, opened from the Fill Series dialog. */
@@ -3883,6 +3885,7 @@ export class WorkbookStore {
       | 'cfGallery'
       | 'validationDialog'
       | 'sortDialog'
+      | 'numberFormatOpen'
       | 'cellsDialog'
       | 'customListsOpen'
       | 'schemaDraft'

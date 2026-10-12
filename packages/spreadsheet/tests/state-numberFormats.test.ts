@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numberFormatCode, numberFormatKind, stepDecimals } from '../src/state/numberFormats';
+import { listedFormatCodes, numberFormatCode, numberFormatKind, stepDecimals, usableFormat } from '../src/state/numberFormats';
 
 describe('number formats', () => {
   it('give each kind its code for the locale, and name a code by its kind', () => {
@@ -28,5 +28,22 @@ describe('number formats', () => {
     expect(stepDecimals('m/d/yyyy', 1)).toBe('m/d/yyyy');
     expect(stepDecimals('@', 1)).toBe('@');
     expect(stepDecimals('\\0 "x"', 1)).toBe('\\0 "x"');
+  });
+
+  it("list Excel's built-in codes for the locale, then the workbook's own, each once", () => {
+    const us = listedFormatCodes(['General', '0.00', '0.0 "kg"', '', '0.0 "kg"'], 'en-US');
+    expect(us.slice(0, 5)).toEqual(['General', '0', '0.00', '#,##0', '#,##0.00']);
+    expect(us).toContain('m/d/yyyy');
+    expect(us.at(-1)).toBe('0.0 "kg"');
+    expect(us.filter((c) => c === '0.0 "kg"' || c === '0.00')).toHaveLength(2);
+    expect(listedFormatCodes([], 'en-GB')).toContain('dd/mm/yyyy');
+  });
+
+  it('tell codes Excel could use from ones it could not', () => {
+    expect(usableFormat('0.00;[Red]-0.00')).toBe(true);
+    expect(usableFormat('[h]:mm')).toBe(true);
+    expect(usableFormat('')).toBe(false);
+    expect(usableFormat('"abc')).toBe(false);
+    expect(usableFormat('0;0;0;0;0')).toBe(false);
   });
 });

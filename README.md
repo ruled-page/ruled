@@ -63,7 +63,11 @@ back as .xlsx without losing what the editor can't display.
   style and colour picked in the Borders menu, from Excel's thirteen
   styles, dash-dot and hair lines among them), alignment (left,
   centre or right; top, middle or bottom) and indent, wrapping, number
-  formats (with more or fewer decimals), and clearing formats. Text sits at
+  formats (with more or fewer decimals, or any format code typed or picked
+  in "More number formats…", which shows the active cell in the code as it
+  is typed and lists Excel's built-in codes and the workbook's own), and
+  clearing formats. Codes are typed as Excel saves them, with a point for
+  decimals and English date letters, whatever the user's language. Text sits at
   the bottom of its cell unless set otherwise, as in Excel, and each indent
   level moves it in by three spaces (Increase Indent aligns text left, as
   Excel's does). Each
