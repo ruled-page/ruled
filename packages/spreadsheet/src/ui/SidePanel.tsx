@@ -6,7 +6,7 @@ import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { RichText } from './RichText';
-import { ReportBody } from './ReportPanel';
+import { lazyModule } from './lazyModule';
 import { Tabs } from './Tabs';
 import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
@@ -204,9 +204,13 @@ function summarize(t: Translator, changes: CellChange[]): string {
   return cells ? t('changes.summaryCells', { count: cells }) : t('changes.summaryStructural', { count: structural });
 }
 
+/** "What's in this file", loaded when its tab is first shown. */
+const report = lazyModule(() => import('./ReportPanel'));
+
 export function SidePanel({ store }: { store: WorkbookStore }) {
   const t = useT();
   const panel = store.panel;
+  const Report = report.useModule(panel === 'report');
   if (!panel || (panel === 'report' && !store.features.report)) return null;
   return (
     <aside className="wbe-report" aria-label={t('panel.label')}>
@@ -234,7 +238,7 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           </div>
         )}
       >
-        {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : <ReportBody store={store} />}
+        {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : Report && <Report.ReportBody store={store} />}
       </Tabs>
     </aside>
   );

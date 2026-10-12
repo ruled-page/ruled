@@ -3,15 +3,11 @@ import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, RecalcBanner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
-import { FilterPicker } from '../ui/FilterPicker';
-import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
 import { PORTAL_ID } from '../ui/glideDom';
-import { GridMenu } from '../ui/GridMenu';
 import { Icon, IconContext } from '../ui/icons';
-import { CellsDialog, ShortcutsDialog, SizeDialog } from '../ui/KeyboardDialogs';
 import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
@@ -36,6 +32,11 @@ const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
 const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
 const fillDialogs = lazyModule(() => import('../ui/FillDialogs'));
 const sortDialog = lazyModule(() => import('../ui/SortDialog'));
+// The cell menu, the filter menu, Find, and the dialogs for sizes, inserting cells and the shortcuts.
+const gridMenu = lazyModule(() => import('../ui/GridMenu'));
+const filterPicker = lazyModule(() => import('../ui/FilterPicker'));
+const findPanel = lazyModule(() => import('../ui/FindPanel'));
+const keyDialogs = lazyModule(() => import('../ui/KeyboardDialogs'));
 
 /** The editor's parts, in the order F6 visits them. */
 const REGIONS = ['.wbe-toolbar', '.wbe-format-bar', '.wbe-formula-bar', '.wbe-sheet-area', '.wbe-report', '.wbe-sheet-tabs'];
@@ -250,6 +251,10 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Links = linkDialog.useModule(store.linkDialog);
   const Fill = fillDialogs.useModule(store.seriesDialog || store.customListsOpen);
   const Sort = sortDialog.useModule(!!store.sortDialog);
+  const Menu = gridMenu.useModule(!!store.menu);
+  const Filter = filterPicker.useModule(!!store.filterPicker);
+  const Find = findPanel.useModule(store.findOpen);
+  const Keys = keyDialogs.useModule(store.shortcutsOpen || store.columnWidthFor !== undefined || store.rowHeightFor !== undefined || !!store.cellsDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
   // A file chosen from the empty state takes its button away; the focus goes on to the sheet.
@@ -260,7 +265,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [designer, comments, nameDialogs, linkDialog, fillDialogs]) m.preload();
+      for (const m of [gridMenu, filterPicker, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog]) m.preload();
     });
   }, [opened]);
 
@@ -346,7 +351,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
             />
           )}
           {ready && view.info.kind !== 'worksheet' && <ChartSheet store={store} view={view} />}
-          {ready && store.findOpen && <FindPanel store={store} />}
+          {ready && store.findOpen && Find && <Find.FindPanel store={store} />}
         </section>
         {ready && <SidePanel store={store} />}
       </div>
@@ -359,11 +364,11 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
         </div>
       )}
       {store.designerOpen && Designer && <Designer.SchemaDesigner store={store} />}
-      {ready && <GridMenu store={store} />}
-      {ready && <FilterPicker store={store} />}
-      {ready && <SizeDialog store={store} axis="cols" />}
-      {ready && <SizeDialog store={store} axis="rows" />}
-      {ready && <CellsDialog store={store} />}
+      {ready && Menu && <Menu.GridMenu store={store} />}
+      {ready && Filter && <Filter.FilterPicker store={store} />}
+      {ready && Keys && <Keys.SizeDialog store={store} axis="cols" />}
+      {ready && Keys && <Keys.SizeDialog store={store} axis="rows" />}
+      {ready && Keys && <Keys.CellsDialog store={store} />}
       {ready && store.commentFor && Comments && <Comments.CommentPopup store={store} />}
       {ready && store.nameManagerOpen && Names && <Names.NameManager store={store} />}
       {ready && store.nameDialog && Names && <Names.NameDialog store={store} />}
@@ -371,7 +376,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.seriesDialog && Fill && <Fill.SeriesDialog store={store} />}
       {ready && store.customListsOpen && Fill && <Fill.CustomListsDialog store={store} />}
       {ready && store.sortDialog && Sort && <Sort.SortDialog store={store} />}
-      <ShortcutsDialog store={store} />
+      {Keys && <Keys.ShortcutsDialog store={store} />}
       <ConfirmDialog store={store} />
       <Toasts store={store} />
     </div>

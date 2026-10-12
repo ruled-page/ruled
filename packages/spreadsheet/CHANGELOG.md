@@ -20,6 +20,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Excel's Sort dialog, from "Custom sort…" in the cell menu: sort by
   several levels, by a custom list's order, with case mattering, or left to
   right.
+- The cell menu, the filter menu, Find, the report and the smaller dialogs
+  load when first used, or once the page is idle, which keeps the editor's
+  first download smaller.
 - Dynamic array formulas, typed or from the file, spill their values into
   the cells around them and recalculate live. A spill is outlined while one
   of its cells is selected, a blocked one shows #SPILL!, and spills are
