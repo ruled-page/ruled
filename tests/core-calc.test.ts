@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { describeValue, toRaw, unsupportedExplanation, unsupportedLabel, valuesMatch, type EngineSheet } from '../src/core/engine';
-import { nativeEngine } from '../src/engine/native';
-import { NativeEngine as CalcEngine } from '../src/engine/workbook';
+import { valuesMatch, type EngineSheet } from '@sitepen/formula-engine';
+import { describeValue, toRaw, unsupportedExplanation, unsupportedLabel } from '../src/core/engine';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 
 const unsupportedReason = (f: string) => nativeEngine.unsupportedReason(f);
-import { isUnsupportedError } from '../src/core/engineValue';
+import { isUnsupportedError } from '@sitepen/formula-engine';
 import { english } from '../src/i18n';
 
 const sheet = (name: string, rows: EngineSheet['rows'] = []): EngineSheet => ({ name, rows });
 
 /** A one-sheet engine; returns what a formula works out to there. */
 function calc(formula: string, date1904 = false) {
-  const e = new CalcEngine([sheet('S', [[1, 2, 3]])], [], date1904);
+  const e = nativeEngine.create([sheet('S', [[1, 2, 3]])], [], date1904);
   try {
     return e.calculate('=' + formula, 0);
   } finally {
@@ -37,7 +37,7 @@ describe('formulas written as Excel writes them', () => {
   it('calculate with upper-case exponents and quotes doubled inside text', () => {
     const cells = ['1E+3', '9.99E+307>1', 'LOOKUP(9.99E+307,A2:A3)', 'LEN("say ""hi""")', '"""x"""', 'COUNTIF(A2:A3,"a""b")', 'TRUE+1E-1'];
     for (const f of cells) expect(unsupportedReason(f), f).toBeUndefined();
-    const e = new CalcEngine([sheet('S', [cells.map((f) => toRaw({ kind: 'formula', formula: f })), [3], ['a"b']])], [], false);
+    const e = nativeEngine.create([sheet('S', [cells.map((f) => toRaw({ kind: 'formula', formula: f })), [3], ['a"b']])], [], false);
     expect(cells.map((_, c) => e.value(0, 0, c))).toEqual([1000, true, 3, 8, '"x"', 1, 1.1]);
     e.destroy();
   });
@@ -50,7 +50,7 @@ describe('formulas written as Excel writes them', () => {
 
 describe('the engine', () => {
   it('skips names it cannot hold: print areas, broken references and scopes that are gone', () => {
-    const e = new CalcEngine(
+    const e = nativeEngine.create(
       [sheet('S', [[5]]), null],
       [
         { name: '_xlnm.Print_Area', formula: 'S!$A$1:$B$2' },
@@ -67,7 +67,7 @@ describe('the engine', () => {
   });
 
   it('answers nothing for sheets it was not given, until they are added', () => {
-    const e = new CalcEngine([sheet('S', [['=Other!A1*2']]), null], [], false);
+    const e = nativeEngine.create([sheet('S', [['=Other!A1*2']]), null], [], false);
     expect(e.has(1)).toBe(false);
     expect(e.value(1, 0, 0)).toBeNull();
     expect(e.value(7, 0, 0)).toBeNull();
@@ -82,7 +82,7 @@ describe('the engine', () => {
   });
 
   it('gives #VALUE! for a formula it cannot read, which the session marks unsupported before it gets there', () => {
-    const e = new CalcEngine([sheet('S', [[1]])], [], false);
+    const e = nativeEngine.create([sheet('S', [[1]])], [], false);
     const [change] = e.write([{ sheet: 0, row: 0, col: 1, raw: '=SUM(1,' }]);
     expect(change).toMatchObject({ sheet: 0, row: 0, col: 1, value: { error: '#VALUE!' } });
     expect(unsupportedReason('SUM(1,')).toEqual({ kind: 'syntax' });
@@ -93,13 +93,13 @@ describe('the engine', () => {
   });
 
   it('reports a formula it cannot evaluate as an error rather than throwing', () => {
-    const e = new CalcEngine([sheet('S')], [], false);
+    const e = nativeEngine.create([sheet('S')], [], false);
     expect(e.calculate('=SUM(', 0)).toMatchObject({ error: expect.stringMatching(/^#/) });
     e.destroy();
   });
 
   it('finds the formulas that depend on a cell, through ranges too', () => {
-    const e = new CalcEngine([sheet('S', [[1, '=A1*2', '=SUM(A1:B1)', '=C1+1']])], [], false);
+    const e = nativeEngine.create([sheet('S', [[1, '=A1*2', '=SUM(A1:B1)', '=C1+1']])], [], false);
     expect(e.dependentsOf([{ sheet: 0, row: 0, col: 0 }, { sheet: 5, row: 0, col: 0 }]).map((c) => c.col).sort()).toEqual([1, 2, 3]);
     expect(e.dependentsOf([{ sheet: 0, row: 0, col: 0 }], 1).length).toBeLessThanOrEqual(2);
     e.destroy();
@@ -158,7 +158,7 @@ describe('functions that follow Excel rather than the engine', () => {
 
 describe('precision', () => {
   it('keeps the doubles Excel keeps, comparing them to 15 significant digits as Excel does', () => {
-    const e = new CalcEngine([sheet('S', [[2234567890.12, 0.1, 0.2]])], [], false);
+    const e = nativeEngine.create([sheet('S', [[2234567890.12, 0.1, 0.2]])], [], false);
     expect(e.calculate('=A1*1', 0)).toBe(2234567890.12);
     expect(e.calculate('=ROUND(88765432.1234567,4)', 0)).toBe(88765432.1235);
     expect(e.calculate('=123456789012345*1', 0)).toBe(123456789012345);

@@ -1,12 +1,12 @@
 import { format, isDateFormat } from 'numfmt';
 import { parseA1Ref, parseR1C1Ref } from '@borgar/fx';
-import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from '../core/bondMath';
-import { excelRound, numberText } from '../core/excelNumbers';
-import { eliminate } from '../core/matrixMath';
-import { estimate, prepare, project, RegressionError } from '../core/regressionMath';
-import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from '../core/refs';
-import { MAX_ARRAY_CELLS } from '../core/sizeLimits';
-import { hasWildcards, matchesWhole, parsePattern, searchIn } from '../core/wildcard';
+import { BondError, Bonds, Calendar, ddb, validBasis, vdb, yearFrac } from './bondMath';
+import { excelRound, numberText } from './excelNumbers';
+import { eliminate } from './matrixMath';
+import { estimate, prepare, project, RegressionError } from './regressionMath';
+import { colToLetters, MAX_COLS, MAX_ROWS, quoteSheetName } from './refs';
+import { MAX_ARRAY_CELLS } from './sizeLimits';
+import { hasWildcards, matchesWhole, parsePattern, searchIn } from './wildcard';
 import { apply, scalarOf, valuesOf, type Ctx } from './operands';
 import { Areas, bool, CALC, compare, DIV0, err, ERROR_CODES, isError, parseDateText, parseNumber, power, Lambda, Matrix, NA, NUM, num, REF, Ref, round15, text, VALUE, type Operand, type Scalar } from './values';
 

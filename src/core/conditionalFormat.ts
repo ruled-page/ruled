@@ -1,6 +1,6 @@
-import type { EngineValue } from './engineValue';
-import { makeShifter } from './formula';
-import { cellKey, MAX_COLS, parseRange } from './refs';
+import type { EngineValue } from '@sitepen/formula-engine';
+import { makeShifter } from '@sitepen/formula-engine/formula';
+import { cellKey, MAX_COLS, parseRange } from '@sitepen/formula-engine/refs';
 import type { StyleBook } from './styles';
 import type { CfCell, CfResult, CfRule, Cfvo, DiffStyle, Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';

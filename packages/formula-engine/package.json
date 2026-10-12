@@ -1,0 +1,20 @@
+{
+  "name": "@sitepen/formula-engine",
+  "version": "0.1.0",
+  "description": "Excel's formulas worked out in the browser or Node, cell by cell as a workbook changes, with Excel's rules throughout",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./native": "./src/native.ts",
+    "./formula": "./src/formula.ts",
+    "./refs": "./src/refs.ts",
+    "./wildcard": "./src/wildcard.ts"
+  },
+  "dependencies": {
+    "@borgar/fx": "^5.1.3",
+    "numfmt": "^3.2.6"
+  }
+}

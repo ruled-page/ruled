@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { NativeEngine } from '../src/engine/workbook';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 import { renameInFormula, writeDefinedNames } from '../src/core/definedNames';
 import {
   absoluteRef,
@@ -385,7 +385,7 @@ describe('names and the rest of the workbook', () => {
 
 describe('the engine', () => {
   it('takes names, changes and removes them, and leaves out what it can’t hold', () => {
-    const e = new NativeEngine([{ name: 'S', rows: [[2, '=N*3']] }, null], [], false);
+    const e = nativeEngine.create([{ name: 'S', rows: [[2, '=N*3']] }, null], [], false);
     expect(e.setName('N', undefined, 'S!$A$1')).toEqual({ changes: [{ sheet: 0, row: 0, col: 1, value: 6 }], held: true });
     expect(e.setName('n', undefined, '5').changes).toEqual([{ sheet: 0, row: 0, col: 1, value: 15 }]);
     expect(e.setName('N', undefined, '#REF!')).toMatchObject({ held: false, changes: [{ value: { error: '#NAME?' } }] });

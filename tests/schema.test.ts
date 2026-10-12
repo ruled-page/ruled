@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseA1 } from '../src/core/refs';
+import { parseA1 } from '@sitepen/formula-engine/refs';
 import { WorkbookSession } from '../src/core/session';
 import type { EditOp } from '../src/core/types';
 import { budgetSchema, forecastSchema, priceListSchema } from '../src/demo/schemas';

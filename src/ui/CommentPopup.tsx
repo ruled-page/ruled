@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
-import { toA1 } from '../core/refs';
+import { toA1 } from '@sitepen/formula-engine/refs';
 import type { CellNote, NoteEntry } from '../core/types';
 import type { WorkbookStore } from '../state/store';
 import { mod } from './keys';

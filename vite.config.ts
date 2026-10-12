@@ -22,12 +22,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     // `npm run engine:bench` runs the engine comparison in bench/ instead.
-    include: process.env.ENGINE_BENCH ? ['bench/**/*.bench.ts'] : ['tests/**/*.test.ts'],
+    include: process.env.ENGINE_BENCH ? ['bench/**/*.bench.ts', 'packages/*/bench/**/*.bench.ts'] : ['tests/**/*.test.ts', 'packages/*/tests/**/*.test.ts'],
     setupFiles: ['tests/setup.ts'],
     testTimeout: 60_000,
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.ts'],
       // The React screens and the apps' entry points are tested in a browser by the Playwright suite (e2e/).
       exclude: [
         'src/ui/**/*.tsx',

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FormulaEngine } from '../src/core/engine';
-import type { EngineValue } from '../src/core/engineValue';
-import { toFileFormula } from '../src/core/formula';
-import { NativeEngine } from '../src/engine/workbook';
+import type { FormulaEngine } from '../src/api';
+import type { EngineValue } from '../src/engineValue';
+import { toFileFormula } from '../src/formula';
+import { NativeEngine } from '../src/workbook';
 
 /**
  * The functions added to the engine, case by case: Excel's documented

@@ -1,5 +1,5 @@
 import { parseA1Ref, stringifyA1Ref, stringifyTokens, tokenize } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS, parseRange, rangeToA1 } from './refs';
+import { MAX_COLS, MAX_ROWS, parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
 import type { Rect } from './types';
 
 /** A change to the shape of a sheet, or a move of cells, that references must follow. */

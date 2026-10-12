@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { parseA1 } from '../src/core/refs';
+import { parseA1 } from '@sitepen/formula-engine/refs';
 import { WorkbookSession } from '../src/core/session';
 import { english } from '../src/i18n';
 import { bindSchema } from '../src/schema/binding';

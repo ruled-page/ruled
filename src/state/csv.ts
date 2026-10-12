@@ -1,6 +1,6 @@
 import { writeCsv, type CsvOptions } from '../core/csv';
 import { listSeparator } from '../core/locale';
-import { MAX_COLS, MAX_ROWS } from '../core/refs';
+import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
 import { VT, type DisplayStyle } from '../core/types';
 import { displayText } from './format';
 import type { SheetView } from './sheetView';

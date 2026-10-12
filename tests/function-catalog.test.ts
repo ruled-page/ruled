@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { FUTURE_FUNCTIONS } from '../src/core/formula';
+import { FUTURE_FUNCTIONS } from '@sitepen/formula-engine/formula';
 import { functionHelp, functionsStartingWith, knownFunctionNames } from '../src/core/functionCatalog';
-import { FUNCTIONS } from '../src/engine/functions';
+import { CALCULATED_FUNCTIONS } from '@sitepen/formula-engine/native';
 
 /** The engine's own: the one spilling formulas are given to it in, and what A2# and @A1:A3 become in files. */
 const ENGINE_ONLY = new Set(['WBE.SPILL', 'ANCHORARRAY', 'SINGLE']);
@@ -15,7 +15,7 @@ const NOT_OFFERED = new Set(['ECMA.CEILING', 'QUERYSTRING']);
 
 let registered: Set<string>;
 beforeAll(() => {
-  registered = new Set(Object.keys(FUNCTIONS));
+  registered = new Set(CALCULATED_FUNCTIONS);
 });
 
 describe('the functions offered while typing a formula', () => {

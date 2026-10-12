@@ -1,6 +1,6 @@
 import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { quoteSheetName, toA1 } from '../core/refs';
+import { quoteSheetName, toA1 } from '@sitepen/formula-engine/refs';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';

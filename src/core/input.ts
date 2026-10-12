@@ -1,6 +1,7 @@
 import { isDateFormat, isTextFormat, parseValue } from 'numfmt';
 import { msg, type Text } from '../i18n/message';
-import { toFileFormula, validateFormula } from './formula';
+import { parse, tokenize } from '@borgar/fx';
+import { toFileFormula } from '@sitepen/formula-engine/formula';
 import { localeInfo, normalizeForLocale } from './locale';
 import { EMPTY, type CellContent } from './types';
 
@@ -69,4 +70,18 @@ export function parseInput(text: string, cellNumFmt: string, locale = 'en-US', d
     }
   }
   return { content: { kind: 'string', value: text } };
+}
+
+/**
+ * Returns what is wrong when the formula is not valid Excel syntax: a
+ * message, or the parser's own (English) description.
+ */
+export function validateFormula(userFormula: string): Text | undefined {
+  if (!userFormula.trim()) return msg('core.formula.empty');
+  try {
+    parse(tokenize(userFormula, { mergeRefs: true, allowTernary: false }));
+    return undefined;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
 }

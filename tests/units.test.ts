@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planFill } from '../src/core/fill';
-import { displayFormula, engineFormula, expandLets, makeShifter, toFileFormula, validateFormula } from '../src/core/formula';
+import { displayFormula, engineFormula, expandLets, makeShifter, toFileFormula } from '@sitepen/formula-engine/formula';
+import { validateFormula } from '../src/core/input';
 import { parseInput } from '../src/core/input';
 import { decodeOoxmlText, encodeOoxmlText } from '../src/core/xml';
 import { clipboardNumbers, parseClipboardText } from '../src/state/clipboard';

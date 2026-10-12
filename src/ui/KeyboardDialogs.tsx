@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { colToLetters } from '../core/refs';
+import { colToLetters } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { APPLE, mod, redoKey, shortcutsKey } from './keys';

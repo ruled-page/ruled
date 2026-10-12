@@ -1,10 +1,10 @@
-import type { EngineValue } from './engineValue';
+import type { EngineValue } from '@sitepen/formula-engine';
 import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
-import { isDynamicArrayFormula } from './formula';
+import { isDynamicArrayFormula } from '@sitepen/formula-engine/formula';
 import { writeHyperlinks, type SheetLinks } from './hyperlinks';
 import { rowAttributes, writeLayout, writeTableFilter, type SheetLayout } from './layout';
-import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from './refs';
+import { cellKey, MAX_COLS, MAX_ROWS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import type { CellState } from './session';
 import { findCell, type ScanResult } from './sheetScanner';
 import { CellFlag, VT, type CellNote, type DefinedName, type FilterState, type Rect, type SheetGrid } from './types';

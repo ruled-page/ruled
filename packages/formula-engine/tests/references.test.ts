@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineSheet } from '../src/core/engine';
-import { engineFormula } from '../src/core/formula';
-import { nativeEngine } from '../src/engine/native';
+import type { EngineSheet } from '../src/api';
+import { engineFormula } from '../src/formula';
+import { nativeEngine } from '../src/native';
 
 const sheet = (name: string, rows: EngineSheet['rows'] = []): EngineSheet => ({ name, rows });
 

@@ -1,4 +1,4 @@
-import { numberText } from '../core/excelNumbers';
+import { numberText } from './excelNumbers';
 
 /**
  * Values as formulas see them, and Excel's rules for turning one kind into

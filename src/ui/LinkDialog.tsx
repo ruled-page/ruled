@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { linkAddress, linkDestination, resolvePlace, splitPlace, typedAddress, type LinkFields } from '../core/links';
-import { MAX_COLS, MAX_ROWS, parseRange, quoteSheetName, rangeToA1 } from '../core/refs';
+import { MAX_COLS, MAX_ROWS, parseRange, quoteSheetName, rangeToA1 } from '@sitepen/formula-engine/refs';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
 import type { WorkbookStore } from '../state/store';

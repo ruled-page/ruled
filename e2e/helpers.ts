@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
-import { parseA1 } from '../src/core/refs';
+import { parseA1 } from '@sitepen/formula-engine/refs';
 
 /** Where the test servers are: the app's port, then the library's, the Angular example's and the host app's (see playwright.config.ts). */
 export const serverUrl = (which: 'app' | 'lib' | 'angular' | 'hostApp') =>

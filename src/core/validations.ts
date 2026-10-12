@@ -1,5 +1,5 @@
 import { parseA1Ref } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS, parseRange } from './refs';
+import { MAX_COLS, MAX_ROWS, parseRange } from '@sitepen/formula-engine/refs';
 import type { ListSource, ListValidation, RuleValidation, ValidationAlert } from './types';
 import { attr, child, descendants, type XmlNode } from './xml';
 

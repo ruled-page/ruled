@@ -1,6 +1,6 @@
-import type { EngineSheet, FormulaEngine, Iteration } from '../../src/core/engine';
-import { engineFormula, toFileFormula } from '../../src/core/formula';
-import { nativeEngine } from '../../src/engine/native';
+import type { EngineSheet, FormulaEngine, Iteration } from '@sitepen/formula-engine';
+import { engineFormula, toFileFormula } from '@sitepen/formula-engine/formula';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 
 /**
  * Formulas to check against Excel, by family: `npm run excel:check` writes

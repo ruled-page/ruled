@@ -1,6 +1,6 @@
 import type { Person } from './comments';
 import { newGuid } from './commentEdits';
-import { cellKey, MAX_COLS, MAX_ROWS, parseRange, toA1 } from './refs';
+import { cellKey, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '@sitepen/formula-engine/refs';
 import type { CellNote, SheetInfo } from './types';
 import type { WorkbookModel } from './workbook';
 import { decodeEntities, decodeOoxmlText, elements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, type ElementSpan } from './xml';

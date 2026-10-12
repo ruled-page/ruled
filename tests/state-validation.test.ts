@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ROWS } from '../src/core/refs';
+import { MAX_ROWS } from '@sitepen/formula-engine/refs';
 import { VT, type ListSource, type ListValidation } from '../src/core/types';
 import { english } from '../src/i18n';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from '../src/state/validation';

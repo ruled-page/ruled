@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasWildcards, matchesWhole, matchSpan, parsePattern, searchIn } from '../src/core/wildcard';
+import { hasWildcards, matchesWhole, matchSpan, parsePattern, searchIn } from '../src/wildcard';
 
 describe("Excel's wildcards", () => {
   it('match whole texts and find spans inside them', () => {

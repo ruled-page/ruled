@@ -1,6 +1,6 @@
 import { msg } from '../i18n/message';
 import { applyLinkChange, linkDifferences, sameLink } from './links';
-import { parseRange, rangeToA1 } from './refs';
+import { parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
 import type { CellChange, Hyperlink } from './types';
 import { attr, child, children, elements, escapeXml, findTagEnd, firstElement, localName, parseAttrs, replaceElements, type XmlNode } from './xml';
 import { relsPathFor, type OoxmlPackage, type Relationship } from './zip';

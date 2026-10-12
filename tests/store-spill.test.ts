@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseA1, rangeToA1 } from '../src/core/refs';
+import { parseA1, rangeToA1 } from '@sitepen/formula-engine/refs';
 import { CellFlag, VT } from '../src/core/types';
 import { english } from '../src/i18n';
 import { editText } from '../src/state/format';

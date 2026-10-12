@@ -1,4 +1,4 @@
-import { MAX_COLS, MAX_ROWS, toA1 } from '../core/refs';
+import { MAX_COLS, MAX_ROWS, toA1 } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
 import { outlineDepth } from '../state/outline';
 import { ContextMenu, type MenuItem } from './ContextMenu';

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { parseA1, toA1 } from '../core/refs';
+import { parseA1, toA1 } from '@sitepen/formula-engine/refs';
 import { VT } from '../core/types';
 import { bindSchema } from '../schema/binding';
 import { generateSchema, inferField, inferTable } from '../schema/generate';

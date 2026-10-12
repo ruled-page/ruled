@@ -1,5 +1,5 @@
 import { msg, TextError } from '../i18n/message';
-import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from './refs';
+import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import { refMapFor, splits, transformFormula, transformSqref, type FormulaContext, type LineOp, type RefMap, type StructuralOp } from './refTransform';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';

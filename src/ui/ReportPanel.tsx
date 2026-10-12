@@ -1,4 +1,4 @@
-import { parseA1, parseRange } from '../core/refs';
+import { parseA1, parseRange } from '@sitepen/formula-engine/refs';
 import type { Finding, FindingKind } from '../core/types';
 import type { WorkbookStore } from '../state/store';
 import type { MessageKey } from '../i18n/message';

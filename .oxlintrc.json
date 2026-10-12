@@ -27,8 +27,13 @@
   "overrides": [
     {
       // Expected results copied from Excel and Microsoft's documentation, as written there.
-      "files": ["tests/**"],
+      "files": ["tests/**", "packages/*/tests/**"],
       "rules": { "no-loss-of-precision": "off" }
+    },
+    {
+      // Benchmarks measure and print; they have nothing to assert.
+      "files": ["packages/*/bench/**"],
+      "rules": { "vitest/expect-expect": "off" }
     }
   ],
   "ignorePatterns": ["dist", "dist-*", "coverage", "playwright-report", "test-results", "sites", "public", "e2e/host-app", "examples"]

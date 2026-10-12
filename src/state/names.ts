@@ -1,5 +1,5 @@
 import { tokenize } from '@borgar/fx';
-import { displayFormula } from '../core/formula';
+import { displayFormula } from '@sitepen/formula-engine/formula';
 import {
   findName,
   isListedName,

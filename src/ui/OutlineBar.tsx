@@ -1,6 +1,6 @@
 import type { DataEditorRef, Rectangle } from '@glideapps/glide-data-grid';
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
-import { colToLetters } from '../core/refs';
+import { colToLetters } from '@sitepen/formula-engine/refs';
 import type { OutlineAxis } from '../core/types';
 import { useT } from '../i18n/react';
 import { outlineDepth, outlineGroups, OUTLINE_LANE, summaryLine, type Axis, type OutlineGroup } from '../state/outline';

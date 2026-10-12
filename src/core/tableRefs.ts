@@ -1,5 +1,5 @@
 import { parseStructRef, stringifyTokens, tokenize, type Token } from '@borgar/fx';
-import { colToLetters, inRect } from './refs';
+import { colToLetters, inRect } from '@sitepen/formula-engine/refs';
 import type { Rect } from './types';
 
 /** Where an Excel table sits, as structured references need it. */

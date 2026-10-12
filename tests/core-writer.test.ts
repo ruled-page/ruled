@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { displayFormula } from '../src/core/formula';
+import { displayFormula } from '@sitepen/formula-engine/formula';
 import { WorkbookSession, type OpenOptions } from '../src/core/session';
 import { loadedFormula, loadedValue, parts, sample } from './helpers';
 

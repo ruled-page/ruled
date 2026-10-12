@@ -1,4 +1,4 @@
-import { MAX_COLS, MAX_ROWS, parseA1, parseRange, toA1 } from '../core/refs';
+import { MAX_COLS, MAX_ROWS, parseA1, parseRange, toA1 } from '@sitepen/formula-engine/refs';
 import { CellFlag, type DisplayStyle, type Rect } from '../core/types';
 import type { JsonValue } from '../schema/types';
 import { cellJson } from './format';

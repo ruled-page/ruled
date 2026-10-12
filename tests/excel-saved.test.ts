@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { toA1 } from '../src/core/refs';
+import { toA1 } from '@sitepen/formula-engine/refs';
 import { WorkbookSession } from '../src/core/session';
 import { english } from '../src/i18n';
 

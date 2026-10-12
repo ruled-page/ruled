@@ -1,8 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { rangeToA1, toA1 } from '../core/refs';
+import { rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import { CellFlag, VT, type CellNote } from '../core/types';
 import { describeRule } from '../core/dataValidation';
-import { displayFormula } from '../core/formula';
+import { displayFormula } from '@sitepen/formula-engine/formula';
 import { linkAddress } from '../core/links';
 import { displayText, editText } from '../state/format';
 import { nameBoxEnter, nameBoxNames, selectionName } from '../state/names';

@@ -1,5 +1,11 @@
-import type { Rect } from './types';
 
+/** A rectangle of cells, by its first and last rows and columns (from 0). */
+export interface Rect {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+}
 export const MAX_ROWS = 1_048_576;
 export const MAX_COLS = 16_384;
 

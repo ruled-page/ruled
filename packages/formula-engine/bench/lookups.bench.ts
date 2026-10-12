@@ -1,6 +1,6 @@
 import { it } from 'vitest';
-import { engineFormula } from '../src/core/formula';
-import { nativeEngine } from '../src/engine/native';
+import { engineFormula } from '../src/formula';
+import { nativeEngine } from '../src/native';
 
 /**
  * Lookup-heavy workbooks, larger and larger, to find where the engine's time

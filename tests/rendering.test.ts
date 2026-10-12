@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeNotes, parsePersons, parseThreads } from '../src/core/comments';
-import { parseA1 } from '../src/core/refs';
+import { parseA1 } from '@sitepen/formula-engine/refs';
 import { WorkbookSession } from '../src/core/session';
 import { StyleBook, tintColor } from '../src/core/styles';
 import { builtinTableLook, tableCellFormat } from '../src/core/tableStyles';

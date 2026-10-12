@@ -1,7 +1,7 @@
 import { parse, tokenize } from '@borgar/fx';
-import type { EngineKind, Unsupported } from '../core/engine';
-import { expandLets, stripFunctionPrefixes } from '../core/formula';
-import { tooLargeToCalculate } from '../core/sizeLimits';
+import type { EngineKind, Unsupported } from './api';
+import { expandLets, stripFunctionPrefixes } from './formula';
+import { tooLargeToCalculate } from './sizeLimits';
 import { FUNCTIONS } from './functions';
 import { NativeEngine } from './workbook';
 
@@ -92,3 +92,6 @@ export const nativeEngine: EngineKind = {
   unsupportedReason,
   create: (sheets, names, date1904, lookups, iteration) => new NativeEngine(sheets, names, date1904, lookups, iteration),
 };
+
+/** The functions the engine calculates, by name in capitals. */
+export const CALCULATED_FUNCTIONS: ReadonlySet<string> = new Set(Object.keys(FUNCTIONS));

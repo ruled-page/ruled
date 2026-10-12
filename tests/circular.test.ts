@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { strToU8, zipSync } from 'fflate';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { engineFormula } from '../src/core/formula';
+import { engineFormula } from '@sitepen/formula-engine/formula';
 import { WorkbookSession } from '../src/core/session';
-import { nativeEngine } from '../src/engine/native';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 import { english } from '../src/i18n';
 
 describe('circular references', () => {

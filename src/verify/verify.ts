@@ -1,10 +1,10 @@
 import { english, errorText } from '../i18n';
 import { spawnSync } from 'node:child_process';
 import { strFromU8, unzipSync } from 'fflate';
-import { MAX_ROWS, toA1 } from '../core/refs';
+import { MAX_ROWS, toA1 } from '@sitepen/formula-engine/refs';
 import { chooseEngine } from '../core/engine';
 import { gridValue, WorkbookSession } from '../core/session';
-import { nativeEngine } from '../engine/native';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 import type { ScanResult } from '../core/sheetScanner';
 import { CellFlag, VT, type SheetGrid } from '../core/types';
 

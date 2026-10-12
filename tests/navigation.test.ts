@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { MAX_COLS, MAX_ROWS } from '../src/core/refs';
+import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
 import { english } from '../src/i18n';
 import { nameBoxEnter, nameBoxNames } from '../src/state/names';
 import type { WorkbookStore } from '../src/state/store';

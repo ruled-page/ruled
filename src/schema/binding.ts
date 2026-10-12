@@ -1,5 +1,5 @@
 import { msg, type MessageKey, type Text } from '../i18n/message';
-import { parseA1, toA1 } from '../core/refs';
+import { parseA1, toA1 } from '@sitepen/formula-engine/refs';
 import { VT, type Rect } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import { describeMatch, textMatches } from './json';

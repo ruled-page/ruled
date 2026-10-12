@@ -2,11 +2,11 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { it } from 'vitest';
-import { tolerance } from '../src/core/engine';
-import { functionNames, isDynamicArrayFormula, toFileFormula } from '../src/core/formula';
+import { tolerance } from '@sitepen/formula-engine';
+import { functionNames, isDynamicArrayFormula, toFileFormula } from '@sitepen/formula-engine/formula';
 import { dynamicArrayMetadata } from '../src/core/writer';
 import { OoxmlPackage } from '../src/core/zip';
-import { nativeEngine } from '../src/engine/native';
+import { nativeEngine } from '@sitepen/formula-engine/native';
 import { checkEngine, DATA, FAMILIES, ITERATIONS, NAMES } from '../tests/excel-checks/cases';
 
 /**

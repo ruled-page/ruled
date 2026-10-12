@@ -7,7 +7,7 @@
  * can't be followed.
  */
 import { parseA1Ref } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS } from './refs';
+import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
 import { tintColor } from './styles';
 import type { Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';

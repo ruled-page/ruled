@@ -1,6 +1,6 @@
-import { makeShifter } from './formula';
+import { makeShifter } from '@sitepen/formula-engine/formula';
 import { msg, TextError } from '../i18n/message';
-import { MAX_COLS, MAX_ROWS, parseRange } from './refs';
+import { MAX_COLS, MAX_ROWS, parseRange } from '@sitepen/formula-engine/refs';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
 import { damaged, decodeEntities, decodeOoxmlText, elements, findTagEnd, parseAttrs } from './xml';
 

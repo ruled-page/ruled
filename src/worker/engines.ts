@@ -1,4 +1,4 @@
-import type { EngineKind } from '../core/engine';
+import type { EngineKind } from '@sitepen/formula-engine';
 import type { EngineInfo } from '../core/engineIds';
 
 let loaded: { kind: EngineKind; info: EngineInfo } | undefined;
@@ -12,7 +12,7 @@ export async function loadEngine(): Promise<{ kind: EngineKind; info: EngineInfo
   if (loaded) return loaded;
   const seen = performance.getEntriesByType('resource').length;
   const started = performance.now();
-  const kind = await import('../engine/native').then((m) => m.nativeEngine);
+  const kind = await import('@sitepen/formula-engine/native').then((m) => m.nativeEngine);
   const loadMs = Math.round(performance.now() - started);
   const fetched = performance.getEntriesByType('resource').slice(seen) as PerformanceResourceTiming[];
   const total = (key: 'transferSize' | 'decodedBodySize') => fetched.reduce((n, e) => n + (e[key] ?? 0), 0);

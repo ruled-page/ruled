@@ -1,5 +1,5 @@
 import { msg, pickLanguage, type Localized, type LocalizedMap, type Message, type MessageKey, type Text } from '../i18n/message';
-import { parseA1, toA1 } from '../core/refs';
+import { parseA1, toA1 } from '@sitepen/formula-engine/refs';
 import { CellFlag, VT, type CellContent, type DisplayStyle, type EditOp } from '../core/types';
 import { isDateStyle, type CellRecord } from '../state/format';
 import type { SheetView } from '../state/sheetView';

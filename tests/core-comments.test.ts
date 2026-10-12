@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { applyCommentChange, commentTime, describeCommentChange, newGuid, noteText } from '../src/core/commentEdits';
-import { parseA1, toA1 } from '../src/core/refs';
+import { parseA1, toA1 } from '@sitepen/formula-engine/refs';
 import { WorkbookSession } from '../src/core/session';
 import type { CellNote, CommentChange, EditResult } from '../src/core/types';
 import { english } from '../src/i18n';

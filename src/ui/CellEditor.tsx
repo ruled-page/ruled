@@ -1,7 +1,7 @@
 import type { GridCell, ProvideEditorComponent, TextCell } from '@glideapps/glide-data-grid';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { toA1 } from '../core/refs';
+import { toA1 } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
 import { useT } from '../i18n/react';
 import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useFormulaAssist } from './FormulaAssist';

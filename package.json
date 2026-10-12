@@ -10,7 +10,7 @@
     "test:coverage": "vitest run --coverage",
     "test:perf": "vitest run --mode perf tests/perf.test.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings src tests e2e scripts vite.config.ts vite.lib.config.ts vite.verify.config.ts vite.glide.ts playwright.config.ts",
+    "lint": "oxlint --deny-warnings src tests e2e scripts packages vite.config.ts vite.lib.config.ts vite.verify.config.ts vite.glide.ts playwright.config.ts",
     "samples": "node scripts/gen-samples.mjs",
     "build:sites": "node scripts/build-sites.mjs",
     "pages:dev": "node scripts/build-sites.mjs demo && wrangler pages dev --port 8788",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@borgar/fx": "^5.1.3",
     "@glideapps/glide-data-grid": "^6.0.3",
+    "@sitepen/formula-engine": "0.1.0",
     "chart.js": "^4.5.1",
     "fflate": "^0.8.3",
     "i18next": "^26.4.2",
@@ -62,6 +63,9 @@
   },
   "type": "module",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "exports": {
     ".": {
       "types": "./dist-lib/types/editor/index.d.ts",

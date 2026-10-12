@@ -1,7 +1,7 @@
 import { parseA1Ref, tokenize, type Token } from '@borgar/fx';
-import { stripFunctionPrefixes } from './formula';
+import { stripFunctionPrefixes } from '@sitepen/formula-engine/formula';
 import type { FunctionHelp } from './functionCatalog';
-import { MAX_COLS, MAX_ROWS } from './refs';
+import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
 import type { Rect } from './types';
 
 /**

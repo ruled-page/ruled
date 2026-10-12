@@ -1,12 +1,10 @@
 import {
-  parse,
   stringifyTokens,
   tokenize,
   translateTokensToA1,
   translateTokensToR1C1,
   type Token,
 } from '@borgar/fx';
-import { msg, type Text } from '../i18n/message';
 import { toA1 } from './refs';
 
 /**
@@ -217,20 +215,6 @@ function lambdaParameters(list: Token[]): Set<number> {
 /** Whether Excel would save this formula as a dynamic array formula. */
 export function isDynamicArrayFormula(fileFormula: string): boolean {
   return functionNames(fileFormula).some((n) => DYNAMIC_ARRAY_FUNCTIONS.has(n));
-}
-
-/**
- * Returns what is wrong when the formula is not valid Excel syntax: a
- * message, or the parser's own (English) description.
- */
-export function validateFormula(userFormula: string): Text | undefined {
-  if (!userFormula.trim()) return msg('core.formula.empty');
-  try {
-    parse(tokens(userFormula));
-    return undefined;
-  } catch (e) {
-    return e instanceof Error ? e.message : String(e);
-  }
 }
 
 export function functionNames(fileFormula: string): string[] {

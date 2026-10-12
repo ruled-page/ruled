@@ -1,28 +1,10 @@
 import { isMessage, msg, TextError, type MessageKey, type Text } from '../i18n/message';
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import { format as formatNumber, isDateFormat } from 'numfmt';
-import {
-  currentEngine,
-  describeValue,
-  isSpillError,
-  MAX_SPILL_CELLS,
-  spillFormula,
-  tolerance,
-  toRaw,
-  unsupportedExplanation,
-  unsupportedLabel,
-  valuesMatch,
-  type ArrayDims,
-  type EngineChange,
-  type EngineKind,
-  type EngineSheet,
-  type EngineWrite,
-  type FormulaEngine,
-  type RawContent,
-  type Unsupported,
-} from './engine';
+import { isSpillError, MAX_SPILL_CELLS, spillFormula, tolerance, valuesMatch, type ArrayDims, type EngineChange, type EngineKind, type EngineSheet, type EngineWrite, type FormulaEngine, type RawContent, type Unsupported } from '@sitepen/formula-engine';
+import { currentEngine, describeValue, toRaw, unsupportedExplanation, unsupportedLabel } from './engine';
 import { renameInFormula, sameDefinition } from './definedNames';
-import type { EngineValue } from './engineValue';
+import type { EngineValue } from '@sitepen/formula-engine';
 import { evaluateConditionalFormats } from './conditionalFormat';
 import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote } from './commentEdits';
 import type { Person } from './comments';
@@ -31,12 +13,13 @@ import { mergeEditResults } from './editResult';
 import { ENGLISH_LISTS, planFill, seriesLine, type FillSource } from './fill';
 import { SheetLinks } from './hyperlinks';
 import { copyLinks, isHyperlinkFormula, literalHyperlinkTarget, sortLinks } from './links';
-import { displayFormula, engineFormula, functionNames, isVolatile, makeShifter, stripFunctionPrefixes, validateFormula } from './formula';
+import { displayFormula, engineFormula, functionNames, isVolatile, makeShifter, stripFunctionPrefixes } from '@sitepen/formula-engine/formula';
+import { validateFormula } from './input';
 import { parseInput } from './input';
 import { SheetLayout } from './layout';
 import { isBuiltinName, isName, nameProblem } from './names';
 import { resolveTableRefs, type TablePlace } from './tableRefs';
-import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from './refs';
+import { cellKey, colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
 import { findCell } from './sheetScanner';
 import {
   CellFlag,

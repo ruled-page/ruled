@@ -1,7 +1,7 @@
-import type { ArrayDims, EngineChange, EngineLookups, EngineName, EngineSheet, EngineWrite, FormulaEngine, Iteration, RawContent } from '../core/engine';
-import type { EngineValue } from '../core/engineValue';
-import { engineFormula } from '../core/formula';
-import { MAX_COLS, MAX_ROWS } from '../core/refs';
+import type { ArrayDims, EngineChange, EngineLookups, EngineName, EngineSheet, EngineWrite, FormulaEngine, Iteration, RawContent } from './api';
+import type { EngineValue } from './engineValue';
+import { engineFormula } from './formula';
+import { MAX_COLS, MAX_ROWS } from './refs';
 import { compileAt, resolve, type Template } from './compile';
 import { intersect, type CellNotes, type Ctx, type Host } from './operands';
 import { Areas, CALC, err, ERROR_CODES, isError, Lambda, Matrix, REF, Ref, SPILL, VALUE, type Operand, type Scalar } from './values';
