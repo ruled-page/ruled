@@ -86,11 +86,14 @@ it('writes the Excel check workbooks', async () => {
       ref: `A${first}:E${last}`,
       rules: [{ type: 'expression', priority: 1, formulae: [`$D${first}="✗"`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } }],
     });
+    // Iterating, Excel starts from the values saved in the file, and a formula saved without one reads as text: #VALUE! all the way round. So
+    // those start from 0, as the engine's do.
+    const start = iteration ? { result: 0 } : {};
     for (const [name, rows] of Object.entries(DATA[family] ?? {})) {
       const data = wb.addWorksheet(name);
       rows.forEach((row, r) =>
         row.forEach((v, c) => {
-          if (v !== null) data.getCell(r + 1, c + 1).value = typeof v === 'string' && v.startsWith('=') ? { formula: toFileFormula(v).slice(1) } as ExcelJS.CellFormulaValue : v;
+          if (v !== null) data.getCell(r + 1, c + 1).value = typeof v === 'string' && v.startsWith('=') ? { formula: toFileFormula(v).slice(1), ...start } as ExcelJS.CellFormulaValue : v;
         }),
       );
     }
