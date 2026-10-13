@@ -98,6 +98,13 @@ export class Layout {
     return this.box(this.x(col), this.y(row), this.spec.cols.size(col), this.spec.rows.size(row));
   }
 
+  /** The box rows `y1` to `y2` and columns `x1` to `x2` take, each where it is drawn: across the freeze line, through it. */
+  span(y1: number, y2: number, x1: number, x2: number): Box {
+    const x = this.x(x1);
+    const y = this.y(y1);
+    return this.box(x, y, this.x(x2) + this.spec.cols.size(x2) - x, this.y(y2) + this.spec.rows.size(y2) - y);
+  }
+
   /** A row's number, or a column's letters. */
   rowHeading(row: number): Box {
     return this.box(0, this.y(row), this.spec.numbers, this.spec.rows.size(row));

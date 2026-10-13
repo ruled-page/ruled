@@ -13,7 +13,7 @@ import { useSheetEvents } from '../hooks';
 import { editorKey, type FilterButton } from '../keys';
 import { cellOptions } from '../lists';
 import { sheetMarks } from '../marks';
-import { navigate, navSheet } from '../navigation';
+import { growOverMerges, navigate, navSheet } from '../navigation';
 import { AccessTable } from './AccessTable';
 import { CellEditorBox, type Edit } from './CellEditing';
 import { colAxis, rowAxis } from './axis';
@@ -61,10 +61,12 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
 
   const layoutVersion = view.layoutVersion;
   const { rowCount, colCount } = view;
+  /** Bumped while a column's edge is dragged, its width changing as it goes. */
+  const [sized, setSized] = useState(0);
   const axes = useMemo(
     () => ({ rows: rowAxis(view), cols: colAxis(view) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a view's sizes change in place
-    [view, layoutVersion, store.colVersion, rowCount, colCount],
+    [view, layoutVersion, store.colVersion, rowCount, colCount, sized],
   );
   /** Frozen lines that are shown, not hidden; at least one row scrolls. */
   const frozen = useMemo(() => {
@@ -99,10 +101,12 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     });
   }, [axes, frozen, numbers]);
 
+  /** Where cells dragged by the selection's border, or filled by its handle, would go. */
+  const [landing, setLanding] = useState<Rect | null>(null);
   const marks = useMemo(
-    () => sheetMarks(store, view, selection, palette, refColors),
+    () => sheetMarks(store, view, selection, palette, refColors, landing ?? undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- marks follow the cut, the formula being typed and the cells
-    [store, view, selection, palette, refColors, store.cutRange, store.formulaRefs, dataVersion],
+    [store, view, selection, palette, refColors, store.cutRange, store.formulaRefs, dataVersion, landing],
   );
 
   // The cells the screen readers' table gives: those in view, settled a moment after scrolling stops.
@@ -126,6 +130,9 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   if (painter.current && cellsKey.some((k, i) => k !== lastKey.current[i])) painter.current.reset();
   lastKey.current = cellsKey;
 
+  /** Whether cells can be resized, filled and moved: not on a protected sheet. */
+  const editable = view.info.kind === 'worksheet' && !view.info.protected;
+
   /** What the painter draws from, as the grid now is. */
   const inputFor = (layout: Layout): PaintInput => {
     const schema = store.schema;
@@ -142,6 +149,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       isLabel: schema ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
       selection: store.selection,
       marks,
+      fillHandle: !store.touchMode && !store.selection.lines && store.selection.rects.length === 1 && editable,
     };
   };
 
@@ -504,9 +512,14 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     return { x: e.clientX - (at?.left ?? 0), y: e.clientY - (at?.top ?? 0) };
   };
 
-  /** Follows a drag until the button is let go, scrolling the grid while the pointer is past its edge. */
-  const follow = (onMove: (x: number, y: number) => void) => {
-    let pointer: { x: number; y: number } | undefined;
+  /**
+   * Follows a drag until the button is let go, or Escape gives it up,
+   * scrolling the grid while the pointer is past its edge (unless `still`).
+   * A key pressed or let go meanwhile counts as a move, for a drag that
+   * changes with Ctrl, Alt or Shift.
+   */
+  const follow = (onMove: (x: number, y: number, e: MouseEvent | KeyboardEvent) => void, onEnd?: (cancelled: boolean) => void, still = false) => {
+    let pointer: { x: number; y: number; e: MouseEvent | KeyboardEvent } | undefined;
     let frameId = 0;
     const scroll = () => {
       const at = canvas.current?.getBoundingClientRect();
@@ -518,26 +531,42 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         const dy = y > layout.spec.height ? DRAG_STEP : y < layout.bodyY && layout.spec.scrollY > 0 ? -DRAG_STEP : 0;
         if (dx || dy) {
           scroller.current?.scrollBy(dx, dy);
-          onMove(pointer.x, pointer.y);
+          onMove(pointer.x, pointer.y, pointer.e);
         }
       }
       frameId = requestAnimationFrame(scroll);
     };
-    frameId = requestAnimationFrame(scroll);
+    if (!still) frameId = requestAnimationFrame(scroll);
     const move = (m: MouseEvent) => {
-      pointer = { x: m.clientX, y: m.clientY };
-      onMove(m.clientX, m.clientY);
+      pointer = { x: m.clientX, y: m.clientY, e: m };
+      onMove(m.clientX, m.clientY, m);
     };
-    const up = () => {
+    const key = (k: KeyboardEvent) => {
+      if (k.key === 'Escape') {
+        k.preventDefault();
+        k.stopPropagation();
+        end(true);
+      } else if (pointer) {
+        pointer.e = k;
+        onMove(pointer.x, pointer.y, k);
+      }
+    };
+    const end = (cancelled: boolean) => {
       cancelAnimationFrame(frameId);
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
+      window.removeEventListener('keydown', key, true);
+      window.removeEventListener('keyup', key, true);
+      onEnd?.(cancelled);
     };
+    const up = () => end(false);
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('keyup', key, true);
   };
 
-  /** A press on a cell: selects it, Shift reaching from the active cell, Ctrl (⌘) adding a range; a drag spans more. */
+  /** A press on a cell: selects it, Shift reaching from the active cell, Ctrl (⌘) adding a range; a drag spans more. Merges are taken whole. */
   const pressCell = (e: ReactMouseEvent, row: number, col: number) => {
     const sel = store.selection;
     const command = APPLE ? e.metaKey : e.ctrlKey;
@@ -553,9 +582,10 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       void store.followLink(row, col);
       return;
     }
-    const anchor = e.shiftKey ? { row: sel.row, col: sel.col } : { row, col };
+    const merged = view.mergeAt(row, col);
+    const anchor = e.shiftKey ? { row: sel.row, col: sel.col } : merged ? { row: merged.r1, col: merged.c1 } : { row, col };
     const rest = command ? sel.rects : e.shiftKey ? sel.rects.slice(1) : [];
-    const select = (to: { row: number; col: number }) => store.setSelection({ row: anchor.row, col: anchor.col, rects: [span(anchor, to), ...rest] });
+    const select = (to: { row: number; col: number }) => store.setSelection({ row: anchor.row, col: anchor.col, rects: [growOverMerges(span(anchor, to), view.info.merges), ...rest] });
     select({ row, col });
     follow((x, y) => {
       const to = handle.cellNear(x, y);
@@ -582,10 +612,194 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     const pick = (to: number) => store.selectLines(axis, [...kept, [anchor, to]], active);
     pick(line);
     follow((x, y) => {
-      const near = layoutNow()?.hit(local({ clientX: x, clientY: y }).x, local({ clientX: x, clientY: y }).y, true);
+      const at = local({ clientX: x, clientY: y });
+      const near = layoutNow()?.hit(at.x, at.y, true);
       if (near) pick(axis === 'rows' ? view.visibleRows[near.row] : view.visibleCols[near.col]);
     });
   };
+
+  /** What a press at a point on the canvas takes hold of before it selects: a line's edge, the fill handle, or the selection's border. */
+  const grabAt = (x: number, y: number, layout: Layout): { kind: 'col'; col: number } | { kind: 'row'; row: number; edge: number } | { kind: 'fill' } | { kind: 'border' } | undefined => {
+    if (!editable) return undefined;
+    const { numbers, letters } = layout.spec;
+    const runs = (a: { first: number; last: number }, b: { first: number; last: number }) => [a, b].flatMap((r) => Array.from({ length: Math.max(0, r.last - r.first + 1) }, (_, i) => r.first + i));
+    // A column's right edge, among the letters; a row's bottom edge, among the numbers.
+    if (y < letters && x >= numbers) {
+      for (const gc of runs(layout.frozenColRun, layout.colRun)) {
+        const b = layout.colHeading(gc);
+        if (Math.abs(x - (b.x + b.width)) <= 5) return { kind: 'col', col: view.visibleCols[gc] };
+      }
+    }
+    if (x < numbers && y >= letters) {
+      for (const gr of runs(layout.frozenRowRun, layout.rowRun)) {
+        const b = layout.rowHeading(gr);
+        if (Math.abs(y - (b.y + b.height)) <= 3) return { kind: 'row', row: view.visibleRows[gr], edge: b.y + b.height };
+      }
+    }
+    const sel = store.selection;
+    const r = sel.rects[0];
+    if (store.touchMode || sel.rects.length !== 1 || sel.lines === 'all' || !r || x < numbers || y < letters) return undefined;
+    const area = view.gridSpan(r);
+    const b = area && layout.span(area.y1, area.y2, area.x1, area.x2);
+    if (!b) return undefined;
+    const [left, top, right, bottom] = [b.x, b.y, b.x + b.width, b.y + b.height];
+    const near = (p: number, edge: number) => Math.abs(p - edge) <= 4;
+    if (near(x, right) && near(y, bottom)) return sel.lines ? undefined : { kind: 'fill' };
+    const across = x >= left - 4 && x <= right + 4;
+    const down = y >= top - 4 && y <= bottom + 4;
+    return (across && (near(y, top) || near(y, bottom))) || (down && (near(x, left) || near(x, right))) ? { kind: 'border' } : undefined;
+  };
+
+  /** Drags a column's edge: the column takes the width as it goes, and keeps it once let go; a press alone leaves it. */
+  const resizeColumn = (e: ReactMouseEvent, col: number) => {
+    const start = e.clientX;
+    const had = view.colWidths.get(col);
+    const from = view.colWidth(col);
+    let px = from;
+    follow(
+      (x) => {
+        px = Math.min(1200, Math.max(18, Math.round(from + x - start)));
+        view.colWidths.set(col, px);
+        setSized((n) => n + 1);
+      },
+      (cancelled) => {
+        if (cancelled || px === from) {
+          if (had === undefined) view.colWidths.delete(col);
+          else view.colWidths.set(col, had);
+          setSized((n) => n + 1);
+        } else void store.resizedColumn(col, px);
+      },
+      true,
+    );
+  };
+
+  // Where a row's edge being dragged would go, in the host's pixels.
+  const [rowGuide, setRowGuide] = useState<number | null>(null);
+  /** Drags a row's bottom edge: a line shows where it would go, and the row takes that height once let go. */
+  const resizeRow = (e: ReactMouseEvent, row: number, edge: number) => {
+    const start = e.clientY;
+    const from = view.rowHeight(row);
+    let px = from;
+    setRowGuide(edge);
+    follow(
+      (_x, y) => {
+        px = Math.max(0, Math.round(from + y - start));
+        setRowGuide(edge + px - from);
+      },
+      (cancelled) => {
+        setRowGuide(null);
+        if (!cancelled && px !== from) void store.resizedRow(row, px);
+      },
+      true,
+    );
+  };
+
+  /** Drags the fill handle: the selection's cells continue down, up or across, whichever way the pointer went furthest, as far as it went. */
+  const dragFill = () => {
+    const sel = store.selection;
+    const src = sel.rects[0];
+    let dest = src;
+    follow(
+      (x, y) => {
+        const at = handle.cellNear(x, y);
+        if (!at) return;
+        const down = at.row > src.r2 ? at.row - src.r2 : at.row < src.r1 ? at.row - src.r1 : 0;
+        const across = at.col > src.c2 ? at.col - src.c2 : at.col < src.c1 ? at.col - src.c1 : 0;
+        dest =
+          Math.abs(down) >= Math.abs(across)
+            ? { ...src, r1: Math.min(src.r1, at.row), r2: Math.max(src.r2, at.row) }
+            : { ...src, c1: Math.min(src.c1, at.col), c2: Math.max(src.c2, at.col) };
+        setLanding(dest.r1 === src.r1 && dest.r2 === src.r2 && dest.c1 === src.c1 && dest.c2 === src.c2 ? null : dest);
+      },
+      (cancelled) => {
+        setLanding(null);
+        if (cancelled || (dest.r1 === src.r1 && dest.r2 === src.r2 && dest.c1 === src.c1 && dest.c2 === src.c2)) return;
+        void store.fill(src, dest).then(() => store.setSelection({ row: sel.row, col: sel.col, rects: [dest] }));
+      },
+    );
+  };
+
+  /** A double-click on the fill handle fills down as far as the data beside the selection goes, as Excel does. */
+  const fillDown = () => {
+    const sel = store.selection;
+    const src = sel.rects[0];
+    const filled = (row: number, col: number) => !!view.get(row, col);
+    const beside = src.c1 > 0 && filled(src.r2 + 1, src.c1 - 1) ? src.c1 - 1 : filled(src.r2 + 1, src.c2 + 1) ? src.c2 + 1 : -1;
+    if (beside < 0) return;
+    let last = src.r2 + 1;
+    while (filled(last + 1, beside)) last++;
+    const dest = { ...src, r2: last };
+    void store.fill(src, dest).then(() => store.setSelection({ row: sel.row, col: sel.col, rects: [dest] }));
+  };
+
+  // Where Shift+dragged cells would go in between others, in the host's pixels.
+  const [insertGuide, setInsertGuide] = useState<Box | null>(null);
+  /**
+   * Drags the selection by its border: its cells move where it is dropped,
+   * or with Ctrl (Option on a Mac) held, are copied there, as in Excel. A
+   * dashed outline shows where they'll go. With Shift, they go in between
+   * the cells there instead, at the cell edge nearest the pointer, which a
+   * line shows. Escape gives up.
+   */
+  const dragSelection = (e: ReactMouseEvent) => {
+    const src = store.selection.rects[0];
+    const from = handle.cellNear(e.clientX, e.clientY);
+    if (!src || !from) return;
+    const off = { row: Math.min(Math.max(from.row - src.r1, 0), src.r2 - src.r1), col: Math.min(Math.max(from.col - src.c1, 0), src.c2 - src.c1) };
+    const height = src.r2 - src.r1;
+    const width = src.c2 - src.c1;
+    let drop: Rect | undefined;
+    let insert: { row: number; col: number; shift: 'down' | 'right' } | undefined;
+    let copy = false;
+    /** A block of cells on the grid, in the host's pixels. */
+    const boxOf = (r: Rect) => {
+      const a = handle.cellBox(r.r1, r.c1);
+      const b = handle.cellBox(r.r2, r.c2);
+      const h = host.current?.getBoundingClientRect();
+      return a && b && h ? { left: a.x - h.left, top: a.y - h.top, right: b.x + b.width - h.left, bottom: b.y + b.height - h.top } : undefined;
+    };
+    follow(
+      (x, y, m) => {
+        const at = handle.cellNear(x, y);
+        copy = APPLE ? m.altKey : m.ctrlKey;
+        insert = undefined;
+        let guide: Box | null = null;
+        if (at) {
+          const row = Math.max(0, at.row - off.row);
+          const col = Math.max(0, at.col - off.col);
+          drop = { r1: row, c1: col, r2: row + height, c2: col + width };
+          const cell = m.shiftKey && !copy ? boxOf({ r1: at.row, c1: at.col, r2: at.row, c2: at.col }) : undefined;
+          const h = host.current?.getBoundingClientRect();
+          if (cell && h) {
+            // The edge nearest the pointer, for the cell's shape: top or bottom puts the cells between rows, left or right between columns.
+            const fx = (x - h.left - cell.left) / (cell.right - cell.left);
+            const fy = (y - h.top - cell.top) / (cell.bottom - cell.top);
+            const sideways = Math.min(fx, 1 - fx) < Math.min(fy, 1 - fy);
+            insert = sideways ? { row, col: fx < 0.5 ? at.col : at.col + 1, shift: 'right' } : { row: fy < 0.5 ? at.row : at.row + 1, col, shift: 'down' };
+            const line = sideways ? boxOf({ r1: row, c1: at.col, r2: row + height, c2: at.col }) : boxOf({ r1: at.row, c1: col, r2: at.row, c2: col + width });
+            if (line)
+              guide = sideways
+                ? { x: fx < 0.5 ? line.left : line.right, y: line.top, width: 0, height: line.bottom - line.top }
+                : { x: line.left, y: fy < 0.5 ? line.top : line.bottom, width: line.right - line.left, height: 0 };
+          }
+        }
+        setInsertGuide(guide);
+        setLanding(drop && !insert ? drop : null);
+        if (host.current) host.current.style.cursor = copy ? 'copy' : 'move';
+      },
+      (cancelled) => {
+        setLanding(null);
+        setInsertGuide(null);
+        if (host.current) host.current.style.cursor = '';
+        if (cancelled) return;
+        if (insert) void store.dragInsert(insert.row, insert.col, insert.shift);
+        else if (drop && (drop.r1 !== src.r1 || drop.c1 !== src.c1)) void store.dragSelection(drop.r1, drop.c1, copy);
+      },
+    );
+  };
+
+  /** A double-click that a press took (on a line's edge or the fill handle) isn't also one that edits. */
+  const tookDouble = useRef(false);
 
   const onMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
     const sc = scroller.current;
@@ -598,6 +812,27 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     // The grid takes the focus, which then follows the active cell.
     activeCell.current?.focus({ preventScroll: true });
     wantFocus.current = true;
+    const twice = e.detail >= 2;
+    tookDouble.current = false;
+    const grab = grabAt(x, y, layout);
+    if (grab?.kind === 'col' || grab?.kind === 'row') {
+      // A double-click on an edge fits the line to what it holds, as in Excel.
+      tookDouble.current = twice;
+      if (twice) void store.autofit(grab.kind === 'col' ? 'cols' : 'rows', grab.kind === 'col' ? grab.col : grab.row);
+      else if (grab.kind === 'col') resizeColumn(e, grab.col);
+      else resizeRow(e, grab.row, grab.edge);
+      return;
+    }
+    if (grab?.kind === 'fill') {
+      tookDouble.current = twice;
+      if (twice) fillDown();
+      else dragFill();
+      return;
+    }
+    if (grab?.kind === 'border' && !twice) {
+      dragSelection(e);
+      return;
+    }
     const hit = layout.hit(x, y);
     if (hit.area === 'corner') store.selectAll();
     else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col]);
@@ -609,7 +844,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   const onDoubleClick = (e: ReactMouseEvent) => {
     const layout = layoutNow();
     const { x, y } = local(e);
-    if (layout?.hit(x, y).area === 'cells') startEdit();
+    if (!tookDouble.current && layout?.hit(x, y).area === 'cells') startEdit();
+    tookDouble.current = false;
   };
 
   /** Right-clicking outside the selection selects what was clicked first, as Excel does, then opens the menu for it. */
@@ -639,10 +875,13 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   // A cell's note or link, shown while the pointer rests on it.
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
+  const CURSORS = { col: 'col-resize', row: 'row-resize', fill: 'crosshair', border: 'move' } as const;
   const onMouseMove = (e: ReactMouseEvent) => {
     if (e.buttons) return;
     const layout = layoutNow();
     const { x, y } = local(e);
+    const grab = layout && grabAt(x, y, layout);
+    if (host.current) host.current.style.cursor = grab ? CURSORS[grab.kind] : '';
     const hit = layout?.hit(x, y);
     const row = hit?.area === 'cells' ? view.visibleRows[hit.row] : -1;
     const col = hit?.area === 'cells' ? view.visibleCols[hit.col] : -1;
@@ -707,6 +946,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       </div>
       {hoverNote && <NoteTip {...hoverNote} />}
       {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
+      {rowGuide !== null && <div className="wbe-row-guide" style={{ top: rowGuide - (host.current?.getBoundingClientRect().top ?? 0) + (canvas.current?.getBoundingClientRect().top ?? 0) }} />}
+      {insertGuide && <div className="wbe-insert-guide" style={{ left: insertGuide.x, top: insertGuide.y, width: insertGuide.width, height: insertGuide.height }} />}
     </div>
   );
 }

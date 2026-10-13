@@ -269,10 +269,12 @@ describe("drawing a sheet in Ruled's grid", () => {
       { rect: { r1: 6, r2: 6, c1: 1, c2: 1 }, color: 'rgba(1, 2, 3, 0.5)', style: 'dashed' as const },
       { rect: { r1: 0, r2: 0, c1: 3, c2: 3 }, color: '#000', style: 'solid' as const },
     ];
-    p.draw(input(s, { frozenRows: 0, frozenCols: 0 }, { selection, marks }));
+    p.draw(input(s, { frozenRows: 0, frozenCols: 0 }, { selection, marks, fillHandle: true }));
     // The tint leaves out the active cell, filling between the two outlines.
     expect(r.calls.some((c) => c.op === 'fill' && c.args[0] === 'evenodd' && c.style === DEFAULT_PALETTE.selectionFill)).toBe(true);
-    expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.selection)).toHaveLength(4);
+    // Four sides of the outline, then the fill handle at its corner, edged in the selection's text colour.
+    expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.selection)).toHaveLength(5);
+    expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.onSelection && x[2] === 8)).toHaveLength(1);
     // B and C, and rows 3 and 4, in the headings' selected colour.
     expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.headerSelectedBg)).toHaveLength(4);
     // The dashed mark is outlined solid in its colour; D is hidden, so the second mark isn't drawn.

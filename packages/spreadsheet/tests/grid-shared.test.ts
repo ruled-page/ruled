@@ -4,7 +4,7 @@ import { withAlpha } from '../src/grid/color';
 import { editorKey, type GridKey } from '../src/grid/keys';
 import { cellOptions } from '../src/grid/lists';
 import { sheetMarks } from '../src/grid/marks';
-import { navigate, navSheet, type NavKey, type NavSheet } from '../src/grid/navigation';
+import { growOverMerges, navigate, navSheet, type NavKey, type NavSheet } from '../src/grid/navigation';
 import { spokenText } from '../src/grid/spoken';
 import type { Selection, WorkbookStore } from '../src/state/store';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS } from '../src/ui/gridPalette';
@@ -39,6 +39,8 @@ describe('moving the selection with the keyboard, as Excel does', () => {
     frozenCols: 1,
     pageRows: 10,
     pageCols: 4,
+    merges: [],
+    mergeAt: () => undefined,
   };
   const at = (row: number, col: number): Selection => ({ row, col, rects: [{ r1: row, r2: row, c1: col, c2: col }] });
   const key = (k: string, mods: Partial<NavKey> = {}): NavKey => ({ key: k, shiftKey: false, altKey: false, command: false, ...mods });
@@ -102,6 +104,34 @@ describe('moving the selection with the keyboard, as Excel does', () => {
     expect(to(range, key('Enter', { shiftKey: true }))?.slice(0, 2)).toEqual([2, 2]);
     // A range of hidden lines only has nowhere to go.
     expect(to({ row: 5, col: 3, rects: [{ r1: 5, r2: 5, c1: 3, c2: 4 }] }, key('Tab'))?.slice(0, 2)).toEqual([5, 3]);
+  });
+
+  it('treats a merge as one cell, as Excel does, and grows a selection to cover the merges it touches', () => {
+    // E10:G11 and H12:H14 merged.
+    const merges = [
+      { r1: 9, r2: 10, c1: 4, c2: 6 },
+      { r1: 11, r2: 13, c1: 7, c2: 7 },
+    ];
+    const merged: NavSheet = { ...sheet, merges, mergeAt: (r, c) => merges.find((m) => r >= m.r1 && r <= m.r2 && c >= m.c1 && c <= m.c2) };
+    const go = (sel: Selection, k: NavKey) => navigate(sel, k, merged)!;
+    // Into a merge, onto its top-left cell, the merge selected.
+    expect(go(at(8, 5), key('ArrowDown')).selection).toEqual({ row: 9, col: 4, rects: [merges[0]] });
+    // Out of one, from its far side.
+    const inMerge: Selection = { row: 9, col: 4, rects: [merges[0]] };
+    expect(go(inMerge, key('ArrowRight')).selection.col).toBe(7);
+    expect(go(inMerge, key('ArrowDown')).selection.row).toBe(11);
+    expect(go(inMerge, key('ArrowLeft')).selection.col).toBe(2);
+    expect(go(inMerge, key('Tab')).selection.col).toBe(7);
+    // Shift grows over the merges it reaches.
+    expect(go(at(8, 4), key('ArrowDown', { shiftKey: true })).selection.rects[0]).toEqual({ r1: 8, r2: 10, c1: 4, c2: 6 });
+    expect(growOverMerges({ r1: 10, r2: 12, c1: 6, c2: 7 }, merges)).toEqual({ r1: 9, r2: 13, c1: 4, c2: 7 });
+    // Round a range, the cells a merge covers passed over.
+    const range: Selection = { row: 9, col: 4, rects: [{ r1: 9, r2: 10, c1: 4, c2: 7 }] };
+    expect(go(range, key('Tab')).selection.col).toBe(7);
+    expect(go({ ...range, col: 7 }, key('Tab')).selection).toMatchObject({ row: 10, col: 7 });
+    expect(go({ ...range, row: 10, col: 7 }, key('Tab')).selection).toMatchObject({ row: 9, col: 4 });
+    // A merge on its own is one cell: Enter edits it.
+    expect(navigate(inMerge, key('Enter'), merged)).toBeUndefined();
   });
 
   it('shrinks the selection to the active cell with Shift+Backspace, and brings it into view with Ctrl+Backspace', () => {

@@ -37,6 +37,8 @@ export interface PaintInput {
   selection?: Selection;
   /** Ranges marked besides the selection (see sheetMarks). */
   marks?: readonly Mark[];
+  /** The selection has a fill handle at its bottom-right corner. */
+  fillHandle?: boolean;
 }
 
 /** How a cell is drawn. */
@@ -191,9 +193,7 @@ export class Painter {
   private mergeBox(layout: Layout, view: SheetView, m: MergeRange): Box {
     const [r1, r2] = view.lineSpan('rows', m.r1, m.r2)!;
     const [c1, c2] = view.lineSpan('cols', m.c1, m.c2)!;
-    const x = layout.x(c1);
-    const y = layout.y(r1);
-    return layout.box(x, y, layout.x(c2) + layout.spec.cols.size(c2) - x, layout.y(r2) + layout.spec.rows.size(r2) - y);
+    return layout.span(r1, r2, c1, c2);
   }
 
   /** One part of the cells' area: fills, then grid lines, text and borders. */
@@ -283,12 +283,8 @@ export class Painter {
 
   /** The box a range takes on screen, from its first line in view to its last; undefined when all of it is hidden. */
   private rangeBox(input: PaintInput, r: { r1: number; r2: number; c1: number; c2: number }): Box | undefined {
-    const { view, layout } = input;
-    const span = view.gridSpan(r);
-    if (!span) return undefined;
-    const x = layout.x(span.x1);
-    const y = layout.y(span.y1);
-    return layout.box(x, y, layout.x(span.x2) + layout.spec.cols.size(span.x2) - x, layout.y(span.y2) + layout.spec.rows.size(span.y2) - y);
+    const span = input.view.gridSpan(r);
+    return span && input.layout.span(span.y1, span.y2, span.x1, span.x2);
   }
 
   /**
@@ -317,6 +313,15 @@ export class Painter {
       ctx.fillStyle = palette.selection;
       const first = boxes[0] ?? active;
       if (first) this.outline(first, 2);
+      // The fill handle, edged in the colour drawn on the selection so it stands out on any cell.
+      if (first && input.fillHandle) {
+        const x = first.x + first.width;
+        const y = first.y + first.height;
+        ctx.fillStyle = palette.onSelection;
+        ctx.fillRect(x - 4, y - 4, 8, 8);
+        ctx.fillStyle = palette.selection;
+        ctx.fillRect(x - 3, y - 3, 6, 6);
+      }
     }
     for (const m of input.marks ?? []) {
       const b = this.rangeBox(input, m.rect);
