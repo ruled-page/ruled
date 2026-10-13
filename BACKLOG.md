@@ -106,11 +106,6 @@ Small gaps found along the way.
   was opened, not what it has now.
 - **Deleting the rows that hold a sheet's last notes** leaves its comments
   part with no comments in it. It is valid, but Excel removes the part.
-- **The package lists the code it bundles as dependencies.** Everything but
-  React is bundled into the library builds, yet `dependencies` names Glide
-  and the rest, so a host app installs them for nothing.
-  They can become devDependencies once the type declarations stop importing
-  from them, for example by bundling the declarations into one file.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's
   `_xlpm.` prefix** on their names, as `examples/demo/public/samples/kitchen-sink.xlsx`
   does; desktop Excel opens it. Saving keeps formulas no one edited as the

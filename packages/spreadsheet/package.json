@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "author": "Anthony Gubler",
   "scripts": {
-    "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json",
+    "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json && rolldown -c rolldown.types.config.ts",
     "build:verify": "vite build -c vite.verify.config.ts",
     "validate:saves": "node scripts/validate-saves.mjs",
     "notices": "node scripts/notices.mjs"
@@ -15,12 +15,12 @@
   "exports": {
     ".": {
       "source": "./src/editor/index.ts",
-      "types": "./dist/types/editor/index.d.ts",
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/react/workbook-editor.js"
     },
     "./standalone": {
       "source": "./src/editor/standalone.ts",
-      "types": "./dist/types/editor/standalone.d.ts",
+      "types": "./dist/types/standalone.d.ts",
       "import": "./dist/standalone/workbook-editor.js"
     },
     "./style.css": "./dist/react/workbook-editor.css",
@@ -39,7 +39,11 @@
     "CHANGELOG.md",
     "THIRD-PARTY-NOTICES.md"
   ],
-  "dependencies": {
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
     "@borgar/fx": "^5.1.3",
     "@glideapps/glide-data-grid": "^6.0.3",
     "@ruled/formula": "0.1.0",
@@ -50,10 +54,8 @@
     "marked": "^4.3.0",
     "numfmt": "^3.2.6",
     "react-i18next": "^17.0.16",
-    "react-responsive-carousel": "^3.2.23"
-  },
-  "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react-responsive-carousel": "^3.2.23",
+    "rolldown": "1.2.12",
+    "rolldown-plugin-dts": "0.28.6"
   }
 }

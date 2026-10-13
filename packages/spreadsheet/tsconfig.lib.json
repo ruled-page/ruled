@@ -1,11 +1,11 @@
 {
-  // Type declarations for the library builds, next to them in dist-lib/types.
+  // Type declarations for the library builds, which rolldown.types.config.ts bundles into dist/types.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
-    "outDir": "dist/types",
+    "outDir": "dist/declarations",
     "rootDir": "src"
   },
   "include": ["src/editor/index.ts", "src/editor/standalone.ts"]

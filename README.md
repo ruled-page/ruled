@@ -400,6 +400,10 @@ flavours into `packages/spreadsheet/dist/`:
 - `dist/standalone`: React, the worker and the styles bundled, plus a
   `<workbook-editor>` custom element, for hosts without React.
 
+Everything else the editor uses is bundled into both, so the package has no
+dependencies of its own; `dist/types` has one declaration file for each
+flavour, which imports nothing but React.
+
 React:
 
 ```tsx
