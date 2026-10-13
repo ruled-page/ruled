@@ -86,7 +86,17 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
           }
         }}
       />
-      <ul className="wbe-enum-options" id={`${id}-list`} role="listbox" aria-label={t('dropdown.values')} ref={list}>
+      <ul
+        className="wbe-enum-options"
+        id={`${id}-list`}
+        role="listbox"
+        aria-label={t('dropdown.values')}
+        ref={list}
+        // The list can't be scrolled by the user directly (see editor.css); the wheel scrolls it here.
+        onWheel={(e) => {
+          e.currentTarget.scrollTop += e.deltaY * (e.deltaMode === 1 ? 23 : 1);
+        }}
+      >
         {filtered.map((o, i) => (
           <li
             key={o}

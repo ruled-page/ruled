@@ -3863,7 +3863,18 @@
   margin: 0;
   padding: 4px 0;
   max-height: 232px;
-  overflow-y: auto;
+  overflow-y: hidden;
+}
+
+/* The function list and a cell's dropdown aren't scrolled as regions of
+   their own, which a keyboard couldn't reach: the arrow keys move through
+   them, keeping the highlighted item in view, and the wheel scrolls them
+   from script. A finger scrolls them as it would any list. */
+@media (pointer: coarse) {
+  .wbe .wbe-fx-list,
+  .wbe .wbe-enum-options {
+    overflow-y: auto;
+  }
 }
 
 .wbe .wbe-enum-options li {

@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import ExcelJS from 'exceljs';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { goTo, openFile, openSample, ordersWorkbook, setCell } from './helpers';
@@ -89,6 +90,27 @@ for (const theme of ['Default', 'Indigo', 'Paper', 'Dark', 'High contrast']) {
       await expect(page.getByRole('dialog', { name: 'Width of column B' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.keyboard.press('Escape');
+    });
+
+    test("a cell's dropdown with more values than it shows at once", async ({ page }) => {
+      const wb = new ExcelJS.Workbook();
+      const values = Array.from({ length: 30 }, (_, i) => `Item ${i + 1}`);
+      wb.addWorksheet('Sheet1').getCell('A1').dataValidation = { type: 'list', allowBlank: true, formulae: [`"${values.join(',')}"`] };
+      await openFile(page, 'list.xlsx', new Uint8Array(await wb.xlsx.writeBuffer()));
+      await useTheme(page, theme);
+      await goTo(page, 'A1');
+      await page.keyboard.press('Enter');
+      const list = page.getByRole('listbox', { name: 'Values' });
+      await expect(list).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      // The keyboard reaches every value, keeping the highlighted one in view, and the wheel scrolls the list.
+      await page.keyboard.press('ArrowUp');
+      await expect(list.getByRole('option', { name: 'Item 30' })).toHaveAttribute('aria-selected', 'true');
+      await expect(list.getByRole('option', { name: 'Item 30' })).toBeInViewport();
+      await expect(list.getByRole('option', { name: 'Item 1', exact: true })).not.toBeInViewport();
+      await list.hover();
+      await page.mouse.wheel(0, -2000);
+      await expect(list.getByRole('option', { name: 'Item 1', exact: true })).toBeInViewport();
     });
 
     test('a confirmation', async ({ page }) => {
