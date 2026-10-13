@@ -90,15 +90,21 @@ function useFolding(): RefObject<HTMLDivElement | null> {
     if (!el || typeof ResizeObserver === 'undefined') return;
     let frame = 0;
     let width = el.clientWidth;
+    const refold = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => fold(el));
+    };
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === width) return;
       width = el.clientWidth;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => fold(el));
+      refold();
     });
     observer.observe(el);
+    // Labels measured before the theme's font loaded were measured in another: fold again once it has.
+    document.fonts?.addEventListener('loadingdone', refold);
     return () => {
       observer.disconnect();
+      document.fonts?.removeEventListener('loadingdone', refold);
       cancelAnimationFrame(frame);
     };
   }, []);

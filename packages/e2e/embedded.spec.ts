@@ -143,6 +143,11 @@ test('selecting cells never moves the toolbar, and closing the panel gives the g
   await openSample(page);
   const toolbar = page.locator('.wbe-toolbar');
   const height = async () => (await toolbar.boundingBox())!.height;
+  // Measured once the fonts have loaded and the toolbar has folded for them.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  });
   const before = await height();
   // The row buttons are there, but can't be used until a row of the table is selected.
   await expect(page.getByRole('button', { name: 'Insert row' })).toBeDisabled();
