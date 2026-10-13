@@ -585,6 +585,8 @@ export class NativeEngine implements FormulaEngine, Host {
       for (const inner of def.template.names) follow(inner);
     };
     for (const name of f.template.names) follow(name);
+    // Pushed one at a time, the list has room for a dozen more; a copy takes only what it holds.
+    if (f.reads.length) f.reads = f.reads.slice();
   }
 
   /** Notes that a formula reads a cell or range, so changes there make it dirty. */
@@ -594,8 +596,9 @@ export class NativeEngine implements FormulaEngine, Host {
     if (ref.single) {
       const k = key(ref.r1, ref.c1);
       let list = sh.exact.get(k);
-      if (!list) sh.exact.set(k, (list = []));
-      list.push(f);
+      // Made with its first reader, a list takes room for one; most cells have no more.
+      if (list) list.push(f);
+      else sh.exact.set(k, (list = [f]));
       f.reads.push(list);
       return;
     }
