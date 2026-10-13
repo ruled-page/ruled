@@ -5,7 +5,7 @@
  * works out the rows and columns of items itself.
  */
 import { addRel, setOverride } from './commentWriter';
-import { FILE_SHOW_AS, keyOf, NEXT_ITEM, PREVIOUS_ITEM, sharedValue, type PivotDataField, type PivotModel, type PivotValue } from './pivotTable';
+import { FILE_SHOW_AS, keyOf, NEXT_ITEM, PREVIOUS_ITEM, sharedValue, shownFormat, type PivotDataField, type PivotModel, type PivotValue } from './pivotTable';
 import { attr, child, children, elements, escapeXml, findTagEnd, firstElement, parseXml, replaceElements, setAttributes } from './xml';
 import type { OoxmlPackage } from './zip';
 
@@ -203,7 +203,8 @@ export function rewritePivotTable(
     const attrs =
       `name="${escapeXml(d.name)}" fld="${d.field}"${d.fn !== 'sum' ? ` subtotal="${d.fn}"` : ''}` +
       `${FILE_SHOW_AS.has(showAs) && showAs !== 'normal' ? ` showDataAs="${showAs}"` : ''} baseField="${d.baseField ?? 0}" baseItem="${item}"` +
-      `${d.numFmtId !== undefined ? ` numFmtId="${d.numFmtId}"` : ''}`;
+      // Excel shows a value in its data field's format, so percentages need theirs written.
+      `${shownFormat(d) !== undefined ? ` numFmtId="${shownFormat(d)}"` : ''}`;
     if (FILE_SHOW_AS.has(showAs)) return `<dataField ${attrs}/>`;
     return `<dataField ${attrs}><extLst><ext uri="${X14_DATA_FIELD}" xmlns:x14="${X14_NS}"><x14:dataField pivotShowAs="${showAs}"/></ext></extLst></dataField>`;
   };

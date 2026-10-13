@@ -106,7 +106,12 @@ describe('changing a pivot table’s fields', () => {
   it('summarises several values each its own way, the Values field across', () => {
     const s = open('pivot.xlsx');
     set(s, { data: [{ field: 2, fn: 'sum', name: 'Sum of Units' }, { field: 4, fn: 'max', name: 'Max of Revenue' }] });
-    expect(grid(s, 4, 3)[2]).toEqual(['Row Labels', 'Sum of Units', 'Max of Revenue']);
+    // As Excel for the web lays it out: the Values caption above the values' names.
+    expect(grid(s, 5, 3).slice(2)).toEqual([
+      ['.', 'Values', '.'],
+      ['Row Labels', 'Sum of Units', 'Max of Revenue'],
+      ['East', 658, expect.any(Number)],
+    ]);
     expect(pivotOf(s).setup.cols).toEqual([-2]);
   });
 
@@ -134,7 +139,7 @@ describe('a pivot table whose fields were changed, saved', () => {
     const bytes = s.save();
     const p = parts(bytes);
     const def = p[PATH];
-    expect(def).toContain('<location ref="A3:C6" firstHeaderRow="1" firstDataRow="1" firstDataCol="1" rowPageCount="1" colPageCount="1"/>');
+    expect(def).toContain('<location ref="A3:C7" firstHeaderRow="1" firstDataRow="2" firstDataCol="1" rowPageCount="1" colPageCount="1"/>');
     expect(def).toContain('<pivotField showAll="0" axis="axisPage"><items count="5"><item x="3"/><item x="0"/><item x="2"/><item x="1"/><item t="default"/></items></pivotField>');
     // The products, new to the rows, sorted as Excel first lists them, Gizmo hidden.
     expect(def).toContain('<pivotField showAll="0" axis="axisRow"><items count="4"><item x="2"/><item x="0" h="1"/><item x="1"/><item t="default"/></items></pivotField>');
@@ -335,9 +340,11 @@ describe('Show Values As', () => {
     // North is the second of the regions as the definition lists them.
     expect(def).toContain('<dataField name="Sum of Units" fld="2" showDataAs="difference" baseField="0" baseItem="1"/>');
     expect(pivotOf(reopen(s.save())).setup.data).toEqual([{ field: 2, fn: 'sum', name: 'Sum of Units', showAs: 'difference', baseField: 0, baseItem: 'snorth' }]);
+    // Excel shows a value in its data field's format, so a percentage carries Excel's.
+    expect(parts(shownAs({ showAs: 'percentOfTotal' }).save())[PATH]).toContain('showDataAs="percentOfTotal" baseField="0" baseItem="0" numFmtId="10"/>');
     const ranked = shownAs({ showAs: 'rankDescending', baseField: 0, baseItem: 'previous' });
     expect(parts(ranked.save())[PATH]).toContain(
-      '<dataField name="Sum of Units" fld="2" baseField="0" baseItem="1048828"><extLst><ext uri="{E15A36E0-9728-4e99-A89B-3F7291B0FE68}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataField pivotShowAs="rankDescending"/></ext></extLst></dataField>',
+      '<dataField name="Sum of Units" fld="2" baseField="0" baseItem="1048828" numFmtId="0"><extLst><ext uri="{E15A36E0-9728-4e99-A89B-3F7291B0FE68}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataField pivotShowAs="rankDescending"/></ext></extLst></dataField>',
     );
     const again = reopen(ranked.save());
     expect(pivotOf(again).setup.data[0]).toMatchObject({ showAs: 'rankDescending', baseItem: 'previous' });

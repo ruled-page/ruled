@@ -115,7 +115,9 @@ describe('laying out a pivot table', () => {
       { name: 'Sum of Units', field: 2, fn: 'sum' as const },
       { name: 'Count of Units', field: 2, fn: 'count' as const },
     ];
+    // Two header rows, the Values field's caption above the values' names, as Excel lays it out.
     expect(grid(model({ rows: [1], data }))).toEqual([
+      ['', 'Values', ''],
       ['Row Labels', 'Sum of Units', 'Count of Units'],
       ['Gadget', '5', '2'],
       ['Gizmo', '2', '1'],

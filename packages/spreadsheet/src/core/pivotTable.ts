@@ -89,12 +89,23 @@ export const SHOW_AS: PivotShowAs[] = [
 export const NEEDS_BASE_FIELD = new Set<PivotShowAs>(['difference', 'percent', 'percentDiff', 'runTotal', 'percentOfParent', 'percentOfRunningTotal', 'rankAscending', 'rankDescending']);
 export const NEEDS_BASE_ITEM = new Set<PivotShowAs>(['difference', 'percent', 'percentDiff']);
 /** Kinds Excel shows as percentages. */
-const PERCENTS = new Set<PivotShowAs>(['percent', 'percentDiff', 'percentOfRow', 'percentOfCol', 'percentOfTotal', 'percentOfParentRow', 'percentOfParentCol', 'percentOfParent', 'percentOfRunningTotal']);
+export const PERCENTS = new Set<PivotShowAs>(['percent', 'percentDiff', 'percentOfRow', 'percentOfCol', 'percentOfTotal', 'percentOfParentRow', 'percentOfParentCol', 'percentOfParent', 'percentOfRunningTotal']);
 /** The kinds the file format's showDataAs holds; the others are in Excel 2010's extension. */
 export const FILE_SHOW_AS = new Set<PivotShowAs>(['normal', 'difference', 'percent', 'percentDiff', 'runTotal', 'percentOfRow', 'percentOfCol', 'percentOfTotal', 'index']);
 /** Excel's base items "(previous)" and "(next)". */
 export const PREVIOUS_ITEM = 1048828;
 export const NEXT_ITEM = 1048829;
+
+/**
+ * The number format a value is shown in: Excel's percentage for the kinds of
+ * Show Values As that are percentages, plain numbers for ranks and the index,
+ * and otherwise the value's own.
+ */
+export function shownFormat(d: PivotDataField): number | undefined {
+  if (d.showAs && PERCENTS.has(d.showAs)) return 10;
+  if (d.showAs === 'index' || d.showAs === 'rankAscending' || d.showAs === 'rankDescending') return 0;
+  return d.numFmtId;
+}
 
 export interface PivotDataField {
   name: string;
@@ -572,8 +583,8 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
   if (model.rowGrand) rowsOut.push(...grand(rowLevels));
   if (model.colGrand) colsOut.push(...grand(colLevels));
 
-  // Header rows: one per column level and one for the row labels' headers, or one alone when only the Values field is across.
-  const headerRows = colLevels.length && !onlyValuesAcross ? colLevels.length + 1 : 1;
+  // Header rows: one per column level, the Values field's included, and one for the row labels' headers.
+  const headerRows = colLevels.length ? colLevels.length + 1 : 1;
   const firstDataRow = headerRows;
   const cells: PivotCell[] = [];
   const put = (row: number, col: number, value: EngineValue, kind: PivotCell['kind'], numFmtId?: number) => {
@@ -592,17 +603,17 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
       put(lastHeader, rowCol[i], 'values' in l ? model.captions.data : fields[l.field].name, 'header');
     });
   }
-  if (colLevels.length && !onlyValuesAcross) {
-    // The caption row: the one data field's name, then the column fields' heading.
+  if (colLevels.length) {
+    // The caption row: the one data field's name, then the column fields' heading: Excel's "Values" when the Values field is first across.
     if (!values) put(0, 0, data[0]?.name ?? '', 'header');
     const first = colLevels[0];
     // Compact form captions it Excel's way; the others name the field. With no row fields, the column field's own form says which.
     const compact = rowLevels.length ? compactRows : 'field' in first && fields[first.field].compact && fields[first.field].outline;
-    put(0, labelCols, compact || !('field' in first) ? model.captions.colHeader : fields[first.field].name, 'header');
+    put(0, labelCols, 'values' in first ? model.captions.data : compact ? model.captions.colHeader : fields[first.field].name, 'header');
   }
   // Column labels, each on its level's row, then the data fields' names where only they go across.
   colsOut.forEach((c, i) => {
-    for (const [lvl, text] of c.labels) put(onlyValuesAcross ? 0 : lvl + 1, labelCols + i, text, c.kind === 'grand' ? 'grand' : c.kind === 'total' ? 'total' : 'header');
+    for (const [lvl, text] of c.labels) put(lvl + 1, labelCols + i, text, c.kind === 'grand' ? 'grand' : c.kind === 'total' ? 'total' : 'header');
   });
   if (!colLevels.length && !valuesOnRows) put(0, labelCols, data[0]?.name ?? '', 'header');
   if (!colLevels.length && valuesOnRows && !rowLevels.length) put(0, labelCols, model.captions.data, 'header');
@@ -700,8 +711,7 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
       const kind = r.kind === 'grand' || c.kind === 'grand' ? 'grand' : r.kind === 'total' || c.kind === 'total' ? 'total' : 'value';
       const value = summarize(d.fn, recs.map((rec) => rec[d.field]));
       const shown = d.showAs && d.showAs !== 'normal' ? showAs(value, r.path, c.path, r.data ?? c.data ?? 0) : value;
-      // Percentages show as Excel shows them; ranks and indexes as plain numbers.
-      if (shown !== null) put(row, labelCols + ci, shown, kind, d.showAs && PERCENTS.has(d.showAs) ? 10 : d.showAs === 'index' || d.showAs?.startsWith('rank') ? 0 : d.numFmtId);
+      if (shown !== null) put(row, labelCols + ci, shown, kind, shownFormat(d));
     });
   });
 
