@@ -18,7 +18,7 @@ import { transformFormula, type FormulaContext } from '@ruled/formula/reshape';
 import { removeEmptyNoteParts } from './commentWriter';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { countElements, decodeEntities, elements, escapeXml, findTagEnd, replaceElements } from './xml';
+import { countElements, decodeEntities, elements, escapeXml, findTagEnd, IN_TAG, replaceElements } from './xml';
 import type { OoxmlPackage } from './zip';
 
 /**
@@ -138,7 +138,7 @@ function growTable(pkg: OoxmlPackage, model: WorkbookModel, op: Extract<Structur
   };
   pkg.setText(
     table.path,
-    xml.replace(/(<(?:\w+:)?table\b[^>]*?\sref=")([^"]*)(")/, grow).replace(/(<(?:\w+:)?autoFilter\b[^>]*?\sref=")([^"]*)(")/, grow),
+    xml.replace(new RegExp(`(<(?:\\w+:)?table\\b${IN_TAG}*?\\sref=")([^"]*)(")`), grow).replace(new RegExp(`(<(?:\\w+:)?autoFilter\\b${IN_TAG}*?\\sref=")([^"]*)(")`), grow),
   );
 }
 
@@ -474,7 +474,7 @@ function eachElement(xml: string, tag: string, fn: (el: string) => string): stri
 
 /** Rewrites the text of formula elements (<formula>, <formula1>, <xm:f>…), which hold escaped XML text. */
 function rewriteFormulaElements(xml: string, tags: string[], fn: (f: string) => string): string {
-  const re = new RegExp(`(<(?:\\w+:)?(?:${tags.join('|')})(?:\\s[^>]*)?>)([^<]*)(</(?:\\w+:)?(?:${tags.join('|')})>)`, 'g');
+  const re = new RegExp(`(<(?:\\w+:)?(?:${tags.join('|')})(?:\\s${IN_TAG}*)?>)([^<]*)(</(?:\\w+:)?(?:${tags.join('|')})>)`, 'g');
   return xml.replace(re, (all, open: string, text: string, close: string) => {
     const f = decodeEntities(text);
     const next = fn(f);
@@ -483,7 +483,7 @@ function rewriteFormulaElements(xml: string, tags: string[], fn: (f: string) => 
 }
 
 function rewriteRefAttrs(xml: string, tags: string[], sheet: number, map: RefMap): string {
-  const re = new RegExp(`(<(?:\\w+:)?(?:${tags.join('|')})\\b[^>]*?\\sref=")([^"]*)(")`, 'g');
+  const re = new RegExp(`(<(?:\\w+:)?(?:${tags.join('|')})\\b${IN_TAG}*?\\sref=")([^"]*)(")`, 'g');
   return xml.replace(re, (all, a: string, ref: string, b: string) => {
     const next = transformSqref(ref, sheet, map);
     return next ? `${a}${next}${b}` : all;
@@ -504,7 +504,8 @@ function rewriteSheetMeta(xml: string, s: number, op: StructuralOp, map: RefMap,
   // Ranges on this sheet. Rules and links whose ranges are all gone go too.
   for (const tag of ['dataValidation', 'conditionalFormatting', 'protectedRange', 'ignoredError']) {
     tail = eachElement(tail, tag, (el) => {
-      const own = /^<[^>]*?\ssqref="([^"]*)"/.exec(el);
+      // A validation's prompt and error messages, which may hold ">", come before its sqref.
+      const own = new RegExp(`^<${IN_TAG}*?\\ssqref="([^"]*)"`).exec(el);
       const x14 = /<(?:\w+:)?sqref>([^<]*)<\/(?:\w+:)?sqref>/.exec(el);
       if (own) {
         const next = sq(own[1]);
@@ -649,18 +650,18 @@ function tableChanges(
       if (rel.type !== 'table' || rel.external) continue;
       const xml = pkg.text(rel.target);
       if (!xml) continue;
-      const refMatch = /<(?:\w+:)?table\b[^>]*?\sref="([^"]*)"/.exec(xml);
+      const refMatch = new RegExp(`<(?:\\w+:)?table\\b${IN_TAG}*?\\sref="([^"]*)"`).exec(xml);
       const rect = refMatch ? parseRange(refMatch[1]) : null;
       if (!rect) continue;
       const moved = map.range(s, rect);
       if (!moved || moved.sheet !== s) continue;
-      let next = xml.replace(/(<(?:\w+:)?table\b[^>]*?\sref=")[^"]*"/, `$1${rangeToA1(moved.rect)}"`);
+      let next = xml.replace(new RegExp(`(<(?:\\w+:)?table\\b${IN_TAG}*?\\sref=")[^"]*"`), `$1${rangeToA1(moved.rect)}"`);
       next = rewriteRefAttrs(next, ['autoFilter', 'sortState', 'sortCondition'], s, map);
       next = rewriteFormulaElements(next, ['calculatedColumnFormula', 'totalsRowFormula'], (f) => fx(f, s));
       if (op.type === 'insertCols' && rect.c1 < op.at && op.at <= rect.c2) {
         // New columns need names, both in the table and in its header row.
-        const ids = [...next.matchAll(/<(?:\w+:)?tableColumn\b[^>]*?\sid="(\d+)"/g)].map((x) => Number(x[1]));
-        const used = new Set([...next.matchAll(/<(?:\w+:)?tableColumn\b[^>]*?\sname="([^"]*)"/g)].map((x) => decodeEntities(x[1]).toLowerCase()));
+        const ids = [...next.matchAll(new RegExp(`<(?:\\w+:)?tableColumn\\b${IN_TAG}*?\\sid="(\\d+)"`, 'g'))].map((x) => Number(x[1]));
+        const used = new Set([...next.matchAll(new RegExp(`<(?:\\w+:)?tableColumn\\b${IN_TAG}*?\\sname="([^"]*)"`, 'g'))].map((x) => decodeEntities(x[1]).toLowerCase()));
         let id = Math.max(0, ...ids);
         const added: string[] = [];
         const p = /<(\w+:)?tableColumns\b/.exec(next)?.[1] ?? '';
@@ -706,7 +707,7 @@ function spliceColumns(xml: string, at: number, remove: number, add: string[]): 
 }
 
 function pivotSource(xml: string, map: RefMap, ctx: FormulaContext): string {
-  return xml.replace(/<((?:\w+:)?worksheetSource)\b([^>]*?)\/>/, (all, tag: string, attrs: string) => {
+  return xml.replace(new RegExp(`<((?:\\w+:)?worksheetSource)\\b(${IN_TAG}*?)\\/>`), (all, tag: string, attrs: string) => {
     const sheetName = /\ssheet="([^"]*)"/.exec(attrs)?.[1];
     const ref = /\sref="([^"]*)"/.exec(attrs)?.[1];
     const sheet = sheetName !== undefined ? ctx.indexOf(decodeEntities(sheetName)) : undefined;

@@ -8,7 +8,7 @@ import { anchorXml, chartAnchorXml } from './chartWriter';
 import { addRel, removePart, setOverride } from './commentWriter';
 import { placeSheetElement, rootTag, siblings } from './hyperlinks';
 import type { SheetObject } from './types';
-import { firstElement } from './xml';
+import { firstElement, IN_TAG } from './xml';
 import type { OoxmlPackage } from './zip';
 
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -91,7 +91,8 @@ export function writeObjects(pkg: OoxmlPackage, sheetPath: string, sheetXml: str
   }
 
   if (added.length) {
-    let id = Math.max(1, ...[...out.matchAll(/cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1])));
+    // A picture's name and description, which may hold ">", can come before its id.
+    let id = Math.max(1, ...[...out.matchAll(new RegExp(`cNvPr\\b${IN_TAG}*?\\sid="(\\d+)"`, 'g'))].map((m) => Number(m[1])));
     let anchors = '';
     for (const o of added) {
       const part = freePath(pkg, 'xl/charts', 'chart');

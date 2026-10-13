@@ -4,7 +4,7 @@ import { cellKey, MAX_COLS, parseRange, rangeToA1 } from '@ruled/formula/refs';
 import { placeSheetElement } from './hyperlinks';
 import type { StyleBook } from './styles';
 import type { CfCell, CfResult, CfRule, Cfvo, DiffStyle, Rect } from './types';
-import { attr, child, children, descendants, type XmlNode } from './xml';
+import { attr, child, children, descendants, IN_TAG, type XmlNode } from './xml';
 
 // ---------------------------------------------------------------------------
 // Reading rules
@@ -528,9 +528,10 @@ export function writeConditionalFormats(xml: string, p: string, rules: readonly 
   const byId = new Map(rules.filter((r) => r.extId && r.rects.length).map((r) => [r.extId!, r]));
   const ext = /<(\w+:)?ext\b[^>]*\buri="\{78C0D931-6437-407d-A8EE-F0AAD7539E65\}"[^>]*>[\s\S]*?<\/\1?ext>/.exec(xml);
   if (!ext) return xml;
-  const patched = ext[0].replace(/<(\w+:)conditionalFormatting\b([^>]*)>([\s\S]*?)<\/\1conditionalFormatting>/g, (_all, q: string, attrs: string, body: string) => {
+  const patched = ext[0].replace(new RegExp(`<(\\w+:)conditionalFormatting\\b(${IN_TAG}*)>([\\s\\S]*?)<\\/\\1conditionalFormatting>`, 'g'), (_all, q: string, attrs: string, body: string) => {
     let ranges: Rect[] | undefined;
-    const kept = body.replace(/<(\w+:)cfRule\b([^>]*)>([\s\S]*?)<\/\1cfRule>/g, (rule, _q: string, ruleAttrs: string) => {
+    // A rule's text, such as what a cell contains, may hold ">".
+    const kept = body.replace(new RegExp(`<(\\w+:)cfRule\\b(${IN_TAG}*)>([\\s\\S]*?)<\\/\\1cfRule>`, 'g'), (rule, _q: string, ruleAttrs: string) => {
       const r = byId.get(/\bid="([^"]*)"/.exec(ruleAttrs)?.[1] ?? '');
       if (!r) return '';
       ranges = r.rects;

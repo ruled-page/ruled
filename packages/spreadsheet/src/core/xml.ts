@@ -66,6 +66,13 @@ export function localName(qname: string): string {
 
 const isSpace = (c: number) => c === 32 || c === 9 || c === 10 || c === 13;
 
+/**
+ * Regular expression source for a tag's attributes, a character or a whole
+ * quoted value at a time: repeated, it runs to the tag's closing ">" past
+ * any ">" a value holds ("a > b"), where [^>]* would stop short.
+ */
+export const IN_TAG = `(?:[^>"']|"[^"]*"|'[^']*')`;
+
 /** Parses an attribute string such as ` r="A1" s='2'` into a record, in one pass. */
 export function parseAttrs(s: string): Record<string, string> {
   const out: Record<string, string> = {};

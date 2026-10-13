@@ -82,7 +82,3 @@ Small gaps found along the way.
   edited as the file has them, so such a file stays as it was; formulas
   typed or edited here get the prefix. Adding it on saving would mend such
   files, at the cost of rewriting cells no one changed.
-- **Some of the saved XML is rewritten with regular expressions**
-  (`packages/spreadsheet/src/core/writer.ts`, `packages/spreadsheet/src/core/restructure.ts`). They hold for what Excel
-  and other common tools write; unusual but valid XML, such as a `>` inside
-  an attribute value, could defeat them.

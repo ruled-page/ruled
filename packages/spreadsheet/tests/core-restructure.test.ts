@@ -101,6 +101,27 @@ function after(op: StructuralOp, from = bytes, name = 'rich.xlsx') {
 const sheetXml = (xml: Record<string, string>, n: number) => xml[`xl/worksheets/sheet${n}.xml`];
 const anchors = (drawing: string, tag: 'row' | 'col') => [...drawing.matchAll(new RegExp(`<xdr:${tag}>(\\d+)</xdr:${tag}>`, 'g'))].map((m) => Number(m[1]));
 
+describe('attribute values holding ">"', () => {
+  it('are read past, so a validation with one in its prompt, and a table with one in its comment, follow their cells', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Data');
+    for (let i = 1; i <= 4; i++) ws.getCell(`A${i}`).value = i;
+    ws.addTable({ name: 'T', ref: 'C1', headerRow: true, columns: [{ name: 'X' }, { name: 'Y' }], rows: [[1, 2]] });
+    // Valid XML, though writers usually escape it: ">" as it is, in attributes before the ones that move.
+    const raw = patch(new Uint8Array(await wb.xlsx.writeBuffer()), {
+      'xl/worksheets/sheet1.xml': (xml) =>
+        xml.replace(
+          '</sheetData>',
+          '</sheetData><dataValidations count="1"><dataValidation type="whole" operator="greaterThan" showInputMessage="1" prompt="A number > 0" sqref="B2"><formula1>0</formula1></dataValidation></dataValidations>',
+        ),
+      'xl/tables/table1.xml': (xml) => xml.replace('<table ', '<table comment="Rows > 1" '),
+    });
+    const { xml } = after({ type: 'insertRows', sheet: 0, at: 0, count: 1 }, raw, 'gt.xlsx');
+    expect(sheetXml(xml, 1)).toContain('prompt="A number > 0" sqref="B3"');
+    expect(xml['xl/tables/table1.xml']).toMatch(/<table comment="Rows > 1" [^]*? ref="C2:D3"/);
+  });
+});
+
 describe('inserting rows', () => {
   it('moves page breaks, the selection, local names, threaded comments, pictures and protected ranges', () => {
     const { xml } = after({ type: 'insertRows', sheet: DATA, at: 1, count: 2 });
