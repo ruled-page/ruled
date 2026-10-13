@@ -1,7 +1,7 @@
 import { displayFormula } from '@ruled/formula/formula';
 import { parseInput } from '../core/input';
-import { localeInfo } from '../core/locale';
-import { format, formatColor, isDateFormat } from 'numfmt';
+import { EXCEL_SHORT_NAMES, localeInfo } from '../core/locale';
+import { addLocale, format, formatColor, getLocale, isDateFormat } from 'numfmt';
 import { CellFlag, VT, type DisplayStyle, type Rect } from '../core/types';
 
 export interface CellRecord {
@@ -39,6 +39,8 @@ export function isDateStyle(style: DisplayStyle): boolean {
 }
 
 const OPTS = { throws: false, leap1900: true, nbsp: false } as const;
+
+for (const [language, names] of Object.entries(EXCEL_SHORT_NAMES)) addLocale({ ...getLocale(language), mmm: names.months, ddd: names.days }, language);
 
 const tidy = (n: number) => parseFloat(n.toPrecision(15));
 const isPercent = (pattern: string) => /%/.test(pattern.replace(/"[^"]*"/g, ''));

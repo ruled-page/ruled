@@ -70,6 +70,9 @@ describe('the text a cell shows', () => {
     expect(displayText(num(1234.5), amount, false, false, 'en-GB').text).toBe('1,234.50');
     expect(displayText(num(0.125), style({ numFmt: '0.0%' }), false, false, 'de-DE').text).toBe('12,5%');
     expect(displayText(num(NEW_YEAR_1900 + 59), style({ numFmt: 'd mmmm yyyy' }), false, false, 'de-DE').text).toBe('1 März 2026');
+    // Short names as German Excel writes them, not as numfmt's Unicode data has them ("März", "So.").
+    expect(displayText(num(NEW_YEAR_1900 + 59), style({ numFmt: 'ddd d mmm yy' }), false, false, 'de-DE').text).toBe('So 1 Mrz 26');
+    expect(displayText(num(NEW_YEAR_1900 + 59), style({ numFmt: 'ddd d mmm yy' }), false, false, 'de-AT').text).toBe('So 1 Mrz 26');
     // Without one, English.
     expect(displayText(num(1234.5), amount, false).text).toBe('1,234.50');
   });

@@ -8,6 +8,15 @@ export interface LocaleInfo {
 
 const cache = new Map<string, LocaleInfo>();
 
+/**
+ * Short month and day names, from January and from Sunday, as Excel writes
+ * them where they aren't the Unicode names numfmt and the browser use:
+ * Excel takes Windows' names, "Mrz" where those have "März".
+ */
+export const EXCEL_SHORT_NAMES: Readonly<Record<string, { months: string[]; days: string[] }>> = {
+  de: { months: 'Jan Feb Mrz Apr Mai Jun Jul Aug Sep Okt Nov Dez'.split(' '), days: 'So Mo Di Mi Do Fr Sa'.split(' ') },
+};
+
 export function localeInfo(locale: string | undefined): LocaleInfo {
   const key = locale || 'en-US';
   let info = cache.get(key);

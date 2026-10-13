@@ -82,8 +82,6 @@ Small gaps found along the way.
   edited as the file has them, so such a file stays as it was; formulas
   typed or edited here get the prefix. Adding it on saving would mend such
   files, at the cost of rewriting cells no one changed.
-- **German short month names** come out as numfmt writes them ("März")
-  where German Excel writes "Mrz".
 - **A long list in a cell's dropdown** scrolls in a region that axe, in
   Firefox and WebKit, reports as not reachable from the keyboard; the arrow
   keys do reach every value.

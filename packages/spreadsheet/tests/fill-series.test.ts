@@ -125,6 +125,8 @@ describe('lists that filling continues', () => {
     expect(filled(s('Jan.'), [1], german)).toEqual(['Feb.']);
     expect(filled(s('MÄRZ'), [1], german)).toEqual(['APR']);
     expect(filled(s('Juni'), [1], german)).toEqual(['Juli']);
+    // And as German Excel writes them.
+    expect(filled(s('Mrz'), [1, 10], german)).toEqual(['Apr', 'Jan']);
     expect(filled(s('Mo.', 'Mi.'), [2], german)).toEqual(['Fr.']);
   });
 

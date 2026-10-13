@@ -1,4 +1,5 @@
 import { ENGLISH_LISTS } from '../core/fill';
+import { EXCEL_SHORT_NAMES } from '../core/locale';
 
 const named = new Map<string, string[][]>();
 
@@ -8,6 +9,7 @@ const named = new Map<string, string[][]>();
  * stands alone and as a date writes it, which differ in some languages
  * ("Jan" and "Jan.", or another grammatical case), and short names written
  * with a full stop come without it too, as they are often typed that way.
+ * Excel's own short names follow, where they differ ("Mrz").
  */
 export function namesIn(language: string): string[][] {
   let lists = named.get(language);
@@ -25,6 +27,7 @@ export function namesIn(language: string): string[][] {
       [
         ...widths.flatMap((month) => forms(names({ month }, 'month', months), names({ month, day: 'numeric' }, 'month', months))),
         ...widths.flatMap((weekday) => forms(names({ weekday }, 'weekday', days), names({ weekday, day: 'numeric' }, 'weekday', days))),
+        ...Object.values(EXCEL_SHORT_NAMES[language.split('-')[0].toLowerCase()] ?? {}),
       ].filter((list) => list.every(Boolean)),
     );
   } catch {
