@@ -21,7 +21,7 @@ Both default to the browser's. Change the language while a workbook is open with
 `translations` takes message catalogues by language, keyed as in the English one. Start from `en`, which has every message:
 
 ```ts
-import { en } from '@sitepen/spreadsheet';
+import { en } from '@ruled/sheet';
 
 const fr = { ...en, 'toolbar.save': 'Enregistrer', /* … */ };
 createWorkbookEditor({ language: 'fr', translations: { fr } });

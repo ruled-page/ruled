@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
-import { parseA1 } from '@sitepen/formula-engine/refs';
+import { parseA1 } from '@ruled/formula/refs';
 import { english } from '../src/i18n';
 import {
   CellFlag,

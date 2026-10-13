@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { schemaFromJSON, schemaToJSON, HeadlessWorkbook, validateWorkbook } from './headless';
 import type { WorkbookSchema } from '../src/schema/types';
-import { forecastSchema, priceListSchema } from '@sitepen/demo/schemas';
+import { forecastSchema, priceListSchema } from '@ruled/demo/schemas';
 import { sample } from './helpers';
 
 describe('the editor without a browser', () => {

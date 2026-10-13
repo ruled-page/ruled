@@ -20,7 +20,7 @@ import { unified } from 'unified';
 import { remove } from 'unist-util-remove';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
-const site = (process.env.DOCS_URL ?? 'https://workbook-editor-docs.pages.dev').replace(/\/$/, '');
+const site = (process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev').replace(/\/$/, '');
 const siteDescription = 'Edit real Excel workbooks in the browser, check every cell against a schema with your own async rules, and save .xlsx back intact.';
 
 /** Every built page: its route ('schemas/async-hooks/') and its HTML file. */
@@ -99,13 +99,13 @@ for (const page of pages()) {
 
 const groups = sidebar();
 const listed = new Set();
-let index = `# Workbook Editor\n\n> ${siteDescription}\n\n`;
-index += 'Workbook Editor (`@sitepen/spreadsheet`) is a spreadsheet editor for web apps: a React component and a `<workbook-editor>` element. Schemas describe the workbooks an app expects, with sync and async hooks for checks and business logic. Each link is a page as Markdown; llms-full.txt has them all.\n';
-let full = `# Workbook Editor\n\n> ${siteDescription}\n`;
+let index = `# Ruled\n\n> ${siteDescription}\n\n`;
+index += 'Ruled (`@ruled/sheet`) is a spreadsheet editor for web apps: a React component and a `<workbook-editor>` element. Schemas describe the workbooks an app expects, with sync and async hooks for checks and business logic. Each link is a page as Markdown; llms-full.txt has them all.\n';
+let full = `# Ruled\n\n> ${siteDescription}\n`;
 for (const group of groups) {
   const api = /api/i.test(group.label);
   index += `\n## ${api ? 'Optional' : group.label}\n\n`;
-  if (api) index += `- [API reference](${site}/reference/api/readme.md): every export of @sitepen/spreadsheet, its types and their members\n`;
+  if (api) index += `- [API reference](${site}/reference/api/readme.md): every export of @ruled/sheet, its types and their members\n`;
   for (const href of group.links) {
     const page = all.get(href);
     if (!page || listed.has(href)) continue;

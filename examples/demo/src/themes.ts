@@ -1,4 +1,4 @@
-import type { EditorTheme } from '@sitepen/spreadsheet';
+import type { EditorTheme } from '@ruled/sheet';
 import type { DemoKey } from './locales/en';
 
 /**

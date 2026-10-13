@@ -48,10 +48,10 @@ if (sites.includes('angular') && !nodeIsNewEnoughForAngular()) {
   process.exit(1);
 }
 
-if (sites.includes('demo')) run('npm run build -w @sitepen/demo', { env: { SITE: '1' } });
+if (sites.includes('demo')) run('npm run build -w @ruled/demo', { env: { SITE: '1' } });
 
 if (sites.includes('portal')) {
-  run('npm run build -w @sitepen/react-portal', { env: { SITE: '1' } });
+  run('npm run build -w @ruled/react-portal', { env: { SITE: '1' } });
   // The portal shares the demo's public folder, and needs only its own workbooks from it.
   for (const file of readdirSync('dist-sites/portal/samples')) {
     if (!file.startsWith('supplier-')) rmSync(`dist-sites/portal/samples/${file}`);

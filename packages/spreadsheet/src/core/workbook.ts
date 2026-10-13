@@ -1,6 +1,6 @@
 import { msg, TextError, type Message, type MessageKey, type Text } from '../i18n/message';
 import { parseChart, type ChartContext, type ChartSpec } from './charts';
-import { parseRange, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { parseRange, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
 import { readCustomProperties } from './properties';
@@ -12,7 +12,7 @@ import type { Anchor, BlockedRegion, CellNote, DefinedName, FilterCondition, Fil
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
-import type { Iteration } from '@sitepen/formula-engine';
+import type { Iteration } from '@ruled/formula';
 
 export type { DefinedName } from './types';
 

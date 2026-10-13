@@ -9,10 +9,10 @@ In Angular the editor is a custom element like any other. Allow it with `CUSTOM_
 
 ```ts
 import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
-import type { EditorOptions, SaveEventDetail } from '@sitepen/spreadsheet/standalone';
+import type { EditorOptions, SaveEventDetail } from '@ruled/sheet/standalone';
 import { forecast } from './schemas';
 
-const editorLoaded = import('@sitepen/spreadsheet/standalone');
+const editorLoaded = import('@ruled/sheet/standalone');
 
 @Component({
   selector: 'app-forecast-review',

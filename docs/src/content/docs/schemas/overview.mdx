@@ -28,7 +28,7 @@ A schema describes a kind of workbook your app expects: which sheets it has, whe
 Wrap the schema in `defineSchema` for type checking and completion, and pass it in the editor's options:
 
 ```ts
-import { createWorkbookEditor, defineSchema } from '@sitepen/spreadsheet';
+import { createWorkbookEditor, defineSchema } from '@ruled/sheet';
 
 const timesheet = defineSchema({
   id: 'acme.timesheet',

@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState } from 'react';
-import { colToLetters } from '@sitepen/formula-engine/refs';
+import { colToLetters } from '@ruled/formula/refs';
 import { VT, type FilterCondition } from '../core/types';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';

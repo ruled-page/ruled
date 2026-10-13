@@ -27,7 +27,7 @@ import {
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
 import { linkAddress } from '../core/links';
-import { colToLetters, inRect, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { colToLetters, inRect, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { clipboardFormats } from '../state/clipboardFormats';

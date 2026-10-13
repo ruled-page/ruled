@@ -2,7 +2,7 @@ import { msg, TextError } from '../i18n/message';
 import { CSV_FILE, decodeText, parseCsv, sepLine, sniffDelimiter } from './csv';
 import { parseInput } from './input';
 import { listSeparator } from './locale';
-import { rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { rangeToA1, toA1 } from '@ruled/formula/refs';
 import { builtinIdFor } from './styles';
 import type { CellContent } from './types';
 import { encodeOoxmlText, escapeXml } from './xml';

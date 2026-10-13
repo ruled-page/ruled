@@ -2,7 +2,7 @@
  * The live examples the pages show, by name: the workbook each opens, and
  * the options the editor gets, as a host would pass them.
  */
-import type { EditorOptions } from '@sitepen/spreadsheet';
+import type { EditorOptions } from '@ruled/sheet';
 import { budget } from './budget';
 import { forecast } from './forecast';
 import { priceList } from './price-list';

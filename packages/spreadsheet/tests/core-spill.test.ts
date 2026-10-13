@@ -5,7 +5,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { english, errorText } from '../src/i18n';
 import { WorkbookSession } from '../src/core/session';
-import { parseA1, parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { parseA1, parseRange, rangeToA1 } from '@ruled/formula/refs';
 import { CellFlag, VT, type CellUpdate, type EditResult } from '../src/core/types';
 import { parts, sheetIndex, valueOf } from './helpers';
 

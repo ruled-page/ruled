@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { copyTheme, THEME_TOKENS, themeProperty, themeStyle } from '@sitepen/spreadsheet/internal/editor/theme.ts';
+import { copyTheme, THEME_TOKENS, themeProperty, themeStyle } from '@ruled/sheet/internal/editor/theme.ts';
 import { DEMO_THEMES } from '../src/themes';
-import { DEFAULT_PALETTE } from '@sitepen/spreadsheet/internal/ui/gridPalette.ts';
+import { DEFAULT_PALETTE } from '@ruled/sheet/internal/ui/gridPalette.ts';
 
 const css = readFileSync(join(__dirname, '..', '..', '..', 'packages', 'spreadsheet', 'src', 'editor', 'editor.css'), 'utf8');
 const rootBlock = css.slice(css.indexOf('.wbe {\n'), css.indexOf('font-family: var(--wbe-font);'));

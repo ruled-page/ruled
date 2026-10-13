@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HeadlessWorkbook } from '@sitepen/spreadsheet/testing/headless.ts';
+import { HeadlessWorkbook } from '@ruled/sheet/testing/headless.ts';
 import { CHANGE_THRESHOLD, priceChange, readPriceLines, summarise, type PriceLine } from '../src/parse';
 import { SHEET, supplierPriceList, TABLE } from '../src/schema';
 import { approvedPrices, type ApprovedPrice } from '../src/services';
-import { sample } from '@sitepen/spreadsheet/testing/helpers.ts';
+import { sample } from '@ruled/sheet/testing/helpers.ts';
 
 afterEach(() => vi.unstubAllGlobals());
 

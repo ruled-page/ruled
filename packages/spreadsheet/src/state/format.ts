@@ -1,4 +1,4 @@
-import { displayFormula } from '@sitepen/formula-engine/formula';
+import { displayFormula } from '@ruled/formula/formula';
 import { parseInput } from '../core/input';
 import { localeInfo } from '../core/locale';
 import { format, formatColor, isDateFormat } from 'numfmt';

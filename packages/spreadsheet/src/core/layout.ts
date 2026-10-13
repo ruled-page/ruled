@@ -1,5 +1,5 @@
 import { msg, type Text } from '../i18n/message';
-import { colToLetters, MAX_COLS, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { colToLetters, MAX_COLS, rangeToA1, toA1 } from '@ruled/formula/refs';
 import type { CellChange, FilterCondition, FilterState, LayoutOp, OutlineAxis, Rect, SheetInfo } from './types';
 import { elements, escapeXml, findTagEnd, firstElement, parseAttrs, setAttributes } from './xml';
 

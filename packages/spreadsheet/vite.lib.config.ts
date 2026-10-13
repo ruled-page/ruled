@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
     publicDir: false,
     // Paths relative to the library, wherever the host serves it from.
     base: './',
-    // A fixed name, which the package exports as @sitepen/spreadsheet/worker.
+    // A fixed name, which the package exports as @ruled/sheet/worker.
     // One file, the engine inlined, so hosts' bundlers see a single worker.
     worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js', codeSplitting: false } } },
     plugins: standalone ? [glidePatches()] : [glidePatches(), plainWorkerUrl()],

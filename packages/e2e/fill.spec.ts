@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
-import { de } from '@sitepen/spreadsheet/internal/i18n/index.ts';
+import { de } from '@ruled/sheet/internal/i18n/index.ts';
 import { goTo, openFile, shown, XLSX } from './helpers';
 
 /** "Data": A1 = 1, B1 = 31 January 2026 as a date, E1 = "Low". */

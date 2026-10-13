@@ -11,7 +11,7 @@ async function worker() {
   vi.resetModules();
   await import('../src/worker/workbook.worker');
   // The fresh modules need the engine the setup file chose for the old ones.
-  const [{ chooseEngine }, { nativeEngine }] = await Promise.all([import('../src/core/engine'), import('@sitepen/formula-engine/native')]);
+  const [{ chooseEngine }, { nativeEngine }] = await Promise.all([import('../src/core/engine'), import('@ruled/formula/native')]);
   chooseEngine(nativeEngine);
   let id = 0;
   /** Sends a request and returns what the worker answered to it. */

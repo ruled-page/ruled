@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parseA1 } from '@sitepen/formula-engine/refs';
+import { parseA1 } from '@ruled/formula/refs';
 import { WorkbookSession } from '../src/core/session';
 import type { EditOp } from '../src/core/types';
-import { budgetSchema, forecastSchema, priceListSchema } from '@sitepen/demo/schemas';
+import { budgetSchema, forecastSchema, priceListSchema } from '@ruled/demo/schemas';
 import { english, type Text } from '../src/i18n';
 import { bindSchema } from '../src/schema/binding';
 import { SchemaController } from '../src/schema/controller';

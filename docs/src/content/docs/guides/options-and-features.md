@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbookEditor` and the element's `options` property. All are optional. The [API reference](/reference/api/sitepen/spreadsheet/interfaces/editoroptions/) has each one's type.
+The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbookEditor` and the element's `options` property. All are optional. The [API reference](/reference/api/ruled/sheet/interfaces/editoroptions/) has each one's type.
 
 ## Workbooks and saving
 

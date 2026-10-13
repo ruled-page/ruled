@@ -1,6 +1,6 @@
 import { BUILT_IN, createI18n, translator, type Translator } from '../i18n';
 import type { LocalizedMap, MessageKey, MessageParams } from '../i18n/message';
-import { toA1 } from '@sitepen/formula-engine/refs';
+import { toA1 } from '@ruled/formula/refs';
 import { VT, type DisplayStyle } from '../core/types';
 import { isDateStyle, type CellRecord } from '../state/format';
 import type { SheetView } from '../state/sheetView';

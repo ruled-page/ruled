@@ -1,14 +1,14 @@
 import { StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
-import { WorkbookEditor } from '@sitepen/spreadsheet';
-import { handleFor } from '@sitepen/spreadsheet/internal/editor/handle.ts';
-import { WorkbookStore } from '@sitepen/spreadsheet/internal/state/store.ts';
+import { WorkbookEditor } from '@ruled/sheet';
+import { handleFor } from '@ruled/sheet/internal/editor/handle.ts';
+import { WorkbookStore } from '@ruled/sheet/internal/state/store.ts';
 import { DEMO_NS, i18next, LANGUAGE_STORAGE_KEY, LANGUAGES } from './i18n';
 import { DEMO_SCHEMAS } from './schemas';
 import { DEMO_THEMES } from './themes';
 import { openSample, SAMPLES, SCHEMA_SAMPLES, Welcome } from './Welcome';
-import { Select } from '@sitepen/spreadsheet/internal/ui/Select.tsx';
+import { Select } from '@ruled/sheet/internal/ui/Select.tsx';
 import './demo.css';
 
 // A consumer passes its own schemas and save handling here; the demo

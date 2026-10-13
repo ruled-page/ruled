@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { parseA1 } from '@sitepen/formula-engine/refs';
+import { parseA1 } from '@ruled/formula/refs';
 import { WorkbookSession } from '../src/core/session';
 import { english } from '../src/i18n';
 import { bindSchema } from '../src/schema/binding';
@@ -166,7 +166,7 @@ describe('generating', () => {
 
 describe('exporting schemas written in code', () => {
   it('leaves hooks out, including table rules, which JSON would turn into nulls', async () => {
-    const { forecastSchema } = await import('@sitepen/demo/schemas');
+    const { forecastSchema } = await import('@ruled/demo/schemas');
     const { schemaToJSON } = await import('../src/schema/json');
     expect(forecastSchema.sheets[0].tables![0].rules?.length).toBeGreaterThan(0);
     const json = schemaToJSON(forecastSchema);

@@ -3,7 +3,7 @@
  * instance (namespace "demo"), apart from the editor's messages.
  */
 export const en = {
-  'page.title': 'Workbook Editor POC',
+  'page.title': 'Ruled demo',
 
   'toolbar.samples': 'Samples',
   'picker.theme': 'Theme',

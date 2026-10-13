@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createI18n, translator } from '@sitepen/spreadsheet/internal/i18n/index.ts';
-import { HeadlessWorkbook } from '@sitepen/spreadsheet/testing/headless.ts';
+import { createI18n, translator } from '@ruled/sheet/internal/i18n/index.ts';
+import { HeadlessWorkbook } from '@ruled/sheet/testing/headless.ts';
 import { supplierPriceList } from '../src/schema';
-import type { FieldValue, IssueInput, RecordData, TableData, WorkbookData } from '@sitepen/spreadsheet';
-import { sample } from '@sitepen/spreadsheet/testing/helpers.ts';
+import type { FieldValue, IssueInput, RecordData, TableData, WorkbookData } from '@ruled/sheet';
+import { sample } from '@ruled/sheet/testing/helpers.ts';
 
 // The portal's services answer after 250–400 ms; fake timers play that out at once.
 beforeEach(() => {

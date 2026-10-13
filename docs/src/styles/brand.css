@@ -1,5 +1,5 @@
 /*
- * Workbook Editor's look: a ledger. Warm paper and green-black ink, the
+ * Ruled's look: a ledger. Warm paper and green-black ink, the
  * spreadsheet's own grid as the page's texture, ledger green for what you can
  * act on, and the red of a validation marker used sparingly, where something
  * is checked. Headings are set in Fraunces, text in IBM Plex.
@@ -89,7 +89,7 @@ h1#_top {
 }
 
 .site-title img {
-  height: 1.75rem;
+  height: 2.1rem;
   width: auto;
 }
 

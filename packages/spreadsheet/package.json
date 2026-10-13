@@ -1,7 +1,7 @@
 {
-  "name": "@sitepen/spreadsheet",
+  "name": "@ruled/sheet",
   "version": "0.1.0",
-  "description": "Edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas: a React component, and a <workbook-editor> web component",
+  "description": "Ruled: edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas: a React component, and a <workbook-editor> web component",
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
@@ -42,7 +42,7 @@
   "dependencies": {
     "@borgar/fx": "^5.1.3",
     "@glideapps/glide-data-grid": "^6.0.3",
-    "@sitepen/formula-engine": "0.1.0",
+    "@ruled/formula": "0.1.0",
     "chart.js": "^4.5.1",
     "fflate": "^0.8.3",
     "i18next": "^26.4.2",

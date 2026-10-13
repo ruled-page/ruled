@@ -1,11 +1,11 @@
-# Workbook Editor (`@sitepen/spreadsheet`)
+# Ruled (`@ruled/sheet`)
 
 A spreadsheet editor embedded in web apps. It opens real Excel files (.xlsx, .xlsm, CSV), checks them against schemas with sync and async hooks, and hands the saved .xlsx and its values back to the app. Full docs: {{SITE}}/llms-full.txt
 
 ## Embedding
 
-- React: `const editor = useWorkbookEditor({ ...options, file })` (null on the first render; `file` is `{ name, bytes }`, opened when ready and again when it's another file), `{editor && <WorkbookEditor editor={editor} />}`, and `import '@sitepen/spreadsheet/style.css'`. The hook destroys the editor on unmount; theme, language, user, schemas and customLists follow `options` live; callbacks may be inline; other options are read once (change them with a new `key`). `useEditorState(editor)` gives `{ status, fileName, editedCount, unsaved }` as React state. Never make an editor with `useMemo` or during render: use the hook, or `createWorkbookEditor` in an effect with `destroy()` in its cleanup.
-- Anything else: `import '@sitepen/spreadsheet/standalone'` (defines `<workbook-editor>`, styles and worker included). Set `element.options = {...}`, use `src="/file.xlsx"`, and `save-handler="event"` to get a `save` event whose `detail.waitUntil(promise)` keeps the save pending.
+- React: `const editor = useWorkbookEditor({ ...options, file })` (null on the first render; `file` is `{ name, bytes }`, opened when ready and again when it's another file), `{editor && <WorkbookEditor editor={editor} />}`, and `import '@ruled/sheet/style.css'`. The hook destroys the editor on unmount; theme, language, user, schemas and customLists follow `options` live; callbacks may be inline; other options are read once (change them with a new `key`). `useEditorState(editor)` gives `{ status, fileName, editedCount, unsaved }` as React state. Never make an editor with `useMemo` or during render: use the hook, or `createWorkbookEditor` in an effect with `destroy()` in its cleanup.
+- Anything else: `import '@ruled/sheet/standalone'` (defines `<workbook-editor>`, styles and worker included). Set `element.options = {...}`, use `src="/file.xlsx"`, and `save-handler="event"` to get a `save` event whose `detail.waitUntil(promise)` keeps the save pending.
 - Or `mountWorkbookEditor(element, options)` from the standalone build, which returns the handle.
 - The editor fills its container: give the container (or the element) a height.
 - Open a file with `await editor.open(arrayBuffer, 'name.xlsx')`. When the app chooses files, set `features: { open: false }`.

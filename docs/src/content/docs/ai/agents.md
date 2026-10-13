@@ -26,17 +26,17 @@ The skill is a short, dense guide to embedding the editor and writing schemas, h
 Add it to a project, where everyone working on it gets it:
 
 ```sh
-mkdir -p .claude/skills/workbook-editor
-curl -fsSL https://workbook-editor-docs.pages.dev/agents/workbook-editor/SKILL.md -o .claude/skills/workbook-editor/SKILL.md
+mkdir -p .claude/skills/ruled
+curl -fsSL https://ruled-docs.pages.dev/agents/ruled/SKILL.md -o .claude/skills/ruled/SKILL.md
 ```
 
-Or to `~/.claude/skills/workbook-editor/` for every project of yours. Claude Code uses it whenever a task involves the editor.
+Or to `~/.claude/skills/ruled/` for every project of yours. Claude Code uses it whenever a task involves the editor.
 
 ### Cursor
 
 ```sh
 mkdir -p .cursor/rules
-curl -fsSL https://workbook-editor-docs.pages.dev/agents/workbook-editor.mdc -o .cursor/rules/workbook-editor.mdc
+curl -fsSL https://ruled-docs.pages.dev/agents/ruled.mdc -o .cursor/rules/ruled.mdc
 ```
 
 ### Other agents
@@ -44,7 +44,7 @@ curl -fsSL https://workbook-editor-docs.pages.dev/agents/workbook-editor.mdc -o 
 Most agents read an `AGENTS.md` at the project's root. Add:
 
 ```md
-## Workbook Editor
-This project embeds the Workbook Editor (@sitepen/spreadsheet). Before changing its schemas, hooks or options,
-read https://workbook-editor-docs.pages.dev/agents/workbook-editor/SKILL.md, and https://workbook-editor-docs.pages.dev/llms-full.txt for detail.
+## Ruled
+This project embeds Ruled (@ruled/sheet), a spreadsheet editor. Before changing its schemas, hooks or options,
+read https://ruled-docs.pages.dev/agents/ruled/SKILL.md, and https://ruled-docs.pages.dev/llms-full.txt for detail.
 ```

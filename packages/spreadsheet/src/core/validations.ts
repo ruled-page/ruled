@@ -1,4 +1,4 @@
-import { parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { parseRange, rangeToA1 } from '@ruled/formula/refs';
 import { resolveListSource, type ListContext } from './validationRules';
 import { placeSheetElement } from './hyperlinks';
 import type { ListSource, ListValidation, RuleValidation, ValidationAlert } from './types';

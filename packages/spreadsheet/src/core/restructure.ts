@@ -1,5 +1,5 @@
 import { msg, TextError } from '../i18n/message';
-import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from '@sitepen/formula-engine/refs';
+import { inRect, MAX_COLS, MAX_ROWS, parseRange, rangeToA1, toA1 } from '@ruled/formula/refs';
 import {
   isCellShift,
   isLineOp,

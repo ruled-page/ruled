@@ -15,7 +15,7 @@ export const ui = {
   'schemaChip.title': 'Schema: {{name}}',
   'schemaChip.label': '{{name}}: {{status}}',
 
-  'toolbar.brand': 'Workbook editor',
+  'toolbar.brand': 'Ruled',
   'toolbar.changes_one': '{{count, number}} change',
   'toolbar.changes_other': '{{count, number}} changes',
   'toolbar.changesTitle': 'Show what changed',

@@ -8,8 +8,8 @@ sidebar:
 `useWorkbookEditor` makes an editor that lives as long as your component: it's made when the component mounts and destroyed, with its worker, when it unmounts. Render it with `<WorkbookEditor>`.
 
 ```tsx
-import { useWorkbookEditor, WorkbookEditor, type WorkbookFile } from '@sitepen/spreadsheet';
-import '@sitepen/spreadsheet/style.css';
+import { useWorkbookEditor, WorkbookEditor, type WorkbookFile } from '@ruled/sheet';
+import '@ruled/sheet/style.css';
 import { priceList } from './schemas';
 
 export function PriceListReview({ file }: { file: WorkbookFile }) {

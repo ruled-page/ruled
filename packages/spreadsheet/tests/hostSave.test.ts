@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { schemaFromJSON } from '../src/schema/json';
 import type { SavedWorkbook } from '../src/state/store';
-import { forecastSchema } from '@sitepen/demo/schemas';
+import { forecastSchema } from '@ruled/demo/schemas';
 import { sample } from './helpers';
 import { english } from '../src/i18n';
 import type { WorkbookStore } from '../src/state/store';

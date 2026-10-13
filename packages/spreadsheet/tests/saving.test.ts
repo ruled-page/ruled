@@ -4,7 +4,7 @@ import { localeInfo, normalizeForLocale, readLocalDate } from '../src/core/local
 import { english } from '../src/i18n';
 import { pasteRisks } from '../src/state/pasteRisks';
 import { open, sheetIndex } from './helpers';
-import { parseA1 } from '@sitepen/formula-engine/refs';
+import { parseA1 } from '@ruled/formula/refs';
 
 describe('locale-aware input', () => {
   it('knows which way round each locale writes dates and decimals', () => {

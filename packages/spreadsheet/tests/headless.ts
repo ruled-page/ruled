@@ -8,7 +8,7 @@
  *   await wb.set('Prices', 'D4', '12.50');
  *   const out = wb.save();
  */
-import { MAX_COLS, MAX_ROWS, parseA1, toA1 } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS, parseA1, toA1 } from '@ruled/formula/refs';
 import { english, errorText } from '../src/i18n';
 import { WorkbookSession, type OpenOptions } from '../src/core/session';
 import type { CellChange, CellUpdate, DisplayStyle, EditOp, EditResult, Finding } from '../src/core/types';

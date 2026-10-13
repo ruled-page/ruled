@@ -1,7 +1,7 @@
 import { version } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
-import '@sitepen/spreadsheet/style.css';
+import { createWorkbookEditor, WorkbookEditor } from '@ruled/sheet';
+import '@ruled/sheet/style.css';
 
 // The library as a React app gets it from npm, with nothing configured.
 const editor = createWorkbookEditor({ drafts: false, warnOnUnload: false });

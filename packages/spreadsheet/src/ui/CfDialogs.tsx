@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type CSSProperties } from 'react';
-import { parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { parseRange, rangeToA1 } from '@ruled/formula/refs';
 import type { CfRule, DiffStyle, Rect } from '../core/types';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';

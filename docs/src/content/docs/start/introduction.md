@@ -1,11 +1,11 @@
 ---
 title: Introduction
-description: What Workbook Editor is, what it's for, and how it fits into your app.
+description: What Ruled is, what it's for, and how it fits into your app.
 sidebar:
   order: 1
 ---
 
-Workbook Editor is a spreadsheet editor you put in your own web app. It opens the Excel files people already have (`.xlsx`, `.xlsm` and CSV), lets them work in them as they would in Excel, and hands the workbook back to your app as an `.xlsx` file and as values in the shape you asked for.
+Ruled is a spreadsheet editor you put in your own web app. It opens the Excel files people already have (`.xlsx`, `.xlsm` and CSV), lets them work in them as they would in Excel, and hands the workbook back to your app as an `.xlsx` file and as values in the shape you asked for.
 
 What sets it apart is that it can **know what a workbook is meant to hold**. You describe the workbooks you expect in a [schema](/schemas/overview/): the sheets, the tables, each field's type and limits, and the rules across them. A workbook that matches is checked as people type, cell by cell, and your own code runs alongside: [checks that call your services](/schemas/async-hooks/), and [business logic](/schemas/business-logic/) that fills cells in from them.
 

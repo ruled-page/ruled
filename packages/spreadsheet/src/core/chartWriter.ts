@@ -3,7 +3,7 @@
  * plot from a range of cells, and the chart part (xl/charts/chartN.xml) and
  * drawing anchor that put it on a sheet.
  */
-import { quoteSheetName, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { quoteSheetName, rangeToA1 } from '@ruled/formula/refs';
 import type { Anchor, Rect } from './types';
 import { escapeXml } from './xml';
 

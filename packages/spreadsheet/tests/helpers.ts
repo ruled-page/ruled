@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
 import { WorkbookSession } from '../src/core/session';
-import { parseA1 } from '@sitepen/formula-engine/refs';
+import { parseA1 } from '@ruled/formula/refs';
 import { findCell } from '../src/core/sheetScanner';
 import { CellFlag, VT, type CellUpdate } from '../src/core/types';
 

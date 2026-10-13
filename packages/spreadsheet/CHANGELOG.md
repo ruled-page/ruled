@@ -1,10 +1,14 @@
 # Changelog
 
-Notable changes to workbook-editor, newest first. Version numbers follow
+Notable changes to Ruled (`@ruled/sheet`), newest first. Version numbers follow
 semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- The editor is now **Ruled**: the package is `@ruled/sheet` (it was
+  `@sitepen/spreadsheet`) and the calculation engine `@ruled/formula`, and
+  the toolbar shows Ruled's mark and name. Its components, functions and the
+  `<workbook-editor>` element keep their names.
 - Cells move by dragging the selection's border, and copy with Ctrl (Option
   on a Mac) held, as in Excel; dropping them on cells that hold something
   asks first.

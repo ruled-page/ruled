@@ -339,7 +339,8 @@
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: var(--wbe-radius);
+  overflow: hidden;
+  border-radius: calc(var(--wbe-radius) + 2px);
   background: var(--wbe-accent);
   color: var(--wbe-on-accent);
 }

@@ -5,8 +5,8 @@
  * the model laid out over the source's rows in Excel's compact, outline or
  * tabular form, with subtotals, grand totals, filters and several values.
  */
-import type { EngineValue } from '@sitepen/formula-engine';
-import { parseRange } from '@sitepen/formula-engine/refs';
+import type { EngineValue } from '@ruled/formula';
+import { parseRange } from '@ruled/formula/refs';
 import type { Rect } from './types';
 import { attr, child, children, type XmlNode } from './xml';
 

@@ -1,6 +1,6 @@
 import { msg, type Text } from '../i18n/message';
 import { applyLinkChange } from '../core/links';
-import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import { findCell } from '../core/sheetScanner';
 import { conditionPasses, type FilterCell } from './filterConditions';
 import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterCondition, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';

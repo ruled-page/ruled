@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-/** The package released: the editor, @sitepen/spreadsheet. */
+/** The package released: the editor, @ruled/sheet. */
 const pkg = join(root, 'packages', 'spreadsheet');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const run = (command) => execSync(command, { cwd: root, stdio: 'inherit' });
@@ -52,14 +52,14 @@ if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under 
 
 for (const script of ['typecheck', 'lint', 'test', 'build', 'build:lib', 'check:bundle', 'validate:saves']) run(`npm run ${script}`);
 
-run(`npm version ${next} --no-git-tag-version --allow-same-version -w @sitepen/spreadsheet`);
+run(`npm version ${next} --no-git-tag-version --allow-same-version -w @ruled/sheet`);
 const date = new Date().toISOString().slice(0, 10);
 writeFileSync(changelogPath, changelog.replace(unreleased[0], () => `## Unreleased\n\n## ${next} (${date})\n${unreleased[1]}`));
 run('npm run notices');
 
 git('add', 'packages/spreadsheet/package.json', 'package-lock.json', 'packages/spreadsheet/CHANGELOG.md', 'packages/spreadsheet/THIRD-PARTY-NOTICES.md');
 git('commit', '-m', `Release ${next}`);
-git('tag', '-a', `v${next}`, '-m', `@sitepen/spreadsheet ${next}`);
+git('tag', '-a', `v${next}`, '-m', `@ruled/sheet ${next}`);
 
 const releases = join(root, 'releases');
 mkdirSync(releases, { recursive: true });

@@ -13,7 +13,7 @@ export const ui: Record<keyof typeof en, string> = {
   'schemaChip.title': 'Schema: {{name}}',
   'schemaChip.label': '{{name}}: {{status}}',
 
-  'toolbar.brand': 'Arbeitsmappen-Editor',
+  'toolbar.brand': 'Ruled',
   'toolbar.changes_one': '{{count, number}} Änderung',
   'toolbar.changes_other': '{{count, number}} Änderungen',
   'toolbar.changesTitle': 'Änderungen anzeigen',

@@ -2,7 +2,7 @@
  * The editor in the docs' own colours: ledger green on warm paper, and a dark
  * version on green-black, set through the editor's theme tokens.
  */
-import type { EditorTheme } from '@sitepen/spreadsheet';
+import type { EditorTheme } from '@ruled/sheet';
 import { DEMO_THEMES } from '../../../examples/demo/src/themes';
 
 const fonts: EditorTheme = {

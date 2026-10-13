@@ -20,7 +20,7 @@ People who know the workbooks best can describe them, and you keep the result wi
 ## To and from JSON
 
 ```ts
-import { schemaFromJSON, schemaToJSON } from '@sitepen/spreadsheet';
+import { schemaFromJSON, schemaToJSON } from '@ruled/sheet';
 
 const json = schemaToJSON(priceList);          // a string
 const schema = schemaFromJSON(json);           // a WorkbookSchema again

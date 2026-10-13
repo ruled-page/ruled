@@ -36,8 +36,8 @@ const pillars = [
   },
 ];
 
-const react = `import { useWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
-import '@sitepen/spreadsheet/style.css';
+const react = `import { useWorkbookEditor, WorkbookEditor } from '@ruled/sheet';
+import '@ruled/sheet/style.css';
 import { priceList } from './schemas';
 
 export function Review() {
@@ -51,7 +51,7 @@ export function Review() {
 const element = `<workbook-editor src="/files/prices.xlsx" save-handler="event"></workbook-editor>
 
 <script type="module">
-  import '@sitepen/spreadsheet/standalone';
+  import '@ruled/sheet/standalone';
   import { priceList } from './schemas.js';
 
   const editor = document.querySelector('workbook-editor');
@@ -59,7 +59,7 @@ const element = `<workbook-editor src="/files/prices.xlsx" save-handler="event">
   editor.addEventListener('save', (e) => e.detail.waitUntil(upload(e.detail.bytes)));
 </script>`;
 
-const angular = `const loaded = import('@sitepen/spreadsheet/standalone');
+const angular = `const loaded = import('@ruled/sheet/standalone');
 
 @Component({
   schemas: [CUSTOM_ELEMENTS_SCHEMA],

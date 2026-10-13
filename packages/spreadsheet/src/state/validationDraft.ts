@@ -1,4 +1,4 @@
-import { displayFormula, shiftFormula } from '@sitepen/formula-engine/formula';
+import { displayFormula, shiftFormula } from '@ruled/formula/formula';
 import { parseInput } from '../core/input';
 import { listSeparator } from '../core/locale';
 import type { DisplayStyle, ListValidation, Rect, RuleValidation } from '../core/types';

@@ -1,9 +1,9 @@
 /**
  * The self-contained build, React, the worker and the styles included, which
  * defines the `<workbook-editor>` element when imported:
- * `import '@sitepen/spreadsheet/standalone'`.
+ * `import '@ruled/sheet/standalone'`.
  *
- * @module @sitepen/spreadsheet/standalone
+ * @module @ruled/sheet/standalone
  */
 import { de as deMessages, en as enMessages } from '../../packages/spreadsheet/src/editor/standalone';
 

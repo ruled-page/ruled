@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { de as demoDe } from '@sitepen/demo/locales/de';
-import { de } from '@sitepen/spreadsheet/internal/i18n/index.ts';
+import { de as demoDe } from '@ruled/demo/locales/de';
+import { de } from '@ruled/sheet/internal/i18n/index.ts';
 import { openSample, setCell } from './helpers';
 
 /** A German message as the editor shows it, with its count filled in. */

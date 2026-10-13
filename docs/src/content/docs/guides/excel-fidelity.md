@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-Workbook Editor opens the workbooks people already have and gives them back as Excel files. What it can show, it shows and lets people change; what it can't, it keeps, and writes back as it was.
+Ruled opens the workbooks people already have and gives them back as Excel files. What it can show, it shows and lets people change; what it can't, it keeps, and writes back as it was.
 
 ## Worked out live
 

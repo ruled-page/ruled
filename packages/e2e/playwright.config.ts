@@ -47,7 +47,7 @@ export default defineConfig({
   // Never another server already on a port: it may be an older build, or another checkout's. A busy port fails the run.
   webServer: [
     {
-      command: `npm run build -w @sitepen/demo && npm run preview -w @sitepen/demo -- --port ${PORT} --strictPort`,
+      command: `npm run build -w @ruled/demo && npm run preview -w @ruled/demo -- --port ${PORT} --strictPort`,
       cwd: root,
       url: `http://localhost:${PORT}`,
       reuseExistingServer: false,
@@ -61,7 +61,7 @@ export default defineConfig({
       timeout: 180_000,
     },
     {
-      command: `npm run build -w @sitepen/react-portal && npm run preview -w @sitepen/react-portal -- --port ${PORT + 4} --strictPort`,
+      command: `npm run build -w @ruled/react-portal && npm run preview -w @ruled/react-portal -- --port ${PORT + 4} --strictPort`,
       cwd: root,
       url: `http://localhost:${PORT + 4}`,
       reuseExistingServer: false,

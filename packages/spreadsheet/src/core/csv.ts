@@ -1,5 +1,5 @@
 import { msg, TextError } from '../i18n/message';
-import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 
 /** File names read as delimited text rather than as a workbook package. */
 export const CSV_FILE = /\.(csv|tsv|txt)$/i;

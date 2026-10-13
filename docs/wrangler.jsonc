@@ -2,7 +2,7 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   // The documentation site's own Cloudflare Pages project, apart from the example sites.
   // `npm run deploy:docs` at the repository root builds docs/dist and uploads it as production.
-  "name": "workbook-editor-docs",
+  "name": "ruled-docs",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-13"
 }

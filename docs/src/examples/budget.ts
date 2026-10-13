@@ -1,4 +1,4 @@
-import { defineSchema } from '@sitepen/spreadsheet';
+import { defineSchema } from '@ruled/sheet';
 import { needsReview } from './services';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];

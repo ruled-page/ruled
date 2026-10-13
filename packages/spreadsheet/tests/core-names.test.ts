@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { nativeEngine } from '@sitepen/formula-engine/native';
+import { nativeEngine } from '@ruled/formula/native';
 import { renameInFormula, writeDefinedNames } from '../src/core/definedNames';
 import {
   absoluteRef,

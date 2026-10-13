@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { displayFormula } from '@sitepen/formula-engine/formula';
+import { displayFormula } from '@ruled/formula/formula';
 import type { DefinedName } from '../core/types';
 import type { Text } from '../i18n/message';
 import { useT } from '../i18n/react';

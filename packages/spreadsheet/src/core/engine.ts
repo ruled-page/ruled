@@ -1,5 +1,5 @@
-import { engineFormula } from '@sitepen/formula-engine/formula';
-import type { EngineKind, EngineValue, RawContent, Unsupported } from '@sitepen/formula-engine';
+import { engineFormula } from '@ruled/formula/formula';
+import type { EngineKind, EngineValue, RawContent, Unsupported } from '@ruled/formula';
 import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import type { CellContent } from './types';
 
@@ -7,7 +7,7 @@ import type { CellContent } from './types';
  * The editor's side of the calculation engine: which engine new sessions
  * use, cell contents as the engine takes them, and what isn't calculated or
  * was worked out, in the editor's words. The engine's own contract is in
- * "@sitepen/formula-engine".
+ * "@ruled/formula".
  */
 
 const LABELS: Record<Exclude<Unsupported['kind'], 'function'>, MessageKey> = {

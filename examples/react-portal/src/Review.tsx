@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWorkbookEditor, WorkbookEditor, type EditorTheme, type WorkbookFile } from '@sitepen/spreadsheet';
+import { useWorkbookEditor, WorkbookEditor, type EditorTheme, type WorkbookFile } from '@ruled/sheet';
 import { go } from './App';
 import { NS } from './i18n';
 import { readPriceLines } from './parse';

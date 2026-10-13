@@ -1,7 +1,7 @@
 import { Trans, useTranslation } from 'react-i18next';
-import type { WorkbookStore } from '@sitepen/spreadsheet/internal/state/store.ts';
+import type { WorkbookStore } from '@ruled/sheet/internal/state/store.ts';
 import { SITES } from './sites';
-import { Icon } from '@sitepen/spreadsheet/internal/ui/icons.tsx';
+import { Icon } from '@ruled/sheet/internal/ui/icons.tsx';
 import { DEMO_NS, i18next } from './i18n';
 import type { DemoKey } from './locales/en';
 

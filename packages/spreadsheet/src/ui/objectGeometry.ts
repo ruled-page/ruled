@@ -1,4 +1,4 @@
-import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import type { Anchor, SheetInfo, SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 

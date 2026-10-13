@@ -6,9 +6,9 @@
  */
 import { parseA1Ref, stringifyTokens, tokenize, type Token } from '@borgar/fx';
 import { msg, type Message } from '../i18n/message';
-import { toFileFormula } from '@sitepen/formula-engine/formula';
+import { toFileFormula } from '@ruled/formula/formula';
 import { validateFormula } from './input';
-import { colToLetters, lettersToCol, MAX_COLS, MAX_ROWS, quoteSheetName } from '@sitepen/formula-engine/refs';
+import { colToLetters, lettersToCol, MAX_COLS, MAX_ROWS, quoteSheetName } from '@ruled/formula/refs';
 import type { DefinedName, NameRef, Rect } from './types';
 
 /** Excel's limit on a name's length. */

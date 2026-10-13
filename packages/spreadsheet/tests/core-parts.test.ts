@@ -4,7 +4,7 @@ import { mergeNotes, parseNotes, parsePersons, parseThreads } from '../src/core/
 import { distinctTexts, mergeEditResults } from '../src/core/editResult';
 import { planFill, type FillSource } from '../src/core/fill';
 import { readCustomProperties, setCustomProperties } from '../src/core/properties';
-import { cellKey, keyCol, keyRow, quoteSheetName } from '@sitepen/formula-engine/refs';
+import { cellKey, keyCol, keyRow, quoteSheetName } from '@ruled/formula/refs';
 import type { CellContent, EditResult } from '../src/core/types';
 import { decodeEntities, decodeOoxmlText, encodeOoxmlText, findTagEnd, parseXml, textOf } from '../src/core/xml';
 import { OoxmlPackage, resolveTarget } from '../src/core/zip';

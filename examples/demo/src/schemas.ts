@@ -8,7 +8,7 @@
  * labels are matched against the workbook's own headings, so they stay as
  * the workbook has them.
  */
-import { defineSchema, type FieldValue } from '@sitepen/spreadsheet';
+import { defineSchema, type FieldValue } from '@ruled/sheet';
 
 const wait = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {

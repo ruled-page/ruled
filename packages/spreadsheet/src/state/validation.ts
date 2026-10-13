@@ -1,4 +1,4 @@
-import { inRect } from '@sitepen/formula-engine/refs';
+import { inRect } from '@ruled/formula/refs';
 import { msg, type Message } from '../i18n/message';
 import { VT, type DisplayStyle, type ListValidation, type SheetInfo } from '../core/types';
 import { displayText } from './format';

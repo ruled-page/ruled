@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, signal, viewChild } from '@angular/core';
 import { DecimalPipe, PercentPipe } from '@angular/common';
-import type { ChangeEventDetail, EditorOptions, SaveEventDetail, WorkbookEditorElement, WorkbookSchema } from '@sitepen/spreadsheet/standalone';
+import type { ChangeEventDetail, EditorOptions, SaveEventDetail, WorkbookEditorElement, WorkbookSchema } from '@ruled/sheet/standalone';
 
 // The editor is a few megabytes (React, the grid and its worker are inside),
 // so it loads after Angular has drawn the page. <workbook-editor> upgrades
 // when it arrives, keeping the options Angular has already set on it.
-const editorLoaded = import('@sitepen/spreadsheet/standalone');
+const editorLoaded = import('@ruled/sheet/standalone');
 
 /** The forecast workbook's rules, as Angular's side of the app defines them. */
 const forecastSchema: WorkbookSchema = {

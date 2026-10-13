@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import {
   argumentAt,
   completionAt,

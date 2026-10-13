@@ -1,8 +1,8 @@
 /**
  * The React component, `createWorkbookEditor`, schemas and every type, for
- * React apps: `import { createWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet'`.
+ * React apps: `import { createWorkbookEditor, WorkbookEditor } from '@ruled/sheet'`.
  *
- * @module @sitepen/spreadsheet
+ * @module @ruled/sheet
  */
 import { de as deMessages, en as enMessages } from '../../packages/spreadsheet/src/editor/index';
 

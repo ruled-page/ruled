@@ -1,4 +1,4 @@
-import { defineSchema } from '@sitepen/spreadsheet';
+import { defineSchema } from '@ruled/sheet';
 
 const QUARTER = /^(\d{4})-Q([1-4])$/;
 

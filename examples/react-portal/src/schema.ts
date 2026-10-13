@@ -6,7 +6,7 @@
  * in the catalogue, and a price that moves more than 15% from the last
  * approved one is flagged. Messages are in English and German.
  */
-import { defineSchema } from '@sitepen/spreadsheet';
+import { defineSchema } from '@ruled/sheet';
 import { lookupApprovedPrice, lookupProduct } from './services';
 
 export const SHEET = 'Price list';

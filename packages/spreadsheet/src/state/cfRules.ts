@@ -1,5 +1,5 @@
-import { displayFormula, shiftFormula } from '@sitepen/formula-engine/formula';
-import { toA1 } from '@sitepen/formula-engine/refs';
+import { displayFormula, shiftFormula } from '@ruled/formula/formula';
+import { toA1 } from '@ruled/formula/refs';
 import { parseInput } from '../core/input';
 import type { CfRule, Cfvo, DiffStyle } from '../core/types';
 import { msg, type MessageKey, type Text } from '../i18n/message';

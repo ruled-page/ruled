@@ -11,7 +11,7 @@ The standalone build defines a `<workbook-editor>` element. Set its `options`, g
 <workbook-editor src="/files/forecast.xlsx" save-handler="event"></workbook-editor>
 
 <script type="module">
-  import { defineSchema } from '@sitepen/spreadsheet/standalone';
+  import { defineSchema } from '@ruled/sheet/standalone';
 
   const editor = document.querySelector('workbook-editor');
   editor.options = {
@@ -62,7 +62,7 @@ Moving the element elsewhere in the page keeps the editor as it is.
 Without the element, mount the editor into any element and keep the handle:
 
 ```ts
-import { mountWorkbookEditor } from '@sitepen/spreadsheet/standalone';
+import { mountWorkbookEditor } from '@ruled/sheet/standalone';
 
 const editor = mountWorkbookEditor(document.getElementById('sheet')!, { schemas: [forecast] });
 await editor.open(await (await fetch('/files/forecast.xlsx')).arrayBuffer(), 'forecast.xlsx');

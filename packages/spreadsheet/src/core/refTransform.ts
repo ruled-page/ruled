@@ -1,5 +1,5 @@
 import { parseA1Ref, stringifyA1Ref, stringifyTokens, tokenize } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS, parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS, parseRange, rangeToA1 } from '@ruled/formula/refs';
 import { msg, TextError } from '../i18n/message';
 import type { Rect } from './types';
 

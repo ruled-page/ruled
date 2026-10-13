@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineValue } from '@sitepen/formula-engine';
+import type { EngineValue } from '@ruled/formula';
 import { evaluateConditionalFormats, parseConditionalFormats, type CfContext } from '../src/core/conditionalFormat';
-import { parseA1, parseRange, toA1 } from '@sitepen/formula-engine/refs';
+import { parseA1, parseRange, toA1 } from '@ruled/formula/refs';
 import { StyleBook } from '../src/core/styles';
 import type { BorderEdge, CfResult, CfRule } from '../src/core/types';
 import { parseXml } from '../src/core/xml';

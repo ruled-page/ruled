@@ -1,4 +1,4 @@
-import { hasWildcards, matchesWhole, parsePattern } from '@sitepen/formula-engine/wildcard';
+import { hasWildcards, matchesWhole, parsePattern } from '@ruled/formula/wildcard';
 import { isDateFormat } from 'numfmt';
 import { parseInput } from '../core/input';
 import type { FilterCondition, FilterOperator } from '../core/types';

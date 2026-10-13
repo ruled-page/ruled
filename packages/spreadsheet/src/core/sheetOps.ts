@@ -1,6 +1,6 @@
 import { parseA1Ref, stringifyA1Ref, stringifyTokens, tokenize } from '@borgar/fx';
 import { msg, TextError } from '../i18n/message';
-import { quoteSheetName } from '@sitepen/formula-engine/refs';
+import { quoteSheetName } from '@ruled/formula/refs';
 import { nearestVisible, sheetIndexMap, sheetOpProblem, type SheetOp } from './sheetRules';
 import type { SheetInfo } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';

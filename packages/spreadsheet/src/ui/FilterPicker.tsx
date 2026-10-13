@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { colToLetters } from '@sitepen/formula-engine/refs';
+import { colToLetters } from '@ruled/formula/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { useDialog } from './useDialog';

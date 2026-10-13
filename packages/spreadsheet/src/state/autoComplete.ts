@@ -1,4 +1,4 @@
-import { MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_ROWS } from '@ruled/formula/refs';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 

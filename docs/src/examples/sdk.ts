@@ -1,5 +1,5 @@
 /**
- * What the docs' examples import as `@sitepen/spreadsheet`: the library's
+ * What the docs' examples import as `@ruled/sheet`: the library's
  * types and defineSchema. The editor itself is the standalone build, which a
  * live example loads when it scrolls into view, so pages stay light.
  */

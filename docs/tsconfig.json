@@ -3,6 +3,6 @@
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist"],
   "compilerOptions": {
-    "paths": { "@sitepen/spreadsheet": ["./src/examples/sdk.ts"] }
+    "paths": { "@ruled/sheet": ["./src/examples/sdk.ts"] }
   }
 }

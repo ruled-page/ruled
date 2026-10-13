@@ -1,10 +1,10 @@
 import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { quoteSheetName, toA1 } from '@sitepen/formula-engine/refs';
+import { quoteSheetName, toA1 } from '@ruled/formula/refs';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
-import { Icon } from './icons';
+import { BrandMark, Icon } from './icons';
 import { RichText } from './RichText';
 import { RenameSheetDialog, SheetMenu, sheetNamed, sheetSteps, UnhideSheetDialog, type AfterSheetChange } from './SheetDialogs';
 import { mod, shortcutsKey } from './keys';
@@ -121,7 +121,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
     <div className="wbe-toolbar" ref={bar}>
       <div className="wbe-brand">
         <span className="wbe-brand-mark" aria-hidden="true">
-          <Icon name="sheet" size={16} />
+          <BrandMark />
         </span>
         <span className="wbe-brand-name">{t('toolbar.brand')}</span>
         {store.fileName && <span className="wbe-file-name">{store.fileName}</span>}

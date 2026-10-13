@@ -1,5 +1,5 @@
 import { parseA1Ref } from '@borgar/fx';
-import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import type { ListSource, Rect } from './types';
 
 // The parts of data validation that the page uses as well as the worker, kept

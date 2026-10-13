@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { valuesMatch, type EngineSheet } from '@sitepen/formula-engine';
+import { valuesMatch, type EngineSheet } from '@ruled/formula';
 import { describeValue, toRaw, unsupportedExplanation, unsupportedLabel } from '../src/core/engine';
-import { nativeEngine } from '@sitepen/formula-engine/native';
+import { nativeEngine } from '@ruled/formula/native';
 
 const unsupportedReason = (f: string) => nativeEngine.unsupportedReason(f);
-import { isUnsupportedError } from '@sitepen/formula-engine';
+import { isUnsupportedError } from '@ruled/formula';
 import { english } from '../src/i18n';
 
 const sheet = (name: string, rows: EngineSheet['rows'] = []): EngineSheet => ({ name, rows });

@@ -3,7 +3,7 @@
  * editor once it scrolls near the screen, opening its example's workbook
  * with its options, in the docs' colours for the page's light or dark mode.
  */
-import type { WorkbookEditorElement } from '@sitepen/spreadsheet';
+import type { WorkbookEditorElement } from '@ruled/sheet';
 import { EXAMPLES } from './registry';
 import { ledgerTheme, PLAYGROUND_THEMES } from './themes';
 

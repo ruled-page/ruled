@@ -64,7 +64,7 @@ What you receive:
 When the stored file changed since it was opened, throw `SaveConflictError` from `onSave`. The editor keeps the user's changes and offers to download them as a copy, explaining why in its language:
 
 ```ts
-import { SaveConflictError } from '@sitepen/spreadsheet';
+import { SaveConflictError } from '@ruled/sheet';
 
 onSave: async (saved) => {
   const response = await api.put(id, saved.bytes, { ifMatch: etag });

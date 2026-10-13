@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_COLS, MAX_ROWS } from '@sitepen/formula-engine/refs';
+import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import { CellFlag, VT, type DiffStyle, type Rect, type TableInfo } from '../src/core/types';
 import { english, msg } from '../src/i18n';
 import { effectiveStyle, overlay, underlay } from '../src/state/cellStyle';

@@ -5,7 +5,7 @@ import type { EngineValue } from './engineValue';
  * keeps (FormulaEngine, made by an EngineKind), the shape of the cells and
  * changes passed across it, and how its results are compared with the
  * values Excel saved. Engines themselves are loaded only when wanted (the
- * native one from "@sitepen/formula-engine/native"), so this module holds
+ * native one from "@ruled/formula/native"), so this module holds
  * none of the calculation.
  */
 

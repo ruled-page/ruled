@@ -1,4 +1,4 @@
-import { parseRange, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { parseRange, rangeToA1 } from '@ruled/formula/refs';
 import type { Hyperlink, Rect } from './types';
 
 /**

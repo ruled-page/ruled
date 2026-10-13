@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { forecastSchema, priceListSchema } from '@sitepen/demo/schemas';
+import { forecastSchema, priceListSchema } from '@ruled/demo/schemas';
 import { schemaFromJSON, schemaToJSON, HeadlessWorkbook, validateWorkbook, type WorkbookSchema } from './headless';
 import { sample } from './helpers';
 

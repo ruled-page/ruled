@@ -1,5 +1,5 @@
 {
-  "name": "@sitepen/react-portal",
+  "name": "@ruled/react-portal",
   "version": "0.0.0",
   "description": "The editor embedded in a React supplier portal",
   "type": "module",
@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@sitepen/spreadsheet": "0.1.0",
+    "@ruled/sheet": "0.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { it } from 'vitest';
 import { WorkbookSession } from '../src/core/session';
-import { parseA1, quoteSheetName } from '@sitepen/formula-engine/refs';
+import { parseA1, quoteSheetName } from '@ruled/formula/refs';
 import type { CommentChange, LayoutOp, NameChange } from '../src/core/types';
 import { builtInLists } from '../src/state/fillLists';
 import { open, sample, sheetIndex } from './helpers';

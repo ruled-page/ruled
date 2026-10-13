@@ -7,18 +7,26 @@ import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
 export default defineConfig({
   // The Cloudflare Pages address; set DOCS_URL for a custom domain.
-  site: process.env.DOCS_URL ?? 'https://workbook-editor-docs.pages.dev',
+  site: process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev',
   integrations: [
     starlight({
-      title: 'Workbook Editor',
+      title: 'Ruled',
       description: 'Edit real Excel workbooks in the browser, check every cell against a schema with your own async rules, and save .xlsx back intact.',
-      logo: { light: './src/assets/logo-light.svg', dark: './src/assets/logo-dark.svg' },
+      // The lockup, copied in from brand/ by scripts/prepare.mjs.
+      logo: { light: './src/assets/brand/ruled-lockup.svg', dark: './src/assets/brand/ruled-lockup-dark.svg', replacesTitle: true },
       favicon: '/favicon.svg',
       customCss: ['@fontsource-variable/fraunces', '@fontsource/ibm-plex-sans/400.css', '@fontsource/ibm-plex-sans/500.css', '@fontsource/ibm-plex-sans/600.css', '@fontsource/ibm-plex-mono/400.css', '@fontsource/ibm-plex-mono/500.css', './src/styles/brand.css'],
       components: { Hero: './src/components/landing/Hero.astro' },
       lastUpdated: false,
       pagination: true,
-      head: [{ tag: 'link', attrs: { rel: 'alternate', type: 'text/plain', title: 'LLM text', href: '/llms.txt' } }],
+      head: [
+        { tag: 'link', attrs: { rel: 'alternate', type: 'text/plain', title: 'LLM text', href: '/llms.txt' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+        { tag: 'meta', attrs: { property: 'og:image', content: `${process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev'}/social.png` } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Ruled: spreadsheets that know the rules.' } },
+        { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#0b6b4f' } },
+      ],
       plugins: [
         starlightLinksValidator({ exclude: ['/llms.txt', '/llms-full.txt', '/agents/**', '/**/*.md'] }),
         starlightTypeDoc({
@@ -58,7 +66,7 @@ export default defineConfig({
     resolve: {
       // Examples import the library as hosts do; in the docs that's its types and defineSchema,
       // and the editor itself is the standalone build, loaded when a live example scrolls into view.
-      alias: { '@sitepen/spreadsheet': fileURLToPath(new URL('./src/examples/sdk.ts', import.meta.url)) },
+      alias: { '@ruled/sheet': fileURLToPath(new URL('./src/examples/sdk.ts', import.meta.url)) },
     },
   },
 });

@@ -1,4 +1,4 @@
-import { defineSchema } from '@sitepen/spreadsheet';
+import { defineSchema } from '@ruled/sheet';
 import { lookupSku } from './services';
 
 export const priceList = defineSchema({

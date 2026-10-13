@@ -1,4 +1,4 @@
-import { parseRange } from '@sitepen/formula-engine/refs';
+import { parseRange } from '@ruled/formula/refs';
 import type { CellNote, NoteEntry } from './types';
 import { attr, child, decodeOoxmlText, descendants, parseXml, textOf } from './xml';
 

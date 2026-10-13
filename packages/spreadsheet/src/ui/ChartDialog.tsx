@@ -1,4 +1,4 @@
-import { quoteSheetName, rangeToA1 } from '@sitepen/formula-engine/refs';
+import { quoteSheetName, rangeToA1 } from '@ruled/formula/refs';
 import { useId, useRef, useState } from 'react';
 import { chartKindOf, seriesRefsOf, type ChartEdit, type LegendPosition } from '../core/chartEdit';
 import type { ChartSpec } from '../core/charts';

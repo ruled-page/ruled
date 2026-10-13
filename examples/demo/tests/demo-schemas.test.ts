@@ -3,10 +3,10 @@ import { de } from '../src/locales/de';
 import { en } from '../src/locales/en';
 import { budgetSchema, DEMO_SCHEMAS, forecastSchema, priceListSchema } from '../src/schemas';
 import { DEMO_THEMES } from '../src/themes';
-import type { EditorTheme } from '@sitepen/spreadsheet/internal/editor/theme.ts';
-import { HeadlessWorkbook } from '@sitepen/spreadsheet/testing/headless.ts';
-import type { FieldValue, WorkbookData, WorkbookSchema } from '@sitepen/spreadsheet';
-import { sample } from '@sitepen/spreadsheet/testing/helpers.ts';
+import type { EditorTheme } from '@ruled/sheet/internal/editor/theme.ts';
+import { HeadlessWorkbook } from '@ruled/sheet/testing/headless.ts';
+import type { FieldValue, WorkbookData, WorkbookSchema } from '@ruled/sheet';
+import { sample } from '@ruled/sheet/testing/helpers.ts';
 
 // The demo's pretend services answer after 500–800 ms; fake timers play that out at once.
 beforeEach(() => {

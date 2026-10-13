@@ -2,7 +2,7 @@ import type { en } from './en';
 
 /** The demo page's own text, in German; every English key needs one (the type checks it). */
 export const de: Record<keyof typeof en, string> = {
-  'page.title': 'Arbeitsmappen-Editor (Prototyp)',
+  'page.title': 'Ruled-Demo',
 
   'toolbar.samples': 'Beispiele',
   'picker.theme': 'Design',

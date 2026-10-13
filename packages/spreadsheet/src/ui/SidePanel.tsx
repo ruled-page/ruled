@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { nameProblem } from '../core/names';
-import { parseA1, quoteSheetName, toA1 } from '@sitepen/formula-engine/refs';
+import { parseA1, quoteSheetName, toA1 } from '@ruled/formula/refs';
 import type { CellChange } from '../core/types';
 import type { Issue } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';

@@ -4,7 +4,7 @@
  * them into its own records. This is the only place that knows the
  * schema's field names.
  */
-import type { SavedWorkbook } from '@sitepen/spreadsheet';
+import type { SavedWorkbook } from '@ruled/sheet';
 import { SHEET, TABLE } from './schema';
 import type { ApprovedPrice } from './services';
 
