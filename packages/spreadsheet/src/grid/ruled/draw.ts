@@ -8,7 +8,7 @@ import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOv
 import type { SheetView } from '../../state/sheetView';
 import type { Selection } from '../../state/store';
 import type { GridPalette } from '../../ui/gridPalette';
-import { drawEdge } from '../../ui/paint';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon } from '../../ui/paint';
 import { withAlpha } from '../color';
 import type { Box } from '../contract';
 import type { Mark } from '../marks';
@@ -39,6 +39,10 @@ export interface PaintInput {
   marks?: readonly Mark[];
   /** The selection has a fill handle at its bottom-right corner. */
   fillHandle?: boolean;
+  /** A cell's problem as a schema sees it, or a check still running on it. */
+  issue?: (row: number, col: number) => 'error' | 'warning' | 'pending' | undefined;
+  /** The active cell picks from a list, so shows a dropdown arrow. */
+  activeList?: boolean;
 }
 
 /** How a cell is drawn. */
@@ -240,6 +244,9 @@ export class Painter {
       }
     }
 
+    // Behind the text: conditional formats' data bars and icons, and checkboxes.
+    this.eachCell(input, rows, cols, merges, (box, row, col, look) => this.drawBehind(input, box, row, col, look));
+
     // Text: each cell's in its own box, a merge's across it, and text running into neighbours once, across them.
     for (let gr = rows.first; gr <= rows.last; gr++) {
       const row = sheetRow(gr);
@@ -277,8 +284,70 @@ export class Painter {
         }
       }
     }
+    // Over it all: filter buttons and the marks for changes, saved values, notes and problems.
+    this.eachCell(input, rows, cols, merges, (box, row, col) => this.drawMarks(input, box, row, col));
     this.drawSelection(input);
     ctx.restore();
+  }
+
+  /** Calls `fn` with each cell's box in view, a merge's once with its whole box. */
+  private eachCell(input: PaintInput, rows: Run, cols: Run, merges: Set<MergeRange>, fn: (box: Box, row: number, col: number, look: Look) => void): void {
+    const { view, layout } = input;
+    for (let gr = rows.first; gr <= rows.last; gr++) {
+      for (let gc = cols.first; gc <= cols.last; gc++) {
+        const row = view.visibleRows[gr];
+        const col = view.visibleCols[gc];
+        if (!view.mergeAt(row, col)) fn(layout.cell(gr, gc), row, col, this.look(input, row, col));
+      }
+    }
+    for (const m of merges) fn(this.mergeBox(layout, view, m), m.r1, m.c1, this.look(input, m.r1, m.c1, m));
+  }
+
+  /** What sits behind a cell's text: a conditional format's data bar or icon, and a checkbox in place of TRUE or FALSE. */
+  private drawBehind(input: PaintInput, box: Box, row: number, col: number, look: Look): void {
+    const cf = input.view.cfAt(row, col);
+    if (cf?.bar) drawDataBar(this.ctx, box, cf.bar);
+    if (cf?.icon) drawIcon(this.ctx, cf.icon.set, cf.icon.index, box.x + 3, box.y + (box.height - 14) / 2);
+    const rec = input.view.get(row, col);
+    const ticked = look.style.checkbox ? checkboxState(rec, look.style) : undefined;
+    if (ticked !== undefined) drawCheckbox(this.ctx, checkboxBox(box, look.style), ticked, look.color, look.fill ?? input.palette.bg);
+  }
+
+  /**
+   * What is drawn over a cell: its heading's filter button; a mark at the
+   * bottom left for a change to a cell with a fill of its own, at the top
+   * left for a value saved by Excel or out of date, at the top right for a
+   * note, and a larger one there for a problem a schema found (or a dot
+   * while it checks).
+   */
+  private drawMarks(input: PaintInput, box: Box, row: number, col: number): void {
+    const { ctx } = this;
+    const { view, palette } = input;
+    const button = view.filterButtonAt(row, col);
+    if (button) drawFilterButton(ctx, box, button.filtered, { bg: palette.bg, line: palette.headerLine, arrow: palette.dropdownArrow, filtered: palette.selection });
+    const triangle = (color: string, points: [number, number][]) => {
+      ctx.beginPath();
+      ctx.moveTo(...points[0]);
+      for (const p of points.slice(1)) ctx.lineTo(...p);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    };
+    const { x, y } = box;
+    const right = x + box.width - 1;
+    const bottom = y + box.height - 1;
+    const rec = view.get(row, col);
+    if (rec && input.highlightEdits && rec.flags & CellFlag.Edited && input.styles[rec.style]?.fill) triangle(palette.editedMark, [[x + 1, bottom], [x + 7, bottom], [x + 1, bottom - 6]]);
+    if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch | CellFlag.Stale)) triangle(rec.flags & CellFlag.Stale ? palette.staleMark : palette.unsupportedMark, [[x + 1, y + 1], [x + 8, y + 1], [x + 1, y + 8]]);
+    if (view.noteAt(row, col)) triangle(palette.noteMark, [[right, y + 1], [right - 6, y + 1], [right, y + 7]]);
+    const issue = input.issue?.(row, col);
+    if (issue === 'error' || issue === 'warning') triangle(issue === 'error' ? palette.errorMark : palette.warningMark, [[right, y + 1], [right - 8, y + 1], [right, y + 9]]);
+    else if (issue === 'pending') {
+      ctx.beginPath();
+      ctx.arc(right - 4, y + 5, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = palette.pendingMark;
+      ctx.fill();
+    }
   }
 
   /** The box a range takes on screen, from its first line in view to its last; undefined when all of it is hidden. */
@@ -313,6 +382,20 @@ export class Painter {
       ctx.fillStyle = palette.selection;
       const first = boxes[0] ?? active;
       if (first) this.outline(first, 2);
+      // The active cell's dropdown arrow, when it picks from a list, as Excel's list validation shows it.
+      if (active && input.activeList) {
+        const cx = active.x + active.width - 10;
+        const cy = active.y + active.height / 2 + 1;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx - 3.5, cy - 2);
+        ctx.lineTo(cx, cy + 1.5);
+        ctx.lineTo(cx + 3.5, cy - 2);
+        ctx.strokeStyle = palette.dropdownArrow;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
       // The fill handle, edged in the colour drawn on the selection so it stands out on any cell.
       if (first && input.fillHandle) {
         const x = first.x + first.width;

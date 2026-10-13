@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Axis, colAxis, rowAxis } from '../src/grid/ruled/axis';
 import { Painter, type PaintInput } from '../src/grid/ruled/draw';
 import { contentScroll, Layout, SCROLL_LIMIT, scrollerPosition, scrollLength, type LayoutSpec } from '../src/grid/ruled/layout';
+import { CellFlag, VT } from '../src/core/types';
 import type { WorkbookStore } from '../src/state/store';
 import { DEFAULT_PALETTE } from '../src/ui/gridPalette';
 import { Recorder } from './canvasRecorder';
@@ -305,5 +306,38 @@ describe("drawing a sheet in Ruled's grid", () => {
     p.reset();
     view.colWidths.set(1, 20);
     expect(p.cellText(input(s), 2, 1)).toMatch(/2026/);
+  });
+
+  it("draws what goes with the cells: data bars, icons and checkboxes behind the text, filter buttons, marks and the list's arrow over it", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet');
+    ws.addRow(['Item', 'Qty', 'Level']);
+    for (const [i, n] of [1, 2, 3].entries()) ws.addRow([`item ${i}`, n, n]);
+    ws.autoFilter = 'A1:C4';
+    ws.addConditionalFormatting({ ref: 'B2:B4', rules: [{ type: 'dataBar', priority: 1, cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: 'FF638EC6' } } as never] });
+    ws.addConditionalFormatting({ ref: 'C2:C4', rules: [{ type: 'iconSet', priority: 2, iconSet: '3TrafficLights', cfvo: [{ type: 'percent', value: 0 }, { type: 'percent', value: 33 }, { type: 'percent', value: 67 }] } as never] });
+    ws.getCell('A2').note = 'A note';
+    ws.getCell('A3').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    store = await testStore();
+    await opened(store, new Uint8Array(await wb.xlsx.writeBuffer()), 'extras.xlsx');
+    const s = store;
+    await s.input(2, 0, 'changed');
+    s.setSelection({ row: 5, col: 0, rects: [{ r1: 5, r2: 5, c1: 0, c2: 0 }] });
+    await s.insertCheckboxes();
+    const view = s.view!;
+    // A value Excel saved that is out of date, as the worker would report it.
+    view.apply({ sheet: view.info.index, row: 6, col: 0, t: VT.Number, n: 1, style: 0, flags: CellFlag.Stale });
+    const r = new Recorder();
+    const issues: Record<string, 'error' | 'warning' | 'pending'> = { '1:2': 'error', '2:2': 'warning', '3:2': 'pending' };
+    new Painter(r.ctx).draw(
+      input(s, { frozenRows: 0, frozenCols: 0 }, { selection: s.selection, activeList: true, issue: (row, col) => issues[`${row}:${col}`] }),
+    );
+    const paints = r.paints();
+    for (const mark of ['noteMark', 'editedMark', 'errorMark', 'warningMark', 'pendingMark'] as const) expect(paints, mark).toContain(`fill ${DEFAULT_PALETTE[mark]}`);
+    expect(paints.some((p) => p === `fill ${DEFAULT_PALETTE.staleMark}` || p === `fill ${DEFAULT_PALETTE.unsupportedMark}`)).toBe(true);
+    // The list's arrow, on the active cell.
+    expect(r.calls.some((c) => c.op === 'stroke' && c.style === DEFAULT_PALETTE.dropdownArrow)).toBe(true);
+    // Something was drawn behind the text of the cells with data bars, icons and the checkbox: more than their text and fills.
+    expect(r.calls.filter((c) => c.op === 'arc').length).toBeGreaterThan(3);
   });
 });

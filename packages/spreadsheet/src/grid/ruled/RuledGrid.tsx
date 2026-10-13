@@ -8,6 +8,7 @@ import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, ty
 import { APPLE, commandKey } from '../../ui/keys';
 import { LinkTip } from '../../ui/LinkTip';
 import { NoteTip } from '../../ui/NoteTip';
+import { checkboxBox, filterButtonBox } from '../../ui/paint';
 import type { Box, EditMove, GridHandle, Pane, SurfaceProps } from '../contract';
 import { useSheetEvents } from '../hooks';
 import { editorKey, type FilterButton } from '../keys';
@@ -150,6 +151,14 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       selection: store.selection,
       marks,
       fillHandle: !store.touchMode && !store.selection.lines && store.selection.rects.length === 1 && editable,
+      issue: schema
+        ? (row, col) => {
+            const issues = schema.cellIssues(sheet, row, col);
+            if (issues.length) return issues.some((i) => i.severity === 'error') ? 'error' : 'warning';
+            return schema.isPending(sheet, row, col) ? 'pending' : undefined;
+          }
+        : undefined,
+      activeList: !!cellOptions(store, view, store.selection.row, store.selection.col),
     };
   };
 
@@ -570,6 +579,16 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   const pressCell = (e: ReactMouseEvent, row: number, col: number) => {
     const sel = store.selection;
     const command = APPLE ? e.metaKey : e.ctrlKey;
+    const box = handle.cellBox(row, col);
+    const inside = (b: { x: number; y: number; size: number }, pad = 0) => e.clientX >= b.x - pad && e.clientX <= b.x + b.size + pad && e.clientY >= b.y - pad && e.clientY <= b.y + b.size + pad;
+    // A filter button opens its column's filter menu, leaving the selection where it is.
+    const button = view.filterButtonAt(row, col);
+    if (button && box && inside(filterButtonBox(box))) {
+      store.set('filterPicker', { col, rect: button.rect, x: box.x, y: box.y + box.height });
+      return;
+    }
+    // Clicking a checkbox ticks or unticks it, and selects its cell, as in Excel.
+    if (!command && !e.shiftKey && box && store.checkboxAt(row, col) !== undefined && inside(checkboxBox(box, store.styles[view.styleAt(row, col)] ?? store.styles[0]), 2)) void store.toggleCheckboxes({ row, col });
     // A second click on a list cell opens its dropdown.
     const only = sel.rects.length === 1 && sel.rects[0].r1 === sel.rects[0].r2 && sel.rects[0].c1 === sel.rects[0].c2;
     if (!command && !e.shiftKey && only && sel.row === row && sel.col === col && cellOptions(store, view, row, col)) {
