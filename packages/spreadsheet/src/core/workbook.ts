@@ -12,7 +12,7 @@ import type { Anchor, BlockedRegion, CellNote, DefinedName, FilterCondition, Fil
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
-import type { Iteration } from '@ruled/formula';
+import type { Iteration } from '@ruled/formula/engine';
 
 export type { DefinedName } from './types';
 

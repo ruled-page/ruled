@@ -1,6 +1,7 @@
 {
   // TypeDoc reads the library's source with TypeScript 6 (it doesn't support 7 yet).
   "extends": "../tsconfig.json",
-  "compilerOptions": { "noUnusedLocals": false, "noUnusedParameters": false },
+  // Workspace packages from their source, as the rest of the workspace reads them.
+  "compilerOptions": { "noUnusedLocals": false, "noUnusedParameters": false, "customConditions": ["source"] },
   "include": ["api", "../packages/spreadsheet/src", "../packages/formula-engine/src"]
 }

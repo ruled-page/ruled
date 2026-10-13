@@ -1,5 +1,5 @@
 import { builtinModules } from 'node:module';
-import { defineConfig } from 'vite';
+import { defaultServerConditions, defineConfig } from 'vite';
 
 /**
  * The round-trip checker, a development tool run from this repository
@@ -7,6 +7,9 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   publicDir: false,
+  // The engine from its source, as the rest of the workspace reads it, rather than its own build.
+  resolve: { conditions: ['source', ...defaultServerConditions] },
+  ssr: { resolve: { conditions: ['source', ...defaultServerConditions] } },
   build: {
     outDir: 'dist-verify',
     emptyOutDir: true,

@@ -1,4 +1,4 @@
-import type { EngineSheet, FormulaEngine, Iteration } from '@ruled/formula';
+import type { EngineSheet, FormulaEngine, Iteration } from '@ruled/formula/engine';
 import { engineFormula, toFileFormula } from '@ruled/formula/formula';
 import { nativeEngine } from '@ruled/formula/native';
 

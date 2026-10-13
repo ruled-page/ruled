@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { it } from 'vitest';
 import { nativeEngine } from '@ruled/formula/native';
-import { type EngineKind } from '@ruled/formula';
+import { type EngineKind } from '@ruled/formula/engine';
 import { chooseEngine } from '../src/core/engine';
 import { findCell } from '../src/core/sheetScanner';
 import { WorkbookSession } from '../src/core/session';

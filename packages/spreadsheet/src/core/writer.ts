@@ -1,5 +1,5 @@
 import { addPivotTable, type NewPivotParts } from './pivotWriter';
-import type { EngineValue } from '@ruled/formula';
+import type { EngineValue } from '@ruled/formula/engine';
 import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
 import { isDynamicArrayFormula } from '@ruled/formula/formula';

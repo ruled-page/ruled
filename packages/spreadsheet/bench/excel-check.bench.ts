@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { it } from 'vitest';
-import { tolerance } from '@ruled/formula';
+import { tolerance } from '@ruled/formula/engine';
 import { functionNames, isDynamicArrayFormula, toFileFormula } from '@ruled/formula/formula';
 import { dynamicArrayMetadata } from '../src/core/writer';
 import { OoxmlPackage } from '../src/core/zip';

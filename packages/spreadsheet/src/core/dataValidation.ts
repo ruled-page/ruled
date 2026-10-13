@@ -1,7 +1,7 @@
 import { parse, tokenize } from '@borgar/fx';
 import { format } from 'numfmt';
 import { msg, type MessageKey, type Text } from '../i18n/message';
-import { isUnsupportedError, type EngineValue } from '@ruled/formula';
+import { isUnsupportedError, type EngineValue } from '@ruled/formula/engine';
 import { makeShifter } from '@ruled/formula/formula';
 import type { CellContent, ListSource, Rect, RuleValidation } from './types';
 import { resolveListSource, type ListContext } from './validations';

@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig, type Plugin } from 'vite';
+import { defaultClientConditions, defineConfig, type Plugin } from 'vite';
 import { glidePatches } from './vite.glide.ts';
 
 /**
@@ -44,6 +44,8 @@ export default defineConfig(({ mode }) => {
     worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js', codeSplitting: false } } },
     plugins: standalone ? [glidePatches()] : [glidePatches(), plainWorkerUrl()],
     resolve: {
+      // The engine from its source, as the rest of the workspace reads it, rather than its own build.
+      conditions: ['source', ...defaultClientConditions],
       // CommonJS modules that require('react'), which an ES module library can't do once React is external.
       alias: [
         { find: /^use-sync-external-store\/shim$/, replacement: fileURLToPath(new URL('src/editor/shims/useSyncExternalStore.ts', import.meta.url)) },

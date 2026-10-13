@@ -1,4 +1,4 @@
-import type { EngineValue } from '@ruled/formula';
+import type { EngineValue } from '@ruled/formula/engine';
 import { makeShifter } from '@ruled/formula/formula';
 import { cellKey, MAX_COLS, parseRange, rangeToA1 } from '@ruled/formula/refs';
 import { placeSheetElement } from './hyperlinks';

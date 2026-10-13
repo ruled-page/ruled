@@ -25,6 +25,8 @@ const BUDGETS = [
   ['packages/spreadsheet/dist/react/assets', /^workbook\.worker\.js$/, 300],
   // React and the worker included.
   ['packages/spreadsheet/dist/standalone', /^workbook-editor\.js$/, 565],
+  // The engine on its own, its parser and number formatter apart.
+  ['packages/formula-engine/dist', /^index\.js$/, 85],
 ];
 
 /** Directories of code that runs on the page, where the engine must not be. */
@@ -42,11 +44,13 @@ for (const [dir, pattern, kB] of BUDGETS) {
     if (size > kB) problems.push(line);
   }
 }
-// The type declarations import nothing a host would have to install but React.
-const types = join(root, 'packages/spreadsheet/dist/types');
-for (const f of existsSync(types) ? readdirSync(types) : []) {
-  const imported = [...readFileSync(join(types, f), 'utf8').matchAll(/(?:from|import\()\s*["']([^"'.][^"']*)["']/g)].map((m) => m[1]);
-  for (const pkg of new Set(imported)) if (!/^react(-dom)?(\/|$)/.test(pkg)) problems.push(`packages/spreadsheet/dist/types/${f}: imports ${pkg}, which hosts would have to install`);
+// The type declarations import nothing a host would have to install but React (the editor's) or nothing at all (the engine's).
+for (const [dir, allowed] of [['packages/spreadsheet/dist/types', /^react(-dom)?(\/|$)/], ['packages/formula-engine/dist', /^$/]]) {
+  const path = join(root, dir);
+  for (const f of existsSync(path) ? readdirSync(path).filter((n) => n.endsWith('.d.ts')) : []) {
+    const imported = [...readFileSync(join(path, f), 'utf8').matchAll(/(?:from|import\()\s*["']([^"'.][^"']*)["']/g)].map((m) => m[1]);
+    for (const pkg of new Set(imported)) if (!allowed.test(pkg)) problems.push(`${dir}/${f}: imports ${pkg}, which hosts would have to install`);
+  }
 }
 for (const dir of PAGE_CODE) {
   const path = join(root, dir);

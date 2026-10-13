@@ -32,7 +32,7 @@
     "docs:dev": "npm run build:lib && npm install --prefix docs && npm run dev --prefix docs",
     "build:docs": "npm run build:lib && npm install --prefix docs && npm run build --prefix docs",
     "deploy:docs": "npm run build:docs && wrangler pages deploy --cwd docs --branch main --commit-dirty=true",
-    "build:lib": "npm run build -w @ruled/sheet",
+    "build:lib": "npm run build -w @ruled/formula && npm run build -w @ruled/sheet",
     "build:verify": "npm run build:verify -w @ruled/sheet",
     "check:bundle": "node scripts/check-bundle.mjs",
     "engine:bench": "ENGINE_BENCH=1 NODE_OPTIONS=--expose-gc vitest run engines --silent=false",

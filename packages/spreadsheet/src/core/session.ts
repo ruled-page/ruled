@@ -1,10 +1,10 @@
 import { isMessage, msg, TextError, type MessageKey, type Text } from '../i18n/message';
 import { parseA1Ref, tokenize } from '@borgar/fx';
 import { format as formatNumber, isDateFormat } from 'numfmt';
-import { isSpillError, MAX_SPILL_CELLS, spillFormula, tolerance, valuesMatch, type ArrayDims, type EngineChange, type EngineKind, type EngineSheet, type EngineWrite, type FormulaEngine, type RawContent, type Unsupported } from '@ruled/formula';
+import { isSpillError, MAX_SPILL_CELLS, spillFormula, tolerance, valuesMatch, type ArrayDims, type EngineChange, type EngineKind, type EngineSheet, type EngineWrite, type FormulaEngine, type RawContent, type Unsupported } from '@ruled/formula/engine';
 import { currentEngine, describeValue, toRaw, unsupportedExplanation, unsupportedLabel } from './engine';
 import { renameInFormula, sameDefinition } from './definedNames';
-import type { EngineValue } from '@ruled/formula';
+import type { EngineValue } from '@ruled/formula/engine';
 import { evaluateConditionalFormats } from './conditionalFormat';
 import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote } from './commentEdits';
 import type { Person } from './comments';

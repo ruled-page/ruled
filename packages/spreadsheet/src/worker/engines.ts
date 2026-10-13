@@ -1,4 +1,4 @@
-import type { EngineKind } from '@ruled/formula';
+import type { EngineKind } from '@ruled/formula/engine';
 import type { EngineInfo } from '../core/engineIds';
 
 let loaded: { kind: EngineKind; info: EngineInfo } | undefined;

@@ -1,7 +1,7 @@
 import { isDateFormat, isTextFormat, parseValue } from 'numfmt';
 import { msg, type Text } from '../i18n/message';
 import { parse, tokenize } from '@borgar/fx';
-import { fifteenDigits } from '@ruled/formula';
+import { fifteenDigits } from '@ruled/formula/engine';
 import { toFileFormula } from '@ruled/formula/formula';
 import { localeInfo, normalizeForLocale } from './locale';
 import { EMPTY, type CellContent } from './types';

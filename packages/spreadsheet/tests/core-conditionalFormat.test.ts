@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineValue } from '@ruled/formula';
+import type { EngineValue } from '@ruled/formula/engine';
 import { evaluateConditionalFormats, parseConditionalFormats, type CfContext } from '../src/core/conditionalFormat';
 import { parseA1, parseRange, toA1 } from '@ruled/formula/refs';
 import { StyleBook } from '../src/core/styles';

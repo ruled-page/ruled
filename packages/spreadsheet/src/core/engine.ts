@@ -1,5 +1,5 @@
 import { engineFormula } from '@ruled/formula/formula';
-import type { EngineKind, EngineValue, RawContent, Unsupported } from '@ruled/formula';
+import type { EngineKind, EngineValue, RawContent, Unsupported } from '@ruled/formula/engine';
 import { msg, type Message, type MessageKey, type Text } from '../i18n/message';
 import type { CellContent } from './types';
 

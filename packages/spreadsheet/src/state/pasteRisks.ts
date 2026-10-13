@@ -1,4 +1,4 @@
-import { fifteenDigits } from '@ruled/formula';
+import { fifteenDigits } from '@ruled/formula/engine';
 import { localeInfo, normalizeForLocale, readLocalDate } from '../core/locale';
 import { msg, type Text } from '../i18n/message';
 

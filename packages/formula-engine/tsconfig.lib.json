@@ -1,0 +1,11 @@
+{
+  // The package's type declarations, which rolldown.config.ts bundles into dist/index.d.ts.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts"]
+}

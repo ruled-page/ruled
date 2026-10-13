@@ -71,10 +71,6 @@ needs no server, and nothing here should add one.
 
 `createWorkbook` in `@ruled/formula` works out a workbook with no editor.
 
-- **No build of its own.** Its exports point at its source, which the
-  editor's builds bundle. A build for the package changes how the docs' API
-  reference and the Angular example find the engine, so it belongs with the
-  engine's first release.
 - **No changes to a workbook's shape.** Sheets can be added, not renamed,
   moved or deleted, and rows and columns can't be inserted or deleted. The
   editor rewrites references for these itself
