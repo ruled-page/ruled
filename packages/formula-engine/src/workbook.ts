@@ -756,6 +756,7 @@ export class NativeEngine implements FormulaEngine, Host {
     try {
       f.link = undefined;
       const measured = f.measured;
+      const array = !!f.result;
       const ctx: Ctx = { host: this, sheet: f.sheet, row: f.row, col: f.col, legacy: f.legacy, notes: f };
       let out: Operand;
       try {
@@ -767,7 +768,8 @@ export class NativeEngine implements FormulaEngine, Host {
       // Where a circle closes it shows 0, as the formulas in the circle read it, unless iterating.
       if (this.circles.has(f) && !this.iteration) out = 0;
       this.store(f, out, ctx);
-      if (measured?.rows !== f.measured?.rows || measured?.cols !== f.measured?.cols) f.reshaped = true;
+      // Its size changed, or its result became or stopped being an array: a change, though its value may be the same.
+      if (measured?.rows !== f.measured?.rows || measured?.cols !== f.measured?.cols || array !== !!f.result) f.reshaped = true;
       f.dirty = false;
     } finally {
       f.busy = false;

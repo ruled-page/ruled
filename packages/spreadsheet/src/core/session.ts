@@ -1745,8 +1745,8 @@ export class WorkbookSession {
       for (const p of changed) {
         const spill = this.spills[p.sheet].get(cellKey(p.row, p.col));
         if (!spill?.rows) {
-          // A formula whose result is an array the engine had no size for shows an error.
-          if (!('value' in p) || (p.value !== null && typeof p.value === 'object')) probe(p);
+          // A formula whose result is an array the engine had no size for shows an error, or the array's first value.
+          if (!('value' in p) || (p.value !== null && typeof p.value === 'object') || engine.isArray(p.sheet, p.row, p.col)) probe(p);
           continue;
         }
         // Results that have grown or shrunk since they were given room.

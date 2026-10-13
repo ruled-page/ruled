@@ -77,7 +77,7 @@ export interface FormulaEngine {
   resultSize(formula: string, sheet: number): ArrayDims;
   /** Writes cells; returns every value that changed as a result. */
   write(writes: EngineWrite[]): EngineChange[];
-  /** Defines, changes or (with null) removes a name; `held` when it couldn't be, and is kept as it was. */
+  /** Defines, changes or (with null) removes a name; `held` is whether the engine holds it now, false when removed or when it couldn't be defined. */
   setName(name: string, localSheet: number | undefined, formula: string | null): { changes: EngineChange[]; held: boolean };
   /** Evaluates a formula (with "=") on a sheet without placing it in a cell. */
   calculate(formula: string, sheet: number): EngineValue | EngineValue[][];

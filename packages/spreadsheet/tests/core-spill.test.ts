@@ -104,6 +104,14 @@ describe('a formula typed here whose result is an array', () => {
     expect(column(s, ['E1', 'E2', 'E3', 'E4', 'E5'])).toEqual([1, 2, 3, 4, null]);
   });
 
+  it('spills once a result of one value grows to several, though its first value is the same', () => {
+    const s = fresh();
+    type(s, 'E1', '=FILTER(A1:A3,A1:A3>2)');
+    expect(column(s, ['E1', 'E2'])).toEqual([3, null]);
+    type(s, 'A3', '5');
+    expect(column(s, ['E1', 'E2'])).toEqual([3, 5]);
+  });
+
   it('goes when the formula is cleared, and comes back when that is undone', () => {
     const s = fresh();
     type(s, 'C1', '=SEQUENCE(2)');
