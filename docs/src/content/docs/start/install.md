@@ -16,14 +16,6 @@ The editor is one package, `@ruled/sheet`, with two builds:
 npm install @ruled/sheet
 ```
 
-:::note[Not on the npm registry yet]
-Until the package is published, install the tarball a release makes (`npm run release` in the editor's repository packs it into `releases/`):
-
-```sh
-npm install ./ruled-sheet-0.1.0.tgz
-```
-:::
-
 ## The React build
 
 Import the stylesheet once, next to the component:

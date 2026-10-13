@@ -50,8 +50,4 @@ When people edit the workbook themselves, use the editor, `@ruled/sheet`, which 
 npm install @ruled/formula
 ```
 
-:::note[Not on the npm registry yet]
-The engine is released after the editor. Until then it is in the editor's repository, in `packages/formula-engine`.
-:::
-
 Next: [Cells, changes and formulas](/formula/cells/) shows what a workbook can do.
