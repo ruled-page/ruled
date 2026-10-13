@@ -8,8 +8,23 @@ import { EXAMPLES } from './registry';
 import { ledgerTheme, PLAYGROUND_THEMES } from './themes';
 
 let editor: Promise<unknown> | undefined;
-/** The standalone build, which defines <workbook-editor>; loaded once, when first needed. */
-const loadEditor = () => (editor ??= import(/* @vite-ignore */ `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}editor/workbook-editor.js`));
+/**
+ * The standalone build, which defines <workbook-editor>; loaded once, when
+ * first needed, by a script tag rather than import(), which Vite's dev server
+ * won't serve from public/.
+ */
+const loadEditor = () =>
+  (editor ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}editor/workbook-editor.js`;
+    script.onload = () => void customElements.whenDefined('workbook-editor').then(resolve);
+    script.onerror = () => {
+      editor = undefined;
+      reject(new Error("The editor couldn't load"));
+    };
+    document.head.append(script);
+  }));
 
 function start(root: HTMLElement): void {
   const example = EXAMPLES[root.dataset.example ?? ''];
