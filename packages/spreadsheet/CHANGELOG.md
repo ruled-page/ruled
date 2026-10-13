@@ -5,172 +5,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
-- The editor is now **Ruled**: the package is `@ruled/sheet` (it was
-  `@sitepen/spreadsheet`) and the calculation engine `@ruled/formula`, and
-  the toolbar shows Ruled's mark and name. Its components, functions and the
-  `<workbook-editor>` element keep their names.
-- Cells move by dragging the selection's border, and copy with Ctrl (Option
-  on a Mac) held, as in Excel; dropping them on cells that hold something
-  asks first.
-- A drag that ends off the grid no longer swallows the next click.
-- Shift+dragging the selection's border moves the cells in between others,
-  as in Excel, with a line marking where they'll go.
-- Insert and delete cells, moving the others down or right (or up or left),
-  or whole rows or columns, from Excel's keys (Ctrl++ and Ctrl+-) or the
-  cell menu, through Excel's Insert and Delete dialogs.
-- AutoComplete: text typed into a cell, or the formula bar, is finished from
-  the entries above and below it in its column, as in Excel. Hosts can turn
-  it off with `features.autoComplete`.
-- Excel's Sort dialog, from "Custom sort…" in the cell menu: sort by
-  several levels, by a custom list's order, with case mattering, or left to
-  right.
-- Filter buttons on the headings of filters and tables, as in Excel: each
-  opens its column's filter menu (or Alt+↓ does), which can sort by the
-  column, and Ctrl+Shift+L (⇧⌘F on a Mac) turns them on and off. Clearing a
-  filter keeps its buttons.
-- Filters by condition, as Excel's Text, Number and Date Filters: the
-  Custom AutoFilter dialog (two rules with And or Or, wildcards), Top 10, and
-  above or below the average, saved as Excel saves them. A file's filter by
-  dates in a period, colour or icon is kept as it is, and other filters on
-  its sheet no longer replace it.
-- Excel's Data Validation dialog, from "Data validation…" in the cell menu:
-  set, change and clear the rules of the selected cells, with their input
-  messages and error alerts. An input message now shows only where the file
-  says to show it, as in Excel.
-- Conditional formatting rules can be added, changed and removed, from the
-  cell menu's Conditional formatting: Excel's Highlight Cells and Top/Bottom
-  rules, data bars, color scales, icon sets, formula rules, Clear Rules and
-  the Rules Manager. Tab buttons no longer submit a dialog they sit in, and a
-  menu taller than the window scrolls.
-- Vertical alignment and indent: cells are drawn with their file's top,
-  middle or bottom alignment (bottom, Excel's default, unless set) and its
-  indent, and the format bar sets both.
-- Border styles and colours: the Borders menu's Line Color and Line Style
-  set the line borders are drawn with, from Excel's thirteen styles; files'
-  dash-dot, dash-dot-dot, slanted dash-dot and hair borders are drawn and
-  kept as themselves rather than as dashes and dots.
-- Wrapped text is drawn as Excel draws it. A word longer than its column
-  breaks at the column's edge, each line sits where the cell's vertical
-  alignment puts it, and text is cut at the cell's edges rather than drawn
-  over the rows around it. A row too short for its text shows the last
-  lines, or the first when top-aligned, and AutoFit counts the same lines.
-  A wrapped cell is edited at its column's width, the editor growing down.
-- Rows fit their contents as Excel's do: typing into a wrapped cell,
-  turning wrap on or off, or changing a wrapped cell's column width makes
-  its row taller or shorter in the same undoable step. Rows sized by hand
-  keep their height until AutoFit fits them again, and fitted rows are
-  saved without Excel's custom height mark, so Excel keeps fitting them.
-- Pivot tables are worked out live from their source as it is edited, and
-  on Refresh or Refresh all in their cell menu (Alt+F5, Ctrl+Alt+F5): rows,
-  columns, values, report filters, subtotals and grand totals, in compact,
-  outline or tabular form. Their cells are worked out, not counted as
-  edits; the change list notes each pivot table instead.
-- The PivotTable Fields pane, from "Show Field List" in a pivot table's cell
-  menu: tick fields, drag them between Filters, Columns, Rows and Values,
-  filter their items, and change how values are summarised, each an
-  undoable step. A changed pivot table is saved with its definition written
-  again and its cache made again from the source, for Excel to refresh.
-- Insert PivotTable, from the cell menu: an empty pivot table over a range,
-  a table or a name, on a new sheet or at a cell, with the Fields pane open.
-- Show Values As: percentages of totals and parents, differences, running
-  totals, ranks and index against base fields and items, worked out live.
-- A pivot table's report filters above it are read-only, as its table is.
-- `useWorkbookEditor(options)`: a React hook that makes an editor when the
-  component mounts and destroys it when it unmounts, applies theme,
-  language, user, schema and custom list changes as they come, and calls
-  the latest callbacks. `useEditorState(editor)` gives its status, file name
-  and edits as React state.
-- The element no longer re-creates its editor when it's given options with
-  a new but equal theme, schema list or custom lists.
-- Radar, bubble and stock charts are drawn, as are 3-D charts (flat) and
-  pie of pie (as one pie); the demo has a Chart gallery sample of them.
-  Changing only the title of a chart of such a kind no longer turns it
-  into a column chart.
-- Edit chart: double-click a chart, press Enter on it or right-click it to
-  change its type, title, legend and data (a range down the columns or
-  along the rows, or each series' references), as Excel's chart dialogs
-  do; a file's chart keeps its own formatting where its type is unchanged.
-- A chart dropped after dragging or resizing stays where it was let go
-  rather than flashing back while the change is saved.
-- Charts, pictures and shapes can be selected by clicking them, moved by
-  dragging, resized by their handles and deleted with Delete, or worked
-  from the keyboard (Ctrl+Alt+5, arrows, Shift+arrows, Tab, Esc); each is
-  saved as new anchors in the sheet's drawing.
-- Insert Chart: "Insert chart" in the cell menu, or Alt+F1, charts the
-  selection (or the data around the active cell) as a column, bar, line,
-  area, pie, doughnut or scatter chart, working out the series and
-  categories as Excel does, and saves it as a chart part Excel opens.
-- Excel 365 checkboxes: cells with the checkbox format show a box, ticked
-  for TRUE. Click it or press Space to tick or untick, Delete unticks and
-  then removes them, and the format bar's Checkbox button inserts them.
-  Files' checkboxes are read, and new ones saved as Excel 365 saves them.
-- Charts stay where they are anchored as the sheet scrolls past rows of
-  different heights, rather than dropping back into view, and stop at the
-  scrollbars rather than covering them.
-- Custom number formats: "More number formats…" in the format bar opens
-  Excel's Custom list, to type a format code or pick one of Excel's or the
-  workbook's own, with the active cell shown in it as it is typed. Codes
-  Excel couldn't use are refused.
-- The cell menu, the filter menu, Find, the report and the smaller dialogs
-  load when first used, or once the page is idle, which keeps the editor's
-  first download smaller.
-- Dynamic array formulas, typed or from the file, spill their values into
-  the cells around them and recalculate live. A spill is outlined while one
-  of its cells is selected, a blocked one shows #SPILL!, and spills are
-  saved as Excel saves them.
-- Array formulas entered with Ctrl+Shift+Enter recalculate live, filling the
-  range they were entered in, and show `{=formula}` in the formula bar.
-- LET formulas recalculate live.
-- Whole rows and columns are selected by their numbers and letters, with
-  dragging, Shift and Ctrl, the whole sheet from the corner, and Shift+Space,
-  Ctrl+Space and Ctrl+A.
-- Double-clicking a column's or row's edge fits it to its contents, as does
-  AutoFit in the cell menu. Pressing an edge without dragging no longer
-  changes its size.
-- A banner says when a large workbook opens with live recalculation off,
-  with a button to turn it on.
-- A sheet runs to column XFD and row 1,048,576, as in Excel, more rows and
-  columns appearing as it is scrolled; going to a cell beyond them brings
-  them with it.
-- The name box lists what each name refers to, and says a name or reference
-  on a hidden sheet can't be gone to instead of showing the hidden sheet.
-- Drop-down lists draw the theme's arrow, the toolbar folds its labels only
-  as far as it must to fit (and never cuts off a button), and the formula
-  bar uses the interface's font.
-- The demo's themes show more of what theming can do: Indigo, Paper, Dark
-  and High contrast.
-- The editor calculates with its own engine in place of HyperFormula: every
-  function it offers, 3-D references (Jan:Mar!B2), unions, FORMULATEXT, CELL,
-  LAMBDA and its helpers, dynamic arrays and Ctrl+Shift+Enter arrays, its
-  answers checked against Excel's. The library's worker is 156 kB gzipped
-  where it was 297 kB, the largest sample calculates in about a third of the
-  time with about half the memory, and the editor no longer contains
-  GPL-licensed code. `diagnostics` shows in the status bar how long opening,
-  calculating and the last edit take, and `npm run engine:bench` measures
-  them.
-- Copying numbers as HTML gives them to 15 significant digits, as Excel does.
-- Circular references calculate as 0, as in Excel; making one warns, and
-  the status bar names where one closes until it is broken.
-- Workbooks with iterative calculation on work their circular references
-  round, up to the file's number of passes or until nothing moves by more
-  than its maximum change, without warning of them.
-- #CALC!, #SPILL! and the other errors Excel saves as #VALUE! for older
-  readers are read as the errors they are, so checks on open compare the
-  real error.
-- A number typed, pasted or written in a formula with more than 15
-  significant digits keeps the first 15 and the rest become zeros, as Excel
-  stores it, rather than being rounded. Strict pasting shows the value that
-  will be stored.
-- Calculations agree with Excel for the web on edge cases: VLOOKUP, HLOOKUP,
-  MATCH and LOOKUP read an empty lookup value as 0; AGGREGATE's functions 1
-  to 13 give #VALUE! for an array, as they take only references; CONCAT
-  longer than 32,767 characters is #CALC!; and `&` cuts its result off at
-  32,767 characters.
-
-## 0.1.0 (2026-10-08)
-
-The first release: an Excel workbook editor for the browser that saves
-workbooks back without losing what it doesn't change.
+The first release: a spreadsheet editor for web apps that opens Excel
+workbooks, checks them against a schema, and saves them back without losing
+what it doesn't change.
 
 ### Opening and saving
 
@@ -187,27 +24,79 @@ workbooks back without losing what it doesn't change.
 ### Editing
 
 - Typing, copying and pasting (with Excel's and Google Sheets' formats, and
-  paste special), drag fill, Fill Series and custom lists, find and replace
-  with wildcards, sorting, and filtering by values.
-- Inserting and deleting rows and columns, and cutting to move cells, with
-  references following them.
+  paste special), drag fill, Fill Series and custom lists, and find and
+  replace with wildcards. AutoComplete finishes text from the entries above
+  and below it in its column; hosts can turn it off with
+  `features.autoComplete`.
+- Numbers keep Excel's 15 significant digits: one typed or pasted with more
+  keeps the first 15 and the rest become zeros, as Excel stores it, and
+  strict pasting shows the value that will be stored.
+- Cells move by dragging the selection's border, copy with Ctrl (Option on
+  a Mac) held, and go in between others with Shift held, as in Excel.
+- Inserting and deleting cells, rows and columns, from Excel's keys (Ctrl++
+  and Ctrl+-) or the cell menu through Excel's Insert and Delete dialogs,
+  with references following them.
+- Whole rows and columns are selected by their numbers and letters, with
+  dragging, Shift and Ctrl, the whole sheet from the corner, and Shift+Space,
+  Ctrl+Space and Ctrl+A. A sheet runs to column XFD and row 1,048,576, as in
+  Excel.
+- Sorting, with Excel's Sort dialog for several levels, a custom list's
+  order, case mattering, or left to right.
+- Filter buttons on the headings of filters and tables (Alt+↓, and
+  Ctrl+Shift+L or ⇧⌘F on a Mac): filtering by values, and by condition as
+  Excel's Text, Number and Date Filters do (Custom AutoFilter, Top 10, above
+  or below the average). A file's filter by a period of dates, colour or
+  icon is kept as it is.
 - Adding, renaming, deleting, moving, hiding and unhiding sheets.
-- Formatting from a format bar: fonts, colours, borders, alignment, wrapping
-  and number formats.
-- Column widths, row heights, hiding, frozen panes, merged cells and outline
-  groups.
-- Notes and threaded comments, hyperlinks and defined names.
+- Notes and threaded comments, hyperlinks, defined names, and Excel 365
+  checkboxes.
+- Data validation as Excel applies it, with Excel's Data Validation dialog
+  to set its rules, input messages and error alerts.
 - Every change can be undone, and unsaved changes are kept as a draft on the
   device.
 
+### Formatting
+
+- A format bar: fonts, colours, borders in Excel's thirteen line styles and
+  any colour, horizontal and vertical alignment, indent, wrapping, and
+  number formats, with Excel's Custom list for format codes.
+- Wrapped text is drawn as Excel draws it, and rows fit their contents as
+  Excel's do. Double-clicking a column's or row's edge, or AutoFit, fits it.
+- Column widths, row heights, hiding, frozen panes, merged cells and outline
+  groups.
+- Conditional formatting as Excel applies it, with its rules added, changed
+  and removed: Highlight Cells and Top/Bottom rules, data bars, colour
+  scales, icon sets, formula rules and the Rules Manager.
+
 ### Formulas
 
-- Live recalculation with about 465 of Excel's functions. Formulas the
-  engine can't calculate keep Excel's value and are marked out of date when
-  their inputs change.
+- Live recalculation by Ruled's own engine (`@ruled/formula`), with 475 of
+  Excel's functions, 3-D references (Jan:Mar!B2), unions, LET, LAMBDA and
+  its helpers, dynamic arrays that spill as Excel's do, and Ctrl+Shift+Enter
+  arrays, its answers checked against Excel's. Formulas it can't calculate
+  keep Excel's value and are marked out of date when their inputs change.
+- Circular references calculate as 0 and warn, as in Excel; workbooks with
+  iterative calculation on work them round.
+- A banner says when a large workbook opens with live recalculation off,
+  with a button to turn it on. `diagnostics` shows how long opening,
+  calculating and the last edit take.
 - Formula help: function suggestions, argument hints, coloured references
   and F4.
-- Data validation and conditional formatting, as Excel applies them.
+
+### Pivot tables and charts
+
+- Pivot tables are worked out live from their source as it is edited, and
+  on Refresh: rows, columns, values, report filters, subtotals and grand
+  totals, in compact, outline or tabular form, with Show Values As. Insert
+  PivotTable makes one, and the PivotTable Fields pane changes it; a changed
+  pivot table is saved for Excel to refresh.
+- Charts are drawn with Chart.js, loaded only for workbooks with charts:
+  column, bar, line, area, pie, doughnut, scatter, radar, bubble and stock,
+  and 3-D charts drawn flat. Insert Chart (Alt+F1) charts the selection, and
+  Edit chart changes a chart's type, title, legend and data. Hosts can turn
+  charts off.
+- Charts, pictures and shapes can be selected, moved, resized and deleted,
+  with the mouse or the keyboard.
 
 ### Checking with schemas
 
@@ -216,12 +105,11 @@ workbooks back without losing what it doesn't change.
 
 ### Embedding
 
-- A React component, a standalone `<workbook-editor>` element and a mount
-  function, each with an editor handle and events.
+- A React component and hooks (`useWorkbookEditor`, `useEditorState`), a
+  standalone `<workbook-editor>` element and a mount function, each with an
+  editor handle and events.
 - Themes through CSS tokens, English and German and any language the host
   adds, right-to-left layouts, and phone-sized screens.
-- Charts drawn with Chart.js, loaded only for workbooks with charts. Hosts
-  can turn them off.
 
 ### Accessibility
 
