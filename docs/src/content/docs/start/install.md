@@ -2,7 +2,7 @@
 title: Install
 description: Add the package to your app, and choose the React build or the self-contained one.
 sidebar:
-  order: 2
+  order: 3
 ---
 
 The editor is one package, `@sitepen/spreadsheet`, with two builds:

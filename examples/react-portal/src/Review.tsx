@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWorkbookEditor, WorkbookEditor, type EditorTheme } from '@sitepen/spreadsheet';
+import { useWorkbookEditor, WorkbookEditor, type EditorTheme, type WorkbookFile } from '@sitepen/spreadsheet';
 import { go } from './App';
 import { NS } from './i18n';
 import { readPriceLines } from './parse';
@@ -44,8 +44,24 @@ export function startReview(name: string, bytes: ArrayBuffer): void {
  */
 export function Review({ id }: { id?: string }) {
   const { t, i18n } = useTranslation(NS);
-  const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState<WorkbookFile | null>(null);
   const [missing, setMissing] = useState(false);
+
+  // The workbook: a submission being edited again, or the file just uploaded.
+  useEffect(() => {
+    let current = true;
+    const source = id
+      ? getSubmission(id).then((s) => s && { name: s.fileName, bytes: s.bytes.slice().buffer as ArrayBuffer })
+      : Promise.resolve(pending && { ...pending, bytes: pending.bytes.slice(0) });
+    void source.then((src) => {
+      if (!current) return;
+      if (src) setFile(src);
+      else setMissing(true);
+    });
+    return () => {
+      current = false;
+    };
+  }, [id]);
 
   // The editor follows the portal's language as it changes, and lives as long as this page.
   const editor = useWorkbookEditor({
@@ -57,6 +73,8 @@ export function Review({ id }: { id?: string }) {
     features: { open: false, schemas: false, report: false },
     saveLabel: { en: 'Submit price list', de: 'Preisliste einreichen' },
     user: 'Supplier',
+    // Opened once the editor is ready; a file it can't open is shown as such in the editor.
+    file,
     // The host's save: read the values into the portal's own records and store them.
     onSave: async (saved) => {
       const submission: Submission = {
@@ -76,24 +94,6 @@ export function Review({ id }: { id?: string }) {
     },
   });
 
-  // The workbook: a submission being edited again, or the file just uploaded.
-  useEffect(() => {
-    if (!editor) return;
-    let current = true;
-    const source = id
-      ? getSubmission(id).then((s) => s && { name: s.fileName, bytes: s.bytes.slice().buffer as ArrayBuffer })
-      : Promise.resolve(pending && { ...pending, bytes: pending.bytes.slice(0) });
-    void source.then((src) => {
-      if (!current) return;
-      if (!src) return setMissing(true);
-      setFileName(src.name);
-      // A file the editor can't open is shown as such in the editor.
-      editor.open(src.bytes, src.name).catch(() => undefined);
-    });
-    return () => {
-      current = false;
-    };
-  }, [editor, id]);
 
   if (missing) {
     return (
@@ -112,7 +112,7 @@ export function Review({ id }: { id?: string }) {
       <nav className="crumbs" aria-label={t('app.breadcrumbs')}>
         <a href="#/">{t('nav.priceLists')}</a>
         <span aria-hidden="true">›</span>
-        <span aria-current="page">{fileName || t('review.loading')}</span>
+        <span aria-current="page">{file?.name || t('review.loading')}</span>
       </nav>
       <div className="review-head">
         <div>

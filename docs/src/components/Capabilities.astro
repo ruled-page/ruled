@@ -1,0 +1,252 @@
+---
+/**
+ * Everything the editor does with a workbook, and gives an app, as one
+ * searchable table.
+ */
+import { functionHelp, knownFunctionNames } from '../../../packages/spreadsheet/src/core/functionCatalog';
+import { CAPABILITIES, FOR_APPS, SUPPORT, type Support } from '../data/capabilities';
+
+const names = knownFunctionNames();
+const calculated = names.filter((n) => functionHelp(n)?.calculated).length;
+const fill = (text: string) => text.replace('{functions}', String(calculated)).replace('{all}', String(names.length));
+/** Inline code in the notes, written `like this`. */
+const code = (text: string) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!).replace(/`([^`]+)`/g, '<code>$1</code>');
+---
+
+<div class="wb-caps not-content">
+  <label class="wb-caps__search">
+    <span>Find a feature</span>
+    <input type="search" placeholder="charts, filters, CSV, macros…" autocomplete="off" />
+  </label>
+  <dl class="wb-caps__legend">
+    {
+      (Object.entries(SUPPORT) as [Support, (typeof SUPPORT)[Support]][]).map(([key, s]) => (
+        <div>
+          <dt>
+            <span class={`wb-cap wb-cap--${key}`}>{s.label}</span>
+          </dt>
+          <dd>{s.means}</dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  {
+    CAPABILITIES.map((g) => (
+      <section class="wb-caps__group" data-group>
+        <h3 class="wb-display">{g.group}</h3>
+        <table>
+          <tbody>
+            {g.rows.map((r) => (
+              <tr data-row>
+                <th scope="row">{r.href ? <a href={r.href}>{fill(r.what)}</a> : fill(r.what)}</th>
+                <td>
+                  <span class={`wb-cap wb-cap--${r.support}`}>{SUPPORT[r.support].label}</span>
+                </td>
+                <td set:html={r.note ? code(r.note) : ''} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    ))
+  }
+
+  <section class="wb-caps__group" data-group>
+    <h3 class="wb-display">For your app</h3>
+    <table>
+      <tbody>
+        {
+          FOR_APPS.map((r) => (
+            <tr data-row>
+              <th scope="row">
+                <a href={r.href}>{r.what}</a>
+              </th>
+              <td>
+                <span class="wb-cap wb-cap--edit">Yes</span>
+              </td>
+              <td>{r.note}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </section>
+  <p class="wb-caps__none" hidden>Nothing matches. Try a broader word, or see <a href="/guides/excel-fidelity/">Excel fidelity</a>.</p>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('.wb-caps');
+  const input = root?.querySelector<HTMLInputElement>('input[type="search"]');
+  input?.addEventListener('input', () => {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let any = false;
+    for (const group of root!.querySelectorAll<HTMLElement>('[data-group]')) {
+      let shown = 0;
+      for (const row of group.querySelectorAll<HTMLElement>('[data-row]')) {
+        const text = `${group.querySelector('h3')?.textContent} ${row.textContent}`.toLowerCase();
+        row.hidden = !words.every((w) => text.includes(w));
+        if (!row.hidden) shown++;
+      }
+      group.hidden = shown === 0;
+      any ||= shown > 0;
+    }
+    root!.querySelector<HTMLElement>('.wb-caps__none')!.hidden = any;
+  });
+</script>
+
+<style>
+  .wb-caps {
+    display: grid;
+    gap: 1.75rem;
+  }
+
+  .wb-caps__search {
+    display: grid;
+    gap: 0.4rem;
+    font: 500 0.78rem/1 var(--sl-font-mono);
+    color: var(--sl-color-gray-3);
+  }
+
+  .wb-caps__search input {
+    font: inherit;
+    font-family: var(--sl-font);
+    font-size: 1rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--wb-card-edge);
+    border-radius: 6px;
+    background: var(--wb-card);
+    color: var(--sl-color-white);
+  }
+
+  .wb-caps__search input:focus {
+    outline: 2px solid var(--sl-color-accent);
+    outline-offset: 1px;
+  }
+
+  .wb-caps__legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem 1.25rem;
+    margin: 0;
+  }
+
+  .wb-caps__legend div {
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+  }
+
+  .wb-caps__legend dd {
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+  }
+
+  .wb-caps__group h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--sl-text-sm);
+  }
+
+  tr {
+    border-top: 1px solid var(--wb-card-edge);
+  }
+
+  tr:last-child {
+    border-bottom: 1px solid var(--wb-card-edge);
+  }
+
+  th,
+  td {
+    padding: 0.6rem 0.75rem 0.6rem 0;
+    text-align: start;
+    vertical-align: top;
+  }
+
+  th {
+    width: 42%;
+    font-weight: 500;
+    color: var(--sl-color-gray-1);
+  }
+
+  td:nth-child(2) {
+    width: 4.5rem;
+  }
+
+  td:last-child {
+    color: var(--sl-color-gray-2);
+  }
+
+  td :global(code) {
+    font: 0.85em var(--sl-font-mono);
+    color: var(--sl-color-accent-high);
+  }
+
+  a {
+    color: inherit;
+    text-decoration-color: color-mix(in srgb, var(--sl-color-accent) 50%, transparent);
+    text-underline-offset: 0.2em;
+  }
+
+  a:hover {
+    color: var(--sl-color-accent);
+  }
+
+  /* Each status, as a cell would mark it. */
+  .wb-cap {
+    display: inline-block;
+    min-width: 3.3rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 3px;
+    font: 500 0.72rem/1.2 var(--sl-font-mono);
+    text-align: center;
+    border: 1px solid transparent;
+  }
+
+  .wb-cap--edit {
+    background: var(--sl-color-accent);
+    color: var(--wb-paper);
+  }
+
+  .wb-cap--show {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-accent);
+  }
+
+  .wb-cap--keep {
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-2);
+    border-color: var(--wb-card-edge);
+  }
+
+  .wb-cap--no {
+    border-color: var(--wb-signal);
+    color: var(--wb-signal);
+  }
+
+  @media (max-width: 40rem) {
+    tr {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      padding-block: 0.5rem;
+    }
+
+    th,
+    td {
+      padding: 0.15rem 0;
+      width: auto;
+    }
+
+    td:last-child {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

@@ -2,20 +2,20 @@
 title: React
 description: Show the editor in a React app with useWorkbookEditor, open a workbook and receive it when it's saved.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 `useWorkbookEditor` makes an editor that lives as long as your component: it's made when the component mounts and destroyed, with its worker, when it unmounts. Render it with `<WorkbookEditor>`.
 
 ```tsx
-import { useEffect } from 'react';
-import { useWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
+import { useWorkbookEditor, WorkbookEditor, type WorkbookFile } from '@sitepen/spreadsheet';
 import '@sitepen/spreadsheet/style.css';
 import { priceList } from './schemas';
 
-export function PriceListReview({ file }: { file: { name: string; bytes: ArrayBuffer } }) {
+export function PriceListReview({ file }: { file: WorkbookFile }) {
   const editor = useWorkbookEditor({
     schemas: [priceList],
+    file,
     // People open files from your app, not from their disk.
     features: { open: false },
     saveLabel: 'Submit price list',
@@ -24,15 +24,17 @@ export function PriceListReview({ file }: { file: { name: string; bytes: ArrayBu
     },
   });
 
-  useEffect(() => {
-    void editor?.open(file.bytes, file.name);
-  }, [editor, file]);
-
   return <div style={{ height: '80vh' }}>{editor && <WorkbookEditor editor={editor} />}</div>;
 }
 ```
 
 The editor fills its container, so give the container a height. It's `null` on the first render, before it's made.
+
+## Opening a workbook
+
+`file` (its `name` and `bytes`) is opened once the editor is ready, and again whenever it's a different file: another name or other bytes. A new object holding the same name and bytes isn't a new file, so it can be written inline. If the user has unsaved changes they're asked first, and if they keep their workbook it stays open. A file that can't be opened says why in the editor.
+
+To open files at moments of your own choosing, leave `file` out and call `editor.open(bytes, name)`, which resolves once the workbook is open.
 
 ## Options as they change
 

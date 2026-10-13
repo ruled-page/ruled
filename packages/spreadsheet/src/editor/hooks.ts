@@ -7,10 +7,29 @@ import type { StoreOptions } from '../state/store';
 import { createWorkbookEditor, type EditorHandle } from './handle';
 import { applyLiveOptions } from './liveOptions';
 
+/** A workbook for `useWorkbookEditor` to open: its name, which says what kind of file it is, and its bytes. */
+export interface WorkbookFile {
+  name: string;
+  bytes: ArrayBuffer | Uint8Array;
+}
+
+export interface WorkbookEditorHookOptions extends StoreOptions {
+  /**
+   * The workbook to open, once the editor is made and again whenever it's a
+   * different file (another name or other bytes; a new object for the same
+   * file isn't). Over unsaved changes the user is asked first, and the
+   * workbook they keep stays open. A file that can't be opened says why in
+   * the editor. Leave it out to open files yourself with `open()`.
+   */
+  file?: WorkbookFile | null;
+}
+
 /**
  * An editor for a React component: made when the component mounts and
  * destroyed, with its worker, when it unmounts. It's null on the first
  * render, before it's made, so render `<WorkbookEditor>` once it isn't.
+ *
+ * - `file` is opened when the editor is ready, and again when it changes.
  *
  * - Theme, language, user, schemas and custom lists follow `options` as they
  *   change, without closing the workbook. A new array or object with the same
@@ -21,7 +40,7 @@ import { applyLiveOptions } from './liveOptions';
  * - Every other option is read when the editor is made. To change one, give
  *   the component a new `key`, which makes a new editor.
  */
-export function useWorkbookEditor(options: StoreOptions = {}): EditorHandle | null {
+export function useWorkbookEditor(options: WorkbookEditorHookOptions = {}): EditorHandle | null {
   const [editor, setEditor] = useState<EditorHandle | null>(null);
   const latest = useRef(options);
   const applied = useRef(options);
@@ -30,7 +49,7 @@ export function useWorkbookEditor(options: StoreOptions = {}): EditorHandle | nu
   });
 
   useEffect(() => {
-    const first = latest.current;
+    const { file: _file, ...first } = latest.current;
     const call = latest;
     const made = createWorkbookEditor({
       ...first,
@@ -53,6 +72,18 @@ export function useWorkbookEditor(options: StoreOptions = {}): EditorHandle | nu
     applyLiveOptions(editor, applied.current, options);
     applied.current = options;
   });
+
+  // The file, once per editor and file: not again for a new object holding the same one, or when StrictMode runs effects twice.
+  const opened = useRef<{ editor: EditorHandle; file: WorkbookFile } | null>(null);
+  const { file } = options;
+  useEffect(() => {
+    if (!editor || !file) return;
+    const was = opened.current;
+    if (was && was.editor === editor && was.file.name === file.name && was.file.bytes === file.bytes) return;
+    opened.current = { editor, file };
+    // The editor shows why a file can't be opened.
+    editor.open(file.bytes, file.name).catch(() => undefined);
+  }, [editor, file]);
 
   return editor;
 }

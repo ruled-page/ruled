@@ -9,7 +9,7 @@
  */
 export { WorkbookEditor, type WorkbookEditorProps } from './WorkbookEditor';
 export { createWorkbookEditor, type EditorHandle } from './handle';
-export { useEditorState, useWorkbookEditor, type EditorState } from './hooks';
+export { useEditorState, useWorkbookEditor, type EditorState, type WorkbookEditorHookOptions, type WorkbookFile } from './hooks';
 export { mountWorkbookEditor } from './mount';
 export {
   SaveConflictError,

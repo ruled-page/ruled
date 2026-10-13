@@ -40,6 +40,7 @@ When the workbook is saved, your app receives:
 
 ## Next
 
+- See [what it can do](/start/capabilities/), feature by feature.
 - [Install it](/start/install/), then add it to a [React](/start/react/), [plain HTML](/start/web-component/) or [Angular](/start/angular/) app.
 - Read about [schemas](/schemas/overview/), the reason to use it.
 - Try the [live examples](/examples/price-list/).
