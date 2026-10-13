@@ -184,7 +184,8 @@ Paths are under `packages/spreadsheet/src`.
 `packages/spreadsheet/dist`: `react` for React hosts (React 18 or 19 is a
 peer dependency), `standalone` with React, the worker and the styles
 bundled, and `types`, one declaration file for each. Everything else is
-bundled, so it has no dependencies of its own. The engine goes into
+bundled, so it has no dependencies of its own; `node` is `recalculate` for
+Node, the reader, writer and engine bundled. The engine goes into
 `packages/formula-engine/dist`, as one module and its types, with its
 formula parser and number formatter as its two dependencies; within the
 workspace only its root is public, the rest is read from source by the

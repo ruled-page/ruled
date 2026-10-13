@@ -111,6 +111,12 @@ what it doesn't change.
 - Themes through CSS tokens, English and German and any language the host
   adds, right-to-left layouts, and phone-sized screens.
 
+### In Node
+
+- `recalculate` from `@ruled/sheet/node` opens a saved workbook, sets the
+  cells given, works out its formulas and saves it with its values up to
+  date, with no browser.
+
 ### Accessibility
 
 - Everything works from the keyboard. Screen readers hear each cell by its

@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "author": "Anthony Gubler",
   "scripts": {
-    "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && tsc -p tsconfig.lib.json && rolldown -c rolldown.types.config.ts",
+    "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && vite build -c vite.node.config.ts && tsc -p tsconfig.lib.json && rolldown -c rolldown.types.config.ts",
     "build:verify": "vite build -c vite.verify.config.ts",
     "validate:saves": "node scripts/validate-saves.mjs",
     "notices": "node scripts/notices.mjs"
@@ -23,6 +23,11 @@
       "types": "./dist/types/standalone.d.ts",
       "import": "./dist/standalone/workbook-editor.js"
     },
+    "./node": {
+      "source": "./src/node/index.ts",
+      "types": "./dist/types/node.d.ts",
+      "import": "./dist/node/index.js"
+    },
     "./style.css": "./dist/react/workbook-editor.css",
     "./worker": "./dist/react/assets/workbook.worker.js",
     "./internal/*": {
@@ -35,6 +40,7 @@
   "files": [
     "dist/react",
     "dist/standalone",
+    "dist/node",
     "dist/types",
     "CHANGELOG.md",
     "THIRD-PARTY-NOTICES.md"
@@ -42,6 +48,14 @@
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@borgar/fx": "^5.1.3",

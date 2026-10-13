@@ -91,6 +91,13 @@ export interface OpenOptions {
    * is larger than LIVE_RECALC_LIMITS, when it starts off and can be turned on.
    */
   recalc?: 'auto' | 'on' | 'off';
+  /**
+   * Excel's saved values: compared with the engine's results (the default),
+   * a formula that disagrees keeping Excel's; or ignored, every formula the
+   * engine calculates taking its result, for files saved by tools that
+   * don't calculate.
+   */
+  savedValues?: 'compare' | 'ignore';
 }
 
 const DEFAULT_MAX_CELLS = 2_000_000;
@@ -389,6 +396,8 @@ export class WorkbookSession {
   private stripMacros = false;
   /** Live recalculation is off: formulas keep Excel's saved values and no engine is built. */
   private recalcOff = false;
+  /** Every formula takes the engine's result, whatever Excel saved (OpenOptions.savedValues). */
+  private ignoreSaved = false;
   /** What the structural change that made this session broke, to tell the user. */
   readonly structureWarnings: Text[] = [];
   /**
@@ -745,6 +754,7 @@ export class WorkbookSession {
     );
     session.stripMacros = model.hasMacros && macros === 'remove';
     const formulas = model.sheets.reduce((n, m) => n + (m.scan?.grid.formulas.size ?? 0), 0);
+    session.ignoreSaved = options.savedValues === 'ignore';
     const recalc = options.recalc ?? 'auto';
     session.recalcOff = recalc === 'off' || (recalc === 'auto' && (formulas > LIVE_RECALC_LIMITS.formulas || cells > LIVE_RECALC_LIMITS.cells));
     return session;
@@ -1266,7 +1276,7 @@ export class WorkbookSession {
         const row = rowOfIndex(grid, idx);
         const col = grid.cols[idx];
         if (this.edits[s].has(cellKey(row, col))) continue;
-        if (affected.has(`${s}:${row}:${col}`) || (this.comparedOnly && !this.comparedOnly.has(`${s}:${row}:${col}`))) {
+        if (this.ignoreSaved || affected.has(`${s}:${row}:${col}`) || (this.comparedOnly && !this.comparedOnly.has(`${s}:${row}:${col}`))) {
           this.values[s].set(cellKey(row, col), engine.value(s, row, col));
           continue;
         }
@@ -1924,6 +1934,11 @@ export class WorkbookSession {
 
   // ---------------------------------------------------------------------------
   // Conditional formatting
+
+  /** A cell's current value, as formulas see it: its own, or what its formula or a spill gives it. */
+  valueAt(sheet: number, row: number, col: number): EngineValue {
+    return this.cellValue(sheet, row, col);
+  }
 
   /** A cell's current value, as formulas and rules see it. */
   private cellValue(sheet: number, row: number, col: number): EngineValue {
@@ -2953,6 +2968,15 @@ export class WorkbookSession {
       return pkg.toBytes();
     }
     return writeWorkbook({ ...this.saveInput(), properties });
+  }
+
+  /**
+   * The workbook with every edit written in and every formula's saved value
+   * as worked out here, even with nothing edited: for recalculating a file,
+   * where save() would give back the bytes it was opened from.
+   */
+  saveRecalculated(): Uint8Array {
+    return writeWorkbook(this.saveInput());
   }
 
   /** The workbook with every edit written in, as a package. */

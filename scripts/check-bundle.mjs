@@ -8,7 +8,7 @@
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -50,6 +50,17 @@ for (const [dir, allowed] of [['packages/spreadsheet/dist/types', /^react(-dom)?
   for (const f of existsSync(path) ? readdirSync(path).filter((n) => n.endsWith('.d.ts')) : []) {
     const imported = [...readFileSync(join(path, f), 'utf8').matchAll(/(?:from|import\()\s*["']([^"'.][^"']*)["']/g)].map((m) => m[1]);
     for (const pkg of new Set(imported)) if (!allowed.test(pkg)) problems.push(`${dir}/${f}: imports ${pkg}, which hosts would have to install`);
+  }
+}
+// The Node build works on its own: it recalculates a sample, choosing its engine itself.
+const node = join(root, 'packages/spreadsheet/dist/node/index.js');
+if (existsSync(node)) {
+  try {
+    const { recalculate } = await import(pathToFileURL(node).href);
+    const result = await recalculate(readFileSync(join(root, 'examples/demo/public/samples/budget.xlsx')));
+    if (!result.sheets.length || !(result.bytes.length > 0)) problems.push(`${node}: recalculating a sample gave no workbook`);
+  } catch (e) {
+    problems.push(`packages/spreadsheet/dist/node/index.js: recalculating a sample failed: ${e instanceof Error ? e.message : e}`);
   }
 }
 for (const dir of PAGE_CODE) {

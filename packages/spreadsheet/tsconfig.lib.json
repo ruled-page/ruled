@@ -8,5 +8,5 @@
     "outDir": "dist/declarations",
     "rootDir": "src"
   },
-  "include": ["src/editor/index.ts", "src/editor/standalone.ts"]
+  "include": ["src/editor/index.ts", "src/editor/standalone.ts", "src/node/index.ts"]
 }
