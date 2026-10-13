@@ -17,6 +17,11 @@ async function useTheme(page: Page, name: string): Promise<void> {
 
 for (const theme of ['Default', 'Indigo', 'Paper', 'Dark', 'High contrast']) {
   test.describe(`accessibility, ${theme} theme`, () => {
+    // A scan of the whole page is slow, slowest in Firefox on CI's machines.
+    test.describe.configure({ timeout: 90_000 });
+    // The themes differ only in colour, whose contrast axe works out alike in every browser:
+    // Chromium checks them all, Firefox and WebKit the default and the dark.
+    test.skip(({ browserName }) => browserName !== 'chromium' && theme !== 'Default' && theme !== 'Dark', 'Chromium checks the other themes');
     test('start screen', async ({ page }) => {
       await page.goto('/');
       await useTheme(page, theme);
