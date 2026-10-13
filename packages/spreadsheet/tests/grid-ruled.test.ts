@@ -339,5 +339,10 @@ describe("drawing a sheet in Ruled's grid", () => {
     expect(r.calls.some((c) => c.op === 'stroke' && c.style === DEFAULT_PALETTE.dropdownArrow)).toBe(true);
     // Something was drawn behind the text of the cells with data bars, icons and the checkbox: more than their text and fills.
     expect(r.calls.filter((c) => c.op === 'arc').length).toBeGreaterThan(3);
+    // On a sheet read right to left, what sits at a cell's start or end is drawn mirrored across it, and the list's arrow at its left.
+    const rtl = new Recorder();
+    new Painter(rtl.ctx).draw(input(s, { frozenRows: 0, frozenCols: 0, rtl: true }, { selection: s.selection, activeList: true, fillHandle: true }));
+    expect(rtl.args('scale')).toContainEqual([-1, 1]);
+    expect(rtl.calls.some((c) => c.op === 'stroke' && c.style === DEFAULT_PALETTE.dropdownArrow)).toBe(true);
   });
 });

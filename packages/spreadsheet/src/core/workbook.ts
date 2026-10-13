@@ -478,6 +478,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
 
     const view = child(child(meta, 'sheetViews'), 'sheetView');
     if (attr(view, 'showGridLines') === '0' || attr(view, 'showGridLines') === 'false') info.showGridLines = false;
+    if (attr(view, 'rightToLeft') === '1' || attr(view, 'rightToLeft') === 'true') info.rightToLeft = true;
     const pane = child(view, 'pane');
     if (pane && /frozen/i.test(attr(pane, 'state') ?? '')) {
       info.frozenCols = Number(attr(pane, 'xSplit') ?? 0);

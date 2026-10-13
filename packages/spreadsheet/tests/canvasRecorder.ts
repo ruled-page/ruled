@@ -71,6 +71,7 @@ export class Recorder {
     this.record('strokeRect', args, this.strokeStyle);
   }
   setTransform = (...a: unknown[]) => this.record('setTransform', a);
+  scale = (...a: unknown[]) => this.record('scale', a);
   fillText(text: string, x: number, y: number) {
     this.calls.push({ op: 'fillText', args: [text, x, y], style: `${this.fillStyle} ${this.textAlign} ${this.font}` });
   }

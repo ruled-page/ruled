@@ -41,6 +41,18 @@ const reopen = (s: WorkbookSession) => open(s.save());
 const info = (s: WorkbookSession, name: string) => s.model.sheets.find((m) => m.info.name === name)!.info;
 const sheetXml = (s: WorkbookSession, n: number) => parts(s.save())[`xl/worksheets/sheet${n}.xml`];
 
+describe('a sheet read right to left', () => {
+  it('is read so, and stays so when its panes are frozen and it is saved', async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Arabic', { views: [{ rightToLeft: true }] }).addRow(['one', 1]);
+    const s = open(new Uint8Array(await wb.xlsx.writeBuffer()));
+    expect(info(s, 'Arabic').rightToLeft).toBe(true);
+    layout(s, 0, { kind: 'freeze', rows: 1, cols: 0 });
+    const t = info(reopen(s), 'Arabic');
+    expect([t.rightToLeft, t.frozenRows]).toEqual([true, 1]);
+  });
+});
+
 describe('layout changes', () => {
   it('are saved: widths, heights, hidden rows and columns, frozen panes and merges', () => {
     const s = open();

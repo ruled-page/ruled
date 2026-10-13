@@ -108,6 +108,7 @@ export function AccessTable({ store, view, selection, drawn, rows, cols, activeR
     <table
       className="wbe-grid-access"
       role="grid"
+      dir={view.info.rightToLeft ? 'rtl' : undefined}
       aria-label={t('grid.label', { name: view.info.name })}
       aria-rowcount={(view.visibleRows[view.rowCount - 1] ?? -1) + 1}
       aria-colcount={(view.visibleCols[view.colCount - 1] ?? -1) + 1}

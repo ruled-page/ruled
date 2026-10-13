@@ -48,6 +48,8 @@ export interface GridView {
   frozenCols: number;
   /** Where the frozen columns end on screen, or the row numbers without any: columns that scroll pass under them. */
   freezeX: number;
+  /** The sheet reads right to left: its columns run leftwards from the row numbers, at the right. */
+  rtl?: boolean;
 }
 
 /** What the editor asks of a grid. */

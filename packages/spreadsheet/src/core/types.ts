@@ -485,6 +485,8 @@ export interface SheetInfo {
   /** Its protection still lets rows, or columns, be formatted (Excel's "Format rows" and "Format columns"): hidden, shown and grouped. */
   formatAllowed?: { rows: boolean; cols: boolean };
   showGridLines: boolean;
+  /** The sheet reads right to left, column A at the right, as Excel shows sheets in Arabic or Hebrew. */
+  rightToLeft?: boolean;
   tabColor?: string;
 }
 

@@ -134,6 +134,13 @@ describe('moving the selection with the keyboard, as Excel does', () => {
     expect(navigate(inMerge, key('Enter'), merged)).toBeUndefined();
   });
 
+  it('steps the way the arrows point on a sheet read right to left, Tab still going on to the next column', () => {
+    const rtl: NavSheet = { ...sheet, rtl: true };
+    expect(navigate(at(2, 2), key('ArrowLeft'), rtl)?.selection.col).toBe(4);
+    expect(navigate(at(2, 2), key('ArrowRight'), rtl)?.selection.col).toBe(1);
+    expect(navigate(at(2, 2), key('Tab'), rtl)?.selection.col).toBe(4);
+  });
+
   it('shrinks the selection to the active cell with Shift+Backspace, and brings it into view with Ctrl+Backspace', () => {
     const range: Selection = { row: 1, col: 1, rects: [{ r1: 1, r2: 4, c1: 1, c2: 2 }] };
     expect(navigate(range, key('Backspace', { shiftKey: true }), sheet)?.selection).toEqual(at(1, 1));

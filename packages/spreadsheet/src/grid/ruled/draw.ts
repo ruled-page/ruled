@@ -309,11 +309,23 @@ export class Painter {
     for (const m of merges) fn(this.mergeBox(layout, view, m), m.r1, m.c1, this.look(input, m.r1, m.c1, m));
   }
 
+  /** Draws `fn` mirrored across a box when the sheet reads right to left, so what sits at a cell's start or end swaps sides. */
+  private mirrored(input: PaintInput, box: Box, fn: () => void): void {
+    if (!input.layout.spec.rtl) return fn();
+    this.ctx.save();
+    this.ctx.translate(2 * box.x + box.width, 0);
+    this.ctx.scale(-1, 1);
+    fn();
+    this.ctx.restore();
+  }
+
   /** What sits behind a cell's text: a conditional format's data bar or icon, and a checkbox in place of TRUE or FALSE. */
   private drawBehind(input: PaintInput, box: Box, row: number, col: number, look: Look): void {
     const cf = input.view.cfAt(row, col);
-    if (cf?.bar) drawDataBar(this.ctx, box, cf.bar);
-    if (cf?.icon) drawIcon(this.ctx, cf.icon.set, cf.icon.index, box.x + 3, box.y + (box.height - 14) / 2);
+    this.mirrored(input, box, () => {
+      if (cf?.bar) drawDataBar(this.ctx, box, cf.bar);
+      if (cf?.icon) drawIcon(this.ctx, cf.icon.set, cf.icon.index, box.x + 3, box.y + (box.height - 14) / 2);
+    });
     const rec = input.view.get(row, col);
     const ticked = look.style.checkbox ? checkboxState(rec, look.style) : undefined;
     if (ticked !== undefined) drawCheckbox(this.ctx, checkboxBox(box, look.style), ticked, look.color, look.fill ?? input.palette.bg);
@@ -327,6 +339,10 @@ export class Painter {
    * while it checks).
    */
   private drawMarks(input: PaintInput, box: Box, row: number, col: number): void {
+    this.mirrored(input, box, () => this.drawMarksLtr(input, box, row, col));
+  }
+
+  private drawMarksLtr(input: PaintInput, box: Box, row: number, col: number): void {
     const { ctx } = this;
     const { view, palette } = input;
     const button = view.filterButtonAt(row, col);
@@ -389,8 +405,9 @@ export class Painter {
       const first = boxes[0] ?? active;
       if (first) this.outline(first, 2);
       // The active cell's dropdown arrow, when it picks from a list, as Excel's list validation shows it.
+      const rtl = input.layout.spec.rtl;
       if (active && input.activeList) {
-        const cx = active.x + active.width - 10;
+        const cx = rtl ? active.x + 10 : active.x + active.width - 10;
         const cy = active.y + active.height / 2 + 1;
         ctx.save();
         ctx.beginPath();
@@ -404,7 +421,7 @@ export class Painter {
       }
       // The fill handle, edged in the colour drawn on the selection so it stands out on any cell.
       if (first && input.fillHandle) {
-        const x = first.x + first.width;
+        const x = rtl ? first.x : first.x + first.width;
         const y = first.y + first.height;
         ctx.fillStyle = palette.onSelection;
         ctx.fillRect(x - 4, y - 4, 8, 8);

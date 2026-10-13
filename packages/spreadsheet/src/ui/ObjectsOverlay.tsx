@@ -19,8 +19,9 @@ interface Box {
   top: number;
   width: number;
   height: number;
-  /** How much of its left side is under the frozen columns (or the row numbers) and not drawn. */
+  /** How much of its left side, or its right on a sheet read right to left, is under the frozen columns (or the row numbers) and not drawn. */
   clipLeft: number;
+  clipRight: number;
   /** The lower part of an object anchored in the frozen rows above; that pane has the object itself. */
   continued: boolean;
   /** It can be moved, resized and deleted. */
@@ -148,7 +149,9 @@ export function ObjectsOverlay({
       if (refRow - obj.from.row > 5000) return;
       const a = handle.cellBox(refRow, obj.from.col);
       if (!a) return;
-      const left = a.x + obj.from.colOffPx;
+      // Anchored from its cell's start edge: the right one, on a sheet read right to left.
+      const left = at.rtl ? a.x + a.width - obj.from.colOffPx - size.width : a.x + obj.from.colOffPx;
+      const scrolls = obj.from.col >= view.info.frozenCols;
       out.push({
         key: `${i}`,
         id: objectKey(obj),
@@ -157,7 +160,8 @@ export function ObjectsOverlay({
         top: a.y - rowsHeight(view, obj.from.row, refRow) + obj.from.rowOffPx - origin.top,
         width: size.width,
         height: size.height,
-        clipLeft: obj.from.col >= view.info.frozenCols ? Math.max(0, freezeX - left) : 0,
+        clipLeft: scrolls && !at.rtl ? Math.max(0, freezeX - left) : 0,
+        clipRight: scrolls && at.rtl ? Math.max(0, left + size.width - freezeX) : 0,
         continued: obj.from.row < firstRow,
         editable: objectEditable(view.info, obj),
       });
@@ -260,7 +264,7 @@ export function ObjectsOverlay({
     <>
       <div className="wbe-objects-overlay" ref={host} style={area}>
         {boxes.map((b) => {
-          const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined };
+          const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft || b.clipRight ? `inset(0 ${b.clipRight}px 0 ${b.clipLeft}px)` : undefined };
           const placeholder = <Placeholder box={b} style={style} />;
           return b.obj.kind === 'chart' ? (
             <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
@@ -274,7 +278,7 @@ export function ObjectsOverlay({
             <div
               key={`hit-${b.key}`}
               className="wbe-object-hit"
-              style={{ ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined }}
+              style={{ ...placed(b), clipPath: b.clipLeft || b.clipRight ? `inset(0 ${b.clipRight}px 0 ${b.clipLeft}px)` : undefined }}
               onMouseDown={(e) => begin(e, b, 'move')}
               onDoubleClick={() => openEditor(b)}
               onContextMenu={(e) => onMenu(e, b)}

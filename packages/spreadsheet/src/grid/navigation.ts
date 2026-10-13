@@ -24,6 +24,8 @@ export interface NavSheet {
   pageCols: number;
   /** The sheet's merged cells, and the merge a cell is part of. */
   merges: readonly Rect[];
+  /** The sheet reads right to left, so the left and right arrows step to the next column and the one before. */
+  rtl?: boolean;
   mergeAt(row: number, col: number): Rect | undefined;
 }
 
@@ -61,6 +63,7 @@ export function navSheet(view: SheetView, pageRows: number, pageCols: number): N
     pageCols: Math.max(1, pageCols),
     merges: view.info.merges,
     mergeAt: (row, col) => view.mergeAt(row, col),
+    rtl: !!view.info.rightToLeft,
   };
 }
 
@@ -186,7 +189,9 @@ export function navigate(sel: Selection, e: NavKey, sheet: NavSheet): { selectio
   let to: { row: number; col: number } | undefined;
   const arrow = ARROWS[e.key];
   if (arrow && !e.altKey) {
-    const [dr, dc] = arrow;
+    const dr = arrow[0];
+    // The arrows go the way they point on screen: left is the next column on a sheet read right to left.
+    const dc = sheet.rtl ? -arrow[1] : arrow[1];
     const start = e.shiftKey ? from : stepFrom(dr, dc);
     to = e.command
       ? edge(sheet, start.row, start.col, dr, dc)

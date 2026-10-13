@@ -79,6 +79,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, layoutVersion, rowCount]);
   const numbers = Math.max(40, String(view.visibleRows[rowCount - 1] + 1).length * 8 + 16);
+  /** The sheet reads right to left: column A at the right, the row numbers beside it. */
+  const rtl = !!view.info.rightToLeft;
   const contentWidth = numbers + axes.cols.total;
   const contentHeight = LETTERS + axes.rows.total;
 
@@ -99,8 +101,9 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       letters: LETTERS,
       scrollX: contentScroll(Math.abs(sc.scrollLeft), numbers + axes.cols.total, width),
       scrollY: contentScroll(sc.scrollTop, LETTERS + axes.rows.total, height),
+      rtl,
     });
-  }, [axes, frozen, numbers]);
+  }, [axes, frozen, numbers, rtl]);
 
   /** Where cells dragged by the selection's border, or filled by its handle, would go. */
   const [landing, setLanding] = useState<Rect | null>(null);
@@ -171,6 +174,9 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     if (!el || !layout || !ctx) return;
     const { width, height } = layout.spec;
     const dpr = window.devicePixelRatio || 1;
+    // A sheet read right to left has its scrollbar at the left, and the cells after it.
+    const sc = scroller.current;
+    el.style.left = rtl && sc ? `${sc.offsetWidth - sc.clientWidth}px` : '';
     if (el.width !== Math.round(width * dpr) || el.height !== Math.round(height * dpr)) {
       el.width = Math.round(width * dpr);
       el.height = Math.round(height * dpr);
@@ -269,7 +275,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
           panes,
           cols: [...of(fc.first, fc.last, view.visibleCols), ...of(cr.first, cr.last, view.visibleCols)],
           frozenCols: fc.last + 1,
-          freezeX: at.left + (fc.last >= 0 ? bodyX : numbers) - 1,
+          freezeX: rtl ? at.left + layout.spec.width - (fc.last >= 0 ? bodyX : numbers) : at.left + (fc.last >= 0 ? bodyX : numbers) - 1,
+          rtl,
         };
       },
       cellBox(row, col) {
@@ -299,7 +306,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         return () => listeners.current.delete(fn);
       },
     };
-  }, [view, layoutNow, numbers, rowCount]);
+  }, [view, layoutNow, numbers, rowCount, rtl]);
   useEffect(() => {
     onHandle(handle);
     return () => onHandle(undefined);
@@ -324,10 +331,10 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       }
       if (gc > layout.frozenColRun.last) {
         const x = fit(cols.start(gc) - cols.start(layout.frozenColRun.last + 1), cols.size(gc), scrollX, width - layout.bodyX);
-        if (x !== undefined) sc.scrollLeft = scrollerPosition(Math.max(0, x), contentWidth, width);
+        if (x !== undefined) sc.scrollLeft = (rtl ? -1 : 1) * scrollerPosition(Math.max(0, x), contentWidth, width);
       }
     },
-    [view, layoutNow, contentHeight, contentWidth],
+    [view, layoutNow, contentHeight, contentWidth, rtl],
   );
   /** A cell to bring into view once the grid has drawn the rows and columns it may have added. */
   const pending = useRef<{ row: number; col: number }>(undefined);
@@ -534,19 +541,20 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       const at = canvas.current?.getBoundingClientRect();
       const layout = layoutNow();
       if (pointer && at && layout) {
-        const x = pointer.x - at.left;
+        // From the start edge, which is the right for a sheet read right to left.
+        const x = rtl ? at.right - pointer.x : pointer.x - at.left;
         const y = pointer.y - at.top;
         const dx = x > layout.spec.width ? DRAG_STEP : x < layout.bodyX && layout.spec.scrollX > 0 ? -DRAG_STEP : 0;
         const dy = y > layout.spec.height ? DRAG_STEP : y < layout.bodyY && layout.spec.scrollY > 0 ? -DRAG_STEP : 0;
         if (dx || dy) {
-          scroller.current?.scrollBy(dx, dy);
+          scroller.current?.scrollBy(rtl ? -dx : dx, dy);
           onMove(pointer.x, pointer.y, pointer.e);
         }
       }
       frameId = requestAnimationFrame(scroll);
     };
     if (!still) frameId = requestAnimationFrame(scroll);
-    const move = (m: MouseEvent) => {
+    const move = (m: PointerEvent) => {
       pointer = { x: m.clientX, y: m.clientY, e: m };
       onMove(m.clientX, m.clientY, m);
     };
@@ -562,25 +570,31 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     };
     const end = (cancelled: boolean) => {
       cancelAnimationFrame(frameId);
-      window.removeEventListener('mousemove', move, true);
-      window.removeEventListener('mouseup', up, true);
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('keyup', key, true);
       onEnd?.(cancelled);
     };
     const up = () => end(false);
-    window.addEventListener('mousemove', move, true);
-    window.addEventListener('mouseup', up, true);
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
     window.addEventListener('keydown', key, true);
     window.addEventListener('keyup', key, true);
   };
 
   /** A press on a cell: selects it, Shift reaching from the active cell, Ctrl (⌘) adding a range; a drag spans more. Merges are taken whole. */
-  const pressCell = (e: ReactMouseEvent, row: number, col: number) => {
+  const pressCell = (e: ReactMouseEvent, row: number, col: number, drags = true) => {
     const sel = store.selection;
     const command = APPLE ? e.metaKey : e.ctrlKey;
     const box = handle.cellBox(row, col);
-    const inside = (b: { x: number; y: number; size: number }, pad = 0) => e.clientX >= b.x - pad && e.clientX <= b.x + b.size + pad && e.clientY >= b.y - pad && e.clientY <= b.y + b.size + pad;
+    const inside = (square: { x: number; y: number; size: number }, pad = 0) => {
+      // Mirrored across the cell for a sheet read right to left, as it is drawn.
+      const b = rtl && box ? { ...square, x: 2 * box.x + box.width - square.x - square.size } : square;
+      return e.clientX >= b.x - pad && e.clientX <= b.x + b.size + pad && e.clientY >= b.y - pad && e.clientY <= b.y + b.size + pad;
+    };
     // A filter button opens its column's filter menu, leaving the selection where it is.
     const button = view.filterButtonAt(row, col);
     if (button && box && inside(filterButtonBox(box))) {
@@ -606,6 +620,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     const rest = command ? sel.rects : e.shiftKey ? sel.rects.slice(1) : [];
     const select = (to: { row: number; col: number }) => store.setSelection({ row: anchor.row, col: anchor.col, rects: [growOverMerges(span(anchor, to), view.info.merges), ...rest] });
     select({ row, col });
+    if (!drags) return;
     follow((x, y) => {
       const to = handle.cellNear(x, y);
       if (to) select(to);
@@ -643,13 +658,13 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     const { numbers, letters } = layout.spec;
     const runs = (a: { first: number; last: number }, b: { first: number; last: number }) => [a, b].flatMap((r) => Array.from({ length: Math.max(0, r.last - r.first + 1) }, (_, i) => r.first + i));
     // A column's right edge, among the letters; a row's bottom edge, among the numbers.
-    if (y < letters && x >= numbers) {
+    if (y < letters && layout.hit(x, y).area === 'letters') {
       for (const gc of runs(layout.frozenColRun, layout.colRun)) {
         const b = layout.colHeading(gc);
-        if (Math.abs(x - (b.x + b.width)) <= 5) return { kind: 'col', col: view.visibleCols[gc] };
+        if (Math.abs(x - (rtl ? b.x : b.x + b.width)) <= 5) return { kind: 'col', col: view.visibleCols[gc] };
       }
     }
-    if (x < numbers && y >= letters) {
+    if ((rtl ? x > layout.spec.width - numbers : x < numbers) && y >= letters) {
       for (const gr of runs(layout.frozenRowRun, layout.rowRun)) {
         const b = layout.rowHeading(gr);
         if (Math.abs(y - (b.y + b.height)) <= 3) return { kind: 'row', row: view.visibleRows[gr], edge: b.y + b.height };
@@ -657,13 +672,13 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     }
     const sel = store.selection;
     const r = sel.rects[0];
-    if (store.touchMode || sel.rects.length !== 1 || sel.lines === 'all' || !r || x < numbers || y < letters) return undefined;
+    if (store.touchMode || sel.rects.length !== 1 || sel.lines === 'all' || !r || layout.hit(x, y).area !== 'cells') return undefined;
     const area = view.gridSpan(r);
     const b = area && layout.span(area.y1, area.y2, area.x1, area.x2);
     if (!b) return undefined;
     const [left, top, right, bottom] = [b.x, b.y, b.x + b.width, b.y + b.height];
     const near = (p: number, edge: number) => Math.abs(p - edge) <= 4;
-    if (near(x, right) && near(y, bottom)) return sel.lines ? undefined : { kind: 'fill' };
+    if (near(x, rtl ? left : right) && near(y, bottom)) return sel.lines ? undefined : { kind: 'fill' };
     const across = x >= left - 4 && x <= right + 4;
     const down = y >= top - 4 && y <= bottom + 4;
     return (across && (near(y, top) || near(y, bottom))) || (down && (near(x, left) || near(x, right))) ? { kind: 'border' } : undefined;
@@ -677,7 +692,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     let px = from;
     follow(
       (x) => {
-        px = Math.min(1200, Math.max(18, Math.round(from + x - start)));
+        px = Math.min(1200, Math.max(18, Math.round(from + (rtl ? start - x : x - start))));
         view.colWidths.set(col, px);
         setSized((n) => n + 1);
       },
@@ -791,14 +806,15 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
           const h = host.current?.getBoundingClientRect();
           if (cell && h) {
             // The edge nearest the pointer, for the cell's shape: top or bottom puts the cells between rows, left or right between columns.
-            const fx = (x - h.left - cell.left) / (cell.right - cell.left);
+            // Across the cell from its start edge: the right one, for a sheet read right to left.
+            const fx = rtl ? (cell.right - (x - h.left)) / (cell.right - cell.left) : (x - h.left - cell.left) / (cell.right - cell.left);
             const fy = (y - h.top - cell.top) / (cell.bottom - cell.top);
             const sideways = Math.min(fx, 1 - fx) < Math.min(fy, 1 - fy);
             insert = sideways ? { row, col: fx < 0.5 ? at.col : at.col + 1, shift: 'right' } : { row: fy < 0.5 ? at.row : at.row + 1, col, shift: 'down' };
             const line = sideways ? boxOf({ r1: row, c1: at.col, r2: row + height, c2: at.col }) : boxOf({ r1: at.row, c1: col, r2: at.row, c2: col + width });
             if (line)
               guide = sideways
-                ? { x: fx < 0.5 ? line.left : line.right, y: line.top, width: 0, height: line.bottom - line.top }
+                ? { x: (fx < 0.5) !== rtl ? line.left : line.right, y: line.top, width: 0, height: line.bottom - line.top }
                 : { x: line.left, y: fy < 0.5 ? line.top : line.bottom, width: line.right - line.left, height: 0 };
           }
         }
@@ -819,19 +835,29 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
 
   /** A double-click that a press took (on a line's edge or the fill handle) isn't also one that edits. */
   const tookDouble = useRef(false);
+  /** The last press, to tell a second one soon after, at the same place, as a double-click. */
+  const lastPress = useRef({ at: 0, x: 0, y: 0 });
 
-  const onMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+  /**
+   * A press with a mouse or a pen, or a tap with a finger (whose drags
+   * scroll): on a line's edge, the fill handle or the selection's border it
+   * takes hold of them; elsewhere it selects.
+   */
+  const press = (e: ReactMouseEvent<HTMLDivElement>, drags: boolean) => {
     const sc = scroller.current;
     const layout = layoutNow();
     const { x, y } = local(e);
-    // Presses on the scrollbars scroll.
-    if (!sc || !layout || e.button !== 0 || x >= sc.clientWidth || y >= sc.clientHeight) return;
+    // Presses on the scrollbars scroll; they are at the left for a sheet read right to left.
+    const bar = sc ? sc.offsetWidth - sc.clientWidth : 0;
+    if (!sc || !layout || e.button !== 0 || (rtl ? x < bar : x >= sc.clientWidth) || y >= sc.clientHeight) return;
     e.preventDefault();
     store.selectObject(undefined);
     // The grid takes the focus, which then follows the active cell.
     activeCell.current?.focus({ preventScroll: true });
     wantFocus.current = true;
-    const twice = e.detail >= 2;
+    const now = performance.now();
+    const twice = now - lastPress.current.at < 500 && Math.abs(e.clientX - lastPress.current.x) < 5 && Math.abs(e.clientY - lastPress.current.y) < 5;
+    lastPress.current = twice ? { at: 0, x: 0, y: 0 } : { at: now, x: e.clientX, y: e.clientY };
     tookDouble.current = false;
     const grab = grabAt(x, y, layout);
     if (grab?.kind === 'col' || grab?.kind === 'row') {
@@ -854,7 +880,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     }
     const hit = layout.hit(x, y);
     if (hit.area === 'corner') store.selectAll();
-    else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col]);
+    else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col], drags);
     else if (hit.area === 'numbers') pressHeading(e, 'rows', view.visibleRows[hit.row]);
     else pressHeading(e, 'cols', view.visibleCols[hit.col]);
   };
@@ -869,15 +895,20 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
 
   /** Right-clicking outside the selection selects what was clicked first, as Excel does, then opens the menu for it. */
   const onContextMenu = (e: ReactMouseEvent) => {
+    e.preventDefault();
+    // A long press has already opened it.
+    if (performance.now() - longPressed.current < 1000) return;
+    openMenu(e.clientX, e.clientY);
+  };
+  const openMenu = (clientX: number, clientY: number) => {
     const layout = layoutNow();
     if (!layout) return;
-    e.preventDefault();
-    const { x, y } = local(e);
+    const { x, y } = local({ clientX, clientY });
     const hit = layout.hit(x, y);
     const sel = store.selection;
     const row = view.visibleRows[hit.row];
     const col = view.visibleCols[hit.col];
-    const at = { x: e.clientX, y: e.clientY };
+    const at = { x: clientX, y: clientY };
     if (hit.area === 'cells') {
       if (!sel.rects.some((r) => inRect(r, row, col))) store.setSelection({ row, col, rects: [span({ row, col }, { row, col })] });
       store.set('menu', { ...at, kind: 'cell' });
@@ -922,6 +953,47 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     if (store.touchFill && !(e.target as Element).closest('.wbe-touch-handle')) store.set('touchFill', false);
   };
 
+  // A finger held still on a cell for half a second opens the cell menu, as a right-click does; iOS doesn't say so itself.
+  const longPress = useRef<{ timer: number; x: number; y: number } | undefined>(undefined);
+  const longPressed = useRef(0);
+  const endLongPress = () => {
+    clearTimeout(longPress.current?.timer);
+    longPress.current = undefined;
+  };
+  /** Mouse and pen presses come as pointer events; a finger's taps as the mouse events that follow them, so its drags scroll. */
+  const onScrollerPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch') return press(e, true);
+    const at = { x: e.clientX, y: e.clientY };
+    endLongPress();
+    longPress.current = {
+      ...at,
+      timer: window.setTimeout(() => {
+        longPress.current = undefined;
+        if (store.menu) return;
+        longPressed.current = performance.now();
+        openMenu(at.x, at.y);
+      }, 500),
+    };
+  };
+  const onScrollerPointerMove = (e: ReactPointerEvent) => {
+    const held = longPress.current;
+    if (held && Math.hypot(e.clientX - held.x, e.clientY - held.y) > 8) endLongPress();
+  };
+  const onScrollerMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (store.touchMode) press(e, false);
+  };
+  // An Apple Pencil selects, as a mouse does, rather than scrolling as a finger does.
+  useEffect(() => {
+    const sc = scroller.current;
+    if (!sc) return;
+    const stylus = (e: TouchEvent) => {
+      // Safari says which touches are a stylus's.
+      if ([...e.touches].some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus')) e.preventDefault();
+    };
+    sc.addEventListener('touchstart', stylus, { passive: false });
+    return () => sc.removeEventListener('touchstart', stylus);
+  }, []);
+
   const tableLayout = drawn.current?.input.layout;
   return (
     <div
@@ -949,13 +1021,18 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         }}
         onComposed={(text) => startEdit(text)}
       />
-      {edit && <CellEditorBox store={store} edit={edit} box={editBox(edit)} palette={palette} onText={(text) => setEdit((e) => e && { ...e, text })} finish={finishEdit} onMode={() => setEdit((e) => e && { ...e, mode: e.mode === 'edit' ? 'enter' : 'edit' })} />}
+      {edit && <CellEditorBox store={store} edit={edit} box={editBox(edit)} palette={palette} rtl={rtl} onText={(text) => setEdit((e) => e && { ...e, text })} finish={finishEdit} onMode={() => setEdit((e) => e && { ...e, mode: e.mode === 'edit' ? 'enter' : 'edit' })} />}
       <div
         className="wbe-grid-scroller"
         ref={scroller}
         data-testid="wbe-grid-scroller"
         tabIndex={-1}
-        onMouseDown={onMouseDown}
+        style={rtl ? { direction: 'rtl' } : undefined}
+        onPointerDown={onScrollerPointerDown}
+        onPointerMove={onScrollerPointerMove}
+        onPointerUp={endLongPress}
+        onPointerCancel={endLongPress}
+        onMouseDown={onScrollerMouseDown}
         onContextMenu={onContextMenu}
         onDoubleClick={onDoubleClick}
         onMouseMove={onMouseMove}

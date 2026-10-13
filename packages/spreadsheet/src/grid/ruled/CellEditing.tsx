@@ -34,6 +34,8 @@ interface Props {
   /** The cell's box on the page; undefined while it is scrolled out of view. */
   box: Box | undefined;
   palette: GridPalette;
+  /** The sheet reads right to left, where the left arrow goes on to the next column. */
+  rtl: boolean;
   onText: (text: string) => void;
   /** Ends editing: entering `text`, or leaving the cell as it was for undefined, then moving. */
   finish: (text: string | undefined, move: EditMove) => void;
@@ -47,7 +49,7 @@ interface Props {
  * new line), Tab across, Escape gives up, and a click elsewhere keeps what
  * was typed.
  */
-export function CellEditorBox({ store, edit, box, palette, onText, finish, onMode }: Props) {
+export function CellEditorBox({ store, edit, box, palette, rtl, onText, finish, onMode }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
   const latest = useRef({ text: edit.text, finish });
   latest.current = { text: edit.text, finish };
@@ -73,7 +75,10 @@ export function CellEditorBox({ store, edit, box, palette, onText, finish, onMod
     } else if (e.key === 'Enter' && !e.shiftKey && !mods) finish(edit.text, [0, 1]);
     else if (e.key === 'Tab' && !mods) finish(edit.text, [e.shiftKey ? -1 : 1, 0]);
     else if (e.key === 'F2' && !mods && !e.shiftKey) onMode();
-    else if (ARROWS[e.key] && edit.mode === 'enter' && !mods && !e.shiftKey && !edit.text.startsWith('=')) finish(edit.text, ARROWS[e.key]);
+    else if (ARROWS[e.key] && edit.mode === 'enter' && !mods && !e.shiftKey && !edit.text.startsWith('=')) {
+      const [dx, dy] = ARROWS[e.key];
+      finish(edit.text, [rtl ? (-dx as EditMove[0]) : dx, dy]);
+    }
     else return;
     e.preventDefault();
     e.stopPropagation();

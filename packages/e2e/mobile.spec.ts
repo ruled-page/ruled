@@ -165,3 +165,17 @@ test('meets the accessibility checks on a phone', async ({ page }) => {
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 });
+
+test('holding a finger on a cell opens the cell menu', async ({ page }) => {
+  test.skip(process.env.E2E_GRID !== 'ruled', "Glide's grid opens no menu for a long press");
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  const box = (await gridSurface(page).first().boundingBox())!;
+  // B3: 40 pixel row numbers, then 64 pixel columns, under a 24 pixel heading.
+  const at = { x: Math.round(box.x + 40 + 64 + 32), y: Math.round(box.y + 24 + 2 * 20 + 10) };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await page.waitForTimeout(800);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B3');
+});
