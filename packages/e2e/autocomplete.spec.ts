@@ -23,8 +23,7 @@ test("finishes text from the cells above as it's typed, in their case, as Excel'
   await goTo(page, 'A5');
   await page.keyboard.type('n');
   await expect(entry).toHaveValue('nuts');
-  // Held a moment, as a person's key would be: an Enter straight after a Backspace can be lost under load.
-  await page.keyboard.press('Backspace', { delay: 50 });
+  await page.keyboard.press('Backspace');
   await expect(entry).toHaveValue('n');
   await page.keyboard.press('Enter');
   await expect(shown(page, 'A5')).toHaveText('n');

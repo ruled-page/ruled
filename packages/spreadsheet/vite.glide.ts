@@ -35,6 +35,18 @@ const PATCHES: Patch[] = [
     replace: () => 'document.getElementById("wbe-portal")',
   },
   /*
+   * Glide's overlay schedules a finish for every key pressed in a cell
+   * editor, and each reads where to move once it runs, not when its key was
+   * pressed. A Backspace's, still waiting when Enter comes a moment later,
+   * finishes without saving, and Enter's then finds editing over: the edit is
+   * lost. Only the keys that finish editing (Enter, Tab, Escape) schedule one.
+   */
+  {
+    file: /glide-data-grid[\\/]dist[\\/]esm[\\/]internal[\\/]data-grid-overlay-editor[\\/]data-grid-overlay-editor\.js$/,
+    find: /(\n\s*)window\.setTimeout\(\(\) => \{\s*if \(!finished\.current && customMotion\.current !== undefined\)/,
+    replace: (m) => `${m[1]}if (!save && event.key !== "Escape") return;${m[0]}`,
+  },
+  /*
    * Glide's table for screen readers numbers rows and columns by their place
    * in the grid, with the column letters as row 1, so B5 is read as row 6,
    * column 3, and rows and columns after hidden ones, or below frozen ones,
