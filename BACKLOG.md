@@ -71,13 +71,6 @@ needs no server, and nothing here should add one.
 
 Small gaps found along the way.
 
-- **Enter pressed within a few milliseconds of Backspace** can lose the cell
-  edit when the page is busy. A person's keys are rarely that quick;
-  `packages/e2e/autocomplete.spec.ts` holds its Backspace a moment to avoid
-  it.
-- **Dragging the fill handle doesn't copy links**, as copying and pasting
-  does. `copyLinks` in `packages/spreadsheet/src/core/links.ts` tiles them; filling upwards or
-  leftwards needs the tiles lined up from the far end.
 - **The function list doesn't offer the workbook's names or tables** as it
   types, as Excel's does. They work in formulas; only the suggestions miss
   them (`packages/spreadsheet/src/core/formulaAssist.ts`).

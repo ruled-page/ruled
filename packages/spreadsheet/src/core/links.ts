@@ -241,9 +241,10 @@ const MAX_COPIED = 10_000;
  * The change that copies the links in `src` (from `from`, the source sheet's
  * links) to `dst`, tiling it as cells are copied: the links `dst` had go,
  * as Excel's paste replaces them. A link that covers all of `src` covers all
- * of `dst`.
+ * of `dst`. The tiles start at `origin`'s corner: `dst`'s for a paste, and
+ * the source's for a fill, which may run up or left from it.
  */
-export function copyLinks(from: readonly Hyperlink[], src: Rect, to: readonly Hyperlink[], dst: Rect): { add: Hyperlink[]; remove: Hyperlink[] } {
+export function copyLinks(from: readonly Hyperlink[], src: Rect, to: readonly Hyperlink[], dst: Rect, origin: Rect = dst): { add: Hyperlink[]; remove: Hyperlink[] } {
   const change = replaceLinks(to, [dst]);
   const h = src.r2 - src.r1 + 1;
   const w = src.c2 - src.c1 + 1;
@@ -255,15 +256,16 @@ export function copyLinks(from: readonly Hyperlink[], src: Rect, to: readonly Hy
       change.add.push({ rect: { ...dst }, ...fieldsOf(l) });
       continue;
     }
-    for (let top = dst.r1; top <= dst.r2 && made < MAX_COPIED; top += h) {
-      for (let left = dst.c1; left <= dst.c2 && made < MAX_COPIED; left += w) {
+    const mod = (a: number, n: number) => ((a % n) + n) % n;
+    for (let top = dst.r1 - mod(dst.r1 - origin.r1, h); top <= dst.r2 && made < MAX_COPIED; top += h) {
+      for (let left = dst.c1 - mod(dst.c1 - origin.c1, w); left <= dst.c2 && made < MAX_COPIED; left += w) {
         const rect = {
-          r1: top + part.r1 - src.r1,
-          c1: left + part.c1 - src.c1,
+          r1: Math.max(dst.r1, top + part.r1 - src.r1),
+          c1: Math.max(dst.c1, left + part.c1 - src.c1),
           r2: Math.min(dst.r2, top + part.r2 - src.r1),
           c2: Math.min(dst.c2, left + part.c2 - src.c1),
         };
-        if (rect.r1 > dst.r2 || rect.c1 > dst.c2) continue;
+        if (rect.r1 > rect.r2 || rect.c1 > rect.c2) continue;
         change.add.push({ rect, ...fieldsOf(l) });
         made++;
       }

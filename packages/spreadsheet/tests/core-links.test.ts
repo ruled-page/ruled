@@ -210,6 +210,17 @@ describe('links and cells', () => {
     expect(reopen(s).model.sheets[1].info.links.map((l) => l.rect.r1)).toEqual([0, 1]);
   });
 
+  it('are filled with their cells, down from the source or up from it', () => {
+    const s = open();
+    // A1 and A2 are links, A3 isn't: filled down to A9, the pattern repeats.
+    s.apply({ type: 'fill', sheet: 1, src: rect(0, 0, 2, 0), dst: rect(0, 0, 8, 0) });
+    const linked = () => reopen(s).model.sheets[1].info.links.map((l) => [l.rect.r1, linkAddress(l)] as const).sort((a, b) => a[0] - b[0]);
+    expect(linked()).toEqual([[0, 'https://example.com/a'], [1, 'Plain!B2'], [3, 'https://example.com/a'], [4, 'Plain!B2'], [6, 'https://example.com/a'], [7, 'Plain!B2']]);
+    // A8 (a link) and A9 (none), filled up to A4: A7 is as A9, A6 as A8, and so on, the links there before going.
+    s.apply({ type: 'fill', sheet: 1, src: rect(7, 0, 8, 0), dst: rect(3, 0, 8, 0) });
+    expect(linked()).toEqual([[0, 'https://example.com/a'], [1, 'Plain!B2'], [3, 'Plain!B2'], [5, 'Plain!B2'], [7, 'Plain!B2']]);
+  });
+
   it('are copied to another sheet', () => {
     const s = open();
     s.apply({ type: 'copy', srcSheet: 1, src: rect(0, 0), sheet: 0, dst: rect(5, 5) });

@@ -2147,7 +2147,13 @@ export class WorkbookSession {
         break;
       }
       case 'fill': {
-        warnings.push(...this.planFillWrites(op.sheet, op.src, op.dst, op.lists ?? ENGLISH_LISTS, put));
+        const { src, dst } = op;
+        warnings.push(...this.planFillWrites(op.sheet, src, dst, op.lists ?? ENGLISH_LISTS, put));
+        // Links go with the cells, tiled from the source the way it is filled.
+        const down = dst.r1 < src.r1 || dst.r2 > src.r2;
+        const filled = down ? (dst.r2 > src.r2 ? { ...src, r1: src.r2 + 1, r2: dst.r2 } : { ...src, r1: dst.r1, r2: src.r1 - 1 }) : dst.c2 > src.c2 ? { ...src, c1: src.c2 + 1, c2: dst.c2 } : { ...src, c1: dst.c1, c2: src.c1 - 1 };
+        const list = this.linksOf(op.sheet).list;
+        if (filled.r1 <= filled.r2 && filled.c1 <= filled.c2) links.push(...this.linkChange(op.sheet, copyLinks(list, src, list, filled, src)));
         break;
       }
       case 'series': {
