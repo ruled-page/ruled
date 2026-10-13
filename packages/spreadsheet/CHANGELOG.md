@@ -157,6 +157,15 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - #CALC!, #SPILL! and the other errors Excel saves as #VALUE! for older
   readers are read as the errors they are, so checks on open compare the
   real error.
+- A number typed, pasted or written in a formula with more than 15
+  significant digits keeps the first 15 and the rest become zeros, as Excel
+  stores it, rather than being rounded. Strict pasting shows the value that
+  will be stored.
+- Calculations agree with Excel for the web on edge cases: VLOOKUP, HLOOKUP,
+  MATCH and LOOKUP read an empty lookup value as 0; AGGREGATE's functions 1
+  to 13 give #VALUE! for an array, as they take only references; CONCAT
+  longer than 32,767 characters is #CALC!; and `&` cuts its result off at
+  32,767 characters.
 
 ## 0.1.0 (2026-10-08)
 
