@@ -143,12 +143,14 @@ test.describe('with only a keyboard', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('⌘/ lists the shortcuts too, as do keyboards that type / with Shift', async ({ page }) => {
-    await page.keyboard.press('Meta+/');
+  test('⌘/ on a Mac lists the shortcuts too, as do keyboards that type / with Shift', async ({ page }) => {
+    // The command key is ⌘ on Apple devices and Ctrl elsewhere, where the Meta key is the system's.
+    const apple = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform));
+    await page.keyboard.press(apple ? 'Meta+/' : 'Control+/');
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
     await page.keyboard.press('Escape');
     // A German keyboard: / is Shift+7, but the key in the US / place still counts.
-    await page.locator('canvas[data-testid="data-grid-canvas"]').first().dispatchEvent('keydown', { key: '-', code: 'Slash', metaKey: true, bubbles: true });
+    await page.locator('canvas[data-testid="data-grid-canvas"]').first().dispatchEvent('keydown', { key: '-', code: 'Slash', metaKey: apple, ctrlKey: !apple, bubbles: true });
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
   });
 
