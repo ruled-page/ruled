@@ -6,7 +6,6 @@ import {
   ImageWindowLoaderImpl,
   getMiddleCenterBias,
   sprites,
-  withAlpha,
   type DataEditorProps,
   type DataEditorRef,
   type DrawCellCallback,
@@ -26,11 +25,8 @@ import {
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { linkAddress } from '../../core/links';
-import { colToLetters, inRect, rangeToA1, toA1 } from '@ruled/formula/refs';
+import { colToLetters, inRect } from '@ruled/formula/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../../core/types';
-import { clipboardNumbers, parseClipboardText } from '../../state/clipboard';
-import { clipboardFormats } from '../../state/clipboardFormats';
 import { effectiveStyle } from '../../state/cellStyle';
 import { alignment, displayText, editText } from '../../state/format';
 import { cellLink, type CellLink } from '../../state/links';
@@ -41,14 +37,17 @@ import type { Selection, WorkbookStore } from '../../state/store';
 import { CellEntry } from '../../ui/CellEditor';
 import { EnumEditor } from '../../ui/EnumEditor';
 import { enumOptionsOf, glideEditor, type EnumCell } from './editors';
-import { noteSummary } from '../../ui/FormulaBar';
-import { APPLE, commandKey } from '../../ui/keys';
+import { APPLE } from '../../ui/keys';
 import { LinkTip } from '../../ui/LinkTip';
 import { NoteTip } from '../../ui/NoteTip';
-import { objectKey } from '../../ui/objectGeometry';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../../ui/gridPalette';
 import { glideTheme } from './theme';
+import { editorKey } from '../keys';
+import { useSheetEvents } from '../hooks';
+import { cellOptions } from '../lists';
+import { sheetMarks } from '../marks';
+import { spokenText as spoken } from '../spoken';
 import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../../ui/paint';
 import { checkboxState } from '../../state/checkbox';
 import { useT } from '../../i18n/react';
@@ -338,41 +337,11 @@ export function SheetGrid({
     [view, view.colCount, colVersion, rowHeaderWidth],
   );
 
-  /**
-   * What a screen reader says for a cell: its reference, what it shows, and
-   * then what the grid only shows by colour or marks: a merge, a formula and
-   * whether its value is out of date or Excel's, a change, a list, a note
-   * or comments, a link and where it goes, and any problem with it.
-   */
+  /** What a screen reader says for a cell. */
   const spokenText = useCallback(
-    (row: number, col: number, merge: Rect | undefined, shown: string, list: boolean): string => {
-      const at = merge ? { row: merge.r1, col: merge.c1 } : { row, col };
-      const rec = view.get(at.row, at.col);
-      // The cells a merge covers are read as the merge, whose top-left cell holds its value.
-      if (merge && !shown && rec) shown = displayText(rec, effectiveStyle(view, styles, at.row, at.col, rec.style), date1904, numbers.display === 'full', locale).text;
-      const parts = [toA1(at.row, at.col), shown || t('grid.empty')];
-      const link = cellLink(view, at.row, at.col);
-      if (link) {
-        const address = linkAddress(link);
-        parts[1] = address ? t('links.spoken', { value: parts[1], address }) : t('links.spokenUnknown', { value: parts[1] });
-      }
-      if (merge) parts.push(t('grid.flag.merged', { range: rangeToA1(merge) }));
-      if (rec && rec.flags & CellFlag.Formula) parts.push(t('grid.flag.formula'));
-      // Where a spilled value comes from, which the grid outlines only while it is selected.
-      if (rec?.spill && rec.flags & CellFlag.Spilled) parts.push(t('grid.flag.spilled', { ref: toA1(rec.spill.r1, rec.spill.c1) }));
-      if (rec && rec.flags & CellFlag.Stale) parts.push(t('grid.flag.stale'));
-      else if (rec && rec.flags & (CellFlag.Unsupported | CellFlag.Mismatch)) parts.push(t('grid.flag.savedValue'));
-      if (rec && highlight && rec.flags & CellFlag.Edited) parts.push(t('grid.flag.edited'));
-      if (list) parts.push(t('grid.flag.list'));
-      const note = view.noteAt(at.row, at.col);
-      if (note) parts.push(noteSummary(t, note));
-      for (const i of schema?.cellIssues(sheetIndex, row, col) ?? []) {
-        parts.push(t(i.severity === 'error' ? 'grid.spokenError' : 'grid.spokenWarning', { message: t.text(i.message) }));
-      }
-      return parts.join(', ');
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, dataVersion, styles, date1904, locale, numbers, highlight, schema, schemaVersion, sheetIndex, t],
+    (row: number, col: number, merge: Rect | undefined, shown: string, list: boolean) => spoken(store, view, row, col, merge, shown, list),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- what it says follows the cells, their formats and the schema
+    [store, view, dataVersion, styles, date1904, locale, numbers, highlight, schema, schemaVersion, t],
   );
 
   const sheetName = view.info.name;
@@ -435,15 +404,8 @@ export function SheetGrid({
       const blocked = view.blockedAt(row, view.visibleCols[gc - 1]);
       const locked = blocked !== undefined && blocked.kind !== 'tableHeader';
       const label = !!schema?.isLabel(sheetIndex, row, view.visibleCols[gc - 1]);
-      // Enum fields edit with a dropdown; clicking the selected cell opens it.
-      const field = schema && !readOnly ? schema.fieldAt(sheetIndex, row, view.visibleCols[gc - 1])?.field : undefined;
-      let options: readonly string[] | undefined = field?.type === 'enum' && field.values?.length ? field.values : undefined;
-      if (!options && !readOnly && view.info.listValidations.length) {
-        // Excel's own list validations get the same dropdown.
-        const dv = store.listAt(sheetIndex, row, view.visibleCols[gc - 1]);
-        if (dv?.inCellDropdown) options = store.listOptions(dv, row, view.visibleCols[gc - 1]);
-        if (!options?.length) options = undefined;
-      }
+      // Enum fields and Excel's own list validations edit with a dropdown; clicking the selected cell opens it.
+      const options = cellOptions(store, view, row, view.visibleCols[gc - 1]);
       const asEnum = (cell: EnumCell, shown = cell.displayData): EnumCell & SpokenCell => {
         const spoken = { ...cell, shownText: shown, spoken: () => spokenText(row, view.visibleCols[gc - 1], merge, shown, !!options) };
         return options ? { ...spoken, enumOptions: options, activationBehaviorOverride: 'second-click' } : spoken;
@@ -748,34 +710,22 @@ export function SheetGrid({
       const x2 = Math.max(x1, view.gridCol(r.c2) + 1);
       return { x: x1, y: y1 - rowStart, width: x2 - x1 + 1, height: y2 - y1 + 1 };
     };
+    /** A range as this pane's grid columns and rows, as far as it shows any of it. */
+    const inPane = (r: Rect): Rectangle | undefined => {
+      const span = view.gridSpan(r);
+      if (!span) return undefined;
+      const y1 = Math.max(rowStart, span.y1);
+      const y2 = Math.min(last, span.y2);
+      return y1 > y2 ? undefined : { x: span.x1 + 1, y: y1 - rowStart, width: span.x2 - span.x1 + 1, height: y2 - y1 + 1 };
+    };
     const rects = selection.rects.map(clip).filter((r): r is Rectangle => !!r);
     const gr = at(selection.row);
     const gc = Math.max(0, view.gridCol(selection.col)) + 1;
     const empty = { columns: CompactSelection.empty(), rows: CompactSelection.empty() };
-    // A cut waiting to be pasted gets a dashed outline.
-    const cut = cutRange && cutRange.sheet === view.info.index ? clip(cutRange.rect) : undefined;
-    const marks: Highlights = cut ? [{ color: palette.cutFill, range: cut, style: 'dashed' }] : [];
-    // Where the selection being dragged by its border would land.
-    const landing = cellDrag ? clip(cellDrag.rect) : undefined;
-    if (landing) marks.push({ color: palette.selectionFill, range: landing, style: 'dashed' });
-    // The range the selected cell's formula spills into, or spills from, outlined as Excel does; dashed while it is blocked.
-    const spill = view.get(selection.row, selection.col)?.spill;
-    const spillSpan = spill && view.gridSpan(spill);
-    if (spillSpan) {
-      const y1 = Math.max(rowStart, spillSpan.y1);
-      const y2 = Math.min(last, spillSpan.y2);
-      const blocked = view.get(spill.r1, spill.c1)?.s === '#SPILL!';
-      if (y1 <= y2) marks.push({ color: withAlpha(palette.spillLine, 0), range: { x: spillSpan.x1 + 1, y: y1 - rowStart, width: spillSpan.x2 - spillSpan.x1 + 1, height: y2 - y1 + 1 }, style: blocked ? 'dashed' : 'solid' });
-    }
-    // The references in a formula being typed, outlined and lightly filled in their colours, as Excel does.
-    for (const ref of formulaRefs) {
-      const span = ref.sheet === view.info.index ? view.gridSpan(ref.rect) : undefined;
-      if (!span) continue;
-      const y1 = Math.max(rowStart, span.y1);
-      const y2 = Math.min(last, span.y2);
-      if (y1 > y2) continue;
-      const range = { x: span.x1 + 1, y: y1 - rowStart, width: span.x2 - span.x1 + 1, height: y2 - y1 + 1 };
-      marks.push({ color: withAlpha(refColors[ref.color % refColors.length], 0.1), range, style: 'solid' });
+    const marks: Highlights = [];
+    for (const m of sheetMarks(store, view, selection, palette, refColors, cellDrag?.rect)) {
+      const range = inPane(m.rect);
+      if (range) marks.push({ color: m.color, range, style: m.style });
     }
     // Whole rows and columns are shown in full, past the used range, with their numbers or letters marked.
     const lines = selection.lines;
@@ -806,7 +756,7 @@ export function SheetGrid({
       highlights: marks.length ? marks : undefined,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the spill outline follows the cells' data
-  }, [view, dataVersion, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors, cellDrag]);
+  }, [store, view, dataVersion, selection, rowStart, rows, cutRange, formulaRefs, palette, refColors, cellDrag]);
 
   // Mouse presses on the letters, numbers and corner are taken before Glide
   // sees them (below); touches on them, and Glide's keys for whole lines, come here.
@@ -849,55 +799,16 @@ export function SheetGrid({
     [store, view, toSheetRect, rowStart, topRow],
   );
 
-  // The editor writes the clipboard itself, the text and an escaped HTML
-  // table, rather than letting the grid write cell text into HTML unescaped.
-  // It remembers what was copied, so pasting it back carries formulas. A cut
-  // only marks the cells: like Excel, pasting it moves them, and references follow.
-  useEffect(() => {
-    const inEditorField = () => {
-      const active = document.activeElement;
-      return !!active && /^(INPUT|TEXTAREA)$/.test(active.tagName) && !active.closest(`.${GLIDE_CLIP_REGION}, .${GLIDE_SCROLLER}`);
-    };
-    const write = (e: ClipboardEvent, cut: boolean) => {
-      if (inEditorField() || !host.current?.contains(document.activeElement)) return;
-      const first = store.selection.rects[0];
-      if (!first || !e.clipboardData) return;
-      e.preventDefault();
-      e.clipboardData.setData('text/plain', store.selectionText(first));
-      e.clipboardData.setData('text/html', store.selectionHtml(first));
-      store.noteCopy(first, cut);
-    };
-    const onCopy = (e: ClipboardEvent) => write(e, false);
-    const onCut = (e: ClipboardEvent) => write(e, true);
-    const onKey = (e: KeyboardEvent) => {
-      if (!host.current?.contains(document.activeElement)) return;
-      if (e.key === 'Escape' && store.cutRange) store.cancelCut();
-      // The menu key or Shift+F10 opens the right-click menu at the active cell.
-      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
-        e.preventDefault();
-        const sel = store.selection;
-        const v = store.view;
-        const at = v && ref.current?.getBounds(v.gridCol(sel.col) + 1, v.gridRow(sel.row) - rowStart);
-        if (at) store.set('menu', { x: at.x + Math.min(at.width, 24), y: at.y + at.height, kind: 'cell' });
-      }
-      // Shift+F2, Excel's key for a cell's note, opens its note or comments beside it.
-      if (e.shiftKey && e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        const sel = store.selection;
-        const v = store.view;
-        const at = v && ref.current?.getBounds(v.gridCol(sel.col) + 1, v.gridRow(sel.row) - rowStart);
-        if (at) store.openComment(sel.row, sel.col, { x: at.x + at.width + 4, y: at.y });
-      }
-    };
-    window.addEventListener('copy', onCopy, true);
-    window.addEventListener('cut', onCut, true);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('copy', onCopy, true);
-      window.removeEventListener('cut', onCut, true);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [store, ref, rowStart]);
+  // Copying, cutting and pasting, and the keys for the cell menu and notes.
+  useSheetEvents(
+    store,
+    host,
+    (row, col) => {
+      const b = ref.current?.getBounds(view.gridCol(col) + 1, view.gridRow(row) - rowStart);
+      return b && { x: b.x, y: b.y, width: b.width, height: b.height };
+    },
+    (el) => !!el.closest(`.${GLIDE_CLIP_REGION}, .${GLIDE_SCROLLER}`),
+  );
 
   // Scroll to cells that find, the name box or the change list point at.
   // Glide itself scrolls a grid that is showing to a cell selected from
@@ -967,28 +878,6 @@ export function SheetGrid({
     },
     [store, view, topRow],
   );
-
-  // Glide reads pastes through navigator.clipboard.read(), which makes
-  // browsers ask for clipboard permission. The paste event already carries
-  // the data, so handle it here instead.
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      if (!host.current?.contains(document.activeElement)) return;
-      const text = e.clipboardData?.getData('text/plain');
-      if (!text) return;
-      e.preventDefault();
-      const values = parseClipboardText(text);
-      // Excel's HTML has the exact values of the numbers its text shows rounded, and each cell's formats.
-      const html = e.clipboardData?.getData('text/html');
-      const exact = html ? clipboardNumbers(html) : undefined;
-      const formats = html ? clipboardFormats(html) : undefined;
-      const sel = store.selection;
-      const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
-      void store.paste({ row: rect.r1, col: rect.c1 }, values, rect, false, exact, formats);
-    };
-    window.addEventListener('paste', onPaste, true);
-    return () => window.removeEventListener('paste', onPaste, true);
-  }, [store]);
 
   // Delete clears what is selected, whole rows and columns as far as they hold anything.
   const onDelete = useCallback(
@@ -1414,92 +1303,12 @@ export function SheetGrid({
     [view, rowStart],
   );
 
-  // Ctrl+Enter (⌘Enter on a Mac) follows the active cell's link, as Ctrl+click does, in place of the grid's own use of it.
-  // Alt+Shift+Right and Left group and ungroup the selection, as in Excel.
+  // The editor's own keys, Excel's where Excel has them, in place of the grid's own uses of them.
   const onGridKeyDown = useCallback(
     (e: GridKeyEventArgs) => {
-      // Space ticks or unticks the selection's checkboxes, as in Excel.
-      if (e.key === ' ' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && store.checkboxAt(store.selection.row, store.selection.col) !== undefined) {
+      if (editorKey(store, e, filterButtonOf)) {
         e.cancel();
         e.preventDefault();
-        void store.toggleCheckboxes();
-        return;
-      }
-      if (e.key === 'Enter' && commandKey(e) && !e.shiftKey && !e.altKey) {
-        e.cancel();
-        e.preventDefault();
-        void store.followLink();
-        return;
-      }
-      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
-        e.cancel();
-        e.preventDefault();
-        void store.groupSelection(e.key === 'ArrowRight' ? 1 : -1);
-        return;
-      }
-      // Excel's keys for whole lines: Shift+Space the selection's rows, Ctrl+Space its columns, Ctrl+A (⌘A) the sheet.
-      const sel = store.selection;
-      if (e.key === ' ' && !e.altKey && !e.metaKey && e.shiftKey !== e.ctrlKey) {
-        e.cancel();
-        e.preventDefault();
-        const axis = e.shiftKey ? 'rows' : 'cols';
-        store.selectLines(axis, sel.rects.map((r) => (axis === 'rows' ? [r.r1, r.r2] : [r.c1, r.c2])), { row: sel.row, col: sel.col });
-        return;
-      }
-      if (e.key.toLowerCase() === 'a' && (APPLE ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey) {
-        e.cancel();
-        e.preventDefault();
-        store.selectAll();
-        return;
-      }
-      // Alt+Down on a heading with a filter button opens its menu, as in Excel.
-      if (e.key === 'ArrowDown' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        const button = filterButtonOf(sel.row, sel.col);
-        if (button) {
-          e.cancel();
-          e.preventDefault();
-          store.set('filterPicker', button);
-          return;
-        }
-      }
-      // Ctrl+Alt+5 selects the sheet's first chart, picture or shape; Tab then goes through them, as in Excel.
-      if (e.keyCode === 53 && e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey) {
-        const first = store.editableObjects()[0];
-        if (first) {
-          e.cancel();
-          e.preventDefault();
-          store.selectObject(objectKey(first));
-          return;
-        }
-      }
-      // Alt+F5 refreshes the sheet's pivot tables and Ctrl+Alt+F5 every sheet's, as in Excel.
-      if (e.key === 'F5' && e.altKey && !e.metaKey && !e.shiftKey) {
-        e.cancel();
-        e.preventDefault();
-        void store.refreshPivots(e.ctrlKey);
-        return;
-      }
-      // Alt+F1 inserts a column chart of the data, as in Excel.
-      if (e.key === 'F1' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && store.features.charts) {
-        e.cancel();
-        e.preventDefault();
-        void store.insertChart('column');
-        return;
-      }
-      // Ctrl+Shift+L, or ⇧⌘F on a Mac, turns the filter buttons on or off, as in Excel.
-      const letter = e.key.toLowerCase();
-      if (commandKey(e) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {
-        e.cancel();
-        e.preventDefault();
-        void store.toggleFilter();
-        return;
-      }
-      // Ctrl++ (Ctrl+Shift+= on a US keyboard) inserts and Ctrl+- deletes, as in Excel, in place of the browser's zoom.
-      const insert = e.key === '+' || (e.key === '=' && e.shiftKey);
-      if ((insert || e.key === '-') && commandKey(e) && !e.altKey) {
-        e.cancel();
-        e.preventDefault();
-        store.changeCells(insert ? 'insert' : 'delete');
         return;
       }
       onKeyDown?.(e);

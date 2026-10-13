@@ -6,9 +6,12 @@ import { checkboxState } from '../../state/checkbox';
 import { alignment, displayText } from '../../state/format';
 import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, type Overflow } from '../../state/overflow';
 import type { SheetView } from '../../state/sheetView';
+import type { Selection } from '../../state/store';
 import type { GridPalette } from '../../ui/gridPalette';
 import { drawEdge } from '../../ui/paint';
+import { withAlpha } from '../color';
 import type { Box } from '../contract';
+import type { Mark } from '../marks';
 import type { Layout, Run } from './layout';
 
 /** Space above and below text in a cell, and between wrapped lines, as a share of the font's height. */
@@ -31,6 +34,9 @@ export interface PaintInput {
   highlightEdits: boolean;
   /** A schema's label cells, filled to set them apart. */
   isLabel?: (row: number, col: number) => boolean;
+  selection?: Selection;
+  /** Ranges marked besides the selection (see sheetMarks). */
+  marks?: readonly Mark[];
 }
 
 /** How a cell is drawn. */
@@ -158,6 +164,17 @@ export class Painter {
     return look;
   }
 
+  /** A cell's text as drawn, for the table screen readers read: a number shown as #### in full. */
+  cellText(input: PaintInput, row: number, col: number): string {
+    const m = input.view.mergeAt(row, col);
+    if (m && (m.r1 !== row || m.c1 !== col)) return '';
+    const text = this.look(input, row, col, m).text;
+    if (!/^#+$/.test(text)) return text;
+    const rec = input.view.get(row, col);
+    const style = this.look(input, row, col, m).style;
+    return rec ? displayText(rec, style, input.date1904, input.fullNumbers, input.locale).text : text;
+  }
+
   /** Text running out of a row's cells into empty neighbours. */
   private overflows(input: PaintInput, row: number): Overflow[] {
     let list = this.overflowsByRow.get(row);
@@ -260,7 +277,68 @@ export class Painter {
         }
       }
     }
+    this.drawSelection(input);
     ctx.restore();
+  }
+
+  /** The box a range takes on screen, from its first line in view to its last; undefined when all of it is hidden. */
+  private rangeBox(input: PaintInput, r: { r1: number; r2: number; c1: number; c2: number }): Box | undefined {
+    const { view, layout } = input;
+    const span = view.gridSpan(r);
+    if (!span) return undefined;
+    const x = layout.x(span.x1);
+    const y = layout.y(span.y1);
+    return layout.box(x, y, layout.x(span.x2) + layout.spec.cols.size(span.x2) - x, layout.y(span.y2) + layout.spec.rows.size(span.y2) - y);
+  }
+
+  /**
+   * The selection, tinted but for its active cell and outlined, as Excel
+   * shows it: whole rows and columns in full, past the cells used. Then the
+   * other marks, each filled and outlined in its colour.
+   */
+  private drawSelection(input: PaintInput): void {
+    const { ctx } = this;
+    const { selection: sel, view, palette } = input;
+    if (sel) {
+      const lastRow = view.visibleRows[view.rowCount - 1] ?? 0;
+      const lastCol = view.visibleCols[view.colCount - 1] ?? 0;
+      const whole = (r: Selection['rects'][number]) =>
+        sel.lines === 'all' ? { r1: 0, r2: lastRow, c1: 0, c2: lastCol } : sel.lines === 'cols' ? { ...r, r1: 0, r2: lastRow } : sel.lines === 'rows' ? { ...r, c1: 0, c2: lastCol } : r;
+      const boxes = sel.rects.map((r) => this.rangeBox(input, whole(r)));
+      const active = this.rangeBox(input, view.mergeAt(sel.row, sel.col) ?? { r1: sel.row, r2: sel.row, c1: sel.col, c2: sel.col });
+      ctx.fillStyle = palette.selectionFill;
+      for (const b of boxes) {
+        if (!b) continue;
+        ctx.beginPath();
+        ctx.rect(b.x, b.y, b.width, b.height);
+        if (active) ctx.rect(active.x, active.y, active.width, active.height);
+        ctx.fill('evenodd');
+      }
+      ctx.fillStyle = palette.selection;
+      const first = boxes[0] ?? active;
+      if (first) this.outline(first, 2);
+    }
+    for (const m of input.marks ?? []) {
+      const b = this.rangeBox(input, m.rect);
+      if (!b) continue;
+      ctx.fillStyle = m.color;
+      this.fill(b);
+      ctx.save();
+      ctx.strokeStyle = withAlpha(m.color, 1);
+      ctx.lineWidth = 1;
+      ctx.setLineDash(m.style === 'dashed' ? [4, 3] : []);
+      ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.width - 1, b.height - 1);
+      ctx.restore();
+    }
+  }
+
+  /** A line `width` pixels wide round a box, on its edges, in the fill style. */
+  private outline(b: Box, width: number): void {
+    const h = width / 2;
+    this.ctx.fillRect(b.x - h, b.y - h, b.width + width, width);
+    this.ctx.fillRect(b.x - h, b.y + b.height - h, b.width + width, width);
+    this.ctx.fillRect(b.x - h, b.y - h, width, b.height + width);
+    this.ctx.fillRect(b.x + b.width - h, b.y - h, width, b.height + width);
   }
 
   /** A border along a cell's start edge (from its start, measured from the start edge) or its top. */
@@ -355,8 +433,20 @@ export class Painter {
     const { width, height, numbers, letters } = layout.spec;
     const font = `${palette.headerFontWeight} ${palette.headerFontSize} ${palette.headerFont}`;
     const { ascent, descent } = this.lineMetrics(font);
-    const label = (text: string, b: Box, color: string) => {
-      ctx.fillStyle = color;
+    const sel = input.selection;
+    /** Whether a heading's line is in the selection, or selected whole. */
+    const state = (axis: 'rows' | 'cols', line: number): 'line' | 'range' | undefined => {
+      if (!sel) return undefined;
+      const inside = sel.lines === 'all' || sel.rects.some((r) => (axis === 'rows' ? line >= r.r1 && line <= r.r2 : line >= r.c1 && line <= r.c2));
+      if (!inside) return undefined;
+      return sel.lines === 'all' || sel.lines === axis ? 'line' : 'range';
+    };
+    const label = (text: string, b: Box, color: string, selected?: 'line' | 'range') => {
+      if (selected) {
+        ctx.fillStyle = selected === 'line' ? palette.selection : palette.headerSelectedBg;
+        this.fill(b);
+      }
+      ctx.fillStyle = selected === 'line' ? palette.headerSelectedText : color;
       ctx.fillText(text, b.x + b.width / 2, b.y + (b.height - ascent - descent) / 2 + ascent);
     };
     ctx.save();
@@ -377,7 +467,7 @@ export class Painter {
       this.clip(layout.box(start, 0, end - start, letters));
       for (let gc = run.first; gc <= run.last; gc++) {
         const b = layout.colHeading(gc);
-        label(colToLetters(view.visibleCols[gc]), b, palette.headerText);
+        label(colToLetters(view.visibleCols[gc]), b, palette.headerText, state('cols', view.visibleCols[gc]));
         ctx.fillStyle = palette.line;
         this.fill(layout.box(layout.x(gc), 0, 1, letters));
       }
@@ -393,7 +483,7 @@ export class Painter {
       this.clip(layout.box(0, top, numbers, bottom - top));
       for (let gr = run.first; gr <= run.last; gr++) {
         const b = layout.rowHeading(gr);
-        label(String(view.visibleRows[gr] + 1), b, palette.rowHeaderText);
+        label(String(view.visibleRows[gr] + 1), b, palette.rowHeaderText, state('rows', view.visibleRows[gr]));
         ctx.fillStyle = palette.line;
         this.fill({ ...b, height: 1 });
       }

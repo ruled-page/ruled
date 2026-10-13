@@ -47,8 +47,8 @@ export class Recorder {
     if (this.failFill) throw new Error('canvas lost');
     this.record('fillRect', args, this.fillStyle);
   }
-  fill() {
-    this.record('fill', [], this.fillStyle);
+  fill(...a: unknown[]) {
+    this.record('fill', a, this.fillStyle);
   }
   stroke() {
     this.record('stroke', [], this.strokeStyle);
@@ -66,6 +66,10 @@ export class Recorder {
   rotate = (...a: unknown[]) => this.record('rotate', a);
   clip = (...a: unknown[]) => this.record('clip', a);
   rect = (...a: unknown[]) => this.record('rect', a);
+  setLineDash = (...a: unknown[]) => this.record('setLineDash', a);
+  strokeRect(...args: number[]) {
+    this.record('strokeRect', args, this.strokeStyle);
+  }
   setTransform = (...a: unknown[]) => this.record('setTransform', a);
   fillText(text: string, x: number, y: number) {
     this.calls.push({ op: 'fillText', args: [text, x, y], style: `${this.fillStyle} ${this.textAlign} ${this.font}` });

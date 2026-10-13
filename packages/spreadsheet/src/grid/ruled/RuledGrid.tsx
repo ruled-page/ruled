@@ -1,29 +1,58 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_PALETTE, readGridPalette, type GridPalette } from '../../ui/gridPalette';
+import { inRect } from '@ruled/formula/refs';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import type { CellNote, Rect } from '../../core/types';
+import { cellLink, type CellLink } from '../../state/links';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../../ui/gridPalette';
+import { APPLE, commandKey } from '../../ui/keys';
+import { LinkTip } from '../../ui/LinkTip';
+import { NoteTip } from '../../ui/NoteTip';
 import type { Box, GridHandle, Pane, SurfaceProps } from '../contract';
+import { useSheetEvents } from '../hooks';
+import { editorKey, type FilterButton } from '../keys';
+import { sheetMarks } from '../marks';
+import { navigate, navSheet } from '../navigation';
+import { AccessTable } from './AccessTable';
 import { colAxis, rowAxis } from './axis';
-import { Painter } from './draw';
-import { contentScroll, Layout, scrollLength } from './layout';
+import { Painter, type PaintInput } from './draw';
+import { contentScroll, Layout, scrollerPosition, scrollLength } from './layout';
 
 /** The height of the column letters. */
 const LETTERS = 24;
+/** How far a drag past the grid's edge scrolls it each frame. */
+const DRAG_STEP = 20;
+
+const span = (a: { row: number; col: number }, b: { row: number; col: number }): Rect => ({
+  r1: Math.min(a.row, b.row),
+  r2: Math.max(a.row, b.row),
+  c1: Math.min(a.col, b.col),
+  c2: Math.max(a.col, b.col),
+});
+
+/** `line` among sorted `lines`, if it isn't there already. */
+const withLine = (lines: number[], line: number) => (lines.includes(line) ? lines : [...lines, line].sort((a, b) => a - b));
 
 /**
  * Ruled's own grid: the sheet drawn on a canvas, under a scroller whose
  * scrollbars, wheel, trackpad and touch scrolling are the browser's own.
- * Only the cells in view are drawn. Still to come: selection, the
- * keyboard, editing and the table for screen readers.
+ * Only the cells in view are drawn. Cells are selected with the mouse and
+ * the keyboard, as in Excel; a table of the cells in view, whose active
+ * cell takes the focus, is what screen readers read. Still to come:
+ * editing, the fill handle and resizing.
  */
-export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle }: SurfaceProps) {
+export function SheetSurface({ store, view, dataVersion, schemaVersion, selection, onHandle }: SurfaceProps) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const painter = useRef<Painter>(undefined);
+  const drawn = useRef<{ painter: Painter; input: PaintInput }>(undefined);
   const [palette, setPalette] = useState<GridPalette>(DEFAULT_PALETTE);
+  const [refColors, setRefColors] = useState(DEFAULT_REF_COLORS);
   const themeVersion = store.themeVersion;
   useLayoutEffect(() => {
     const next = readGridPalette(host.current);
     setPalette((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    const colors = readRefColors(host.current);
+    setRefColors((prev) => (prev.join() === colors.join() ? prev : colors));
   }, [themeVersion]);
 
   const layoutVersion = view.layoutVersion;
@@ -43,6 +72,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, layoutVersion, rowCount]);
   const numbers = Math.max(40, String(view.visibleRows[rowCount - 1] + 1).length * 8 + 16);
+  const contentWidth = numbers + axes.cols.total;
+  const contentHeight = LETTERS + axes.rows.total;
 
   /** The layout as the grid is now scrolled and sized. */
   const layoutNow = useCallback((): Layout | undefined => {
@@ -50,8 +81,6 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
     if (!sc) return undefined;
     const width = sc.clientWidth;
     const height = sc.clientHeight;
-    const contentWidth = numbers + axes.cols.total;
-    const contentHeight = LETTERS + axes.rows.total;
     return new Layout({
       width,
       height,
@@ -61,10 +90,30 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
       frozenCols: frozen.cols,
       numbers,
       letters: LETTERS,
-      scrollX: contentScroll(Math.abs(sc.scrollLeft), contentWidth, width),
-      scrollY: contentScroll(sc.scrollTop, contentHeight, height),
+      scrollX: contentScroll(Math.abs(sc.scrollLeft), numbers + axes.cols.total, width),
+      scrollY: contentScroll(sc.scrollTop, LETTERS + axes.rows.total, height),
     });
   }, [axes, frozen, numbers]);
+
+  const marks = useMemo(
+    () => sheetMarks(store, view, selection, palette, refColors),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- marks follow the cut, the formula being typed and the cells
+    [store, view, selection, palette, refColors, store.cutRange, store.formulaRefs, dataVersion],
+  );
+
+  // The cells the screen readers' table gives: those in view, settled a moment after scrolling stops.
+  const [lines, setLines] = useState<{ rows: number[]; cols: number[] }>({ rows: [], cols: [] });
+  const tableTimer = useRef(0);
+  const settle = useRef<() => void>(() => undefined);
+  settle.current = () => {
+    const layout = layoutNow();
+    if (!layout) return;
+    const of = (from: number, to: number, order: Int32Array) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => order[from + i]);
+    const rows = [...of(layout.frozenRowRun.first, layout.frozenRowRun.last, view.visibleRows), ...of(layout.rowRun.first, layout.rowRun.last, view.visibleRows)];
+    const cols = [...of(layout.frozenColRun.first, layout.frozenColRun.last, view.visibleCols), ...of(layout.colRun.first, layout.colRun.last, view.visibleCols)];
+    setLines((prev) => (prev.rows.join() === rows.join() && prev.cols.join() === cols.join() ? prev : { rows, cols }));
+  };
+  useEffect(() => () => clearTimeout(tableTimer.current), []);
 
   const listeners = useRef(new Set<() => void>());
   const draw = useRef<() => void>(() => undefined);
@@ -85,7 +134,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const schema = store.schema;
     const sheet = view.info.index;
-    painter.current.draw({
+    const input: PaintInput = {
       view,
       layout,
       styles: store.styles,
@@ -95,11 +144,17 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
       fullNumbers: store.numbers.display === 'full',
       highlightEdits: store.highlightEdits,
       isLabel: schema ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
-    });
+      selection: store.selection,
+      marks,
+    };
+    painter.current.draw(input);
+    drawn.current = { painter: painter.current, input };
     // Near the last row or column shown, more follow, as far as Excel's sheet goes.
     const lastRow = layout.rowRun.last;
     const lastCol = layout.colRun.last;
     if (lastRow + 50 >= rowCount || lastCol + 3 >= colCount) store.scrolledTo(view, view.visibleRows[Math.max(0, lastRow)] ?? 0, view.visibleCols[Math.max(0, lastCol)] ?? 0);
+    clearTimeout(tableTimer.current);
+    tableTimer.current = window.setTimeout(() => settle.current(), 120);
     for (const fn of listeners.current) fn();
   };
   const frame = useRef(0);
@@ -161,27 +216,27 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
         const at = canvas.current?.getBoundingClientRect();
         if (!layout || !sc || !at) return { corner: undefined, panes: [], cols: [], frozenCols: 0, freezeX: 0 };
         const bars = { right: sc.offsetWidth - sc.clientWidth, bottom: sc.offsetHeight - sc.clientHeight };
-        const lines = (from: number, to: number, of: Int32Array) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => of[from + i]);
+        const of = (from: number, to: number, order: Int32Array) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => order[from + i]);
         const { frozenRowRun: fr, rowRun: rr, frozenColRun: fc, colRun: cr, bodyY, bodyX } = layout;
         const panes: Pane[] = [];
         if (fr.last >= 0) {
           panes.push({
             range: [view.visibleRows[0], view.visibleRows[fr.last]],
-            rows: lines(fr.first, fr.last, view.visibleRows),
+            rows: of(fr.first, fr.last, view.visibleRows),
             box: { x: at.left, y: at.top + LETTERS, width: sc.offsetWidth, height: bodyY - LETTERS },
             scrollbars: { right: bars.right, bottom: 0 },
           });
         }
         panes.push({
           range: [view.visibleRows[fr.last + 1], view.visibleRows[rowCount - 1]],
-          rows: lines(rr.first, rr.last, view.visibleRows),
+          rows: of(rr.first, rr.last, view.visibleRows),
           box: { x: at.left, y: at.top + bodyY, width: sc.offsetWidth, height: sc.offsetHeight - bodyY },
           scrollbars: bars,
         });
         return {
           corner: onPage(layout.corner()),
           panes,
-          cols: [...lines(fc.first, fc.last, view.visibleCols), ...lines(cr.first, cr.last, view.visibleCols)],
+          cols: [...of(fc.first, fc.last, view.visibleCols), ...of(cr.first, cr.last, view.visibleCols)],
           frozenCols: fc.last + 1,
           freezeX: at.left + (fc.last >= 0 ? bodyX : numbers) - 1,
         };
@@ -219,14 +274,274 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, onHandle
     return () => onHandle(undefined);
   }, [handle, onHandle]);
 
-  const contentWidth = numbers + axes.cols.total;
-  const contentHeight = LETTERS + axes.rows.total;
+  // Copying, cutting and pasting, and the keys for the cell menu and notes.
+  useSheetEvents(store, host, handle.cellBox, () => false);
+
+  /** Scrolls the least that brings a cell into view, unless it is frozen in place. */
+  const scrollIntoView = useCallback(
+    (row: number, col: number) => {
+      const layout = layoutNow();
+      const sc = scroller.current;
+      const gr = view.gridRow(row);
+      const gc = view.gridCol(col);
+      if (!layout || !sc || gr < 0 || gc < 0) return;
+      const { rows, cols, width, height, scrollX, scrollY } = layout.spec;
+      const fit = (start: number, size: number, scroll: number, room: number) => (start < scroll ? start : start + size > scroll + room ? start + size - room : undefined);
+      if (gr > layout.frozenRowRun.last) {
+        const y = fit(rows.start(gr) - rows.start(layout.frozenRowRun.last + 1), rows.size(gr), scrollY, height - layout.bodyY);
+        if (y !== undefined) sc.scrollTop = scrollerPosition(Math.max(0, y), contentHeight, height);
+      }
+      if (gc > layout.frozenColRun.last) {
+        const x = fit(cols.start(gc) - cols.start(layout.frozenColRun.last + 1), cols.size(gc), scrollX, width - layout.bodyX);
+        if (x !== undefined) sc.scrollLeft = scrollerPosition(Math.max(0, x), contentWidth, width);
+      }
+    },
+    [view, layoutNow, contentHeight, contentWidth],
+  );
+  /** A cell to bring into view once the grid has drawn the rows and columns it may have added. */
+  const pending = useRef<{ row: number; col: number }>(undefined);
+  const wantFocus = useRef(false);
+  const activeCell = useRef<HTMLTableCellElement>(null);
+  useLayoutEffect(() => {
+    if (pending.current) {
+      scrollIntoView(pending.current.row, pending.current.col);
+      pending.current = undefined;
+    }
+    // While the grid has the focus, it follows the active cell.
+    const el = activeCell.current;
+    if (el && (wantFocus.current || host.current?.contains(document.activeElement)) && document.activeElement !== el) el.focus({ preventScroll: true });
+    wantFocus.current = false;
+  });
+
+  // Find, the name box and the change list point at cells: bring the selection into view, and take the focus when asked.
+  const reveal = store.revealSeq;
+  useEffect(() => {
+    if (!reveal) return;
+    pending.current = { row: store.selection.row, col: store.selection.col };
+    if (store.revealFocus) {
+      store.revealFocus = false;
+      wantFocus.current = true;
+    }
+    redraw();
+    // A grid just shown, for another sheet, may not take the focus at first in Safari.
+    let tries = 10;
+    const focus = () => {
+      if (pending.current) scrollIntoView(pending.current.row, pending.current.col);
+      pending.current = undefined;
+      if (!wantFocus.current) return;
+      activeCell.current?.focus({ preventScroll: true });
+      if (host.current?.contains(document.activeElement) || --tries <= 0) wantFocus.current = false;
+      else requestAnimationFrame(focus);
+    };
+    requestAnimationFrame(focus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
+
+  /** Where a heading's filter button opens its menu. */
+  const filterButton = useCallback(
+    (row: number, col: number): FilterButton | undefined => {
+      const button = view.filterButtonAt(row, col);
+      const box = button && handle.cellBox(row, col);
+      return button && box ? { col, rect: button.rect, x: box.x, y: box.y + box.height } : undefined;
+    },
+    [view, handle],
+  );
+
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (!(e.target as Element).closest?.('.wbe-grid-access')) return;
+    if (editorKey(store, e, filterButton)) {
+      e.preventDefault();
+      return;
+    }
+    const layout = layoutNow();
+    const page = (run: { first: number; last: number } | undefined) => (run ? run.last - run.first : 1);
+    const moved = navigate(store.selection, { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, command: commandKey(e) }, navSheet(view, page(layout?.rowRun), page(layout?.colRun)));
+    if (moved) {
+      e.preventDefault();
+      if (moved.selection !== store.selection) store.setSelection(moved.selection);
+      pending.current = moved.reveal;
+      redraw();
+      return;
+    }
+    // Delete clears what is selected, whole rows and columns as far as they hold anything; so does a Mac's delete key.
+    const plain = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+    if (e.key === 'Delete' || (APPLE && e.key === 'Backspace' && plain)) {
+      e.preventDefault();
+      void store.clear(store.selection.rects);
+    }
+  };
+
+  /** Where a pointer is on the canvas. */
+  const local = (e: { clientX: number; clientY: number }) => {
+    const at = canvas.current?.getBoundingClientRect();
+    return { x: e.clientX - (at?.left ?? 0), y: e.clientY - (at?.top ?? 0) };
+  };
+
+  /** Follows a drag until the button is let go, scrolling the grid while the pointer is past its edge. */
+  const follow = (onMove: (x: number, y: number) => void) => {
+    let pointer: { x: number; y: number } | undefined;
+    let frameId = 0;
+    const scroll = () => {
+      const at = canvas.current?.getBoundingClientRect();
+      const layout = layoutNow();
+      if (pointer && at && layout) {
+        const x = pointer.x - at.left;
+        const y = pointer.y - at.top;
+        const dx = x > layout.spec.width ? DRAG_STEP : x < layout.bodyX && layout.spec.scrollX > 0 ? -DRAG_STEP : 0;
+        const dy = y > layout.spec.height ? DRAG_STEP : y < layout.bodyY && layout.spec.scrollY > 0 ? -DRAG_STEP : 0;
+        if (dx || dy) {
+          scroller.current?.scrollBy(dx, dy);
+          onMove(pointer.x, pointer.y);
+        }
+      }
+      frameId = requestAnimationFrame(scroll);
+    };
+    frameId = requestAnimationFrame(scroll);
+    const move = (m: MouseEvent) => {
+      pointer = { x: m.clientX, y: m.clientY };
+      onMove(m.clientX, m.clientY);
+    };
+    const up = () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  };
+
+  /** A press on a cell: selects it, Shift reaching from the active cell, Ctrl (⌘) adding a range; a drag spans more. */
+  const pressCell = (e: ReactMouseEvent, row: number, col: number) => {
+    const sel = store.selection;
+    const command = APPLE ? e.metaKey : e.ctrlKey;
+    // Ctrl+click (⌘-click on a Mac) follows a cell's link; a plain click only selects it.
+    if (command && !e.shiftKey && cellLink(view, row, col)) {
+      store.setSelection({ row, col, rects: [span({ row, col }, { row, col })] });
+      void store.followLink(row, col);
+      return;
+    }
+    const anchor = e.shiftKey ? { row: sel.row, col: sel.col } : { row, col };
+    const rest = command ? sel.rects : e.shiftKey ? sel.rects.slice(1) : [];
+    const select = (to: { row: number; col: number }) => store.setSelection({ row: anchor.row, col: anchor.col, rects: [span(anchor, to), ...rest] });
+    select({ row, col });
+    follow((x, y) => {
+      const to = handle.cellNear(x, y);
+      if (to) select(to);
+    });
+  };
+
+  /**
+   * A press on the row numbers or column letters selects whole lines, as
+   * Excel does: a click picks one, dragging spans several, Shift+click
+   * reaches from the active line, and Ctrl+click (⌘-click on a Mac) adds one.
+   */
+  const pressHeading = (e: ReactMouseEvent, axis: 'rows' | 'cols', line: number) => {
+    const sel = store.selection;
+    const same = sel.lines === axis;
+    const add = same && (APPLE ? e.metaKey : e.ctrlKey);
+    const extend = same && e.shiftKey;
+    const anchor = extend ? (axis === 'rows' ? sel.row : sel.col) : line;
+    const kept: [number, number][] = add || extend ? sel.rects.map((r) => (axis === 'rows' ? [r.r1, r.r2] : [r.c1, r.c2])) : [];
+    if (extend) kept.pop();
+    const layout = layoutNow();
+    const topRow = view.visibleRows[layout?.rowRun.first ?? 0] ?? 0;
+    const active = axis === 'rows' ? { row: anchor, col: view.visibleCols[0] ?? 0 } : { row: topRow, col: anchor };
+    const pick = (to: number) => store.selectLines(axis, [...kept, [anchor, to]], active);
+    pick(line);
+    follow((x, y) => {
+      const near = layoutNow()?.hit(local({ clientX: x, clientY: y }).x, local({ clientX: x, clientY: y }).y, true);
+      if (near) pick(axis === 'rows' ? view.visibleRows[near.row] : view.visibleCols[near.col]);
+    });
+  };
+
+  const onMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const sc = scroller.current;
+    const layout = layoutNow();
+    const { x, y } = local(e);
+    // Presses on the scrollbars scroll.
+    if (!sc || !layout || e.button !== 0 || x >= sc.clientWidth || y >= sc.clientHeight) return;
+    e.preventDefault();
+    store.selectObject(undefined);
+    // The grid takes the focus, which then follows the active cell.
+    activeCell.current?.focus({ preventScroll: true });
+    wantFocus.current = true;
+    const hit = layout.hit(x, y);
+    if (hit.area === 'corner') store.selectAll();
+    else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col]);
+    else if (hit.area === 'numbers') pressHeading(e, 'rows', view.visibleRows[hit.row]);
+    else pressHeading(e, 'cols', view.visibleCols[hit.col]);
+  };
+
+  /** Right-clicking outside the selection selects what was clicked first, as Excel does, then opens the menu for it. */
+  const onContextMenu = (e: ReactMouseEvent) => {
+    const layout = layoutNow();
+    if (!layout) return;
+    e.preventDefault();
+    const { x, y } = local(e);
+    const hit = layout.hit(x, y);
+    const sel = store.selection;
+    const row = view.visibleRows[hit.row];
+    const col = view.visibleCols[hit.col];
+    const at = { x: e.clientX, y: e.clientY };
+    if (hit.area === 'cells') {
+      if (!sel.rects.some((r) => inRect(r, row, col))) store.setSelection({ row, col, rects: [span({ row, col }, { row, col })] });
+      store.set('menu', { ...at, kind: 'cell' });
+    } else if (hit.area === 'numbers') {
+      if (!sel.rects.some((r) => row >= r.r1 && row <= r.r2)) store.selectLines('rows', [[row, row]], { row, col: view.visibleCols[0] ?? 0 });
+      store.set('menu', { ...at, kind: 'row' });
+    } else if (hit.area === 'letters') {
+      if (!sel.rects.some((r) => col >= r.c1 && col <= r.c2 && r.r1 === 0)) store.selectLines('cols', [[col, col]], { row: view.visibleRows[layout.rowRun.first] ?? 0, col });
+      store.set('menu', { ...at, kind: 'column' });
+    }
+    activeCell.current?.focus({ preventScroll: true });
+  };
+
+  // A cell's note or link, shown while the pointer rests on it.
+  const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
+  const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
+  const onMouseMove = (e: ReactMouseEvent) => {
+    if (e.buttons) return;
+    const layout = layoutNow();
+    const { x, y } = local(e);
+    const hit = layout?.hit(x, y);
+    const row = hit?.area === 'cells' ? view.visibleRows[hit.row] : -1;
+    const col = hit?.area === 'cells' ? view.visibleCols[hit.col] : -1;
+    const note = row >= 0 ? view.noteAt(row, col) : undefined;
+    const link = row >= 0 ? cellLink(view, row, col) : undefined;
+    const box = row >= 0 ? handle.cellBox(row, col) : undefined;
+    setHoverNote((prev) => (!note || !box ? null : prev?.note === note ? prev : { note, x: box.x + box.width + 4, y: box.y }));
+    // Below the cell, as Excel shows where a link goes, so a note beside it stays clear.
+    setHoverLink((prev) => (!link || !box ? null : prev && prev.x === box.x && prev.y === box.y + box.height + 4 ? prev : { link, x: box.x, y: box.y + box.height + 4 }));
+  };
+  const onMouseLeave = () => {
+    setHoverNote(null);
+    setHoverLink(null);
+  };
+  /** Notes whether the grid is being used with a finger, which shows the selection's handles; a touch away from them ends filling by dragging. */
+  const onPointerDown = (e: ReactPointerEvent) => {
+    const touch = e.pointerType === 'touch';
+    if (store.touchMode !== touch) store.set('touchMode', touch);
+    if (store.touchFill && !(e.target as Element).closest('.wbe-touch-handle')) store.set('touchFill', false);
+  };
+
   return (
-    <div className="wbe-grid-host" ref={host} data-testid="wbe-grid">
+    <div className="wbe-grid-host" ref={host} data-testid="wbe-grid" onKeyDown={onKeyDown} onPointerDownCapture={onPointerDown}>
       <canvas className="wbe-grid-canvas" ref={canvas} aria-hidden="true" />
-      <div className="wbe-grid-scroller" ref={scroller} data-testid="wbe-grid-scroller">
+      <AccessTable store={store} view={view} selection={selection} drawn={drawn.current} rows={withLine(lines.rows, selection.row)} cols={withLine(lines.cols, selection.col)} activeRef={activeCell} frozenRows={view.info.frozenRows} />
+      <div
+        className="wbe-grid-scroller"
+        ref={scroller}
+        data-testid="wbe-grid-scroller"
+        tabIndex={-1}
+        onMouseDown={onMouseDown}
+        onContextMenu={onContextMenu}
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+      >
         <div style={{ width: scrollLength(contentWidth), height: scrollLength(contentHeight) }} />
       </div>
+      {hoverNote && <NoteTip {...hoverNote} />}
+      {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
     </div>
   );
 }

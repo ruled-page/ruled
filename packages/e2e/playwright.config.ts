@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+import { RULED_PENDING } from './grid-pending';
 
 /** The workspace's root, where the servers below run. */
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -22,6 +23,8 @@ process.env.E2E_PORT = String(PORT);
  * rather than Glide, so the same specs run against either.
  */
 if (process.env.E2E_GRID) process.env.VITE_RULED_GRID = process.env.E2E_GRID;
+/** What Ruled's grid can't do yet stays out of a run against it (see grid-pending.ts). */
+const grepInvert = process.env.E2E_GRID === 'ruled' && RULED_PENDING.length ? RULED_PENDING : undefined;
 const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
 
 /**
@@ -39,6 +42,7 @@ const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [
 export default defineConfig({
   testDir: '.',
   testIgnore,
+  grepInvert,
   fullyParallel: true,
   // Every test builds a workbook in a worker; with the whole suite running at once, a busy machine needs longer.
   expect: { timeout: 10_000 },

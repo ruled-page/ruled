@@ -1187,6 +1187,15 @@
   overflow: auto;
 }
 
+/* The table screen readers read, its active cell holding the focus; the canvas shows what it says. */
+.wbe .wbe-grid-access {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */
 .wbe .wbe-outline-frame,
 .wbe .wbe-outline-bars {

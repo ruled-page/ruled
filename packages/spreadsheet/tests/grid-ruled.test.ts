@@ -259,4 +259,49 @@ describe("drawing a sheet in Ruled's grid", () => {
     expect(right?.[3]).toContain('right');
     expect(r.rects().some((x) => x[4] === DEFAULT_PALETTE.line && x[3] === 20 && x[2] === 1 && (x[1] as number) > 24)).toBe(false);
   });
+
+  it('tints the selection but its active cell, outlines it, marks the headings it covers and draws the marks', async () => {
+    const s = await open();
+    const r = new Recorder();
+    const p = new Painter(r.ctx);
+    const selection = { row: 2, col: 1, rects: [{ r1: 2, r2: 3, c1: 1, c2: 2 }] };
+    const marks = [
+      { rect: { r1: 6, r2: 6, c1: 1, c2: 1 }, color: 'rgba(1, 2, 3, 0.5)', style: 'dashed' as const },
+      { rect: { r1: 0, r2: 0, c1: 3, c2: 3 }, color: '#000', style: 'solid' as const },
+    ];
+    p.draw(input(s, { frozenRows: 0, frozenCols: 0 }, { selection, marks }));
+    // The tint leaves out the active cell, filling between the two outlines.
+    expect(r.calls.some((c) => c.op === 'fill' && c.args[0] === 'evenodd' && c.style === DEFAULT_PALETTE.selectionFill)).toBe(true);
+    expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.selection)).toHaveLength(4);
+    // B and C, and rows 3 and 4, in the headings' selected colour.
+    expect(r.rects().filter((x) => x[4] === DEFAULT_PALETTE.headerSelectedBg)).toHaveLength(4);
+    // The dashed mark is outlined solid in its colour; D is hidden, so the second mark isn't drawn.
+    expect(r.calls.filter((c) => c.op === 'strokeRect').map((c) => c.style)).toEqual(['rgba(1, 2, 3, 1)']);
+    expect(r.args('setLineDash')).toContainEqual([[4, 3]]);
+
+    // Whole columns, then the whole sheet: their headings in the selection's colour, their text in the selected text colour.
+    const lines = new Recorder();
+    new Painter(lines.ctx).draw(input(s, {}, { selection: { ...selection, lines: 'cols' } }));
+    expect(lines.rects().filter((x) => x[4] === DEFAULT_PALETTE.selection).length).toBeGreaterThan(4);
+    expect(lines.texts().find((t) => t[0] === 'B')?.[3]).toContain(DEFAULT_PALETTE.headerSelectedText);
+    for (const whole of ['rows', 'all'] as const) {
+      const w = new Recorder();
+      new Painter(w.ctx).draw(input(s, {}, { selection: { ...selection, lines: whole } }));
+      expect(w.texts().find((t) => t[0] === '3')?.[3]).toContain(DEFAULT_PALETTE.headerSelectedText);
+    }
+  });
+
+  it("gives a cell's text as drawn, a number shown as #### in full and a merge's covered cells empty", async () => {
+    const s = await open();
+    const view = s.view!;
+    const p = new Painter(new Recorder().ctx);
+    const i = input(s);
+    expect(p.cellText(i, 0, 0)).toBe('Title');
+    expect(p.cellText(i, 0, 1)).toBe('');
+    // A date too wide for its column is drawn as ####, but said in full.
+    await s.input(2, 1, '2026-12-31');
+    p.reset();
+    view.colWidths.set(1, 20);
+    expect(p.cellText(input(s), 2, 1)).toMatch(/2026/);
+  });
 });
