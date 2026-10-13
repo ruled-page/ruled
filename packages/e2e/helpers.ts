@@ -71,11 +71,13 @@ export async function setCell(page: Page, ref: string, text: string): Promise<vo
  * readers (the grid itself is drawn on a canvas), where each cell is named
  * by its reference first. The cells of a merge are all named as the merge,
  * the first of them being the merge itself. Covers the cells in view.
+ * Glide keeps that table inside its canvas, where screen readers read it but
+ * Playwright, which takes what isn't laid out as hidden, wouldn't look.
  */
 export function shown(page: Page, ref: string): Locator {
   const at = parseA1(ref);
   if (!at) throw new Error(`Not a cell: ${ref}`);
-  return page.getByRole('gridcell', { name: new RegExp(`^${toA1(at.row, at.col)}(,|$)`) }).first();
+  return page.getByRole('gridcell', { name: new RegExp(`^${toA1(at.row, at.col)}(,|$)`), includeHidden: true }).first();
 }
 
 /** A small workbook with formulas across two sheets. */

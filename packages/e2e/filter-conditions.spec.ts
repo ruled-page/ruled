@@ -23,7 +23,9 @@ test("filters a column by a condition through Excel's Number Filters and Custom 
   await dialog.getByRole('button', { name: 'OK' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.wbe-status-filter')).toContainText('Filtered: 1 row hidden');
-  await expect(shown(page, 'A2')).toHaveText('Nuts');
+  // Bolts' row is hidden, and Nuts' row shown.
+  await expect(shown(page, 'A2')).toHaveCount(0);
+  await expect(shown(page, 'A3')).toHaveText('Nuts');
 
   // Opened again, the dialog shows the rule; Clear shows every row.
   await goTo(page, 'B1');

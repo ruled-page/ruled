@@ -26,8 +26,9 @@ test.beforeEach(async ({ page }) => {
 test('hides and unhides a column, sets a row height, and saves both', async ({ page }) => {
   await goTo(page, 'B2');
   await choose(page, 'Hide column', 'Columns');
-  // The grid's second column is now C, with C2's 3 where B2's 2 was.
-  await expect(shown(page, 'B2')).toHaveText('3');
+  // The grid goes from A to C.
+  await expect(shown(page, 'B2')).toHaveCount(0);
+  await expect(shown(page, 'C2')).toHaveText('3');
   await expect(page.getByRole('button', { name: '1 change' })).toBeVisible();
   // The column right of it finds it.
   await goTo(page, 'C2');

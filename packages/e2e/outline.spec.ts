@@ -112,7 +112,7 @@ test('keeps the row outline in line with the rows as they scroll, and with froze
   await expect.poll(() => at(page, total, 24 + 5 * 20 + 10)).toBe(true);
   await goTo(page, 'A2');
   await choose(page, 'Freeze top row', 'Freeze panes');
-  await expect(page.getByRole('grid', { name: /^Frozen rows of / })).toHaveCount(1);
+  await expect(page.getByRole('grid', { name: /^Frozen rows of /, includeHidden: true })).toHaveCount(1);
   await expect.poll(() => at(page, total, 24 + 5 * 20 + 10)).toBe(true);
   // Scrolled down two rows, the button follows its row; scrolled well past it, it goes.
   const grid = (await gridSurface(page).last().boundingBox())!;
