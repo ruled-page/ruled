@@ -9,8 +9,10 @@ import { glidePatches } from '../../packages/spreadsheet/vite.glide.ts';
  */
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  // The worker's own chunks (each calculation engine is one) are named for it, so the bundle check tells them from the page's.
-  worker: { format: 'es', rolldownOptions: { output: { chunkFileNames: 'assets/worker-[name]-[hash].js' } } },
+  // The worker in one file, the engine inlined, as the library builds it. Split, its engine chunk imported
+  // the worker's entry for their shared code, which WebKit runs a second time: that copy took the
+  // messages after the workbook opened in the first, and every edit failed with "No workbook is open".
+  worker: { format: 'es', rolldownOptions: { output: { codeSplitting: false } } },
   plugins: [glidePatches()],
   resolve: {
     conditions: ['source', ...defaultClientConditions],

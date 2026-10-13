@@ -17,9 +17,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const BUDGETS = [
   // The demo page, before a workbook is opened.
   ['examples/demo/dist/assets', /^index-.*\.js$/, 275],
+  // The worker, the calculation engine included.
   ['examples/demo/dist/assets', /^workbook\.worker-.*\.js$/, 300],
-  // The calculation engine, which the worker loads when a workbook is first opened.
-  ['examples/demo/dist/assets', /^worker-native-.*\.js$/, 60],
   // Loaded only for workbooks with charts.
   ['examples/demo/dist/assets', /^ChartView-.*\.js$/, 75],
   ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 175],
