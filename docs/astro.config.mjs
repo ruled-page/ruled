@@ -31,7 +31,7 @@ export default defineConfig({
         starlightLinksValidator({ exclude: ['/llms.txt', '/llms-full.txt', '/agents/**', '/**/*.md'] }),
         starlightTypeDoc({
           // Wrappers naming the modules after their import paths.
-          entryPoints: ['./api/spreadsheet.ts', './api/standalone.ts'],
+          entryPoints: ['./api/spreadsheet.ts', './api/standalone.ts', './api/formula.ts'],
           tsconfig: './tsconfig.typedoc.json',
           output: 'reference/api',
           sidebar: { label: 'API reference', collapsed: true },
@@ -56,6 +56,7 @@ export default defineConfig({
         { label: 'Schemas and validation', items: [{ autogenerate: { directory: 'schemas' } }] },
         { label: 'Guides', items: [{ autogenerate: { directory: 'guides' } }] },
         { label: 'Live examples', items: [{ autogenerate: { directory: 'examples' } }] },
+        { label: 'Formula engine', items: [{ autogenerate: { directory: 'formula' } }] },
         { label: 'AI and agents', items: [{ autogenerate: { directory: 'ai' } }] },
         { label: 'Reference', items: [{ slug: 'reference/functions' }] },
         typeDocSidebarGroup,
