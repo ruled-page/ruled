@@ -978,7 +978,27 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     return () => sc.removeEventListener('touchstart', stylus);
   }, []);
 
-  const tableLayout = drawn.current?.input.layout;
+  // What the screen readers' table needs, kept the same from render to render unless it changed.
+  const textOf = useRef<(row: number, col: number) => string>(() => '');
+  let tableInput: PaintInput | undefined;
+  textOf.current = (row, col) => {
+    const layout = drawn.current?.input.layout ?? layoutNow();
+    if (!painter.current || !layout) return '';
+    tableInput ??= inputFor(layout);
+    return painter.current.cellText(tableInput, row, col);
+  };
+  // A line hidden or shown changes the view in place: layoutVersion says so.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tableRows = useMemo(() => (view.gridRow(selection.row) >= 0 ? withLine(lines.rows, selection.row) : lines.rows), [view, lines.rows, selection.row, layoutVersion]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tableCols = useMemo(() => (view.gridCol(selection.col) >= 0 ? withLine(lines.cols, selection.col) : lines.cols), [view, lines.cols, selection.col, layoutVersion]);
+  const activeBox = useCallback(() => {
+    const b = handle.cellBox(store.selection.row, store.selection.col);
+    const at = host.current?.getBoundingClientRect();
+    return b && at ? { ...b, x: b.x - at.left, y: b.y - at.top } : undefined;
+  }, [handle, store]);
+  const onComposed = useCallback((text: string) => startEditRef.current(text), []);
+  const tableVersion = `${dataVersion}:${schemaVersion}:${layoutVersion}:${store.colVersion}:${store.highlightEdits}:${store.numbers.display}:${store.styles.length}:${palette.text}:${!!painter.current}`;
   return (
     <div
       className="wbe-grid-host"
@@ -992,18 +1012,15 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         store={store}
         view={view}
         selection={selection}
-        drawn={painter.current && tableLayout ? { painter: painter.current, input: inputFor(tableLayout) } : undefined}
-        rows={view.gridRow(selection.row) >= 0 ? withLine(lines.rows, selection.row) : lines.rows}
-        cols={view.gridCol(selection.col) >= 0 ? withLine(lines.cols, selection.col) : lines.cols}
+        textOf={textOf}
+        version={tableVersion}
+        rows={tableRows}
+        cols={tableCols}
         activeRef={activeCell}
         frozenRows={view.info.frozenRows}
         typing={!store.touchMode && !edit}
-        activeBox={() => {
-          const b = handle.cellBox(store.selection.row, store.selection.col);
-          const at = host.current?.getBoundingClientRect();
-          return b && at ? { ...b, x: b.x - at.left, y: b.y - at.top } : undefined;
-        }}
-        onComposed={(text) => startEdit(text)}
+        activeBox={activeBox}
+        onComposed={onComposed}
       />
       {edit && <CellEditorBox store={store} edit={edit} box={editBox(edit)} palette={palette} rtl={rtl} onText={(text) => setEdit((e) => e && { ...e, text })} finish={finishEdit} onMode={() => setEdit((e) => e && { ...e, mode: e.mode === 'edit' ? 'enter' : 'edit' })} />}
       <div

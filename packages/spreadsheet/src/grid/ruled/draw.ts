@@ -61,6 +61,8 @@ interface Look {
   text: string;
   color: string;
   align: 'left' | 'right' | 'center';
+  /** How wide its text is on one line, once measured. */
+  width?: number;
 }
 
 /**
@@ -473,8 +475,12 @@ export class Painter {
     // The start edge is the right one when the sheet reads right to left.
     const align = input.layout.spec.rtl && look.align !== 'center' ? (look.align === 'left' ? 'right' : 'left') : look.align;
     const x = align === 'left' ? box.x + CELL_PADDING + indent : align === 'right' ? box.x + box.width - CELL_PADDING - indent : box.x + box.width / 2;
-    ctx.save();
-    this.clip(box);
+    // Text that fits in its cell, as most does, needs no clipping, which costs more than the text itself.
+    const fits = !s.wrap && (look.width ??= this.measure(look.text, s)) + CELL_PADDING * 2 + indent <= box.width && top >= box.y && top + em <= box.y + box.height;
+    if (!fits) {
+      ctx.save();
+      this.clip(box);
+    }
     ctx.font = font;
     ctx.fillStyle = look.color;
     ctx.textAlign = align;
@@ -486,7 +492,7 @@ export class Painter {
       // Lines through and under text keep to its measured middle, just under its baseline.
       this.decorate(line, x, align, y - TEXT_DROP + em / 2, s);
     });
-    ctx.restore();
+    if (!fits) ctx.restore();
   }
 
   /** Strikethrough and underline, across text drawn from `x` with its middle at `mid`. */

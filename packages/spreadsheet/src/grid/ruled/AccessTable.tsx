@@ -1,5 +1,5 @@
 import { inRect } from '@ruled/formula/refs';
-import { useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
+import { memo, useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
 import type { Box } from '../contract';
 import { effectiveStyle } from '../../state/cellStyle';
 import { checkboxState } from '../../state/checkbox';
@@ -8,14 +8,15 @@ import type { Selection, WorkbookStore } from '../../state/store';
 import { useT } from '../../i18n/react';
 import { cellOptions } from '../lists';
 import { spokenText } from '../spoken';
-import type { Painter, PaintInput } from './draw';
 
 interface Props {
   store: WorkbookStore;
   view: SheetView;
   selection: Selection;
-  /** The painter and what it last drew, for the cells' text as drawn. */
-  drawn: { painter: Painter; input: PaintInput } | undefined;
+  /** A cell's text as the grid draws it. */
+  textOf: RefObject<(row: number, col: number) => string>;
+  /** Changes whenever what the cells show may have changed. */
+  version: string;
   /** The sheet rows and columns to give, in order: those in view, and the active cell's. */
   rows: number[];
   cols: number[];
@@ -52,7 +53,13 @@ function Cell({ text, cellRef, ...props }: HTMLAttributes<HTMLTableCellElement> 
  * reference, what it shows and what else is true of it. The active cell
  * has the focus while the grid has it, and moves as the selection does.
  */
-export function AccessTable({ store, view, selection, drawn, rows, cols, activeRef, frozenRows, typing, activeBox, onComposed }: Props) {
+export const AccessTable = memo(
+  AccessTableNow,
+  // Built again only when what it gives changes, not each time the grid renders as it scrolls.
+  (a, b) => a.view === b.view && a.selection === b.selection && a.rows === b.rows && a.cols === b.cols && a.version === b.version && a.typing === b.typing && a.frozenRows === b.frozenRows,
+);
+
+function AccessTableNow({ store, view, selection, textOf, rows, cols, activeRef, frozenRows, typing, activeBox, onComposed }: Props) {
   const t = useT();
   const selected = (row: number, col: number) => selection.lines === 'all' || selection.rects.some((r) => (selection.lines === 'rows' ? row >= r.r1 && row <= r.r2 : selection.lines === 'cols' ? col >= r.c1 && col <= r.c2 : inRect(r, row, col)));
   /** What a cell shows: its text as drawn (a number shown as #### in full), or whether its checkbox is ticked. */
@@ -61,7 +68,7 @@ export function AccessTable({ store, view, selection, drawn, rows, cols, activeR
     const style = effectiveStyle(view, store.styles, row, col, rec ? rec.style : view.styleAt(row, col, null));
     const box = rec ? checkboxState(rec, style) : style.checkbox ? false : undefined;
     if (box !== undefined) return t(box ? 'checkbox.ticked' : 'checkbox.unticked');
-    return drawn ? drawn.painter.cellText(drawn.input, row, col) : '';
+    return textOf.current(row, col);
   };
   // The active cell sets this once rendered; a table without one (its line hidden) leaves it unset.
   activeRef.current = null;
