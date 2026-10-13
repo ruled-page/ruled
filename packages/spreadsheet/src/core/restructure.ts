@@ -15,6 +15,7 @@ import {
   type StructuralOp,
 } from './refTransform';
 import { transformFormula, type FormulaContext } from '@ruled/formula/reshape';
+import { removeEmptyNoteParts } from './commentWriter';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { countElements, decodeEntities, elements, escapeXml, findTagEnd, replaceElements } from './xml';
@@ -102,6 +103,8 @@ export function restructure(pkg: OoxmlPackage, model: WorkbookModel, op: Structu
       // Pictures and charts move with whole rows and columns, not with cells shifting past them, as in Excel.
       if (r.type === 'drawing' && isLineOp(op)) rewriteText(pkg, r.target, (xml) => anchors(xml, op));
     }
+    // Notes that went with deleted cells may have been the last.
+    removeEmptyNoteParts(pkg, m.path, m.scan?.prefix ?? '');
   });
   return { broken };
 }

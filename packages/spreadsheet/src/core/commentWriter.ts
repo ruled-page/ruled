@@ -69,8 +69,7 @@ function writeSheet(pkg: OoxmlPackage, workbookPath: string, path: string, p: st
   const threadsXml = threadsRel ? pkg.text(threadsRel.target) : undefined;
   if (threadsRel && threadsXml !== undefined) {
     const next = rewriteThreads(threadsXml, cells);
-    if (!firstElement(next, 'threadedComment')) removePart(pkg, path, threadsRel);
-    else if (next !== threadsXml) pkg.setText(threadsRel.target, next);
+    if (next !== threadsXml) pkg.setText(threadsRel.target, next);
   } else if (noted.some(([, n]) => n.kind === 'thread')) {
     const part = freePart(pkg, (n) => `${dir}threadedComments/threadedComment${n}.xml`);
     pkg.setText(part, rewriteThreads(`${XML_HEAD}<ThreadedComments xmlns="${THREADS_NS}" xmlns:x="${MAIN_NS}"></ThreadedComments>`, cells));
@@ -81,14 +80,10 @@ function writeSheet(pkg: OoxmlPackage, workbookPath: string, path: string, p: st
   // Notes, and the note Excel keeps for each thread.
   const notesRel = rels.find((r) => r.type === 'comments');
   const notesXml = notesRel ? pkg.text(notesRel.target) : undefined;
-  let hasNotes = false;
   if (notesRel && notesXml !== undefined) {
     const next = rewriteNotes(notesXml, cells);
-    hasNotes = !!firstElement(next, 'comment');
-    if (!hasNotes) removePart(pkg, path, notesRel);
-    else if (next !== notesXml) pkg.setText(notesRel.target, next);
+    if (next !== notesXml) pkg.setText(notesRel.target, next);
   } else if (noted.length) {
-    hasNotes = true;
     const part = freePart(pkg, (n) => `${dir}comments${n}.xml`);
     const empty = `${XML_HEAD}<comments xmlns="${MAIN_NS}" xmlns:mc="${MC_NS}" mc:Ignorable="xr" xmlns:xr="${REVISION_NS}"><authors></authors><commentList></commentList></comments>`;
     pkg.setText(part, rewriteNotes(empty, cells));
@@ -105,14 +100,7 @@ function writeSheet(pkg: OoxmlPackage, workbookPath: string, path: string, p: st
   const vmlXml = vmlRel ? pkg.text(vmlRel.target) : undefined;
   if (legacy && vmlRel && vmlXml !== undefined) {
     const next = rewriteVml(vmlXml, cells, info, pkg);
-    if (!hasNotes && !elements(next, 'shape').length) {
-      // Nothing else (no form controls) is drawn there either.
-      removePart(pkg, path, vmlRel);
-      sheetXml = sheetXml.slice(0, legacy.start) + sheetXml.slice(legacy.end);
-      pkg.setText(path, sheetXml);
-    } else if (next !== vmlXml) {
-      pkg.setText(vmlRel.target, next);
-    }
+    if (next !== vmlXml) pkg.setText(vmlRel.target, next);
   } else if (noted.length) {
     // A <legacyDrawing> whose drawing is missing is replaced.
     if (legacy) sheetXml = sheetXml.slice(0, legacy.start) + sheetXml.slice(legacy.end);
@@ -124,6 +112,32 @@ function writeSheet(pkg: OoxmlPackage, workbookPath: string, path: string, p: st
     if (!hasDefault(pkg, 'vml')) addContentType(pkg, `<Default Extension="vml" ContentType="${CONTENT_TYPE.vml}"/>`);
     pkg.setText(path, addLegacyDrawing(sheetXml, p, id));
   }
+  removeEmptyNoteParts(pkg, path, p);
+}
+
+/**
+ * Removes a sheet's notes and threads parts once there is nothing left in
+ * them, and then the drawing that gives notes their boxes, and its
+ * <legacyDrawing>, once nothing else (no form control) is drawn there
+ * either, as Excel does. `p` is the sheet's prefix for its elements.
+ */
+export function removeEmptyNoteParts(pkg: OoxmlPackage, path: string, p: string): void {
+  const rels = pkg.rels(path).filter((r) => !r.external);
+  const threads = rels.find((r) => r.type === 'threadedComment');
+  const threadsXml = threads && pkg.text(threads.target);
+  if (threads && threadsXml !== undefined && !firstElement(threadsXml, 'threadedComment')) removePart(pkg, path, threads);
+  const notes = rels.find((r) => r.type === 'comments');
+  const notesXml = notes && pkg.text(notes.target);
+  if (notes && notesXml !== undefined && !firstElement(notesXml, 'comment')) removePart(pkg, path, notes);
+  else if (notesXml !== undefined || !rels.some((r) => r.type === 'vmlDrawing')) return;
+  const sheetXml = pkg.text(path);
+  const legacy = sheetXml === undefined ? undefined : firstElement(sheetXml, 'legacyDrawing', tailStart(sheetXml, p));
+  const id = legacy && attrNamed(parseAttrs(legacy.attrs), 'id');
+  const vml = id === undefined ? undefined : rels.find((r) => r.id === id);
+  const vmlXml = vml && pkg.text(vml.target);
+  if (!sheetXml || !legacy || !vml || vmlXml === undefined || elements(vmlXml, 'shape').length) return;
+  removePart(pkg, path, vml);
+  pkg.setText(path, sheetXml.slice(0, legacy.start) + sheetXml.slice(legacy.end));
 }
 
 // ---------------------------------------------------------------------------

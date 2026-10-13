@@ -76,8 +76,6 @@ Small gaps found along the way.
   hold; the engine's limit (`MAX_ARRAY_CELLS` in
   `packages/formula-engine/src/sizeLimits.ts`) keeps a stray formula from
   taking the page's memory.
-- **Deleting the rows that hold a sheet's last notes** leaves its comments
-  part with no comments in it. It is valid, but Excel removes the part.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's
   `_xlpm.` prefix** on their names, as `examples/demo/public/samples/kitchen-sink.xlsx`
   does; desktop Excel opens it. Saving keeps formulas no one edited as the

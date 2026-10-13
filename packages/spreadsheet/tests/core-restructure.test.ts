@@ -137,7 +137,8 @@ describe('inserting rows', () => {
 describe('deleting rows', () => {
   it('removes threaded comments on deleted cells and resets a selection that went with them', () => {
     const { file, xml } = after({ type: 'deleteRows', sheet: DATA, at: 4, count: 2 });
-    expect(xml['xl/threadedComments/threadedComment1.xml']).not.toContain('<threadedComment ');
+    // It was the sheet's only one, so its part goes too.
+    expect(xml['xl/threadedComments/threadedComment1.xml']).toBeUndefined();
     expect(file.model.sheets[DATA].info.notes).toEqual([]);
     expect(sheetXml(xml, 1)).toContain('<selection activeCell="A1" sqref="A1"/>');
     // The picture's top edge was on a deleted row: it now starts where they were.
@@ -221,7 +222,7 @@ describe('moving cells', () => {
     expect(sheetXml(xml, 3)).toContain('<dimension ref="B2:B4"/>');
     // References to the cells follow them, qualified with the new sheet.
     expect(xml['xl/workbook.xml']).toContain('<definedName name="Here" localSheetId="0">Empty!$B$2</definedName>');
-    expect(xml['xl/threadedComments/threadedComment1.xml']).not.toContain('<threadedComment ');
+    expect(xml['xl/worksheets/_rels/sheet1.xml.rels']).not.toContain('threadedComment');
     // The comment thread on A5 comes with its cell.
     expect(file.model.sheets[EMPTY].info.notes.map((n) => [n.row, n.col, n.kind, n.entries[0]?.text])).toEqual([[2, 1, 'thread', 'Check this']]);
   });
@@ -301,7 +302,7 @@ describe('shifting cells', () => {
     expect(up.next.changes()[0]).toMatchObject({ ref: 'A2', note: { key: 'core.change.deletedCellsUp' } });
     const left = after({ type: 'deleteCells', sheet: DATA, rect: { r1: 4, c1: 0, r2: 4, c2: 0 }, shift: 'left' });
     expect(values(left.file, ['A4', 'A5', 'A6'])).toEqual([4, null, 6]);
-    expect(left.xml['xl/threadedComments/threadedComment1.xml']).not.toContain('ref="A5"');
+    expect(left.xml['xl/threadedComments/threadedComment1.xml']).toBeUndefined();
   });
 
   it('moves cells in between others with Shift+drag, as one change', () => {
@@ -451,10 +452,13 @@ describe('the kitchen sink', () => {
     );
   });
 
-  it('removes the note on a deleted row, and its box', () => {
+  it('removes the note on a deleted row, and its box, and with the sheet\'s last note the parts that held it', () => {
     const { file, xml } = after({ type: 'deleteRows', sheet: summary, at: 3, count: 1 }, ks, 'k.xlsx');
-    expect(xml['xl/comments1.xml']).not.toContain('<comment ');
-    expect(xml['xl/drawings/vmlDrawing1.vml']).not.toContain('<x:Row>');
+    expect(xml['xl/comments1.xml']).toBeUndefined();
+    expect(xml['xl/drawings/vmlDrawing1.vml']).toBeUndefined();
+    expect(sheetXml(xml, 1)).not.toContain('legacyDrawing');
+    expect(xml['xl/worksheets/_rels/sheet1.xml.rels']).not.toMatch(/comments|vmlDrawing/);
+    expect(xml['[Content_Types].xml']).not.toContain('comments1.xml');
     expect(file.model.sheets[summary].info.notes).toEqual([]);
     // Charts drawn from the rows below move up.
     expect(xml['xl/charts/chart1.xml']).toContain('<c:f>Summary!$A$4:$A$7</c:f>');
