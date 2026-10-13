@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { goTo, openFile, openSample, ordersWorkbook, readWorkbook, setCell, shown } from './helpers';
+import { goTo, gridScroller, openFile, openSample, ordersWorkbook, readWorkbook, setCell, shown } from './helpers';
 
 test.describe('editing a workbook', () => {
   test.beforeEach(async ({ page }) => {
@@ -93,12 +93,16 @@ test.describe('editing a workbook', () => {
   });
 
   test('scrolls a far cell into view, on this sheet or another, and back to it after scrolling away', async ({ page }) => {
+    const scrolled = () => gridScroller(page).last().evaluate((s) => s.scrollTop);
     await goTo(page, 'Z300');
     await expect(shown(page, 'Z300')).toHaveCount(1);
+    const there = await scrolled();
+    expect(there).toBeGreaterThan(4000);
     await page.mouse.move(600, 400);
     await page.mouse.wheel(0, -4000);
-    await expect(shown(page, 'Z300')).toHaveCount(0);
+    await expect.poll(scrolled).toBeLessThan(there - 2000);
     await goTo(page, 'Z300');
+    await expect.poll(scrolled).toBeGreaterThan(there - 100);
     await expect(shown(page, 'Z300')).toHaveCount(1);
     await goTo(page, 'Summary!Y250');
     await expect(shown(page, 'Y250')).toHaveCount(1);

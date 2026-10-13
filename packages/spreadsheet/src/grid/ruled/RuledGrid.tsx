@@ -115,6 +115,32 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   };
   useEffect(() => () => clearTimeout(tableTimer.current), []);
 
+  // What the painter worked out about cells goes once they, their styles or the columns change:
+  // before this render, so the screen readers' table, which reads the same, is current too.
+  const cellsKey = [view, dataVersion, schemaVersion, layoutVersion, store.colVersion, store.highlightEdits, store.numbers];
+  const lastKey = useRef<unknown[]>([]);
+  if (painter.current && cellsKey.some((k, i) => k !== lastKey.current[i])) painter.current.reset();
+  lastKey.current = cellsKey;
+
+  /** What the painter draws from, as the grid now is. */
+  const inputFor = (layout: Layout): PaintInput => {
+    const schema = store.schema;
+    const sheet = view.info.index;
+    return {
+      view,
+      layout,
+      styles: store.styles,
+      palette,
+      date1904: store.date1904,
+      locale: store.locale,
+      fullNumbers: store.numbers.display === 'full',
+      highlightEdits: store.highlightEdits,
+      isLabel: schema ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
+      selection: store.selection,
+      marks,
+    };
+  };
+
   const listeners = useRef(new Set<() => void>());
   const draw = useRef<() => void>(() => undefined);
   draw.current = () => {
@@ -132,21 +158,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     }
     painter.current ??= new Painter(ctx);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const schema = store.schema;
-    const sheet = view.info.index;
-    const input: PaintInput = {
-      view,
-      layout,
-      styles: store.styles,
-      palette,
-      date1904: store.date1904,
-      locale: store.locale,
-      fullNumbers: store.numbers.display === 'full',
-      highlightEdits: store.highlightEdits,
-      isLabel: schema ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
-      selection: store.selection,
-      marks,
-    };
+    const input = inputFor(layout);
     painter.current.draw(input);
     drawn.current = { painter: painter.current, input };
     // Near the last row or column shown, more follow, as far as Excel's sheet goes.
@@ -174,8 +186,6 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     [],
   );
 
-  // What the painter worked out about cells goes once they, their styles or the columns change.
-  useLayoutEffect(() => painter.current?.reset(), [view, dataVersion, schemaVersion, layoutVersion, store.colVersion, store.highlightEdits, store.numbers]);
   // Anything that renders the grid may change what it shows.
   useLayoutEffect(redraw);
   // AutoFit measures text as it is drawn here.
@@ -301,6 +311,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   /** A cell to bring into view once the grid has drawn the rows and columns it may have added. */
   const pending = useRef<{ row: number; col: number }>(undefined);
   const wantFocus = useRef(false);
+  /** Whether the grid has the focus, or had it when its focused cell went (as when its row is hidden): browsers say nothing then. */
+  const hasFocus = useRef(false);
   const activeCell = useRef<HTMLTableCellElement>(null);
   useLayoutEffect(() => {
     if (pending.current) {
@@ -309,9 +321,28 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     }
     // While the grid has the focus, it follows the active cell.
     const el = activeCell.current;
-    if (el && (wantFocus.current || host.current?.contains(document.activeElement)) && document.activeElement !== el) el.focus({ preventScroll: true });
+    const now = document.activeElement;
+    const kept = hasFocus.current && (!now || now === document.body || !!host.current?.contains(now));
+    if (el && (wantFocus.current || kept) && now !== el) el.focus({ preventScroll: true });
     wantFocus.current = false;
   });
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const into = () => (hasFocus.current = true);
+    // A cell taken out of the table (its row hidden, say) loses the focus too, but the grid keeps it.
+    const out = (e: FocusEvent) => {
+      const from = e.target as Node;
+      if (!el.contains(e.relatedTarget as Node | null)) queueMicrotask(() => from.isConnected && (hasFocus.current = false));
+    };
+    el.addEventListener('focusin', into);
+    el.addEventListener('focusout', out);
+    return () => {
+      el.removeEventListener('focusin', into);
+      el.removeEventListener('focusout', out);
+    };
+  }, []);
 
   // Find, the name box and the change list point at cells: bring the selection into view, and take the focus when asked.
   const reveal = store.revealSeq;
@@ -524,10 +555,26 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     if (store.touchFill && !(e.target as Element).closest('.wbe-touch-handle')) store.set('touchFill', false);
   };
 
+  const tableLayout = drawn.current?.input.layout;
   return (
-    <div className="wbe-grid-host" ref={host} data-testid="wbe-grid" onKeyDown={onKeyDown} onPointerDownCapture={onPointerDown}>
+    <div
+      className="wbe-grid-host"
+      ref={host}
+      data-testid="wbe-grid"
+      onKeyDown={onKeyDown}
+      onPointerDownCapture={onPointerDown}
+    >
       <canvas className="wbe-grid-canvas" ref={canvas} aria-hidden="true" />
-      <AccessTable store={store} view={view} selection={selection} drawn={drawn.current} rows={withLine(lines.rows, selection.row)} cols={withLine(lines.cols, selection.col)} activeRef={activeCell} frozenRows={view.info.frozenRows} />
+      <AccessTable
+        store={store}
+        view={view}
+        selection={selection}
+        drawn={painter.current && tableLayout ? { painter: painter.current, input: inputFor(tableLayout) } : undefined}
+        rows={view.gridRow(selection.row) >= 0 ? withLine(lines.rows, selection.row) : lines.rows}
+        cols={view.gridCol(selection.col) >= 0 ? withLine(lines.cols, selection.col) : lines.cols}
+        activeRef={activeCell}
+        frozenRows={view.info.frozenRows}
+      />
       <div
         className="wbe-grid-scroller"
         ref={scroller}

@@ -62,7 +62,9 @@ test('merges cells after asking about the values that go, and freezes the top ro
 
   await goTo(page, 'C3');
   await choose(page, 'Freeze top row', 'Freeze panes');
-  await expect(page.locator('.wbe-pane-top')).toHaveCount(1);
+  // Glide's grid puts frozen rows in a grid of their own; Ruled's in a group of rows.
+  const frozen = { name: /^Frozen rows of /, includeHidden: true };
+  await expect(page.getByRole('grid', frozen).or(page.getByRole('rowgroup', frozen))).toHaveCount(1);
 
   const wb = await save(page);
   const lines = wb.getWorksheet('Lines')!;
