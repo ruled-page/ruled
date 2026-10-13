@@ -4,21 +4,21 @@ import type { Translator } from '../i18n';
 export const APPLE = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** A shortcut with the platform's modifier, as the language writes it: ⌘Z on Apple devices, Ctrl+Z (Strg+Z in German) elsewhere. */
-export function mod(t: Translator, key: string): string {
-  return APPLE ? `⌘${key}` : t('keys.mod', { key });
+export function mod(t: Translator, key: string, apple = APPLE): string {
+  return apple ? `⌘${key}` : t('keys.mod', { key });
 }
 
 /**
  * The key for the list of shortcuts. On Apple devices ⌃/ as well as ⌘/,
  * because Safari keeps ⌘/ for itself (Show Status Bar) and never passes it on.
  */
-export function shortcutsKey(t: Translator): string {
-  return APPLE ? '⌘/, ⌃/' : mod(t, '/');
+export function shortcutsKey(t: Translator, apple = APPLE): string {
+  return apple ? '⌘/, ⌃/' : mod(t, '/', apple);
 }
 
 /** Redo as the platform writes it: ⇧⌘Z on Apple devices (⌘Y is the browser's history there), Ctrl+Y elsewhere. */
-export function redoKey(t: Translator): string {
-  return APPLE ? '⇧⌘Z' : mod(t, 'Y');
+export function redoKey(t: Translator, apple = APPLE): string {
+  return apple ? '⇧⌘Z' : mod(t, 'Y', apple);
 }
 
 /**

@@ -1,0 +1,10 @@
+---
+title: Formula functions
+description: Every Excel worksheet function the editor's engine calculates live, with its arguments, and the ones whose results it keeps from Excel.
+---
+
+import FunctionList from '../../../components/FunctionList.astro';
+
+Formulas are calculated by the editor's own engine, in its worker, as cells change. Dynamic arrays spill as in Excel 365, and `LET`, `LAMBDA` and its helpers (`MAP`, `REDUCE`, `SCAN`, `BYROW`, `BYCOL`, `MAKEARRAY`) work, as do names defined with them. On opening, the engine's results are compared with the values Excel saved, and any that disagree are reported.
+
+<FunctionList />

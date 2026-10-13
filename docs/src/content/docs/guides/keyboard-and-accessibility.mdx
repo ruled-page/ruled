@@ -1,0 +1,38 @@
+---
+title: Keyboard and accessibility
+description: Excel's keys, the shortcuts, screen reader support, touch, and the browser shortcuts the editor leaves alone.
+sidebar:
+  order: 7
+---
+
+import ShortcutList from '../../../components/ShortcutList.astro';
+
+Everything works without a mouse, with Excel's keys. In the editor, Ctrl+/ (⌘/ on a Mac) lists every shortcut.
+
+## Moving around the editor
+
+Tab stays in the grid, as it does in Excel, so **F6** (Ctrl+F6 where the browser keeps F6) moves between the toolbar, format bar, formula bar, sheet, side panel and sheet tabs. Typing a cell such as `B4`, or a name, in the name box goes there, and Alt+Down lists the workbook's names.
+
+The sheet tabs are one stop: the arrow keys, Home and End move between them, Enter shows a sheet, Alt+Shift+Left and Right move it, F2 renames it, and Shift+F10 opens its menu. Dialogs keep the focus inside, close with Escape, and hand the focus back.
+
+## Shortcuts
+
+<ShortcutList />
+
+## Browser shortcuts
+
+The editor takes a browser shortcut only for the same job: Ctrl+S saves, Ctrl+F finds, Ctrl+Z undoes. It never repurposes one, so Ctrl+R still reloads the page and Ctrl+D still bookmarks it; Excel's fill down and fill right are in the cell menu instead. On a Mac, ⌘Y is left to the browser's history, and redo is ⇧⌘Z.
+
+## Screen readers
+
+Screen readers hear each cell by its reference and as it's shown, then what the grid only marks in colour: a merge, a formula and whether its value is out of date, the formula a spilled value comes from, a change, a list, a note or comments, where a link goes, and any schema problem. For example: "D3, twelve, changed, error: Expected a number."
+
+Rows and columns are numbered as the sheet numbers them, past hidden ones and below frozen ones. What an action did is said too: undoing and redoing, inserting and deleting, how many rows a filter hides, opening a file, and what's wrong with a value just typed. Errors are said at once; other messages as they arrive.
+
+## Contrast, colours and motion
+
+The default theme meets WCAG 2.2 AA contrast. Focus stays visible in Windows' forced colours, and the busy spinner slows for people who ask for less motion. Themes you write are yours to check; the [theme tokens](/guides/theming/) cover every colour the editor uses.
+
+## Touch
+
+On a phone, the editor keeps the grid in view: the toolbar's actions scroll sideways in one row, the side panel opens over the sheet when asked for, a cell's note or problem appears under the formula bar since nothing hovers on touch, and the ⋯ button there opens the cell menu. A tap selects a cell and a second tap edits it.

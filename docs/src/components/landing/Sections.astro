@@ -6,6 +6,9 @@
 import { Code, LinkButton, TabItem, Tabs } from '@astrojs/starlight/components';
 import priceList from '../../examples/price-list.ts?raw';
 
+// The demo site, with every sample workbook; DEMO_URL points elsewhere, as for the example sites.
+const demo = import.meta.env.DEMO_URL ?? 'https://workbook-editor-poc.pages.dev/';
+
 const pillars = [
   {
     ref: 'B1',
@@ -152,6 +155,15 @@ const fidelity = [
       </p>
     </div>
     <LinkButton href="/ai/agents/" icon="right-arrow">Set up your agent</LinkButton>
+  </section>
+
+  <section class="wb-try" aria-labelledby="try">
+    <h2 id="try" class="wb-display">Try it on a workbook of your own.</h2>
+    <p>The demo opens any .xlsx or CSV file, with the sample workbooks and schemas from these pages. Nothing leaves your browser.</p>
+    <div class="wb-try__actions">
+      <LinkButton href={demo} icon="external">Open the demo</LinkButton>
+      <LinkButton href="/start/introduction/" variant="secondary">Read the docs</LinkButton>
+    </div>
   </section>
 </div>
 
@@ -327,6 +339,23 @@ const fidelity = [
       linear-gradient(to right, var(--wb-grid-line) 1px, transparent 1px) 0 0 / 96px 28px,
       linear-gradient(to bottom, var(--wb-grid-line) 1px, transparent 1px) 0 0 / 96px 28px,
       var(--wb-card);
+  }
+
+  .wb-try {
+    text-align: center;
+    padding-block: 1rem 2rem;
+  }
+
+  .wb-try p {
+    margin: 0 auto 1.75rem;
+    max-width: 34rem;
+  }
+
+  .wb-try__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
   }
 
   .wb-agents div {

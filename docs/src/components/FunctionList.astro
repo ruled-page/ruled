@@ -1,0 +1,50 @@
+---
+/** Excel's worksheet functions as the editor knows them: those its engine calculates, with their arguments, and those it keeps Excel's results for. */
+import { functionHelp, knownFunctionNames } from '../../../packages/spreadsheet/src/core/functionCatalog';
+
+const all = knownFunctionNames()
+  .map((name) => functionHelp(name)!)
+  .filter(Boolean)
+  .sort((a, b) => a.name.localeCompare(b.name));
+const calculated = all.filter((f) => f.calculated);
+const kept = all.filter((f) => !f.calculated);
+---
+
+<p
+  set:html={`The engine calculates <strong>${calculated.length}</strong> of Excel's ${all.length} worksheet functions. A workbook using one of the other ${kept.length} keeps Excel's saved result for it until Excel recalculates the file, and a save lists such formulas as <code>outOfDate</code> when their inputs change.`}
+/>
+
+<h2 id="calculated">Calculated</h2>
+<table class="wb-functions">
+  <thead>
+    <tr>
+      <th>Function</th>
+      <th>Arguments and what it does</th>
+    </tr>
+  </thead>
+  <tbody>
+    {
+      calculated.map((f) => (
+        <tr id={f.name.toLowerCase()}>
+          <td>
+            <code>{f.name}</code>
+          </td>
+          <td>
+            {f.args !== undefined && <code>{`${f.name}(${f.args})`}</code>}
+            {f.description && <span> {f.description}</span>}
+          </td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<h2 id="kept">Kept from Excel</h2>
+<p>{kept.map((f) => f.name).join(', ')}.</p>
+
+<style>
+  .wb-functions td:first-child {
+    white-space: nowrap;
+    vertical-align: top;
+  }
+</style>

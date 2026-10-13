@@ -2,68 +2,9 @@ import { useId, useRef, useState } from 'react';
 import { colToLetters } from '@sitepen/formula-engine/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { APPLE, mod, redoKey, shortcutsKey } from './keys';
+import { shortcuts } from './shortcuts';
 import { useDialog } from './useDialog';
-import type { Translator } from '../i18n';
 import { useT } from '../i18n/react';
-
-/** The shortcuts by group, with keys and what they do as the language writes them. */
-function shortcuts(t: Translator): { group: string; keys: [string, string][] }[] {
-  const m = (...keys: string[]) => keys.map((k) => mod(t, k)).join(', ');
-  return [
-    {
-      group: t('shortcuts.moving'),
-      keys: [
-        [t('keys.arrows'), t('shortcuts.moveCells')],
-        [t('keys.tab'), t('shortcuts.moveRightLeft')],
-        [t('keys.shiftArrows'), t('shortcuts.extend')],
-        [t('keys.f6'), t('shortcuts.regions')],
-      ],
-    },
-    {
-      group: t('shortcuts.editing'),
-      keys: [
-        [t('keys.typing'), t('shortcuts.typing')],
-        [t('keys.enter'), t('shortcuts.enter')],
-        [t('keys.escape'), t('shortcuts.escape')],
-        [t('keys.delete'), t('shortcuts.clear')],
-        [`${m('Z')}, ${redoKey(t)}`, t('shortcuts.undoRedo')],
-        [m('X', 'C', 'V'), t('shortcuts.clipboard')],
-        [t('keys.accept'), t('shortcuts.complete')],
-        [t('keys.f4'), t('shortcuts.absolute')],
-        [m('+', '-'), t('shortcuts.insertDelete')],
-        [APPLE ? '⇧⌘F' : t('keys.filterToggle'), t('shortcuts.filterToggle')],
-        [APPLE ? '⌥↓' : t('keys.altDown'), t('shortcuts.filterMenu')],
-        [APPLE ? '⌥F1' : t('keys.altF1'), t('shortcuts.insertChart')],
-        [APPLE ? '⌃⌥5' : t('keys.ctrlAlt5'), t('shortcuts.selectObjects')],
-        [APPLE ? '⌥F5' : t('keys.altF5'), t('shortcuts.refreshPivots')],
-        [APPLE ? '⌃⌥F5' : t('keys.ctrlAltF5'), t('shortcuts.refreshAllPivots')],
-      ],
-    },
-    {
-      group: t('shortcuts.commands'),
-      keys: [
-        [t('keys.menu'), t('shortcuts.menu')],
-        [t('keys.shiftF2'), t('shortcuts.note')],
-        [mod(t, t('keys.enter')), t('links.shortcut')],
-        [APPLE ? '⌥⇧→' : t('outline.keys.group'), t('outline.shortcuts.group')],
-        [APPLE ? '⌥⇧←' : t('outline.keys.ungroup'), t('outline.shortcuts.ungroup')],
-        [m('F'), t('shortcuts.find')],
-        [m('G'), t('shortcuts.findNext')],
-        [m('S'), t('shortcuts.save')],
-        [shortcutsKey(t), t('shortcuts.list')],
-      ],
-    },
-    {
-      group: t('sheets.shortcuts.group'),
-      keys: [
-        [t('keys.menu'), t('sheets.shortcuts.menu')],
-        [APPLE ? '⌥⇧←, ⌥⇧→' : t('sheets.keys.move'), t('sheets.shortcuts.move')],
-        [t('sheets.keys.rename'), t('sheets.shortcuts.rename')],
-      ],
-    },
-  ];
-}
 
 /** Every keyboard shortcut, since the grid's keys differ from a web page's. */
 export function ShortcutsDialog({ store }: { store: WorkbookStore }) {

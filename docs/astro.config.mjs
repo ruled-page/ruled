@@ -49,6 +49,7 @@ export default defineConfig({
         { label: 'Guides', items: [{ autogenerate: { directory: 'guides' } }] },
         { label: 'Live examples', items: [{ autogenerate: { directory: 'examples' } }] },
         { label: 'AI and agents', items: [{ autogenerate: { directory: 'ai' } }] },
+        { label: 'Reference', items: [{ slug: 'reference/functions' }] },
         typeDocSidebarGroup,
       ],
     }),

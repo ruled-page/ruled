@@ -1,0 +1,38 @@
+---
+/** The editor's keyboard shortcuts, from the list its Ctrl+/ dialog shows, with the keys for Windows and Linux and for Macs. */
+import { english } from '../../../packages/spreadsheet/src/i18n';
+import { shortcuts } from '../../../packages/spreadsheet/src/ui/shortcuts';
+
+const others = shortcuts(english, false);
+const mac = shortcuts(english, true);
+---
+
+{
+  others.map((g, gi) => (
+    <>
+      <h3>{g.group}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Windows and Linux</th>
+            <th>Mac</th>
+            <th>What they do</th>
+          </tr>
+        </thead>
+        <tbody>
+          {g.keys.map(([keys, does], ki) => (
+            <tr>
+              <td>
+                <kbd>{keys}</kbd>
+              </td>
+              <td>
+                <kbd>{mac[gi].keys[ki][0]}</kbd>
+              </td>
+              <td>{does}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  ))
+}
