@@ -26,6 +26,16 @@ export interface XmlNode {
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
+/**
+ * A copy of text cut from a part's XML, to keep. A browser keeps a longer
+ * cut as a view of the string it was cut from, so the formulas and text of
+ * a sheet would otherwise keep its whole XML in memory after it is read.
+ */
+export function detach(s: string): string {
+  // Joining makes a new string, and cutting it again copies that, not the XML.
+  return s.length < 13 ? s : (' ' + s).slice(1);
+}
+
 export function decodeEntities(s: string): string {
   if (s.indexOf('&') === -1) return s;
   return s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|\w+);/g, (m, e: string) => {

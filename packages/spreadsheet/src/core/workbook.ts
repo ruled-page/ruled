@@ -311,7 +311,10 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
   const richPart = (type: string) => relOfType(type).map((r) => pkg.text(r.target)).find((x) => x);
   const richStructures = richPart('rdRichValueStructure');
   const richErrors = richErrorMetadata(metadataXml, richPart('rdRichValue'), richStructures);
-  const sst = parseSharedStrings(relOfType('sharedStrings')[0] ? pkg.text(relOfType('sharedStrings')[0].target) : undefined);
+  const sstPath = relOfType('sharedStrings')[0]?.target;
+  const sst = parseSharedStrings(sstPath ? pkg.text(sstPath) : undefined);
+  // Its strings are copied out, so its text needn't stay in memory.
+  if (sstPath) pkg.forgetText(sstPath);
   const styles = new StyleBook(
     relOfType('styles')[0] ? pkg.text(relOfType('styles')[0].target) : undefined,
     relOfType('theme')[0] ? pkg.text(relOfType('theme')[0].target) : undefined,

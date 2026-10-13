@@ -2,7 +2,7 @@ import { makeShifter } from '@ruled/formula/formula';
 import { msg, TextError } from '../i18n/message';
 import { MAX_COLS, MAX_ROWS, parseRange } from '@ruled/formula/refs';
 import { CellFlag, VT, type Rect, type SheetGrid } from './types';
-import { damaged, decodeEntities, decodeOoxmlText, elements, findTagEnd, parseAttrs } from './xml';
+import { damaged, decodeEntities, decodeOoxmlText, detach, elements, findTagEnd, parseAttrs } from './xml';
 
 export interface FormulaMeta {
   kind: 'normal' | 'shared-master' | 'shared-follower' | 'array' | 'dataTable';
@@ -88,7 +88,7 @@ export function stringItemText(inner: string): string {
     if (k < skip.length && skip[k].start < t.start) continue;
     out += t.inner ?? '';
   }
-  return decodeOoxmlText(decodeEntities(out));
+  return detach(decodeOoxmlText(decodeEntities(out)));
 }
 
 export function parseSharedStrings(xml: string | undefined): { strings: string[]; rich: Set<number> } {
@@ -293,7 +293,7 @@ export function scanSheet(
             } else if (vText !== undefined) {
               if (t === 'str') {
                 type = VT.String;
-                str = decodeOoxmlText(decodeEntities(vText));
+                str = detach(decodeOoxmlText(decodeEntities(vText)));
               } else if (t === 'b') {
                 type = VT.Bool;
                 num = vText.trim() === '1' || vText.trim() === 'true' ? 1 : 0;
@@ -315,7 +315,7 @@ export function scanSheet(
 
             const f = findElement(xml, fTag, cTagEnd + 1, innerEnd);
             const fa = f ? parseAttrs(f.attrs) : {};
-            const text = f?.inner ? decodeEntities(f.inner) : '';
+            const text = f?.inner ? detach(decodeEntities(f.inner)) : '';
             const ft = fa.t ?? 'normal';
             // An empty <f ca="1"/> marks a cell a volatile formula spilled into: it holds a value, not a formula.
             if (f && (text || ft !== 'normal')) {
