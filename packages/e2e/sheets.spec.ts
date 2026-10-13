@@ -147,9 +147,15 @@ test('the sheet menu opens from a button too, for touch screens', async ({ page 
 
 test('dragging a tab moves its sheet', async ({ page }) => {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
-  // Dropped on the far half of Summary's tab, so after it.
+  // Dropped on the far half of Summary's tab, so after it, moving in steps as a person's drag does, so
+  // every browser sends the drag's events along the way.
+  const from = (await tab(page, 'Lines').boundingBox())!;
   const box = (await tab(page, 'Summary').boundingBox())!;
-  await tab(page, 'Lines').dragTo(tab(page, 'Summary'), { targetPosition: { x: box.width - 4, y: box.height / 2 } });
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
   await expect.poll(() => tabNames(page)).toEqual(['Summary', 'Lines']);
   await expect(tab(page, 'Lines')).toHaveAttribute('aria-selected', 'true');
 });
