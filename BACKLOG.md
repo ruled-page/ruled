@@ -1,7 +1,7 @@
 # Backlog
 
-Work that is deliberately not being done yet, with what it would take. The
-editor is a client-side proof of concept; nothing here should add a server.
+Work that is deliberately not being done yet, with what it would take. Ruled
+needs no server, and nothing here should add one.
 
 ## Needs a person
 
@@ -10,22 +10,44 @@ editor is a client-side proof of concept; nothing here should add a server.
   has used it with NVDA, JAWS or VoiceOver. A tester should go through
   opening a file, moving around the grid, editing, the checks panel and the
   dialogs with each.
+- **Checks in a licensed desktop Excel.** Excel for the web has opened the
+  editor's saved pivot tables without repairing them; desktop Excel should
+  open the pivot test workbooks and the demo's kitchen-sink sample, saved
+  after edits, too.
+- **Details checked only against Excel's documentation**, to try in Excel:
+  that a saved checkbox shows as one; how Top 10 by percent rounds (down
+  here, keeping at least one); the width of an indent level (9 pixels
+  here); and that a range moved with Shift+drag keeps its size when it only
+  changes the order of its cells.
+- **Typing letters outside ASCII, or with an input method, into a selected
+  cell.** Glide, the grid, starts an edit only for printable ASCII keys, so
+  typing ä or 日本 into a cell without opening it first may do nothing.
+  Nobody has tried it.
 
 ## Excel features left out for now
 
-- **Refreshing pivot tables, and slicers.** Pivot tables are kept and shown,
-  and Excel refreshes them on opening when their source data changed.
-  Refreshing them in the editor would need a pivot engine.
-- **Pictures and shapes.** Kept in the file and moved with their cells, and
-  shown as placeholder boxes where they sit. Charts are drawn, and a host can
-  turn that off (`features.charts`).
+- **Slicers and timelines.** Kept in the file; not shown, and pivot tables
+  and tables aren't filtered by them here.
+- **Pictures and shapes.** Kept in the file and shown as placeholder boxes
+  where they sit, which can be selected, moved, resized and deleted.
+- **Surface charts and Excel 2016's newer kinds** (waterfall, histogram,
+  treemap, funnel and the rest). Kept in the file and shown as placeholders;
+  the other kinds are drawn, and a host can turn drawing off
+  (`features.charts`).
 - **Sparklines.** Kept in the file and moved with their cells; not drawn.
 - **.xls, .xlsb and .ods files.** Refused with a message. A converter such
   as SheetJS could open them as .xlsx, losing charts and pivot tables.
 - **Printing and PDF.** Print settings are kept in the file; nothing prints.
   A print view could use the browser's own printing.
-- **What-if data tables and iterative calculation.** Their cells keep
-  Excel's saved values. The engine has no iterative calculation.
+- **What-if data tables** (`{=TABLE(…)}`). Their cells keep Excel's saved
+  values.
+- **Filtering by colour or icon, Excel's date filters by period** (This
+  Month, Q1 and the rest), and **sorting by colour or icon.** A file's
+  filters of these kinds are kept as they are; the editor doesn't offer
+  them.
+- **Right-to-left sheets.** A sheet set to read right to left is shown left
+  to right, though the editor's own interface lays out right to left. It
+  waits on the grid that is to replace Glide.
 - **Several people editing at once.** Live editing needs a server. A host
   can still turn down a save that conflicts (`SaveConflictError`).
 - **Password-protected and sensitivity-labelled files.** Refused with a
@@ -45,16 +67,37 @@ editor is a client-side proof of concept; nothing here should add a server.
   their own domain, or the editor would start the worker from a script
   fetched across domains.
 
+## The formula engine on its own
+
+`createWorkbook` in `@ruled/formula` works out a workbook with no editor.
+
+- **No build of its own.** Its exports point at its source, which the
+  editor's builds bundle. A build for the package changes how the docs' API
+  reference and the Angular example find the engine, so it belongs with the
+  engine's first release.
+- **No changes to a workbook's shape.** Sheets can be added, not renamed,
+  moved or deleted, and rows and columns can't be inserted or deleted. The
+  editor rewrites references for these itself
+  (`packages/spreadsheet/src/core/refTransform.ts`); the workbook would need
+  the same.
+- **No files.** Recalculating a saved .xlsx in Node would reuse the editor's
+  reader and writer.
+
 ## Known issues
 
-Small gaps found along the way, none of which loses data or shows a wrong
-value without saying so.
+Small gaps found along the way.
 
 - **A name qualified with its sheet** (`Prices!Rate`, for a name that belongs
-  to one sheet) isn't calculated: the engine can't read the form. Such
-  formulas keep Excel's saved value and are marked out of date when their
-  inputs change. The engine would need each sheet's names under names of
-  their own, kept in step with renames.
+  to one sheet) gives #NAME?, though the engine reads the name unqualified
+  on its own sheet. A file's formulas in this form disagree with Excel's
+  saved values on opening, so they keep them; typed here, they show #NAME?.
+  The engine would look the name up on the sheet the reference names
+  (`name` in `packages/formula-engine/src/workbook.ts`), and register the
+  formula as using it.
+- **Enter pressed within a few milliseconds of Backspace** can lose the cell
+  edit when the page is busy. A person's keys are rarely that quick;
+  `packages/e2e/autocomplete.spec.ts` holds its Backspace a moment to avoid
+  it.
 - **Dragging the fill handle doesn't copy links**, as copying and pasting
   does. `copyLinks` in `packages/spreadsheet/src/core/links.ts` tiles them; filling upwards or
   leftwards needs the tiles lined up from the far end.
