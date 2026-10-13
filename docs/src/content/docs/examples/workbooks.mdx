@@ -1,0 +1,22 @@
+---
+title: 'Formulas, charts and pivot tables'
+description: 'Real workbooks with no schema at all: live formulas, charts and pivot tables.'
+sidebar:
+  order: 5
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+Without a schema, the editor is a spreadsheet. Switch between the sample workbooks below.
+
+<LiveEditor example="workbooks" height={520}>
+  Try: change a number and watch the formulas and charts that use it; right-click a pivot table and choose <strong>Show Field List</strong>; right-click a
+  range and insert a chart; drag a chart by its frame.
+</LiveEditor>
+
+- **Kitchen sink**: formatting, conditional formats, validation, notes, tables, names, dynamic arrays, `LET` and `LAMBDA`, and checkboxes.
+- **Charts**: radar, bubble, stock and 3-D charts, drawn from the cells.
+- **Pivot table**: units by region from a hundred orders, worked out again as they change.
+- **Orders**: a list to sort, filter and fill.
+
+See [Excel fidelity](/guides/excel-fidelity/) for what the editor shows, edits and keeps.

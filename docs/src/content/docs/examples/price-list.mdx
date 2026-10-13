@@ -1,0 +1,36 @@
+---
+title: 'Price list: async checks and lookups'
+description: A supplier's price list checked against a product catalogue as it's typed, with new products filled in from it.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import LiveEditor from '../../../components/LiveEditor.astro';
+import schema from '../../../examples/price-list.ts?raw';
+import services from '../../../examples/services.ts?raw';
+
+One product per row. Each SKU is checked against a catalogue service as it's typed, and a new SKU fills in its description and category from it. Prices can't be formulas; the price with tax must be.
+
+<LiveEditor example="price-list" height={460}>
+  Try: type <code>SKU-1013</code> under the last SKU (discontinued, after a pause); <code>SKU-2003</code> (fills itself in); a price of <code>-1</code> or
+  <code>=B2*2</code>; a category that isn't in the list; the same SKU twice.
+</LiveEditor>
+
+## The schema
+
+<Code code={schema} lang="ts" title="price-list.ts" />
+
+## The pretend services
+
+The catalogue answers after half a second, and stops when the editor aborts the check because the value changed again, as a `fetch` given the same signal would.
+
+<Code code={services} lang="ts" title="services.ts" />
+
+## What to notice
+
+- The SKU field has declarative checks (`required`, `unique`, `pattern`) and a code check beside them. The code check runs for every SKU typed, and never for an empty cell, which `required` covers.
+- `onChange` writes with `ctx.set`, and its writes are part of the same undo step as the SKU that caused them.
+- `formula: 'forbid'` on the price and `'require'` on the price with tax keep calculated columns calculated.
+
+Read more: [Async checks](/schemas/async-hooks/), [Business logic](/schemas/business-logic/).

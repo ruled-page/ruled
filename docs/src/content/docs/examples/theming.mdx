@@ -1,0 +1,14 @@
+---
+title: Theming
+description: The same workbook in several themes, set through the editor's design tokens.
+sidebar:
+  order: 6
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+<LiveEditor example="theming" height={420}>
+  Switch themes above the editor. They change the editor while the workbook stays open, as <code>setTheme</code> does.
+</LiveEditor>
+
+Each theme is a set of tokens passed as `theme`, or changed later with `editor.setTheme()`. See [Theming](/guides/theming/) for the tokens.

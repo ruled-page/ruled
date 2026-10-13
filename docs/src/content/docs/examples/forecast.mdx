@@ -1,0 +1,23 @@
+---
+title: 'Forecast: records across columns'
+description: A quarterly forecast with one record per column, and a rule that quarters follow on from each other.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import LiveEditor from '../../../components/LiveEditor.astro';
+import schema from '../../../examples/forecast.ts?raw';
+
+Each quarter is a column: the fields run down the rows. Typing a period in the empty column after the last quarter adds one.
+
+<LiveEditor example="forecast" height={360}>
+  Try: add <code>2027-Q3</code> after the last quarter; skip a quarter; type <code>Q1 2027</code> as a period; overwrite a margin formula.
+</LiveEditor>
+
+<Code code={schema} lang="ts" title="forecast.ts" />
+
+## What to notice
+
+- `orientation: 'columns'` turns the table on its side: records across, fields down.
+- The quarters-follow-on rule is a table rule in code, returning an issue for each period out of sequence.

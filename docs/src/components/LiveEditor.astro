@@ -1,0 +1,56 @@
+---
+/**
+ * The editor, live in the page: a framed <workbook-editor> opening one of
+ * the examples in src/examples/registry.ts once it scrolls into view.
+ */
+import { EXAMPLES } from '../examples/registry';
+import { PLAYGROUND_THEMES } from '../examples/themes';
+
+interface Props {
+  example: keyof typeof EXAMPLES;
+  /** Height of the editor, in pixels. */
+  height?: number;
+}
+
+const { example, height = 480 } = Astro.props;
+const def = EXAMPLES[example];
+if (!def) throw new Error(`No live example called ${example}`);
+const received = example === 'saving';
+---
+
+<figure class="wb-live not-content" data-example={example} data-state="loading" style={`--wb-live-height: ${height}px`}>
+  <div class="wb-live__bar">
+    <span class="wb-live__file">{def.file}</span>
+    <span class="wb-live__status" role="status">Loads as you scroll to it</span>
+  </div>
+  {
+    def.files && (
+      <div class="wb-live__picker" role="group" aria-label="Workbook">
+        {def.files.map((f, i) => (
+          <button type="button" data-file={f.file} aria-pressed={String(i === 0)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+  {
+    def.themes && (
+      <div class="wb-live__picker" role="group" aria-label="Theme">
+        {PLAYGROUND_THEMES.map((t, i) => (
+          <button type="button" data-theme={t.id} aria-pressed={String(i === 0)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+  <div class="wb-live__host"></div>
+  {Astro.slots.has('default') && <figcaption class="wb-live__hint"><slot /></figcaption>}
+  {received && <pre class="wb-live__received" aria-label="What the app received">Press "Save to the app" and what the host receives appears here.</pre>}
+</figure>
+
+<script>
+  import { startLiveExamples } from '../examples/live';
+  startLiveExamples();
+</script>

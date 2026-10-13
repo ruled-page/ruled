@@ -935,6 +935,37 @@ sites out of search results; anyone with an address can open them, so put
 Cloudflare Access in front to restrict that. The demo uploads `big.xlsx` only
 if you have generated it locally.
 
+## The documentation site
+
+`docs/` is the documentation site: Astro and Starlight, with the editor live
+in its pages, the API reference generated from the source by TypeDoc, every
+page as Markdown with `llms.txt` and `llms-full.txt`, and an installable skill
+for coding agents. It has its own install, as TypeDoc needs TypeScript 6
+rather than the 7 the rest of the repository uses.
+
+```bash
+npm run docs:dev
+```
+
+builds the editor, installs the site's dependencies and serves it at
+http://localhost:4321. It is its own Cloudflare Pages project,
+`workbook-editor-docs` (`docs/wrangler.jsonc`), deployed apart from the
+examples and not by `npm run deploy`. Once, create it:
+
+```bash
+npx wrangler pages project create workbook-editor-docs --production-branch main
+```
+
+then publish it with:
+
+```bash
+npm run deploy:docs
+```
+
+Set `DOCS_URL` when building for another address, so `llms.txt`, the skill
+and the sitemap point at it. Like the examples, `docs/public/_headers` keeps
+it out of search results until that line is removed.
+
 ## Schemas
 
 Without a schema the editor is a general spreadsheet. A consumer passes

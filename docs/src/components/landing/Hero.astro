@@ -1,0 +1,125 @@
+---
+/**
+ * The home page's opening: the promise, and the editor itself, live,
+ * checking a price list. Replaces Starlight's hero.
+ */
+import { LinkButton } from '@astrojs/starlight/components';
+import LiveEditor from '../LiveEditor.astro';
+
+const { title, tagline } = Astro.locals.starlightRoute.entry.data.hero ?? {};
+const columns = 'ABCDEFGHIJKL'.split('');
+---
+
+<section class="wb-hero not-content">
+  <div class="wb-hero__ruler" aria-hidden="true">
+    {columns.map((c) => <span>{c}</span>)}
+  </div>
+  <div class="wb-hero__text">
+    <p class="wb-hero__eyebrow"><span>A1</span> Excel workbooks, in the browser, under your rules</p>
+    <h1 class="wb-display" id="_top" set:html={title} />
+    <p class="wb-hero__tagline" set:html={tagline} />
+    <div class="wb-hero__actions">
+      <LinkButton href="/start/introduction/" icon="right-arrow">Get started</LinkButton>
+      <LinkButton href="/schemas/overview/" variant="secondary">Write a schema</LinkButton>
+    </div>
+  </div>
+  <LiveEditor example="price-list" height={440}>
+    <strong>Live.</strong> This is the editor checking a price list against <a href="/examples/price-list/">its schema</a>. Type <code>SKU-1013</code> under the last SKU: the
+    pretend catalogue service marks it discontinued half a second later. Type <code>SKU-2002</code> and the row fills itself in.
+  </LiveEditor>
+</section>
+
+<style>
+  .wb-hero {
+    position: relative;
+    padding-block: 2.5rem 1rem;
+    isolation: isolate;
+  }
+
+  /* The page as a sheet: column letters across the top, cells behind the text, fading out. */
+  .wb-hero::before {
+    content: '';
+    position: absolute;
+    inset: -2rem calc(50% - 50vw) 30%;
+    z-index: -1;
+    background-image:
+      linear-gradient(to right, var(--wb-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--wb-grid-line) 1px, transparent 1px);
+    background-size: 96px 28px;
+    mask-image: radial-gradient(ellipse 70% 80% at 30% 20%, #000 30%, transparent 75%);
+  }
+
+  .wb-hero__ruler {
+    display: grid;
+    grid-template-columns: repeat(12, 96px);
+    margin-block-end: 2rem;
+    overflow: hidden;
+    font: 500 0.7rem/1 var(--sl-font-mono);
+    color: var(--sl-color-gray-4);
+    mask-image: linear-gradient(to right, #000 50%, transparent);
+  }
+
+  .wb-hero__ruler span {
+    padding: 0.45rem 0;
+    text-align: center;
+    border-inline-start: 1px solid var(--wb-grid-line);
+    border-block-end: 1px solid var(--wb-grid-line);
+  }
+
+  .wb-hero__ruler span:first-child {
+    color: var(--sl-color-accent);
+    box-shadow: inset 0 -2px 0 var(--sl-color-accent);
+  }
+
+  .wb-hero__text {
+    max-width: 46rem;
+  }
+
+  .wb-hero__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0 0 1.25rem;
+    font: 500 0.8rem/1.2 var(--sl-font-mono);
+    letter-spacing: 0.02em;
+    color: var(--sl-color-gray-2);
+  }
+
+  .wb-hero__eyebrow span {
+    padding: 0.2rem 0.45rem;
+    border: 1.5px solid var(--sl-color-accent);
+    border-radius: 3px;
+    color: var(--sl-color-accent);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+    line-height: 1.02;
+    font-weight: 600;
+    font-variation-settings: 'opsz' 144, 'SOFT' 30;
+    letter-spacing: -0.025em;
+    color: var(--sl-color-white);
+  }
+
+  h1 :global(em) {
+    font-style: italic;
+    color: var(--sl-color-accent);
+    font-variation-settings: 'opsz' 144, 'SOFT' 100;
+  }
+
+  .wb-hero__tagline {
+    margin: 1.4rem 0 0;
+    font-size: clamp(1.05rem, 1.6vw, 1.22rem);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+    max-width: 40rem;
+  }
+
+  .wb-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-block: 2rem 2.5rem;
+  }
+</style>

@@ -1,0 +1,71 @@
+---
+title: Theming
+description: Restyle the editor with design tokens, from your brand colour to every grid line.
+sidebar:
+  order: 3
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+The editor's look comes from design tokens: colours, fonts, type sizes, corners and shadows, down to the grid's lines and headers. Set them in the `theme` option, or in CSS.
+
+<LiveEditor example="theming" height={400}>
+  The same workbook in a few themes. These docs use their own, “Ledger”, which follows the page between light and dark.
+</LiveEditor>
+
+## In the options
+
+```ts
+createWorkbookEditor({
+  theme: {
+    accent: '#4f46e5',
+    accentStrong: '#4338ca',
+    accentSoft: '#eef2ff',
+    font: "'Inter', system-ui, sans-serif",
+    radius: '8px',
+    gridHeaderBg: '#f8fafc',
+  },
+});
+```
+
+Change it while a workbook is open with `editor.setTheme(theme)`, for example when your app switches to dark mode.
+
+## In CSS
+
+Each token is a custom property on the editor's root element: `gridHeaderBg` is `--wbe-grid-header-bg`.
+
+```css
+.wbe {
+  --wbe-accent: #4f46e5;
+  --wbe-font: 'Inter', system-ui, sans-serif;
+}
+```
+
+`themeProperty('gridHeaderBg')` gives a token's property name, and `ThemeToken` lists them all.
+
+## The tokens
+
+| Group | Tokens |
+| --- | --- |
+| Brand | `accent`, `accentStrong`, `accentSoft`, `accentBorder`, `accentTint`, `onAccent`, `focusRing` |
+| Surfaces | `surface`, `surfaceAlt`, `surfaceSunken`, `backdrop`, `border`, `borderStrong` |
+| Text | `text`, `textMuted`, `textSubtle`, `font`, `fontMono`, `fontSize`, `fontSizeXs` to `fontSizeXl` |
+| States | `success…`, `warning…`, `danger…`, `info…` with their soft, border and text variants |
+| The grid | `gridBg`, `gridText`, `gridLine`, `gridHeaderBg`, `gridHeaderText`, `gridSelection`, `gridSelectionFill`, `gridFreezeLine` and more |
+| Formulas | `formulaRef1` to `formulaRef7`: the colours of references while a formula is edited |
+| Charts | `chartColors`: the series colours for charts that don't set their own |
+| Shape | `radius`, `radiusSm`, `radiusLg`, `shadow`, `shadowSm`, `iconStrokeWidth`, `colorScheme` |
+
+The [API reference](/reference/api/sitepen/spreadsheet/type-aliases/themetoken/) lists every one.
+
+## Dark mode
+
+Set `colorScheme: 'dark'` with dark surfaces, text and grid colours. The grid is drawn on a canvas, and reads the tokens each time it draws, so a theme change shows at once.
+
+## Icons
+
+Replace any of the editor's icons with the `icons` option: SVG path data on a 24×24 grid, or, in React, an element.
+
+```ts
+createWorkbookEditor({ icons: { download: 'M12 3v12 M7 10l5 5 5-5 M5 21h14' } });
+```

@@ -1,0 +1,58 @@
+---
+title: Business logic
+description: Code that runs after each edit and fills cells in from your systems, and a last check before a workbook is saved.
+sidebar:
+  order: 5
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+Checks say what's wrong. Business logic does something about it: it fills in what your systems already know, so people don't have to type it, and it has the last word before a workbook leaves the editor.
+
+<LiveEditor example="price-list" height={380}>
+  Type <code>SKU-2002</code> under the last SKU. Half a second later the pretend catalogue fills in its description and category. One Undo takes
+  both the SKU and what was filled in back out.
+</LiveEditor>
+
+## After each edit: `onChange`
+
+`onChange` runs after each edit, with the changes it made, and can write values into other cells with `ctx.set`. What it writes is applied when it finishes, as part of the same step as the edit, so one Undo takes them all back.
+
+```ts
+onChange: async (ctx) => {
+  for (const change of ctx.changes) {
+    if (change.field !== 'sku' || typeof change.after !== 'string' || change.record === undefined) continue;
+    const product = await lookupSku(change.after, ctx.signal);
+    if (!product) continue;
+    const at = { sheet: change.sheet, table: 'prices', record: change.record };
+    ctx.set({ ...at, field: 'description' }, product.description);
+    ctx.set({ ...at, field: 'category' }, product.category);
+  }
+},
+```
+
+Each change has the `sheet`, the `ref` of the cell, its value `before` and `after`, and, for a cell in a table, the `table`, `record` and `field`.
+
+`ctx.set` takes a field of a record, `{ sheet, table, record, field }`, or any cell, `{ sheet, ref }`, and a value: text, a number, a boolean, a `Date` or `null`. Values are written as if typed, so they're checked like any other.
+
+`ctx` also reads the workbook as checks do (`ctx.sheet(name).table(key)`, `.cell(key)`), and has the editor's `language` and an `AbortSignal` that's aborted if the workbook changes again before the hook finishes.
+
+If it takes longer than the schema's `hookTimeoutMs`, or throws, nothing it set is applied, and the Checks panel says why.
+
+## Before saving: `beforeSave`
+
+`beforeSave` runs when someone saves, after the checks have passed. Return nothing (or `true`) to let the save go ahead, or a message to stop it:
+
+```ts
+beforeSave: async ({ sheet, signal }) => {
+  const period = sheet('Forecast')?.table('quarters')?.records.at(-1)?.values.period;
+  const open = await fetch(`/api/periods/${period}/open`, { signal }).then((r) => r.json());
+  if (!open) return { en: `${period} is closed for submissions.`, de: `${period} ist für Einreichungen geschlossen.` };
+},
+```
+
+A message from `beforeSave` can't be overridden, unlike errors under `saveWithErrors: 'confirm'`. If it takes longer than `hookTimeoutMs` the save stops, saying so.
+
+## Saving to your app
+
+Once a workbook passes, it goes to your `onSave` (or the element's `save` event), with the file, the values in the schema's shape and every change. See [Opening and saving](/guides/opening-and-saving/).

@@ -1,0 +1,26 @@
+---
+title: 'Budget: a fixed grid'
+description: A half-year budget whose categories and months are fixed by the schema, with a cap in code and an async check against a budget service.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import LiveEditor from '../../../components/LiveEditor.astro';
+import schema from '../../../examples/budget.ts?raw';
+
+The categories down the side and the months across are fixed: only the amounts can change, and the total is a formula nobody can overwrite. Travel is capped each month, and the whole budget is checked against a pretend budget service.
+
+<LiveEditor example="budget" height={400}>
+  Try: rename a category; put 6,000 in a Travel month; type a formula into an amount; clear “Approved by” and save.
+</LiveEditor>
+
+<Code code={schema} lang="ts" title="budget.ts" />
+
+## What to notice
+
+- `records.labels` fixes the records: none can be added or removed, and the labels can't be changed.
+- The Travel cap is a table rule in code; it pins each issue to its record and month, so the right cells are marked.
+- The total is a single cell with `formula: 'require'` and `readOnly: true`.
+- The workbook's `validate` is async. It runs after edits, and its result is replaced as soon as the workbook changes again.
+- `saveWithErrors: 'confirm'` lets people save with errors after confirming.

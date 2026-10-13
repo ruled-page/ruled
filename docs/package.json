@@ -1,0 +1,33 @@
+{
+  "name": "@sitepen/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The workbook editor's documentation site: Astro and Starlight, with the editor live in its pages",
+  "license": "UNLICENSED",
+  "author": "Anthony Gubler",
+  "scripts": {
+    "dev": "node scripts/prepare.mjs && astro dev",
+    "build": "node scripts/prepare.mjs && astro build && node scripts/llms.mjs",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.6",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "astro": "^7.3.8",
+    "hast-util-select": "^6.0.4",
+    "rehype-parse": "^9.0.1",
+    "rehype-remark": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-stringify": "^11.0.0",
+    "starlight-links-validator": "^0.27.0",
+    "starlight-typedoc": "^0.23.1",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.13.1",
+    "typescript": "~6.0.0",
+    "unified": "^11.0.5",
+    "unist-util-remove": "^4.0.0"
+  }
+}

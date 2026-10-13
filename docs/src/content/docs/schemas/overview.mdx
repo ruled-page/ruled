@@ -1,0 +1,76 @@
+---
+title: Schemas
+description: Describe the workbooks you expect, and the editor checks every cell against the description as people type.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import LiveEditor from '../../../components/LiveEditor.astro';
+import budget from '../../../examples/budget.ts?raw';
+
+A schema describes a kind of workbook your app expects: which sheets it has, where its tables are, what each field holds, and the rules that apply. When a workbook that matches is opened, the editor holds it to the schema:
+
+- **Every cell is checked as it's typed.** A cell that breaks a rule is marked in its corner, red for an error and amber for a warning, and the Checks panel lists every issue with a link to its cell.
+- **The structure is kept.** Cells outside the tables are read-only unless you say otherwise, fixed records can't be renamed, and tables grow and shrink only within the limits you set.
+- **People are told what's expected.** A field's description shows in the formula bar when one of its cells is selected, and a field with a list of values offers them as a drop-down.
+- **Saving waits for the checks.** While errors remain, saving is refused, or asks first if you allow it.
+- **Your app gets the values in the schema's shape**, each table's records by field key, alongside the `.xlsx`.
+
+<LiveEditor example="budget" height={400}>
+  The half-year budget below is held to the schema after it. Try a negative amount, a formula in a month, or more than 5,000 in Travel.
+</LiveEditor>
+
+<Code code={budget} lang="ts" title="budget.ts" />
+
+## Writing one
+
+Wrap the schema in `defineSchema` for type checking and completion, and pass it in the editor's options:
+
+```ts
+import { createWorkbookEditor, defineSchema } from '@sitepen/spreadsheet';
+
+const timesheet = defineSchema({
+  id: 'acme.timesheet',
+  name: 'Timesheet',
+  version: '2',
+  sheets: [
+    {
+      name: 'Hours',
+      tables: [
+        {
+          key: 'entries',
+          at: 'A1',
+          fields: [
+            { key: 'date', label: 'Date', type: 'date', required: true },
+            { key: 'project', label: 'Project', type: 'enum', values: ['Apollo', 'Gemini'], required: true },
+            { key: 'hours', label: 'Hours', type: 'number', min: 0, max: 24, decimals: 2 },
+          ],
+        },
+      ],
+    },
+  ],
+});
+
+createWorkbookEditor({ schemas: [timesheet] });
+```
+
+Its parts are covered in turn:
+
+- [Fields and checks](/schemas/fields/): each field's type, limits and checks.
+- [Tables, cells and sheets](/schemas/tables/): where things are, and rules across records.
+- [Async checks](/schemas/async-hooks/): checks in code that can call your services.
+- [Business logic](/schemas/business-logic/): code that fills cells in, and a last word before saving.
+- [JSON and the designer](/schemas/json-and-designer/): schemas as data, and the visual designer.
+
+## How a workbook finds its schema
+
+The editor tries each schema in `schemas`, in order, against the workbook being opened. A schema matches when its sheets are there (those not marked `optional`), and its tables' headings are where it says, matched ignoring case and surrounding spaces. A workbook that matches none opens as a plain spreadsheet, and the editor says how the closest schema didn't match.
+
+Saving stamps the file with the schema's `id` and `version`, so when it's opened again that schema is tried first, and a file saved under another version says so.
+
+Add and remove schemas while the editor is open with `registerSchema(schema)` and `removeSchema(id)`.
+
+## Errors and warnings
+
+Every check reports an **error** unless it says `severity: 'warning'`. Errors stop the save; warnings are shown but never stop anything. Set `saveWithErrors: 'confirm'` to let people save with errors after confirming, as the budget above does.

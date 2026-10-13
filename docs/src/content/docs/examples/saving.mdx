@@ -1,0 +1,26 @@
+---
+title: Saving to your app
+description: What your app receives when a workbook is saved, live.
+sidebar:
+  order: 4
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+When people save, your `onSave` receives the file, and with a schema, the values in its shape. Change a few cells and press **Save to the app**: what the app would receive appears below the editor. The workbook has errors on purpose, and this example's schema has `saveWithErrors: 'confirm'`, so saving asks first.
+
+<LiveEditor example="saving" height={340} />
+
+```ts
+createWorkbookEditor({
+  schemas: [forecast],
+  saveLabel: 'Save to the app',
+  features: { open: false },
+  onSave: async (saved) => {
+    await api.upload(saved.fileName, saved.bytes);
+    await api.storeQuarters(saved.values?.Forecast.tables.quarters ?? []);
+  },
+});
+```
+
+`values` has, for each sheet the schema describes, its tables' records keyed by field, and its single cells. `changes` has each changed cell with its value before and after. See [Opening and saving](/guides/opening-and-saving/) for everything a save hands over.

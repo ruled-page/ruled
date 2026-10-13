@@ -1,0 +1,314 @@
+/*
+ * Workbook Editor's look: a ledger. Warm paper and green-black ink, the
+ * spreadsheet's own grid as the page's texture, ledger green for what you can
+ * act on, and the red of a validation marker used sparingly, where something
+ * is checked. Headings are set in Fraunces, text in IBM Plex.
+ */
+
+/* Dark, Starlight's default. */
+:root {
+  --sl-color-accent-low: #10392c;
+  --sl-color-accent: #3ecf9a;
+  --sl-color-accent-high: #b9f3dc;
+  --sl-color-white: #f5f1e6;
+  --sl-color-gray-1: #e7e2d4;
+  --sl-color-gray-2: #c6c1b2;
+  --sl-color-gray-3: #95a097;
+  --sl-color-gray-4: #64716a;
+  --sl-color-gray-5: #34433b;
+  --sl-color-gray-6: #1c2822;
+  --sl-color-gray-7: #141d18;
+  --sl-color-black: #0e1411;
+
+  --sl-font: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --wb-font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+
+  --wb-signal: #ff6b4f;
+  --wb-highlight: #e9c94a;
+  --wb-grid-line: rgba(245, 241, 230, 0.055);
+  --wb-paper: #0e1411;
+  --wb-card: #151d19;
+  --wb-card-edge: #26352d;
+  --wb-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 18px 50px -24px rgba(0, 0, 0, 0.7);
+
+  --sl-text-h1: 2.75rem;
+  --sl-text-h2: 1.85rem;
+  --sl-text-h3: 1.4rem;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #d9efe4;
+  --sl-color-accent: #0b6b4f;
+  --sl-color-accent-high: #063a2b;
+  --sl-color-white: #101a16;
+  --sl-color-gray-1: #1c2923;
+  --sl-color-gray-2: #2e3c35;
+  --sl-color-gray-3: #55635b;
+  --sl-color-gray-4: #86918a;
+  --sl-color-gray-5: #cdccbf;
+  --sl-color-gray-6: #ece7db;
+  --sl-color-gray-7: #f5f1e7;
+  --sl-color-black: #fbf9f4;
+
+  --wb-signal: #e0412a;
+  --wb-highlight: #f4d54a;
+  --wb-grid-line: rgba(16, 26, 22, 0.065);
+  --wb-paper: #fbf9f4;
+  --wb-card: #fffdf8;
+  --wb-card-edge: #e3ddcf;
+  --wb-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 18px 40px -26px rgba(40, 46, 30, 0.45);
+}
+
+body {
+  background-color: var(--wb-paper);
+}
+
+/* Headings in Fraunces, a little soft, tightly set. */
+.sl-markdown-content :is(h1, h2, h3),
+h1#_top,
+.wb-display {
+  font-family: var(--wb-font-display);
+  font-weight: 620;
+  font-variation-settings: 'opsz' 96, 'SOFT' 40;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+h1#_top {
+  font-size: clamp(2.1rem, 4vw, var(--sl-text-h1));
+}
+
+/* The site title: the wordmark. */
+.site-title {
+  font-family: var(--wb-font-display);
+  font-weight: 650;
+  font-variation-settings: 'opsz' 48, 'SOFT' 60;
+  letter-spacing: -0.01em;
+  gap: 0.55rem;
+}
+
+.site-title img {
+  height: 1.75rem;
+  width: auto;
+}
+
+/* Inline code reads as a cell's contents: mono, on a faint cell ground. */
+.sl-markdown-content :not(pre) > code {
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+  border-radius: 3px;
+  padding: 0.05em 0.35em;
+}
+
+/* Section headings are numbered down the page like rows of a sheet. */
+.sl-markdown-content {
+  counter-reset: wb-row;
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  counter-increment: wb-row;
+  position: relative;
+}
+
+.sl-markdown-content h2:not(:where(.not-content *))::before {
+  content: 'A' counter(wb-row);
+  position: absolute;
+  inset-inline-end: calc(100% + 0.75rem);
+  top: 0.55em;
+  font: 500 0.7rem/1 var(--sl-font-mono);
+  color: var(--sl-color-gray-3);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 3px;
+  padding: 0.25em 0.4em;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 72rem) {
+  .sl-markdown-content h2:not(:where(.not-content *))::before {
+    display: none;
+  }
+}
+
+/* Asides carry a validation marker in their corner. */
+.starlight-aside {
+  position: relative;
+  border-radius: 0 6px 6px 0;
+}
+
+.starlight-aside::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-style: solid;
+  border-width: 0 10px 10px 0;
+  border-color: transparent var(--sl-color-asides-border, var(--wb-signal)) transparent transparent;
+  border-top-right-radius: 6px;
+}
+
+.starlight-aside--caution::after,
+.starlight-aside--danger::after {
+  border-right-color: var(--wb-signal);
+}
+
+/* Cards: a sheet's cell, with its corner marker. */
+.card {
+  border-radius: 6px;
+  background: var(--wb-card);
+  border-color: var(--wb-card-edge);
+  box-shadow: var(--wb-shadow);
+}
+
+/* The header, as a sheet's formula bar: paper, with a hairline below. */
+.header {
+  background: color-mix(in srgb, var(--wb-paper) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+}
+
+/* Code blocks: a little lift, square corners like cells. */
+.expressive-code .frame {
+  --ec-brdRad: 6px;
+  box-shadow: var(--wb-shadow);
+}
+
+/* Selected sidebar entry: a selected cell, with its fill handle. */
+.sidebar-content a[aria-current='page'] {
+  position: relative;
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+  box-shadow: inset 2px 0 0 var(--sl-color-accent);
+}
+
+.sidebar-content a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 6px;
+  height: 6px;
+  background: var(--sl-color-accent);
+  border: 1.5px solid var(--wb-paper);
+  border-radius: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+ * The live editor, framed as a window on a workbook.
+ */
+.wb-live {
+  margin-block: 1.5rem;
+  border: 1px solid var(--wb-card-edge);
+  border-radius: 8px;
+  background: var(--wb-card);
+  box-shadow: var(--wb-shadow);
+  overflow: hidden;
+}
+
+.wb-live__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid var(--wb-card-edge);
+  font: 500 0.78rem/1.3 var(--sl-font-mono);
+  color: var(--sl-color-gray-3);
+}
+
+.wb-live__file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sl-color-gray-1);
+}
+
+.wb-live__status {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.wb-live__status::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--sl-color-gray-4);
+}
+
+.wb-live[data-state='ready'] .wb-live__status::before {
+  background: var(--sl-color-accent);
+}
+
+.wb-live[data-state='failed'] .wb-live__status::before {
+  background: var(--wb-signal);
+}
+
+.wb-live__host {
+  height: var(--wb-live-height, 480px);
+  display: grid;
+}
+
+.wb-live__host workbook-editor {
+  height: 100%;
+  min-height: 0;
+}
+
+.wb-live__hint {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border-top: 1px solid var(--wb-card-edge);
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-2);
+}
+
+.wb-live__hint kbd,
+.wb-live__hint code {
+  font: 500 0.8em var(--sl-font-mono);
+}
+
+.wb-live__received {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.75rem 0.9rem;
+  border-top: 1px solid var(--wb-card-edge);
+  background: var(--sl-color-gray-7);
+  font: 0.78rem/1.5 var(--sl-font-mono);
+  color: var(--sl-color-gray-2);
+  white-space: pre;
+}
+
+.wb-live__picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--wb-card-edge);
+}
+
+.wb-live__picker button {
+  font: 500 0.78rem/1 var(--sl-font-mono);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--wb-card-edge);
+  background: transparent;
+  color: var(--sl-color-gray-2);
+  cursor: pointer;
+}
+
+.wb-live__picker button[aria-pressed='true'] {
+  border-color: var(--sl-color-accent);
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+}
+
+@media (max-width: 50rem) {
+  .wb-live__host {
+    height: min(var(--wb-live-height, 480px), 70vh);
+  }
+}

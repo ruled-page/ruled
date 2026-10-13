@@ -239,7 +239,7 @@ export interface StoreOptions {
    * shows the error and keeps the changes. Without it, saving downloads the file.
    */
   onSave?: (file: SavedWorkbook) => void | Promise<void>;
-  /** The Save button's label when the host handles saving, e.g. "Save to ITAS". Default "Save". */
+  /** The Save button's label when the host handles saving, e.g. "Submit price list". Default "Save". */
   saveLabel?: Localized;
   /** Overrides for the theme tokens (colours, fonts, sizes, corners, shadows); see EditorTheme. */
   theme?: EditorTheme;

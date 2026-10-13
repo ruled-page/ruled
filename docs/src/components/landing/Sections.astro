@@ -1,0 +1,339 @@
+---
+/**
+ * The home page below the hero: what sets the editor apart, a schema as
+ * code, how it embeds, what survives the round trip, and help for agents.
+ */
+import { Code, LinkButton, TabItem, Tabs } from '@astrojs/starlight/components';
+import priceList from '../../examples/price-list.ts?raw';
+
+const pillars = [
+  {
+    ref: 'B1',
+    title: 'Schemas, not settings',
+    text: 'Describe the workbooks you expect: sheets, tables, fields, types, bounds, patterns and rules across fields. A file is matched to its schema as it opens, and every cell is checked as it is typed.',
+    href: '/schemas/overview/',
+  },
+  {
+    ref: 'B2',
+    title: 'Async checks that call your services',
+    text: 'A field, table, sheet or workbook check can await your API. The editor shows the cells being checked, abandons calls the user has typed past, times out slow ones, and won’t save past an error.',
+    href: '/schemas/async-hooks/',
+  },
+  {
+    ref: 'B3',
+    title: 'Business logic in the sheet',
+    text: 'onChange runs after each edit and can fill cells from your systems, as part of the same undo step. beforeSave has the last word before a file leaves.',
+    href: '/schemas/business-logic/',
+  },
+  {
+    ref: 'B4',
+    title: 'The file survives',
+    text: 'Formulas recalculate live; charts and pivot tables redraw and can be changed. What the editor can’t show it keeps, and a workbook nobody changed saves back byte for byte.',
+    href: '/guides/excel-fidelity/',
+  },
+];
+
+const react = `import { createWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
+import '@sitepen/spreadsheet/style.css';
+import { priceList } from './schemas';
+
+const editor = createWorkbookEditor({
+  schemas: [priceList],
+  onSave: async (file) => upload(file.bytes, file.values),
+});
+
+export const Review = () => <WorkbookEditor editor={editor} />;`;
+
+const element = `<workbook-editor src="/files/prices.xlsx" save-handler="event"></workbook-editor>
+
+<script type="module">
+  import '@sitepen/spreadsheet/standalone';
+  import { priceList } from './schemas.js';
+
+  const editor = document.querySelector('workbook-editor');
+  editor.options = { schemas: [priceList] };
+  editor.addEventListener('save', (e) => e.detail.waitUntil(upload(e.detail.bytes)));
+</script>`;
+
+const angular = `const loaded = import('@sitepen/spreadsheet/standalone');
+
+@Component({
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  template: \`<workbook-editor save-handler="event" [options]="options" (save)="onSave($event)" />\`,
+})
+export class Review {
+  options: EditorOptions = { schemas: [priceList], saveLabel: 'Submit' };
+  onSave(event: Event) {
+    const saved = (event as CustomEvent<SaveEventDetail>).detail;
+    saved.waitUntil(this.api.upload(saved.bytes, saved.values));
+  }
+}`;
+
+const fidelity = [
+  ['Formulas', 'Calculated live by its own engine as cells change, dynamic arrays and LAMBDA included, and checked against the values Excel saved.'],
+  ['Charts', 'Drawn from the current cells, and inserted, moved, resized, restyled and deleted as in Excel.'],
+  ['Pivot tables', 'Worked out again as their source changes, with Excel’s field list, filters and Show Values As.'],
+  ['Formatting', 'Number formats, fonts, fills, borders, conditional formats, merged, hidden and grouped cells, frozen panes.'],
+  ['Data', 'Sorting, filters, data validation, names, hyperlinks, notes and threaded comments.'],
+  ['Everything else', 'Kept as it was: macros (or removed, as you choose), pictures, slicers, and parts it doesn’t draw.'],
+];
+---
+
+<div class="wb-landing not-content">
+  <section class="wb-pillars" aria-labelledby="why">
+    <h2 id="why" class="wb-display">Why it’s different</h2>
+    <div class="wb-pillars__grid">
+      {
+        pillars.map((p) => (
+          <a class="wb-pillar" href={p.href}>
+            <span class="wb-pillar__ref">{p.ref}</span>
+            <h3 class="wb-display">{p.title}</h3>
+            <p>{p.text}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="wb-split" aria-labelledby="schema">
+    <div class="wb-split__text">
+      <p class="wb-kicker">C1 · Schemas</p>
+      <h2 id="schema" class="wb-display">A schema is data, with code where you need it.</h2>
+      <p>
+        Everything but the hooks is plain JSON: generate it from a workbook, refine it in the editor’s schema designer, and keep it with your app. The hooks are ordinary
+        functions, sync or async. Each gets an <code>AbortSignal</code>, so a check the user has typed past stops calling your service.
+      </p>
+      <ul class="wb-ticks">
+        <li>Types, bounds, decimals, patterns, lists, uniqueness and required fields</li>
+        <li>Tables down rows or across columns, fixed or growing, and single cells</li>
+        <li>Rules across records, sheets and the whole workbook</li>
+        <li>Messages in each language the editor speaks</li>
+      </ul>
+      <LinkButton href="/schemas/overview/" variant="secondary" icon="right-arrow">How schemas work</LinkButton>
+    </div>
+    <div class="wb-split__code">
+      <Code code={priceList} lang="ts" title="price-list.ts" mark={['validate: async (value, { signal }) => {', 'onChange: async (ctx) => {']} />
+    </div>
+  </section>
+
+  <section class="wb-embed" aria-labelledby="embed">
+    <p class="wb-kicker">D1 · Anywhere</p>
+    <h2 id="embed" class="wb-display">One editor, in any app.</h2>
+    <p class="wb-lede">A React component, or a <code>&lt;workbook-editor&gt;</code> element for everything else. The workbook lives in a web worker, so the page stays quick with tens of thousands of formulas.</p>
+    <Tabs syncKey="host">
+      <TabItem label="React"><Code code={react} lang="tsx" /></TabItem>
+      <TabItem label="Web component"><Code code={element} lang="html" /></TabItem>
+      <TabItem label="Angular"><Code code={angular} lang="ts" /></TabItem>
+    </Tabs>
+  </section>
+
+  <section class="wb-fidelity" aria-labelledby="fidelity">
+    <p class="wb-kicker">E1 · Excel in, Excel out</p>
+    <h2 id="fidelity" class="wb-display">It opens the file people already have, and gives it back.</h2>
+    <dl>
+      {
+        fidelity.map(([term, text]) => (
+          <div>
+            <dt>{term}</dt>
+            <dd>{text}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <section class="wb-agents" aria-labelledby="agents">
+    <div>
+      <p class="wb-kicker">F1 · For coding agents</p>
+      <h2 id="agents" class="wb-display">Docs your coding agent can read.</h2>
+      <p>
+        Every page is available as Markdown, gathered in <a href="/llms.txt"><code>llms.txt</code></a> and <a href="/llms-full.txt"><code>llms-full.txt</code></a>. An
+        installable skill teaches Claude Code, Cursor and other agents how to embed the editor and write schemas and hooks.
+      </p>
+    </div>
+    <LinkButton href="/ai/agents/" icon="right-arrow">Set up your agent</LinkButton>
+  </section>
+</div>
+
+<style>
+  .wb-landing {
+    display: grid;
+    gap: clamp(4rem, 9vw, 7rem);
+    padding-block: 4rem 2rem;
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    font-size: clamp(1.9rem, 3.6vw, 2.8rem);
+    line-height: 1.1;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  p {
+    line-height: 1.65;
+    color: var(--sl-color-gray-2);
+  }
+
+  code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.88em;
+    color: var(--sl-color-accent-high);
+  }
+
+  .wb-kicker {
+    margin: 0 0 0.75rem;
+    font: 500 0.78rem/1 var(--sl-font-mono);
+    letter-spacing: 0.04em;
+    color: var(--sl-color-accent);
+  }
+
+  .wb-lede {
+    max-width: 44rem;
+  }
+
+  /* The four differences, as a row of cells. */
+  .wb-pillars__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    border: 1px solid var(--wb-card-edge);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--wb-card);
+    box-shadow: var(--wb-shadow);
+  }
+
+  .wb-pillar {
+    position: relative;
+    display: block;
+    padding: 1.4rem 1.4rem 1.6rem;
+    text-decoration: none;
+    border-inline-end: 1px solid var(--wb-card-edge);
+    border-block-end: 1px solid var(--wb-card-edge);
+    transition: background-color 0.15s;
+  }
+
+  .wb-pillar:hover {
+    background: var(--sl-color-accent-low);
+  }
+
+  .wb-pillar:hover::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--sl-color-accent);
+    pointer-events: none;
+  }
+
+  .wb-pillar__ref {
+    font: 500 0.72rem/1 var(--sl-font-mono);
+    color: var(--sl-color-gray-3);
+  }
+
+  .wb-pillar h3 {
+    margin: 0.8rem 0 0.6rem;
+    font-size: 1.3rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  .wb-pillar p {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  /* Prose beside code. */
+  .wb-split {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: clamp(1.5rem, 4vw, 3.5rem);
+    align-items: start;
+  }
+
+  @media (max-width: 60rem) {
+    .wb-split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .wb-split__code :global(.expressive-code) {
+    max-height: 34rem;
+    overflow: auto;
+  }
+
+  .wb-ticks {
+    list-style: none;
+    padding: 0;
+    margin: 1.25rem 0 1.75rem;
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .wb-ticks li {
+    position: relative;
+    padding-inline-start: 1.6rem;
+    color: var(--sl-color-gray-1);
+  }
+
+  .wb-ticks li::before {
+    content: '';
+    position: absolute;
+    left: 0.2rem;
+    top: 0.45em;
+    width: 0.55rem;
+    height: 0.3rem;
+    border-left: 2px solid var(--sl-color-accent);
+    border-bottom: 2px solid var(--sl-color-accent);
+    transform: rotate(-45deg);
+  }
+
+  /* Fidelity: a two-column sheet of what's kept. */
+  .wb-fidelity dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    margin: 2rem 0 0;
+    border-top: 1px solid var(--wb-card-edge);
+  }
+
+  .wb-fidelity dl div {
+    padding: 1.1rem 1.25rem 1.2rem 0;
+    border-bottom: 1px solid var(--wb-card-edge);
+  }
+
+  .wb-fidelity dt {
+    font-family: var(--wb-font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  .wb-fidelity dd {
+    margin: 0.35rem 0 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.55;
+  }
+
+  .wb-agents {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 2rem;
+    border: 1px solid var(--wb-card-edge);
+    border-radius: 8px;
+    background:
+      linear-gradient(to right, var(--wb-grid-line) 1px, transparent 1px) 0 0 / 96px 28px,
+      linear-gradient(to bottom, var(--wb-grid-line) 1px, transparent 1px) 0 0 / 96px 28px,
+      var(--wb-card);
+  }
+
+  .wb-agents div {
+    max-width: 40rem;
+  }
+
+  .wb-agents p:last-child {
+    margin-bottom: 0;
+  }
+</style>

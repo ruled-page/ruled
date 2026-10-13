@@ -1,0 +1,96 @@
+---
+title: Async checks
+description: Checks in code that can call your own services, at every level of the workbook, with cancellation, timeouts and save-time guarantees.
+sidebar:
+  order: 4
+---
+
+import LiveEditor from '../../../components/LiveEditor.astro';
+
+Some rules can't be written down in a schema: whether a product code exists in your catalogue, whether a customer's credit limit covers an order, whether a cost centre is still open. Workbook Editor lets those checks **call your services while people type**, and handles the hard parts: showing which cells are being checked, abandoning calls the user has typed past, giving up on slow services, and making sure nothing is saved before the checks have answered.
+
+<LiveEditor example="price-list" height={380}>
+  Type <code>SKU-1013</code> under the last SKU. The cell is checked against a pretend catalogue service that answers after half a second, and is marked
+  with a warning: the product is discontinued.
+</LiveEditor>
+
+## Where checks go
+
+Every level of a schema can have a check in code, and every one of them can be `async`:
+
+| Hook | Runs | Gets |
+| --- | --- | --- |
+| A field's `validate` | when that cell's value changes | the value, and the record's other values |
+| A table's `rules` | after edits | the table, with all its records |
+| A sheet's `validate` | after edits | the sheet: its tables and cells |
+| The workbook's `validate` | after edits | every sheet the schema describes |
+
+Use the narrowest one that can decide. A field check that calls a service runs once for each cell that changes; a check that needs to see many cells at once, or that would otherwise make hundreds of calls, belongs on the table or the workbook, where it can make one call for all of them.
+
+## A field's check
+
+```ts
+{
+  key: 'sku',
+  label: 'SKU',
+  type: 'text',
+  validate: async (value, { signal, language }) => {
+    const response = await fetch(`/api/catalogue/${encodeURIComponent(String(value))}`, { signal });
+    if (response.status === 404) return { en: 'No product has this SKU.', de: 'Kein Produkt hat diese SKU.' };
+    const product = await response.json();
+    if (product.discontinued) return { message: 'This product is discontinued.', severity: 'warning' };
+  },
+}
+```
+
+A check returns nothing (or `null`) when the value is fine. Otherwise it returns a message (a string, or one per language), or `{ message, severity }`, where severity is `'error'` (the default) or `'warning'`.
+
+## What the editor does while it waits
+
+- **The cell is marked as being checked**, and the status bar says checks are running, so people know an answer is coming.
+- **Typing again abandons the call.** Each check gets an `AbortSignal` that's aborted when the value changes again before the check finishes. Pass it to `fetch` and the request is cancelled; its answer, if it comes, is ignored either way.
+- **An answer is kept until the value changes.** Selecting the cell again, scrolling or editing other cells doesn't call your service again. Changing the value back and forth does.
+- **A slow service is given up on.** After `hookTimeoutMs` (10 seconds unless the schema says otherwise), a field is marked as not checked, as a warning, and a table, sheet or workbook check's result is ignored.
+- **A check that throws is an error** on its cell, saying the check failed and why, so a broken service is noticed rather than silently letting values through.
+- **Saving waits for the checks.** Pressing Save while checks are running waits for them to answer before deciding whether the workbook can be saved.
+
+## Checks across a table
+
+A table rule sees every record, and pins each issue to a record and field. Here one request checks every SKU in the table at once:
+
+```ts
+rules: [
+  async (table, { signal }) => {
+    const skus = table.records.map((r) => r.values.sku).filter(Boolean);
+    const response = await fetch('/api/catalogue/check', { method: 'POST', body: JSON.stringify(skus), signal });
+    const unknown: string[] = await response.json();
+    return table.records
+      .filter((r) => unknown.includes(String(r.values.sku)))
+      .map((r) => ({ record: r.index, field: 'sku', message: 'Not in the catalogue.' }));
+  },
+],
+```
+
+## Checks across the workbook
+
+The workbook's `validate` reaches every sheet the schema describes. An issue it returns points at a cell with `ref`, which can name its sheet:
+
+```ts
+validate: async ({ sheet, signal }) => {
+  const total = sheet('Budget')?.cell('total');
+  if (typeof total !== 'number') return;
+  const { limit } = await (await fetch('/api/budget-limit', { signal })).json();
+  if (total > limit) return [{ ref: 'Budget!B9', message: `Over the limit of ${limit.toLocaleString()}.` }];
+},
+```
+
+## In the right language
+
+Each check is told the editor's language as `language` (a BCP 47 tag such as `en-US` or `de`). Return a message for each language you support, `{ en: '…', de: '…' }`, and the editor shows the best fit, even when people change language after the check ran.
+
+## Things to know
+
+- **Empty cells aren't passed to field checks.** Use `required` for those.
+- **Field checks run for each cell that changes.** Pasting a thousand rows makes a thousand calls, each abandoned or kept as above. If that's too many for your service, check the table instead, or batch requests in your own code.
+- **Hooks run in the page**, not in the worker, so they can use your app's session, cookies and code.
+- **Hooks are code, not data.** They aren't saved in the schema's JSON. Keep them with your app and they stay with the schema; see [JSON and the designer](/schemas/json-and-designer/).
