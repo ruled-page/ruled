@@ -67,6 +67,19 @@ describe('a workbook on its own', () => {
     expect(book.set("'Q1 Sales'!A1", 7)).toContainEqual({ cell: "'Q1 Sales'!A2", value: null });
   });
 
+  it('sizes stacked arrays as their parts grow and shrink', () => {
+    const NA = { error: '#N/A' };
+    const book = createWorkbook({ sheets: { S: [[2, 'a', '=VSTACK(SEQUENCE(A1),HSTACK(B1,"b"))', null, '=HSTACK(SEQUENCE(1,A1),VSTACK(B1,"c"))']] } });
+    expect(book.getRange('C1:D3')).toEqual([[1, NA], [2, NA], ['a', 'b']]);
+    expect(book.getRange('E1:G2')).toEqual([[1, 2, 'a'], [NA, NA, 'c']]);
+    book.set('A1', 4);
+    expect(book.getRange('C1:D6')).toEqual([[1, NA], [2, NA], [3, NA], [4, NA], ['a', 'b'], [null, null]]);
+    expect(book.getRange('E1:J2')).toEqual([[1, 2, 3, 4, 'a', null], [NA, NA, NA, NA, 'c', null]]);
+    book.set('A1', 1);
+    expect(book.getRange('C1:D3')).toEqual([[1, NA], ['a', 'b'], [null, null]]);
+    expect(book.getRange('E1:H2')).toEqual([[1, 'a', null, null], [NA, 'c', null, null]]);
+  });
+
   it('works out formulas without putting them in cells', () => {
     const book = prices();
     expect(book.evaluate('=Rate*2')).toBe(9);
