@@ -38,12 +38,12 @@ Two generated workbooks of 12 columns, three of them formulas, took this on an A
 
 | Workbook | Live recalculation | Opening | Calculating | Saving an edit | Memory held | Most memory used |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1.1 million cells, 300,000 formulas, 10 MB | Off | 1.1 s | | 1.4 s | 255 MB | 525 MB |
-| | On | 1.1 s | 2.7 s | 1.6 s | 495 MB | 740 MB |
-| 1.9 million cells, 525,000 formulas, 18 MB | Off | 1.8 s | | 2.6 s | 455 MB | 830 MB |
-| | On | 1.9 s | 4.8 s | 2.9 s | 885 MB | 1.3 GB |
+| 1.1 million cells, 300,000 formulas, 10 MB | Off | 1.0 s | | 1.4 s | 215 MB | 530 MB |
+| | On | 1.0 s | 2.4 s | 1.5 s | 375 MB | 640 MB |
+| 1.9 million cells, 525,000 formulas, 18 MB | Off | 1.8 s | | 2.5 s | 385 MB | 800 MB |
+| | On | 1.8 s | 4.5 s | 3.0 s | 670 MB | 1.2 GB |
 
-Memory held is what the worker keeps while the workbook is open, and the most used is while it opens, as the file is unzipped and read. The page keeps a copy of the cells to draw them, about 55 and 95 MB more here. Memory grows with the number of cells: about 230 MB a million with live recalculation off, and twice that with it on.
+Memory held is what the worker keeps while the workbook is open, and the most used is while it opens, as the file is unzipped and read. The page keeps a copy of the cells to draw them, about 55 and 95 MB more here. Memory grows with the number of cells: about 200 MB a million with live recalculation off, and 340 MB with it on.
 
 Phones give a page less memory than computers do. If people will open large workbooks on phones, lower `maxCells` so that a workbook too large for the phone is refused with a message, rather than its worker running out of memory. When that happens, the editor says so and offers to open the file again (see [Events and the handle](/guides/events-and-handle/)).
 
