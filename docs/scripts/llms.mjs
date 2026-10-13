@@ -20,7 +20,7 @@ import { unified } from 'unified';
 import { remove } from 'unist-util-remove';
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
-const site = (process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev').replace(/\/$/, '');
+const site = (process.env.DOCS_URL ?? 'https://ruled.page').replace(/\/$/, '');
 const siteDescription = 'Edit real Excel workbooks in the browser, check every cell against a schema with your own async rules, and save .xlsx back intact.';
 
 /** Every built page: its route ('schemas/async-hooks/') and its HTML file. */

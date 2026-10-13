@@ -6,8 +6,8 @@ import starlightLinksValidator from 'starlight-links-validator';
 import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
 export default defineConfig({
-  // The Cloudflare Pages address; set DOCS_URL for a custom domain.
-  site: process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev',
+  // Where the site is served; set DOCS_URL to build it for another address.
+  site: process.env.DOCS_URL ?? 'https://ruled.page',
   integrations: [
     starlight({
       title: 'Ruled',
@@ -22,7 +22,7 @@ export default defineConfig({
       head: [
         { tag: 'link', attrs: { rel: 'alternate', type: 'text/plain', title: 'LLM text', href: '/llms.txt' } },
         { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
-        { tag: 'meta', attrs: { property: 'og:image', content: `${process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev'}/social.png` } },
+        { tag: 'meta', attrs: { property: 'og:image', content: `${process.env.DOCS_URL ?? 'https://ruled.page'}/social.png` } },
         { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Ruled: spreadsheets that know the rules.' } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
         { tag: 'meta', attrs: { name: 'theme-color', content: '#0b6b4f' } },

@@ -9,8 +9,8 @@
  *   node scripts/build-sites.mjs            all three
  *   node scripts/build-sites.mjs portal     just one (or several)
  *
- * The sites link to each other at their *.pages.dev addresses; set DEMO_URL,
- * PORTAL_URL or ANGULAR_URL to use other addresses, such as custom domains.
+ * The sites link to each other at their addresses on ruled.page (demo., react.
+ * and angular.); set DEMO_URL, PORTAL_URL or ANGULAR_URL to use others.
  * The Angular site has its own install (made here if missing) and needs Node
  * 22.22.3 or later, which Angular's CLI requires.
  */
@@ -28,9 +28,9 @@ for (const site of wanted) {
 const sites = wanted.length ? wanted : ALL;
 
 const urls = {
-  VITE_DEMO_URL: process.env.DEMO_URL ?? 'https://workbook-editor-poc.pages.dev/',
-  VITE_PORTAL_URL: process.env.PORTAL_URL ?? 'https://workbook-editor-portal.pages.dev/',
-  VITE_ANGULAR_URL: process.env.ANGULAR_URL ?? 'https://workbook-editor-angular.pages.dev/',
+  VITE_DEMO_URL: process.env.DEMO_URL ?? 'https://demo.ruled.page/',
+  VITE_PORTAL_URL: process.env.PORTAL_URL ?? 'https://react.ruled.page/',
+  VITE_ANGULAR_URL: process.env.ANGULAR_URL ?? 'https://angular.ruled.page/',
 };
 const run = (command, options = {}) => execSync(command, { stdio: 'inherit', ...options, env: { ...process.env, ...urls, ...options.env } });
 

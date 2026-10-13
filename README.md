@@ -891,15 +891,16 @@ engine above).
 ## Sharing it on Cloudflare Pages
 
 Everything is static (it all runs in the browser), so each example is its
-own Cloudflare Pages site:
+own Cloudflare Pages site, on a subdomain of the docs' `ruled.page`:
 
-| Site | What it is | Pages project | Config |
-| --- | --- | --- | --- |
-| Demo | The editor with the sample workbooks | `workbook-editor-poc` | `examples/demo/wrangler.jsonc` |
-| Portal | The editor embedded in a React supplier portal | `workbook-editor-portal` | `examples/react-portal/wrangler.jsonc` |
-| Angular | The editor embedded in an Angular app | `workbook-editor-angular` | `examples/angular-portal/wrangler.jsonc` |
+| Site | What it is | Address | Pages project | Config |
+| --- | --- | --- | --- | --- |
+| Demo | The editor with the sample workbooks | https://demo.ruled.page | `workbook-editor-poc` | `examples/demo/wrangler.jsonc` |
+| Portal | The editor embedded in a React supplier portal | https://react.ruled.page | `workbook-editor-portal` | `examples/react-portal/wrangler.jsonc` |
+| Angular | The editor embedded in an Angular app | https://angular.ruled.page | `workbook-editor-angular` | `examples/angular-portal/wrangler.jsonc` |
 
-Once, create each project (each prints its `*.pages.dev` address):
+Once, create each project, then give it its address under Custom domains in
+the project's settings in the Cloudflare dashboard:
 
 ```bash
 npx wrangler pages project create workbook-editor-poc --production-branch main
@@ -930,12 +931,11 @@ npm run deploy:angular
 
 `npm run build:sites` builds them into `dist-sites/` without uploading
 anything (`node scripts/build-sites.mjs portal` builds one). The sites link to
-each other at `https://<project>.pages.dev/`; if Cloudflare gives a project
-another address, or you use custom domains, set `DEMO_URL`, `PORTAL_URL` or
-`ANGULAR_URL` when building. Angular's CLI needs Node 22.22.3 or later, so
-switch to it before deploying the Angular site or all three (with fnm,
-`fnm use 22.23`); with an older Node, `npm run deploy` stops after the demo
-and the portal.
+each other at the addresses above; to build them for others, such as their
+`*.pages.dev` addresses, set `DEMO_URL`, `PORTAL_URL` or `ANGULAR_URL`.
+Angular's CLI needs Node 22.22.3 or later, so switch to it before deploying
+the Angular site or all three (with fnm, `fnm use 22.23`); with an older
+Node, `npm run deploy` stops after the demo and the portal.
 
 To check a site locally the way Pages serves it, build it, then:
 
@@ -963,9 +963,10 @@ npm run docs:dev
 ```
 
 builds the editor, installs the site's dependencies and serves it at
-http://localhost:4321. It is its own Cloudflare Pages project,
-`ruled-docs` (`docs/wrangler.jsonc`), deployed apart from the
-examples and not by `npm run deploy`. Once, create it:
+http://localhost:4321. It is served at https://ruled.page by its own
+Cloudflare Pages project, `ruled-docs` (`docs/wrangler.jsonc`), deployed
+apart from the examples and not by `npm run deploy`. Once, create it and give
+it `ruled.page` under Custom domains:
 
 ```bash
 npx wrangler pages project create ruled-docs --production-branch main
@@ -977,8 +978,9 @@ then publish it with:
 npm run deploy:docs
 ```
 
-Set `DOCS_URL` when building for another address, so `llms.txt`, the skill
-and the sitemap point at it. Like the examples, `docs/public/_headers` keeps
+Set `DOCS_URL` when building for another address, such as
+`https://ruled-docs.pages.dev`, so `llms.txt`, the skill and the sitemap
+point at it. Like the examples, `docs/public/_headers` keeps
 it out of search results until that line is removed.
 
 ## Schemas

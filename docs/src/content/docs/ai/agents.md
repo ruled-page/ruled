@@ -27,7 +27,7 @@ Add it to a project, where everyone working on it gets it:
 
 ```sh
 mkdir -p .claude/skills/ruled
-curl -fsSL https://ruled-docs.pages.dev/agents/ruled/SKILL.md -o .claude/skills/ruled/SKILL.md
+curl -fsSL https://ruled.page/agents/ruled/SKILL.md -o .claude/skills/ruled/SKILL.md
 ```
 
 Or to `~/.claude/skills/ruled/` for every project of yours. Claude Code uses it whenever a task involves the editor.
@@ -36,7 +36,7 @@ Or to `~/.claude/skills/ruled/` for every project of yours. Claude Code uses it 
 
 ```sh
 mkdir -p .cursor/rules
-curl -fsSL https://ruled-docs.pages.dev/agents/ruled.mdc -o .cursor/rules/ruled.mdc
+curl -fsSL https://ruled.page/agents/ruled.mdc -o .cursor/rules/ruled.mdc
 ```
 
 ### Other agents
@@ -46,5 +46,5 @@ Most agents read an `AGENTS.md` at the project's root. Add:
 ```md
 ## Ruled
 This project embeds Ruled (@ruled/sheet), a spreadsheet editor. Before changing its schemas, hooks or options,
-read https://ruled-docs.pages.dev/agents/ruled/SKILL.md, and https://ruled-docs.pages.dev/llms-full.txt for detail.
+read https://ruled.page/agents/ruled/SKILL.md, and https://ruled.page/llms-full.txt for detail.
 ```

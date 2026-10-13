@@ -34,7 +34,7 @@ copyFileSync(brand('ruled-social.png'), out('social.png'));
 
 rmSync(new URL('../public/agents/', import.meta.url), { recursive: true, force: true });
 // The agent skill, from one source: as a Claude Code skill, and as a Cursor rule.
-const site = (process.env.DOCS_URL ?? 'https://ruled-docs.pages.dev').replace(/\/$/, '');
+const site = (process.env.DOCS_URL ?? 'https://ruled.page').replace(/\/$/, '');
 const skill = readFileSync(new URL('../agents/ruled.md', import.meta.url), 'utf8').replaceAll('{{SITE}}', site);
 const description =
   'Embed Ruled (@ruled/sheet), the spreadsheet editor, in a web app: write its schemas with sync and async validation hooks and business logic, and handle opening and saving. Use when adding an Excel or spreadsheet editor to an app, or writing defineSchema code.';
