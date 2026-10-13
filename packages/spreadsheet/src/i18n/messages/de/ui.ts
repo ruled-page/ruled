@@ -651,7 +651,6 @@ export const ui: Record<keyof typeof en, string> = {
 
   'grid.empty': 'Leer',
   'grid.label': 'Zellen von {{name}}',
-  'grid.unbuilt': 'Dieses Raster ist noch im Aufbau. Öffnen Sie den Editor ohne die experimentelle Raster-Option, um {{name}} zu bearbeiten.',
   'grid.labelFrozen': 'Fixierte Zeilen von {{name}}',
   'grid.flag.merged': 'verbunden {{range}}',
   'grid.flag.formula': 'Formel',

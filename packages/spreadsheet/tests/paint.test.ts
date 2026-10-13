@@ -5,83 +5,8 @@ import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
 import { glideTheme } from '../src/grid/glide/theme';
+import { Recorder, type Gradient } from './canvasRecorder';
 import { FREEZE_LINE, GRID_LINE, checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
-
-interface Gradient {
-  from: number[];
-  stops: [number, string][];
-  addColorStop(offset: number, color: string): void;
-}
-
-interface Call {
-  op: string;
-  args: unknown[];
-  /** The fill style for fillRect and fill, the stroke style for stroke. */
-  style?: unknown;
-}
-
-const STATE = ['fillStyle', 'strokeStyle', 'lineWidth', 'lineCap', 'lineJoin'] as const;
-
-/** A canvas context that records what is drawn, and keeps save/restore state as a real one does. */
-class Recorder {
-  calls: Call[] = [];
-  fillStyle: unknown = '#000000';
-  strokeStyle: unknown = '#000000';
-  lineWidth = 1;
-  lineCap = 'butt';
-  lineJoin = 'miter';
-  stack: Record<string, unknown>[] = [];
-  /** Makes fillRect throw, to check the context is restored anyway. */
-  failFill = false;
-
-  private record(op: string, args: unknown[], style?: unknown) {
-    this.calls.push(style === undefined ? { op, args } : { op, args, style });
-  }
-  save() {
-    this.stack.push(Object.fromEntries(STATE.map((k) => [k, this[k]])));
-    this.record('save', []);
-  }
-  restore() {
-    Object.assign(this, this.stack.pop());
-    this.record('restore', []);
-  }
-  fillRect(...args: number[]) {
-    if (this.failFill) throw new Error('canvas lost');
-    this.record('fillRect', args, this.fillStyle);
-  }
-  fill() {
-    this.record('fill', [], this.fillStyle);
-  }
-  stroke() {
-    this.record('stroke', [], this.strokeStyle);
-  }
-  createLinearGradient(...from: number[]): Gradient {
-    return { from, stops: [], addColorStop(offset, color) { this.stops.push([offset, color]); } };
-  }
-  beginPath = (...a: unknown[]) => this.record('beginPath', a);
-  closePath = (...a: unknown[]) => this.record('closePath', a);
-  moveTo = (...a: unknown[]) => this.record('moveTo', a);
-  lineTo = (...a: unknown[]) => this.record('lineTo', a);
-  arc = (...a: unknown[]) => this.record('arc', a);
-  roundRect = (...a: unknown[]) => this.record('roundRect', a);
-  translate = (...a: unknown[]) => this.record('translate', a);
-  rotate = (...a: unknown[]) => this.record('rotate', a);
-  clip = (...a: unknown[]) => this.record('clip', a);
-
-  get ctx(): CanvasRenderingContext2D {
-    return this as unknown as CanvasRenderingContext2D;
-  }
-  rects() {
-    return this.calls.filter((c) => c.op === 'fillRect').map((c) => [...(c.args as number[]), c.style]);
-  }
-  /** Colours of shapes filled or stroked, in order. */
-  paints() {
-    return this.calls.filter((c) => c.op === 'fill' || c.op === 'stroke').map((c) => `${c.op} ${c.style}`);
-  }
-  args(op: string) {
-    return this.calls.filter((c) => c.op === op).map((c) => c.args);
-  }
-}
 
 const RED = '#E0301E';
 const AMBER = '#F5B800';

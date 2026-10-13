@@ -1173,9 +1173,18 @@
   inset: 0;
 }
 
-.wbe .wbe-grid-unbuilt {
-  margin: 24px;
-  color: var(--wbe-text-muted);
+/* Ruled's grid: the canvas it draws on, under the browser's own scroller. */
+.wbe .wbe-grid-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.wbe .wbe-grid-scroller {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
 }
 
 /* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */
