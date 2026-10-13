@@ -292,7 +292,7 @@ export const core: Record<keyof typeof en, string> = {
   'core.pivot.kept.source': "Die Daten dieser PivotTable stammen aus einer Quelle, die der Editor nicht lesen kann, etwa einer anderen Arbeitsmappe, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
   'core.pivot.kept.grouped': "Diese PivotTable hat gruppierte oder berechnete Felder, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
   'core.pivot.kept.calculatedItem': "Diese PivotTable hat berechnete Elemente, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
-  'core.pivot.kept.showDataAs': "Diese PivotTable zeigt Werte als Prozentsätze, Differenzen oder laufende Summen an, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
+  'core.pivot.kept.showDataAs': "Diese PivotTable zeigt Werte auf eine Weise an, die der Editor nicht berechnet, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
   'core.pivot.kept.function': "Diese PivotTable fasst Werte auf eine Weise zusammen, die der Editor nicht berechnet, daher können ihre Felder hier nicht geändert werden. Ändern Sie sie in Excel.",
   'core.pivot.kept.shared': "Diese PivotTable teilt ihre Daten mit einer, deren Felder hier nicht geändert werden können, daher können auch ihre Felder nicht geändert werden. Ändern Sie sie in Excel.",
   'core.chart.noData': 'Es gibt nichts darzustellen: Wählen Sie Zellen mit Zahlen aus.',

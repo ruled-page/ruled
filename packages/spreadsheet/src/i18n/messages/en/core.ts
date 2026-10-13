@@ -285,7 +285,7 @@ export const core = {
   'core.pivot.kept.source': "This pivot table's data comes from somewhere the editor can't read, such as another workbook, so its fields can't be changed here. Change them in Excel.",
   'core.pivot.kept.grouped': "This pivot table has grouped or calculated fields, so its fields can't be changed here. Change them in Excel.",
   'core.pivot.kept.calculatedItem': "This pivot table has calculated items, so its fields can't be changed here. Change them in Excel.",
-  'core.pivot.kept.showDataAs': "This pivot table shows values as percentages, differences or running totals, so its fields can't be changed here. Change them in Excel.",
+  'core.pivot.kept.showDataAs': "This pivot table shows values in a way the editor doesn't work out, so its fields can't be changed here. Change them in Excel.",
   'core.pivot.kept.function': "This pivot table summarizes values in a way the editor doesn't work out, so its fields can't be changed here. Change them in Excel.",
   'core.pivot.kept.shared': "This pivot table shares its data with one whose fields can't be changed here, so its fields can't be changed either. Change them in Excel.",
   'core.chart.noData': 'There is nothing to chart: select cells with numbers in them.',

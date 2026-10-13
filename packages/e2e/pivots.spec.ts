@@ -64,6 +64,20 @@ test('the PivotTable Fields pane changes a pivot table’s fields, filters its i
   await page.getByRole('menuitemradio', { name: 'Average' }).click();
   await expect(shown(page, 'A3')).toHaveText('Average of Units');
 
+  // Shown as the difference from North: North's own row left empty, the others' shown.
+  await pane.getByRole('button', { name: 'Average of Units', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Show Values As' }).click();
+  await page.getByRole('menuitemradio', { name: 'Difference From…', exact: true }).click();
+  await pane.getByLabel('Base field').selectOption({ label: 'Region' });
+  await pane.getByLabel('Base item').selectOption({ label: 'North' });
+  await pane.getByRole('button', { name: 'OK' }).click();
+  await expect(shown(page, 'B6')).toHaveText('');
+  await expect(shown(page, 'B5')).not.toHaveText('');
+  await pane.getByRole('button', { name: 'Average of Units', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Show Values As' }).click();
+  await page.getByRole('menuitemradio', { name: 'No Calculation' }).click();
+  await expect(shown(page, 'B6')).not.toHaveText('');
+
   // Dragged to the filters, the region goes above the table, showing the regions it filters to.
   await pane.getByText('Region', { exact: true }).first().dragTo(pane.getByRole('region', { name: 'Filters' }));
   await expect(shown(page, 'A1')).toHaveText('Region');

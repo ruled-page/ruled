@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PivotSetup } from '../src/core/pivotTable';
 import { english } from '../src/i18n';
-import { addField, fieldsInUse, moveChip, moveTo, removeChip, removeField, setShown, setSummary, shownItems, VALUES_FIELD, type DataName } from '../src/state/pivotFields';
+import { addField, fieldsInUse, moveChip, moveTo, removeChip, removeField, setShowAs, setShown, setSummary, shownItems, VALUES_FIELD, type DataName } from '../src/state/pivotFields';
 import type { WorkbookStore } from '../src/state/store';
 import { sample } from './helpers';
 import { opened, testStore } from './storeHarness';
@@ -59,6 +59,15 @@ describe('summaries and filters', () => {
     expect(setSummary(base, 0, 'average', name).data[0]).toEqual({ field: 2, fn: 'average', name: 'Average of Units' });
     expect(setSummary({ ...base, data: [{ field: 2, fn: 'sum', name: 'Units sold' }] }, 0, 'max', name).data[0].name).toBe('Units sold');
     expect(setSummary(base, 0, 'sum', name)).toBe(base);
+  });
+
+  it('shows a value another way, against a base field and item, keeping them when it changes again, and as it is', () => {
+    const diff = setShowAs(base, 0, 'difference', 0, 'snorth');
+    expect(diff.data[0]).toEqual({ field: 2, fn: 'sum', name: 'Sum of Units', showAs: 'difference', baseField: 0, baseItem: 'snorth' });
+    expect(setShowAs(diff, 0, 'percent').data[0]).toMatchObject({ showAs: 'percent', baseField: 0, baseItem: 'snorth' });
+    expect(setShowAs(base, 0, 'percentOfTotal').data[0]).toMatchObject({ showAs: 'percentOfTotal', baseField: 0, baseItem: 'previous' });
+    expect(setShowAs(diff, 0, 'normal').data[0]).toEqual({ field: 2, fn: 'sum', name: 'Sum of Units' });
+    expect(setShowAs(base, 3, 'index')).toBe(base);
   });
 
   it('hides the items not shown, and a report filter showing one picks it', () => {

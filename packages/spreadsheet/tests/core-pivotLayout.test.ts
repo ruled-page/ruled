@@ -257,7 +257,7 @@ describe("reading a pivot table's definition", () => {
     expect(read(TABLE(plain), CACHE('', '', '')).unsupported).toBe('source');
     expect(read(TABLE(plain), CACHE('', '<fieldGroup base="0"/>')).unsupported).toBe('grouped');
     expect(read(TABLE('<pivotField axis="axisRow"><items count="1"><item x="0" f="1"/></items></pivotField><pivotField/>'), CACHE('<s v="a"/>')).unsupported).toBe('calculatedItem');
-    expect(read(TABLE(plain, '<dataFields count="1"><dataField fld="1" showDataAs="percentOfTotal"/></dataFields>'), CACHE('')).unsupported).toBe('showDataAs');
+    expect(read(TABLE(plain, '<dataFields count="1"><dataField fld="1" showDataAs="percentOfSomething"/></dataFields>'), CACHE('')).unsupported).toBe('showDataAs');
     expect(read(TABLE(plain, '<dataFields count="1"><dataField fld="1" subtotal="median"/></dataFields>'), CACHE('')).unsupported).toBe('function');
   });
 });

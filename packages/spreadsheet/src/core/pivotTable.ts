@@ -45,11 +45,66 @@ export interface PivotField {
   numFmtId?: number;
 }
 
+/**
+ * How a value is shown, as Excel's Show Values As offers: as it is, or
+ * against a total, another item, the items before it, or its siblings. The
+ * first eight are the file format's own; the rest came with Excel 2010.
+ */
+export type PivotShowAs =
+  | 'normal'
+  | 'difference'
+  | 'percent'
+  | 'percentDiff'
+  | 'runTotal'
+  | 'percentOfRow'
+  | 'percentOfCol'
+  | 'percentOfTotal'
+  | 'index'
+  | 'percentOfParentRow'
+  | 'percentOfParentCol'
+  | 'percentOfParent'
+  | 'percentOfRunningTotal'
+  | 'rankAscending'
+  | 'rankDescending';
+
+export const SHOW_AS: PivotShowAs[] = [
+  'normal',
+  'percentOfTotal',
+  'percentOfCol',
+  'percentOfRow',
+  'percent',
+  'percentOfParentRow',
+  'percentOfParentCol',
+  'percentOfParent',
+  'difference',
+  'percentDiff',
+  'runTotal',
+  'percentOfRunningTotal',
+  'rankAscending',
+  'rankDescending',
+  'index',
+];
+
+/** Show Values As kinds measured against a base field, and those against one of its items too. */
+export const NEEDS_BASE_FIELD = new Set<PivotShowAs>(['difference', 'percent', 'percentDiff', 'runTotal', 'percentOfParent', 'percentOfRunningTotal', 'rankAscending', 'rankDescending']);
+export const NEEDS_BASE_ITEM = new Set<PivotShowAs>(['difference', 'percent', 'percentDiff']);
+/** Kinds Excel shows as percentages. */
+const PERCENTS = new Set<PivotShowAs>(['percent', 'percentDiff', 'percentOfRow', 'percentOfCol', 'percentOfTotal', 'percentOfParentRow', 'percentOfParentCol', 'percentOfParent', 'percentOfRunningTotal']);
+/** The kinds the file format's showDataAs holds; the others are in Excel 2010's extension. */
+export const FILE_SHOW_AS = new Set<PivotShowAs>(['normal', 'difference', 'percent', 'percentDiff', 'runTotal', 'percentOfRow', 'percentOfCol', 'percentOfTotal', 'index']);
+/** Excel's base items "(previous)" and "(next)". */
+export const PREVIOUS_ITEM = 1048828;
+export const NEXT_ITEM = 1048829;
+
 export interface PivotDataField {
   name: string;
   field: number;
   fn: PivotFn;
   numFmtId?: number;
+  /** How it is shown, when not as it is, and against which field and item (an index among its items, or the previous or next). */
+  showAs?: PivotShowAs;
+  baseField?: number;
+  baseItem?: number;
 }
 
 export interface PivotModel {
@@ -150,9 +205,18 @@ export function readPivot(table: XmlNode, cache: XmlNode | undefined): PivotMode
   const data = children(child(table, 'dataFields'), 'dataField').map((d): PivotDataField => {
     const fn = (attr(d, 'subtotal') ?? 'sum') as PivotFn;
     if (!FNS.has(fn)) unsupported ??= 'function';
-    if ((attr(d, 'showDataAs') ?? 'normal') !== 'normal') unsupported ??= 'showDataAs';
+    // Excel 2010's kinds are in an extension, beside the file format's own.
+    const later = children(child(d, 'extLst'), 'ext').map((e) => attr(child(e, 'dataField'), 'pivotShowAs')).find((v) => v !== undefined);
+    const showAs = (later ?? attr(d, 'showDataAs') ?? 'normal') as PivotShowAs;
+    if (!SHOW_AS.includes(showAs)) unsupported ??= 'showDataAs';
     const field = int(d, 'fld') ?? 0;
-    return { name: attr(d, 'name') ?? `${fn} of ${fields[field]?.name ?? ''}`, field, fn, numFmtId: int(d, 'numFmtId') };
+    return {
+      name: attr(d, 'name') ?? `${fn} of ${fields[field]?.name ?? ''}`,
+      field,
+      fn,
+      numFmtId: int(d, 'numFmtId'),
+      ...(showAs !== 'normal' && { showAs, baseField: int(d, 'baseField') ?? 0, baseItem: int(d, 'baseItem') ?? 0 }),
+    };
   });
   const fieldList = (name: string) => children(child(table, name), 'field').map((f) => int(f, 'x') ?? 0);
   const range = parseRange(attr(loc, 'ref') ?? '') ?? { r1: 0, c1: 0, r2: 0, c2: 0 };
@@ -207,8 +271,18 @@ export interface PivotSetup {
   rows: number[];
   cols: number[];
   pages: { field: number; item?: string }[];
-  data: { field: number; fn: PivotFn; name: string }[];
+  data: PivotSetupValue[];
   hidden: Record<number, string[]>;
+}
+
+/** A value in the pane: its field, summary and name, and how it is shown, against a base item named by its key, or 'previous' or 'next'. */
+export interface PivotSetupValue {
+  field: number;
+  fn: PivotFn;
+  name: string;
+  showAs?: PivotShowAs;
+  baseField?: number;
+  baseItem?: string;
 }
 
 /** A pivot table's fields as the pane shows them. */
@@ -225,7 +299,12 @@ export function setupOf(model: PivotModel): PivotSetup {
       const value = p.item !== undefined ? model.fields[p.field]?.items[p.item]?.value : undefined;
       return value !== undefined ? { field: p.field, item: keyOf(value) } : { field: p.field };
     }),
-    data: model.data.map((d) => ({ field: d.field, fn: d.fn, name: d.name })),
+    data: model.data.map((d) => {
+      if (!d.showAs || d.showAs === 'normal') return { field: d.field, fn: d.fn, name: d.name };
+      const bf = d.baseField ?? 0;
+      const item = d.baseItem === PREVIOUS_ITEM ? 'previous' : d.baseItem === NEXT_ITEM ? 'next' : keyOf(model.fields[bf]?.items[d.baseItem ?? 0]?.value);
+      return { field: d.field, fn: d.fn, name: d.name, showAs: d.showAs, baseField: bf, baseItem: item };
+    }),
     hidden,
   };
 }
@@ -273,10 +352,14 @@ export function withSetup(model: PivotModel, setup: PivotSetup, records: Rec[]):
       return at < 0 ? { field: p.field } : { field: p.field, item: at };
     }),
     // A value keeps its field's format when summarised another way, and a new one takes its source's, as Excel 365 does; counts are plain numbers.
-    data: data.map((d) => {
+    data: data.map((d): PivotDataField => {
       const counted = d.fn === 'count' || d.fn === 'countNums';
       const was = model.data.find((x) => x.field === d.field);
-      return { ...d, numFmtId: counted ? undefined : was ? was.numFmtId : model.fields[d.field].numFmtId || undefined };
+      const value: PivotDataField = { name: d.name, field: d.field, fn: d.fn, numFmtId: counted ? undefined : was ? was.numFmtId : model.fields[d.field].numFmtId || undefined };
+      if (!d.showAs || d.showAs === 'normal' || !SHOW_AS.includes(d.showAs)) return value;
+      const bf = valid(d.baseField ?? -1) ? d.baseField! : 0;
+      const at = fields[bf].items.findIndex((it) => keyOf(it.value) === d.baseItem);
+      return { ...value, showAs: d.showAs, baseField: bf, baseItem: d.baseItem === 'previous' ? PREVIOUS_ITEM : d.baseItem === 'next' ? NEXT_ITEM : Math.max(0, at) };
     }),
   };
 }
@@ -329,6 +412,8 @@ interface Entry {
   data?: number;
   /** A parent item's own row, which shows its subtotal only when the field has one on top. */
   blank?: boolean;
+  /** The items it is under, field by field from the outermost, its own last: none for a grand total. */
+  path: [number, string][];
 }
 
 function compareValues(a: PivotValue | undefined, b: PivotValue | undefined): number {
@@ -430,7 +515,7 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
   const labelCols = rowLevels.length ? rowCol[rowCol.length - 1] + 1 : colLevels.length && !onlyValuesAcross ? 1 : 0;
 
   /** The rows (or columns) under one level, recursively. */
-  const entries = (levels: Level[], at: number, recs: Rec[], axis: 'row' | 'col'): Entry[] => {
+  const entries = (levels: Level[], at: number, recs: Rec[], axis: 'row' | 'col', path: [number, string][] = []): Entry[] => {
     const l = levels[at];
     const last = at === levels.length - 1;
     const pos = axis === 'row' ? rowCol[at] : at;
@@ -445,11 +530,12 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
       const mine = 'values' in l ? recs : recs.filter((r) => keyOf(r[l.field]) === keyOf(it.value));
       const text = 'values' in l ? String(it.value) : itemText(l.field, it.value, it.name);
       const withData = (e: Entry) => (it.data !== undefined ? { ...e, data: it.data } : e);
+      const own: [number, string][] = 'values' in l ? path : [...path, [l.field, keyOf(it.value)]];
       if (last || it.collapsed) {
-        out.push(withData({ labels: new Map([[pos, text]]), recs: mine, kind: 'item' }));
+        out.push(withData({ labels: new Map([[pos, text]]), recs: mine, kind: 'item', path: own }));
         continue;
       }
-      const inner = entries(levels, at + 1, mine, axis).map(withData);
+      const inner = entries(levels, at + 1, mine, axis, own).map(withData);
       // A field is subtotalled when another field is under it, not just the data fields.
       const subtotal = (!!field?.subtotals && levels.slice(at + 1).some((x) => 'field' in x)) || 'values' in l;
       if (form === 'tabular') {
@@ -459,28 +545,29 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
       } else {
         // Its own row shows its subtotal on top, unless the data fields come below it, each on its own row.
         const valuesBelow = levels.slice(at + 1).some((x) => 'values' in x);
-        out.push(withData({ labels: new Map([[pos, text]]), recs: mine, kind: 'item', blank: !(subtotal && field?.subtotalTop !== false) || 'values' in l || valuesBelow }));
+        out.push(withData({ labels: new Map([[pos, text]]), recs: mine, kind: 'item', path: own, blank: !(subtotal && field?.subtotalTop !== false) || 'values' in l || valuesBelow }));
         out.push(...inner);
       }
       if (subtotal && !('values' in l) && (form === 'tabular' || field?.subtotalTop === false)) {
         if (valuesOnRows && axis === 'row' && levels.slice(at + 1).some((x) => 'values' in x)) {
-          data.forEach((d, i) => out.push({ labels: new Map([[pos, `${text} ${d.name}`]]), recs: mine, kind: 'total', data: i }));
+          data.forEach((d, i) => out.push({ labels: new Map([[pos, `${text} ${d.name}`]]), recs: mine, kind: 'total', data: i, path: own }));
         } else {
-          out.push(withData({ labels: new Map([[pos, `${text} Total`]]), recs: mine, kind: 'total' }));
+          out.push(withData({ labels: new Map([[pos, `${text} Total`]]), recs: mine, kind: 'total', path: own }));
         }
       }
     }
     return out;
   };
 
-  const rowsOut = rowLevels.length ? entries(rowLevels, 0, keep, 'row') : [{ labels: new Map<number, PivotValue>(), recs: keep, kind: 'item' as const }];
-  const colsOut = colLevels.length ? entries(colLevels, 0, keep, 'col') : [{ labels: new Map<number, PivotValue>(), recs: keep, kind: 'item' as const }];
+  const whole = (): Entry => ({ labels: new Map<number, PivotValue>(), recs: keep, kind: 'item', path: [] });
+  const rowsOut = rowLevels.length ? entries(rowLevels, 0, keep, 'row') : [whole()];
+  const colsOut = colLevels.length ? entries(colLevels, 0, keep, 'col') : [whole()];
   // Grand totals: one per data field when the Values field is on that axis with others.
   const grand = (levels: Level[]): Entry[] => {
     const onAxis = levels.some((l) => 'values' in l);
-    if (onAxis && levels.length > 1) return data.map((d, i) => ({ labels: new Map([[0, `Total ${d.name}`]]), recs: keep, kind: 'grand', data: i }));
+    if (onAxis && levels.length > 1) return data.map((d, i) => ({ labels: new Map([[0, `Total ${d.name}`]]), recs: keep, kind: 'grand', data: i, path: [] }));
     if (onAxis) return [];
-    return levels.length ? [{ labels: new Map([[0, model.captions.grand]]), recs: keep, kind: 'grand' }] : [];
+    return levels.length ? [{ labels: new Map([[0, model.captions.grand]]), recs: keep, kind: 'grand', path: [] }] : [];
   };
   if (model.rowGrand) rowsOut.push(...grand(rowLevels));
   if (model.colGrand) colsOut.push(...grand(colLevels));
@@ -520,6 +607,83 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
   if (!colLevels.length && !valuesOnRows) put(0, labelCols, data[0]?.name ?? '', 'header');
   if (!colLevels.length && valuesOnRows && !rowLevels.length) put(0, labelCols, model.captions.data, 'header');
 
+  /** A data field's summary of the records under the given items, as a cell elsewhere in the table shows it. */
+  const memo = new Map<string, EngineValue | undefined>();
+  const valueAt = (path: [number, string][], di: number): EngineValue | undefined => {
+    const key = `${di}|${path.map(([f, k]) => `${f}=${k}`).sort().join('|')}`;
+    if (memo.has(key)) return memo.get(key);
+    const recs = keep.filter((rec) => path.every(([f, k]) => keyOf(rec[f]) === k));
+    const value = recs.length ? summarize(data[di].fn, recs.map((rec) => rec[data[di].field])) : undefined;
+    memo.set(key, value);
+    return value;
+  };
+  const orders = new Map<number, string[]>();
+  const orderOf = (f: number) => orders.get(f) ?? orders.set(f, itemsOf(f, keep).map((it) => keyOf(it.value))).get(f)!;
+  const ratio = (a: number, b: EngineValue | undefined): EngineValue => (typeof b === 'number' && b !== 0 ? a / b : { error: '#DIV/0!' });
+
+  /**
+   * A value as Show Values As shows it, from the totals and the other cells it
+   * is measured against; null where Excel leaves the cell empty, as where the
+   * base field isn't among those the cell is under.
+   */
+  const showAs = (value: EngineValue, rowPath: [number, string][], colPath: [number, string][], di: number): EngineValue | null => {
+    const d = data[di];
+    if (typeof value !== 'number') return value;
+    const all = [...rowPath, ...colPath];
+    switch (d.showAs) {
+      case 'percentOfTotal':
+        return ratio(value, valueAt([], di));
+      case 'percentOfRow':
+        return ratio(value, valueAt(rowPath, di));
+      case 'percentOfCol':
+        return ratio(value, valueAt(colPath, di));
+      case 'percentOfParentRow':
+        return ratio(value, valueAt([...rowPath.slice(0, -1), ...colPath], di));
+      case 'percentOfParentCol':
+        return ratio(value, valueAt([...rowPath, ...colPath.slice(0, -1)], di));
+      case 'index': {
+        const [g, rt, ct] = [valueAt([], di), valueAt(rowPath, di), valueAt(colPath, di)];
+        return typeof g === 'number' && typeof rt === 'number' && typeof ct === 'number' && rt * ct !== 0 ? (value * g) / (rt * ct) : { error: '#DIV/0!' };
+      }
+    }
+    const bf = d.baseField ?? 0;
+    const at = all.findIndex(([f]) => f === bf);
+    if (at < 0) return null;
+    const order = orderOf(bf);
+    const mine = order.indexOf(all[at][1]);
+    const swap = (k: string) => all.map(([f, x], j): [number, string] => [f, j === at ? k : x]);
+    const sibling = (k: string) => valueAt(swap(k), di);
+    switch (d.showAs) {
+      case 'difference':
+      case 'percent':
+      case 'percentDiff': {
+        const base = d.baseItem === PREVIOUS_ITEM ? order[mine - 1] : d.baseItem === NEXT_ITEM ? order[mine + 1] : keyOf(fields[bf]?.items[d.baseItem ?? 0]?.value);
+        // The base item itself, or one before the first or after the last: itself, the whole of it, or nothing to measure.
+        if (base === undefined || base === all[at][1]) return d.showAs === 'percent' ? 1 : null;
+        const of = sibling(base);
+        if (d.showAs === 'difference') return value - (typeof of === 'number' ? of : 0);
+        if (typeof of !== 'number') return { error: '#N/A' };
+        return d.showAs === 'percent' ? ratio(value, of) : ratio(value - of, of);
+      }
+      case 'runTotal':
+      case 'percentOfRunningTotal': {
+        const each = order.map((k) => sibling(k));
+        const sum = (list: (EngineValue | undefined)[]) => list.reduce<number>((a, x) => a + (typeof x === 'number' ? x : 0), 0);
+        const run = sum(each.slice(0, mine + 1));
+        return d.showAs === 'runTotal' ? run : ratio(run, sum(each));
+      }
+      case 'percentOfParent': {
+        const parent = at < rowPath.length ? [...rowPath.slice(0, at + 1), ...colPath] : [...rowPath, ...colPath.slice(0, at - rowPath.length + 1)];
+        return ratio(value, valueAt(parent, di));
+      }
+      default: {
+        // Ranks among the base field's items alike in everything else, ties sharing a rank.
+        const others = order.map((k) => sibling(k)).filter((x): x is number => typeof x === 'number');
+        return 1 + others.filter((x) => (d.showAs === 'rankAscending' ? x < value : x > value)).length;
+      }
+    }
+  };
+
   // Each column's records as a set, to find quickly which of a row's fall in it.
   const colSets = colsOut.map((c) => (c.recs === keep ? undefined : new Set(c.recs)));
   rowsOut.forEach((r, ri) => {
@@ -534,7 +698,10 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
       // Where nothing falls, Excel leaves the cell empty.
       if (!recs.length) return;
       const kind = r.kind === 'grand' || c.kind === 'grand' ? 'grand' : r.kind === 'total' || c.kind === 'total' ? 'total' : 'value';
-      put(row, labelCols + ci, summarize(d.fn, recs.map((rec) => rec[d.field])), kind, d.numFmtId);
+      const value = summarize(d.fn, recs.map((rec) => rec[d.field]));
+      const shown = d.showAs && d.showAs !== 'normal' ? showAs(value, r.path, c.path, r.data ?? c.data ?? 0) : value;
+      // Percentages show as Excel shows them; ranks and indexes as plain numbers.
+      if (shown !== null) put(row, labelCols + ci, shown, kind, d.showAs && PERCENTS.has(d.showAs) ? 10 : d.showAs === 'index' || d.showAs?.startsWith('rank') ? 0 : d.numFmtId);
     });
   });
 

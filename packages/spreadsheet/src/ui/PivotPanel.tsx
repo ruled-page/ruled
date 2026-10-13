@@ -1,11 +1,12 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
-import type { PivotFn, PivotSetup } from '../core/pivotTable';
+import { NEEDS_BASE_FIELD, NEEDS_BASE_ITEM, SHOW_AS, type PivotFn, type PivotSetup, type PivotShowAs } from '../core/pivotTable';
 import type { PivotInfo } from '../core/types';
 import { useT } from '../i18n/react';
-import { addField, areaFields, fieldsInUse, moveChip, moveTo, PIVOT_FNS, removeChip, removeField, setShown, setSummary, shownItems, VALUES_FIELD, type DataName, type PivotArea } from '../state/pivotFields';
+import { addField, areaFields, fieldsInUse, moveChip, moveTo, PIVOT_FNS, removeChip, removeField, setShowAs, setShown, setSummary, shownItems, VALUES_FIELD, type DataName, type PivotArea } from '../state/pivotFields';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { Icon } from './icons';
+import { Select } from './Select';
 
 /** Excel's order: Filters and Columns above, Rows and Values below. */
 const AREAS: PivotArea[] = ['pages', 'cols', 'rows', 'data'];
@@ -41,6 +42,7 @@ function Fields({ store, pivot }: { store: WorkbookStore; pivot: PivotInfo }) {
   const { setup, fields } = pivot;
   const [menu, setMenu] = useState<{ x: number; y: number; area: PivotArea; index: number } | null>(null);
   const [filtering, setFiltering] = useState<number | null>(null);
+  const [showing, setShowing] = useState<{ index: number; showAs: PivotShowAs } | null>(null);
   const [over, setOver] = useState<PivotArea | null>(null);
   const dragged = useRef<Dragged | null>(null);
   const used = fieldsInUse(setup);
@@ -95,6 +97,15 @@ function Fields({ store, pivot }: { store: WorkbookStore; pivot: PivotInfo }) {
       items.push({
         label: t('pivot.menu.summarize'),
         items: PIVOT_FNS.map((fn) => ({ label: t(`pivot.fn.${fn}`), checked: d.fn === fn, onSelect: () => change(setSummary(setup, index, fn, name)) })),
+      });
+      items.push({
+        label: t('pivot.menu.showAs'),
+        items: SHOW_AS.map((kind) => ({
+          label: t(`pivot.showAs.${kind}`),
+          checked: (d.showAs ?? 'normal') === kind,
+          // Kinds measured against another field ask which, and which item.
+          onSelect: () => (NEEDS_BASE_FIELD.has(kind) ? setShowing({ index, showAs: kind }) : change(setShowAs(setup, index, kind))),
+        })),
       });
     } else if (field !== VALUES_FIELD) {
       items.push({ label: t('pivot.menu.filter'), onSelect: () => setFiltering(field) });
@@ -169,6 +180,17 @@ function Fields({ store, pivot }: { store: WorkbookStore; pivot: PivotInfo }) {
                   );
                 })}
               </ul>
+              {area === 'data' && showing && (
+                <ShowAsForm
+                  pivot={pivot}
+                  index={showing.index}
+                  showAs={showing.showAs}
+                  onDone={(next) => {
+                    setShowing(null);
+                    if (next) change(next);
+                  }}
+                />
+              )}
             </section>
           );
         })}
@@ -229,6 +251,76 @@ function ItemFilter({ pivot, field, onDone }: { pivot: PivotInfo; field: number;
           {t('dialog.cancel')}
         </button>
         <button type="submit" className="wbe-btn wbe-primary" disabled={!shown.size}>
+          {t('dialog.ok')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Show Values As against a base field, and an item of it where the kind needs one, as Excel's dialog for them asks. */
+function ShowAsForm({ pivot, index, showAs, onDone }: { pivot: PivotInfo; index: number; showAs: PivotShowAs; onDone: (next?: PivotSetup) => void }) {
+  const t = useT();
+  const id = useId();
+  const d = pivot.setup.data[index];
+  const placed = [...pivot.setup.rows, ...pivot.setup.cols].filter((f) => f >= 0);
+  const [field, setField] = useState(d.baseField ?? placed[0] ?? 0);
+  const [item, setItem] = useState(d.baseItem ?? 'previous');
+  const items = pivot.fields[field]?.items ?? [];
+  return (
+    <form
+      className="wbe-pivot-filter"
+      aria-labelledby={`${id}-title`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onDone(setShowAs(pivot.setup, index, showAs, field, NEEDS_BASE_ITEM.has(showAs) ? item : 'previous'));
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation();
+        onDone();
+      }}
+    >
+      <span id={`${id}-title`} className="wbe-small wbe-muted">
+        {t('pivot.showAs.title', { name: d.name, kind: t(`pivot.showAs.${showAs}`) })}
+      </span>
+      <div className="wbe-field">
+        <label htmlFor={`${id}-field`}>{t('pivot.showAs.baseField')}</label>
+        <Select
+          id={`${id}-field`}
+          value={field}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setField(next);
+            if (!pivot.fields[next]?.items.some((it) => it.key === item)) setItem('previous');
+          }}
+        >
+          {pivot.fields.map((f, i) => (
+            <option key={i} value={i}>
+              {f.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {NEEDS_BASE_ITEM.has(showAs) && (
+        <div className="wbe-field">
+          <label htmlFor={`${id}-item`}>{t('pivot.showAs.baseItem')}</label>
+          <Select id={`${id}-item`} value={item} onChange={(e) => setItem(e.target.value)}>
+            <option value="previous">{t('pivot.showAs.previous')}</option>
+            <option value="next">{t('pivot.showAs.next')}</option>
+            {items.map((it) => (
+              <option key={it.key} value={it.key}>
+                {it.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+      <div className="wbe-modal-actions">
+        <button type="button" className="wbe-btn" onClick={() => onDone()}>
+          {t('dialog.cancel')}
+        </button>
+        <button type="submit" className="wbe-btn wbe-primary">
           {t('dialog.ok')}
         </button>
       </div>

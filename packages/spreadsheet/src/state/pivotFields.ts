@@ -4,7 +4,7 @@
  * dragging it moves it between the filters, columns, rows and values, and a
  * value's summary or a field's items can be changed. Each gives a new setup.
  */
-import type { PivotFn, PivotSetup } from '../core/pivotTable';
+import type { PivotFn, PivotSetup, PivotShowAs } from '../core/pivotTable';
 
 export type PivotArea = 'pages' | 'cols' | 'rows' | 'data';
 
@@ -155,4 +155,12 @@ export function shownItems(setup: PivotSetup, field: number, all: string[]): str
   if (pick !== undefined) return all.filter((k) => k === pick);
   const hidden = new Set(setup.hidden[field] ?? []);
   return all.filter((k) => !hidden.has(k));
+}
+
+/** A value shown another way, as Show Values As does: against `baseField` and `baseItem` (a key, or 'previous' or 'next') where the kind needs them. */
+export function setShowAs(setup: PivotSetup, index: number, showAs: PivotShowAs, baseField?: number, baseItem?: string): PivotSetup {
+  const d = setup.data[index];
+  if (!d) return setup;
+  const next = showAs === 'normal' ? { field: d.field, fn: d.fn, name: d.name } : { ...d, showAs, baseField: baseField ?? d.baseField ?? 0, baseItem: baseItem ?? d.baseItem ?? 'previous' };
+  return { ...setup, data: setup.data.map((x, i) => (i === index ? next : x)) };
 }

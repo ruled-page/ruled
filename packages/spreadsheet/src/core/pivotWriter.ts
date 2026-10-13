@@ -5,12 +5,15 @@
  * works out the rows and columns of items itself.
  */
 import { addRel, setOverride } from './commentWriter';
-import { keyOf, sharedValue, type PivotModel, type PivotValue } from './pivotTable';
+import { FILE_SHOW_AS, keyOf, NEXT_ITEM, PREVIOUS_ITEM, sharedValue, type PivotDataField, type PivotModel, type PivotValue } from './pivotTable';
 import { attr, child, children, elements, escapeXml, findTagEnd, firstElement, parseXml, replaceElements, setAttributes } from './xml';
 import type { OoxmlPackage } from './zip';
 
 const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const X14_NS = 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main';
+/** The extension Excel 2010 keeps a value's newer Show Values As kinds in. */
+const X14_DATA_FIELD = '{E15A36E0-9728-4e99-A89B-3F7291B0FE68}';
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml';
 
@@ -193,11 +196,18 @@ export function rewritePivotTable(
         })
         .join('')}</pageFields>`
     : '';
-  const data = model.data.length
-    ? `<dataFields count="${model.data.length}">${model.data
-        .map((d) => `<dataField name="${escapeXml(d.name)}" fld="${d.field}"${d.fn !== 'sum' ? ` subtotal="${d.fn}"` : ''} baseField="0" baseItem="0"${d.numFmtId !== undefined ? ` numFmtId="${d.numFmtId}"` : ''}/>`)
-        .join('')}</dataFields>`
-    : '';
+  /** A value's entry: how it is shown, in the file format's own attribute or Excel 2010's extension, its base item where it is written now. */
+  const dataField = (d: PivotDataField) => {
+    const showAs = d.showAs ?? 'normal';
+    const item = d.baseItem === PREVIOUS_ITEM || d.baseItem === NEXT_ITEM ? d.baseItem : (written[d.baseField ?? 0]?.get(d.baseItem ?? 0) ?? 0);
+    const attrs =
+      `name="${escapeXml(d.name)}" fld="${d.field}"${d.fn !== 'sum' ? ` subtotal="${d.fn}"` : ''}` +
+      `${FILE_SHOW_AS.has(showAs) && showAs !== 'normal' ? ` showDataAs="${showAs}"` : ''} baseField="${d.baseField ?? 0}" baseItem="${item}"` +
+      `${d.numFmtId !== undefined ? ` numFmtId="${d.numFmtId}"` : ''}`;
+    if (FILE_SHOW_AS.has(showAs)) return `<dataField ${attrs}/>`;
+    return `<dataField ${attrs}><extLst><ext uri="${X14_DATA_FIELD}" xmlns:x14="${X14_NS}"><x14:dataField pivotShowAs="${showAs}"/></ext></extLst></dataField>`;
+  };
+  const data = model.data.length ? `<dataFields count="${model.data.length}">${model.data.map(dataField).join('')}</dataFields>` : '';
   const fieldsEnd = elements(out, 'pivotFields', 0, out.length, 1)[0]?.end;
   if (fieldsEnd !== undefined) out = out.slice(0, fieldsEnd) + list('rowFields', model.rows) + list('colFields', model.cols) + pages + data + out.slice(fieldsEnd);
   out = replaceElements(out, 'location', (el) =>

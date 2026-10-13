@@ -43,10 +43,10 @@ describe('a pivot table as the PivotTable Fields pane shows it', () => {
 
   it("says why one Excel's features the editor doesn't work out can't be changed", () => {
     const p = parts(sample('pivot.xlsx'));
-    p[PATH] = p[PATH].replace('<dataField name="Sum of Units" fld="2"', '<dataField name="Sum of Units" fld="2" showDataAs="percentOfTotal"');
+    p[PATH] = p[PATH].replace('<dataField name="Sum of Units" fld="2"', '<dataField name="Sum of Units" fld="2" subtotal="median"');
     const s = reopen(zipSync(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, strToU8(v)]))));
-    expect(english.text(pivotOf(s).kept!)).toContain('shows values as percentages');
-    expect(english.text(set(s, { cols: [1] }).rejected!)).toContain('shows values as percentages');
+    expect(english.text(pivotOf(s).kept!)).toContain("summarizes values in a way the editor doesn't work out");
+    expect(english.text(set(s, { cols: [1] }).rejected!)).toContain("summarizes values in a way the editor doesn't work out");
   });
 });
 
@@ -263,5 +263,84 @@ describe('Insert PivotTable', () => {
       ['PivotTable1', ['Region', 'Region2']],
       ['PivotTable2', ['Region', 'Region2']],
     ]);
+  });
+});
+
+describe('Show Values As', () => {
+  /**
+   * Regions down, products across, units summed:
+   *          Gadget Gizmo Widget  Total
+   * East        86    307    265    658
+   * North      461    607    247   1315
+   * South      450    284    398   1132
+   * West       516    370    563   1449
+   * Total     1513   1568   1473   4554
+   */
+  const shownAs = (value: Partial<PivotSetup['data'][number]>, rows = [0], cols = [1]) => {
+    const s = open('pivot.xlsx');
+    s.apply({ type: 'input', sheet: 1, row: 1, col: 3, text: '' });
+    const r = set(s, { rows, cols, data: [{ field: 2, fn: 'sum', name: 'Sum of Units', ...value }] });
+    expect(r.rejected).toBeUndefined();
+    return s;
+  };
+  /** The values part of the table: B5:E9 with products across. */
+  const values = (s: WorkbookSession, rows = 5, cols = 4, top = 4) => grid(s, top + rows, 1 + cols).slice(top).map((r) => r.slice(1));
+  const close = (rows: (number | string)[][]) => rows.map((r) => r.map((v) => (typeof v === 'number' ? expect.closeTo(v, 9) : v)));
+
+  it('measures each value against the grand total, its row’s or its column’s, or both as an index', () => {
+    expect(values(shownAs({ showAs: 'percentOfTotal' }))[0]).toEqual(close([[86 / 4554, 307 / 4554, 265 / 4554, 658 / 4554]])[0]);
+    expect(values(shownAs({ showAs: 'percentOfRow' }))[1]).toEqual(close([[461 / 1315, 607 / 1315, 247 / 1315, 1]])[0]);
+    expect(values(shownAs({ showAs: 'percentOfCol' })).map((r) => r[0])).toEqual(close([[86 / 1513, 461 / 1513, 450 / 1513, 516 / 1513, 1]])[0]);
+    expect(values(shownAs({ showAs: 'index' }))[0][0]).toBeCloseTo((86 * 4554) / (658 * 1513), 9);
+    // Percentages show as Excel shows them.
+    const s = shownAs({ showAs: 'percentOfTotal' });
+    expect(s.model.styles.get(s.current(1, 4, 1).style).numFmt).toBe('0.00%');
+  });
+
+  it('measures against another item of a base field, the one before or after, leaving the base item and totals empty', () => {
+    const north = values(shownAs({ showAs: 'difference', baseField: 0, baseItem: 'snorth' }));
+    expect(north).toEqual([
+      [86 - 461, 307 - 607, 265 - 247, 658 - 1315],
+      ['.', '.', '.', '.'],
+      [450 - 461, 284 - 607, 398 - 247, 1132 - 1315],
+      [516 - 461, 370 - 607, 563 - 247, 1449 - 1315],
+      ['.', '.', '.', '.'],
+    ]);
+    expect(values(shownAs({ showAs: 'percent', baseField: 0, baseItem: 'previous' })).map((r) => r[0])).toEqual(close([[1, 461 / 86, 450 / 461, 516 / 450, '.']])[0]);
+    expect(values(shownAs({ showAs: 'percentDiff', baseField: 0, baseItem: 'next' })).map((r) => r[0])).toEqual(close([[(86 - 461) / 461, (461 - 450) / 450, (450 - 516) / 516, '.', '.']])[0]);
+    // A base field the cells aren't under leaves them all empty.
+    expect(values(shownAs({ showAs: 'difference', baseField: 3, baseItem: 'previous' }))[0]).toEqual(['.', '.', '.', '.']);
+  });
+
+  it('runs totals down a base field, and ranks its items', () => {
+    expect(values(shownAs({ showAs: 'runTotal', baseField: 0, baseItem: 'previous' })).map((r) => r[0])).toEqual([86, 547, 997, 1513, '.']);
+    expect(values(shownAs({ showAs: 'percentOfRunningTotal', baseField: 0, baseItem: 'previous' })).map((r) => r[3])).toEqual(close([[658 / 4554, 1973 / 4554, 3105 / 4554, 1, '.']])[0]);
+    expect(values(shownAs({ showAs: 'rankDescending', baseField: 0, baseItem: 'previous' })).map((r) => r[0])).toEqual([4, 2, 3, 1, '.']);
+    expect(values(shownAs({ showAs: 'rankAscending', baseField: 1, baseItem: 'previous' }))[0]).toEqual([1, 3, 2, '.']);
+  });
+
+  it('measures against the parent row’s total, or a parent item’s', () => {
+    // Regions with their products under them, in one column: East, Gadget, Gizmo, Widget, North…
+    // With nothing across, the values start a row higher.
+    const parentRow = values(shownAs({ showAs: 'percentOfParentRow' }, [0, 1], []), 6, 1, 3).map((r) => r[0]);
+    expect(parentRow).toEqual(close([[658 / 4554, 86 / 658, 307 / 658, 265 / 658, 1315 / 4554, 461 / 1315]])[0]);
+    const parent = values(shownAs({ showAs: 'percentOfParent', baseField: 0, baseItem: 'previous' }, [0, 1], []), 6, 1, 3).map((r) => r[0]);
+    expect(parent).toEqual(close([[1, 86 / 658, 307 / 658, 265 / 658, 1, 461 / 1315]])[0]);
+    expect(values(shownAs({ showAs: 'percentOfParentCol' }), 1, 4)[0]).toEqual(close([[86 / 658, 307 / 658, 265 / 658, 1]])[0]);
+  });
+
+  it('is saved in the file format’s attribute, or Excel 2010’s extension, and read back', () => {
+    const s = shownAs({ showAs: 'difference', baseField: 0, baseItem: 'snorth' });
+    const def = parts(s.save())[PATH];
+    // North is the second of the regions as the definition lists them.
+    expect(def).toContain('<dataField name="Sum of Units" fld="2" showDataAs="difference" baseField="0" baseItem="1"/>');
+    expect(pivotOf(reopen(s.save())).setup.data).toEqual([{ field: 2, fn: 'sum', name: 'Sum of Units', showAs: 'difference', baseField: 0, baseItem: 'snorth' }]);
+    const ranked = shownAs({ showAs: 'rankDescending', baseField: 0, baseItem: 'previous' });
+    expect(parts(ranked.save())[PATH]).toContain(
+      '<dataField name="Sum of Units" fld="2" baseField="0" baseItem="1048828"><extLst><ext uri="{E15A36E0-9728-4e99-A89B-3F7291B0FE68}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataField pivotShowAs="rankDescending"/></ext></extLst></dataField>',
+    );
+    const again = reopen(ranked.save());
+    expect(pivotOf(again).setup.data[0]).toMatchObject({ showAs: 'rankDescending', baseItem: 'previous' });
+    expect(again.apply({ type: 'refreshPivots' }).undo).toEqual([]);
   });
 });
