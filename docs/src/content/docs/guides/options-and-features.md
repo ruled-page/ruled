@@ -18,10 +18,10 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `warnOnUnload` | Ask before leaving the page with unsaved changes. Default `true`. |
 | `numbers` | How numbers are shown, copied and pasted, for every workbook; a schema can override it. |
 | `csvExport` | The delimiter for CSV downloads, and whether formulas are escaped. |
-| `limits` | Size and complexity limits for files people open. |
+| `limits` | Size and complexity limits for files people open. See [Large workbooks](/guides/opening-and-saving/#large-workbooks). |
 | `macros` | Files with macros: `'keep'` them (the default), `'remove'` them when saving, or `'block'` such files. |
 | `activeContent` | ActiveX controls and embedded objects: `'keep'` (the default) or `'block'`. |
-| `recalc` | Live recalculation: `'auto'` (the default) turns it off for workbooks too large to recalculate quickly, where people can turn it on; `'on'` and `'off'` force it. |
+| `recalc` | Live recalculation: `'auto'` (the default) turns it off for workbooks with more than 200,000 formulas or 2 million cells, where people can turn it on; `'on'` and `'off'` force it. |
 
 ## People and language
 
