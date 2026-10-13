@@ -1,11 +1,10 @@
-import type { DataEditorRef } from '@glideapps/glide-data-grid';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject, type WheelEvent as ReactWheelEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { ChartSlot } from './ChartSlot';
 import { ContextMenu } from './ContextMenu';
-import { GLIDE_SCROLLER } from './glideDom';
+import type { GridHandle } from '../grid/contract';
 import { Icon } from './icons';
 import type { MessageKey } from '../i18n/message';
 import { useT } from '../i18n/react';
@@ -97,76 +96,57 @@ function edgesFor(mode: Drag['mode'], dx: number, dy: number, width: number, hei
 export function ObjectsOverlay({
   store,
   view,
-  gridRef,
-  tick,
-  rowStart,
-  rowCount,
-  scrollRow,
-  top,
+  handle,
+  pane,
+  colVersion,
 }: {
   store: WorkbookStore;
   view: SheetView;
-  gridRef: RefObject<DataEditorRef | null>;
-  tick: number;
-  /** The grid rows this pane shows; objects anchored above them are drawn by the pane above, and continued here. */
-  rowStart: number;
-  rowCount: number;
-  /** The first of the pane's rows the grid draws, scrolled to. */
-  scrollRow: number;
-  /** Height of the column header above the cells. */
-  top: number;
+  handle: GridHandle;
+  /** The band of rows this overlay covers (see Pane); objects anchored in a band above are continued here. */
+  pane: number;
+  colVersion: number;
 }) {
   const t = useT();
   const id = useId();
   const host = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
-  const [bars, setBars] = useState({ right: 0, bottom: 0 });
+  const [area, setArea] = useState<CSSProperties>();
   const [drag, setDrag] = useState<Drag>();
   const [menu, setMenu] = useState<{ x: number; y: number; box: Box }>();
+  const [tick, setTick] = useState(0);
+  useEffect(() => handle.subscribe(() => setTick((n) => n + 1)), [handle]);
 
+  const layoutVersion = view.layoutVersion;
   useLayoutEffect(() => {
-    const grid = gridRef.current;
     const el = host.current;
-    if (!grid || !el) return;
-    const origin = el.getBoundingClientRect();
-    const firstRow = view.visibleRows[rowStart];
-    // Objects stop at the pane's scrollbars, as Excel's stop at its window's.
-    const scroller = el.parentElement?.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`);
-    if (scroller) {
-      const shown = getComputedStyle(scroller).scrollbarWidth !== 'none';
-      // Scrollbars drawn over the grid, as macOS draws them, take no room of their own.
-      const bar = (room: number, overflows: boolean) => (!shown ? 0 : room > 0 ? room : overflows ? 10 : 0);
-      const next = {
-        right: bar(scroller.offsetWidth - scroller.clientWidth, scroller.scrollHeight > scroller.clientHeight),
-        bottom: bar(scroller.offsetHeight - scroller.clientHeight, scroller.scrollWidth > scroller.clientWidth),
-      };
-      setBars((prev) => (prev.right === next.right && prev.bottom === next.bottom ? prev : next));
-    }
-    // Glide places rows above the first it draws a row out, so objects are placed from that row.
-    const scrolled = Math.max(0, scrollRow);
+    const at = handle.view();
+    const band = at.panes[pane];
+    const parent = el?.parentElement?.getBoundingClientRect();
+    if (!el || !band || !parent) return;
+    // Objects stop at the band's scrollbars, as Excel's stop at its window's.
+    const next = { left: band.box.x - parent.left, top: band.box.y - parent.top, width: band.box.width - band.scrollbars.right, height: band.box.height - band.scrollbars.bottom };
+    setArea((prev) => (prev && (['left', 'top', 'width', 'height'] as const).every((k) => prev[k] === next[k]) ? prev : next));
+    const origin = { left: band.box.x, top: band.box.y };
+    const [firstRow, lastRow] = band.range;
+    // Objects are placed from the first row in view, or from their own if it is further down.
+    const scrolled = band.rows[0] ?? firstRow;
     // Objects in scrolling columns slide under the frozen ones (and the row numbers) as Excel's do.
-    let frozenCols = 0;
-    for (let c = 0; c < view.info.frozenCols; c++) if (view.gridCol(c) >= 0) frozenCols++;
-    const edge = grid.getBounds(frozenCols, 0);
-    const freezeX = edge ? edge.x + edge.width - 1 : origin.left;
+    const freezeX = at.freezeX;
     const out: Box[] = [];
     view.info.objects.forEach((obj, i) => {
       if (!obj.from || obj.kind === 'pivot' || obj.kind === 'control') return;
-      const gc = view.gridCol(obj.from.col);
-      const g = view.gridRow(obj.from.row);
       const size = objectSize(view, obj);
-      if (gc < 0 || g < 0 || !size || size.width < 8 || size.height < 8) return;
-      const gr = g - rowStart;
-      if (gr >= rowCount) return;
-      // Anchored in the frozen rows above: this pane shows whatever reaches below them.
-      const above = gr < 0 ? rowsHeight(view, obj.from.row, firstRow) - obj.from.rowOffPx : 0;
+      if (view.gridCol(obj.from.col) < 0 || view.gridRow(obj.from.row) < 0 || !size || size.width < 8 || size.height < 8) return;
+      if (obj.from.row > lastRow) return;
+      // Anchored in the frozen rows above: this band shows whatever reaches below them.
+      const above = obj.from.row < firstRow ? rowsHeight(view, obj.from.row, firstRow) - obj.from.rowOffPx : 0;
       if (above >= size.height) return;
-      const ref = Math.max(gr, scrolled);
-      const refRow = view.visibleRows[rowStart + ref];
-      // Far above what's shown: nothing of it reaches the pane.
-      if (refRow === undefined || refRow - obj.from.row > 5000) return;
-      const a = grid.getBounds(gc + 1, ref);
+      const refRow = Math.max(obj.from.row, scrolled);
+      // Far above what's shown: nothing of it reaches the band.
+      if (refRow - obj.from.row > 5000) return;
+      const a = handle.cellBox(refRow, obj.from.col);
       if (!a) return;
       const left = a.x + obj.from.colOffPx;
       out.push({
@@ -178,12 +158,12 @@ export function ObjectsOverlay({
         width: size.width,
         height: size.height,
         clipLeft: obj.from.col >= view.info.frozenCols ? Math.max(0, freezeX - left) : 0,
-        continued: gr < 0,
+        continued: obj.from.row < firstRow,
         editable: objectEditable(view.info, obj),
       });
     });
     setBoxes(out);
-  }, [view, gridRef, tick, rowStart, rowCount, scrollRow]);
+  }, [view, layoutVersion, handle, pane, tick, colVersion]);
 
   const selected = boxes.find((b) => b.id === store.selectedObject);
   // A newly selected object's frame takes the keyboard, in the pane that draws the object itself.
@@ -243,7 +223,7 @@ export function ObjectsOverlay({
   };
 
   /** The wheel scrolls the sheet under an object, as it does elsewhere on the grid. */
-  const wheel = (e: ReactWheelEvent) => host.current?.parentElement?.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`)?.scrollBy({ left: e.deltaX, top: e.deltaY });
+  const wheel = (e: ReactWheelEvent) => handle.scrollBy(e.deltaX, e.deltaY);
 
   /** Keys on a selected object, as Excel has them: arrows move it, Shift and arrows resize it, Delete removes it, Tab goes on to the next and Esc back to the cells. */
   const onKey = (e: ReactKeyboardEvent, b: Box) => {
@@ -278,7 +258,7 @@ export function ObjectsOverlay({
 
   return (
     <>
-      <div className="wbe-objects-overlay" ref={host} style={{ top, right: bars.right, bottom: bars.bottom }}>
+      <div className="wbe-objects-overlay" ref={host} style={area}>
         {boxes.map((b) => {
           const style: CSSProperties = { ...placed(b), clipPath: b.clipLeft ? `inset(0 0 0 ${b.clipLeft}px)` : undefined };
           const placeholder = <Placeholder box={b} style={style} />;

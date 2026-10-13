@@ -30,6 +30,7 @@ export default defineConfig({
       // The React screens and the apps' entry points are tested in a browser by the Playwright suite (packages/e2e).
       exclude: [
         'packages/spreadsheet/src/ui/**/*.tsx',
+        'packages/spreadsheet/src/grid/**/*.tsx',
         'packages/spreadsheet/src/ui/useDialog.ts',
         'packages/spreadsheet/src/editor/hooks.ts',
         'packages/spreadsheet/src/editor/{WorkbookEditor.tsx,ErrorBoundary.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',

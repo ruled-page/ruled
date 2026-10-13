@@ -27,11 +27,15 @@ function rememberSample(fileName: string | undefined): void {
   if (url.href !== location.href) history.replaceState(history.state, '', url);
 }
 
+/** The grid to draw sheets in: ?grid=ruled tries Ruled's own; the end-to-end tests can choose it for a whole build. */
+const grid = new URLSearchParams(location.search).get('grid') ?? import.meta.env.VITE_RULED_GRID;
+
 // The status bar says how long opening, calculating and edits take.
 const store = new WorkbookStore({
   schemas: DEMO_SCHEMAS,
   language: i18next.language,
   diagnostics: true,
+  ...((grid === 'glide' || grid === 'ruled') && { experimental: { grid } }),
   onEvent: (e) => {
     if (e.type === 'opened') rememberSample(e.fileName);
   },

@@ -1,14 +1,7 @@
-import type { GridCell, ProvideEditorComponent, TextCell } from '@glideapps/glide-data-grid';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { CellEditorProps, EditMove } from '../grid/contract';
 import { Icon } from './icons';
 import { useT } from '../i18n/react';
-
-/** A text cell whose field only allows a fixed list of values. */
-export type EnumCell = TextCell & { enumOptions?: readonly string[] };
-
-export function enumOptionsOf(cell: GridCell): readonly string[] | undefined {
-  return (cell as EnumCell).enumOptions;
-}
 
 /** Options containing the filter, those starting with it first. */
 function filterOptions(options: readonly string[], filter: string): string[] {
@@ -23,12 +16,11 @@ function filterOptions(options: readonly string[], filter: string): string[] {
  * Dropdown editor for enum fields. Typing filters the list, arrow keys move,
  * Enter or Tab picks, Escape or clicking elsewhere leaves the cell unchanged.
  */
-export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinishedEditing, initialValue, target }) => {
+export function EnumEditor({ text, typed, finish, options: allowed, box: target }: CellEditorProps) {
   const t = useT();
-  const cell = value as EnumCell;
-  const options = useMemo(() => cell.enumOptions ?? [], [cell.enumOptions]);
-  const current = cell.data.replace(/^'/, '');
-  const [filter, setFilter] = useState(initialValue ?? '');
+  const options = useMemo(() => allowed ?? [], [allowed]);
+  const current = text.replace(/^'/, '');
+  const [filter, setFilter] = useState(typed ? text : '');
   const filtered = useMemo(() => filterOptions(options, filter), [options, filter]);
   const [active, setActive] = useState(() => Math.max(0, filtered.indexOf(current)));
   const list = useRef<HTMLUListElement>(null);
@@ -43,9 +35,7 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
     list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  const choose = (option: string, movement: readonly [-1 | 0 | 1, -1 | 0 | 1]) => {
-    onFinishedEditing({ ...cell, data: option }, movement);
-  };
+  const choose = (option: string, movement: EditMove) => finish(option, movement);
 
   return (
     <div className="wbe-enum-editor" style={{ minWidth: Math.max(target.width, 160) }}>
@@ -71,13 +61,13 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
             const step = e.key === 'ArrowDown' ? 1 : -1;
             setActive((i) => (filtered.length ? (i + step + filtered.length) % filtered.length : 0));
           } else if (e.key === 'Enter' || e.key === 'Tab') {
-            // Handled here rather than by Glide, which would save the unchanged value.
+            // Handled here rather than by the grid, which would save the unchanged value.
             e.preventDefault();
             e.stopPropagation();
             const pick = filtered[active];
-            const movement: readonly [-1 | 0 | 1, -1 | 0 | 1] = e.key === 'Enter' ? [0, 1] : [e.shiftKey ? -1 : 1, 0];
+            const movement: EditMove = e.key === 'Enter' ? [0, 1] : [e.shiftKey ? -1 : 1, 0];
             if (pick !== undefined) choose(pick, movement);
-            else if (!filter.trim()) onFinishedEditing(undefined, movement);
+            else if (!filter.trim()) finish(undefined, movement);
           } else if (e.key === 'Delete' && !filter && current) {
             // The keyboard's way to the Clear button.
             e.preventDefault();
@@ -139,4 +129,4 @@ export const EnumEditor: ProvideEditorComponent<GridCell> = ({ value, onFinished
       )}
     </div>
   );
-};
+}

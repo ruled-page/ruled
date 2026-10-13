@@ -27,7 +27,7 @@ const PATCHES: Patch[] = [
   /*
    * Glide opens cell editors in the page's element with id "portal", which a
    * host page may well have for its own use. The editor makes its own
-   * (src/ui/glideDom.ts, PORTAL_ID).
+   * (PORTAL_ID in src/grid/contract.ts).
    */
   {
     file: /glide-data-grid[\\/]dist[\\/]esm[\\/]internal[\\/]data-grid-overlay-editor[\\/]data-grid-overlay-editor\.js$/,
@@ -57,7 +57,7 @@ const PATCHES: Patch[] = [
   ...accessTreePatches(),
 ];
 
-/** The patches for `experimental.sheetAccess`; see SheetAccess in src/ui/SheetGrid.tsx. */
+/** The patches for `experimental.sheetAccess`; see SheetAccess in src/grid/glide/SheetGrid.tsx. */
 function accessTreePatches(): Patch[] {
   const file = /glide-data-grid[\\/]dist[\\/]esm[\\/]internal[\\/]data-grid[\\/]data-grid\.js$/;
   const swap = (find: RegExp, to: string): Patch => ({ file, find, replace: () => to });

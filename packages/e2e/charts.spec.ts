@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { unzipSync } from 'fflate';
-import { goTo, openFile, openSample, ordersWorkbook, serverUrl, setCell } from './helpers';
+import { focusedGrid, goTo, grid as gridSurface, gridScroller, openFile, openSample, ordersWorkbook, serverUrl, setCell } from './helpers';
 
 /** How many pixels a chart's canvas has drawn on. */
 const inked = (chart: Locator) =>
@@ -92,24 +92,25 @@ test('keeps a chart where it is anchored as the sheet scrolls past a tall row, a
 
   // Scrolled until row 19 has gone above the panes' join, the chart goes up with it, as far as the
   // sheet went: browsers scroll a turn of the wheel by different amounts.
-  const scrolled = () => page.locator('.dvn-scroller').evaluateAll((all) => Math.max(...all.map((s) => s.scrollTop)));
+  const scrolled = () => gridScroller(page).evaluateAll((all) => Math.max(...all.map((s) => s.scrollTop)));
   const start = await scrolled();
-  const grid = page.locator('canvas[data-testid="data-grid-canvas"]').last();
+  const grid = gridSurface(page).last();
   const box = (await grid.boundingBox())!;
   await page.mouse.move(box.x + 200, box.y + box.height / 2);
   for (let turns = 0; turns < 20 && (await scrolled()) - start < 500; turns++) await page.mouse.wheel(0, 100);
   await expect.poll(async () => Math.round(before - (await top())) - ((await scrolled()) - start)).toBe(0);
   expect((await scrolled()) - start).toBeGreaterThanOrEqual(500);
 
-  // Charts stop short of each pane's scrollbars.
-  const overlaps = await page.locator('.wbe-objects-overlay').evaluateAll((overlays) =>
-    overlays.filter((o) => {
-      const scroller = o.parentElement!.querySelector<HTMLElement>('.dvn-scroller')!;
-      const s = scroller.getBoundingClientRect();
+  // Charts stop short of the scrollbars of the part of the grid they are over.
+  const overlaps = await page.locator('.wbe-objects-overlay').evaluateAll((overlays) => {
+    const scrollers = [...document.querySelectorAll<HTMLElement>('[data-testid="wbe-grid-scroller"]')];
+    return overlays.filter((o) => {
       const r = o.getBoundingClientRect();
+      const scroller = scrollers.find((s) => r.top >= s.getBoundingClientRect().top - 0.5 && r.top < s.getBoundingClientRect().bottom)!;
+      const s = scroller.getBoundingClientRect();
       return r.bottom > s.top + scroller.clientHeight + 0.5 || r.right > s.left + scroller.clientWidth + 0.5;
-    }).length,
-  );
+    }).length;
+  });
   expect(overlaps).toBe(0);
 });
 
@@ -181,7 +182,7 @@ test('selects a chart by clicking it, moves and resizes it by dragging, and dele
   await expect.poll(async () => Math.round((await box()).x - moved.x)).toBe(-1);
   await page.keyboard.press('Delete');
   await expect(chart).toHaveCount(0);
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await expect(focusedGrid(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(chart).toBeVisible();
 

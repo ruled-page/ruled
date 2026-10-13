@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
-import { goTo as goToCell, openFile, tabKey } from './helpers';
+import { focusedGrid, goTo as goToCell, openFile, tabKey } from './helpers';
 
 /** Everything here is done without the mouse. */
 
 const comments = () => new Uint8Array(readFileSync(new URL('../spreadsheet/tests/corpus/comments.xlsx', import.meta.url)));
-const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
+const grid = (page: Page) => focusedGrid(page);
 const focused = (el: Locator) => el.evaluate((node) => node === document.activeElement || node.contains(document.activeElement));
 
 /** Presses a key until the element, or something in it, has the focus. */

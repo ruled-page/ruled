@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
-import { goTo, openFile, readWorkbook, shown } from './helpers';
+import { focusedGrid, goTo, grid, openFile, readWorkbook, shown } from './helpers';
 
 /** "Data": A1 links to a web page, A2 to Other!B3, A3 to a script; "Other" is plain. */
 async function linksWorkbook(): Promise<Uint8Array> {
@@ -50,7 +50,7 @@ test('follows a link to another sheet with the keyboard, and screen readers hear
   await expect(page.getByRole('tab', { name: 'Other' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B3');
   // The grid has the focus, so typing goes on from there.
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await expect(focusedGrid(page)).toHaveCount(1);
   expect(await opened()).toEqual([]);
 });
 
@@ -64,7 +64,7 @@ test('refuses a link to a script, saying why, and opens nothing', async ({ page 
 
 test('asks before opening a web page, showing its address, then opens it in a new tab', async ({ page }) => {
   // Ctrl+click (⌘-click on a Mac) on the cell; rows are 20 pixels under a 24 pixel heading, after 40 pixels of row numbers.
-  const box = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const box = (await grid(page).first().boundingBox())!;
   await page.keyboard.down('ControlOrMeta');
   await page.mouse.click(box.x + 40 + 30, box.y + 24 + 10);
   await page.keyboard.up('ControlOrMeta');

@@ -656,6 +656,7 @@ export const ui = {
 
   'grid.empty': 'Empty',
   'grid.label': 'Cells of {{name}}',
+  'grid.unbuilt': 'This grid is still being built. Open the editor without the experimental grid option to edit {{name}}.',
   'grid.labelFrozen': 'Frozen rows of {{name}}',
   'grid.flag.merged': 'merged {{range}}',
   'grid.flag.formula': 'formula',

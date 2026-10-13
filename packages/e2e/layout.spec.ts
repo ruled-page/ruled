@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, readWorkbook, setCell, shown } from './helpers';
+import { goTo, grid, openFile, ordersWorkbook, readWorkbook, setCell, shown } from './helpers';
 
 /** Opens the cell menu from the keyboard and chooses an item, in a submenu when one is named. */
 async function choose(page: Page, item: string, submenu?: string) {
@@ -71,7 +71,7 @@ test('merges cells after asking about the values that go, and freezes the top ro
 
 test('resizes a row by dragging the edge of its number', async ({ page }) => {
   await goTo(page, 'A2');
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   // Row 2's number, then the edge below it: rows are 20 pixels under a 24 pixel heading.
   const x = box.x + 10;
@@ -89,7 +89,7 @@ test('resizes a row by dragging the edge of its number', async ({ page }) => {
 
 test("keeps a column's width when its edge is only pressed, and sets it when dragged", async ({ page }) => {
   await goTo(page, 'A2');
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   // Column A's right edge, in the heading: a 40 pixel row number column, then A at 64 pixels.
   const edge = box.x + 40 + 64;
@@ -119,7 +119,7 @@ test("keeps a column's width when its edge is only pressed, and sets it when dra
 
 test('fits a column to its widest value when its edge is double-clicked, and from the menu', async ({ page }) => {
   await setCell(page, 'C2', 'A much longer price note');
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   const width = async (col: string) => {
     await goTo(page, `${col}2`);
@@ -146,7 +146,7 @@ test('fits a row to its wrapped text when the edge of its number is double-click
   await setCell(page, 'A2', 'A long item name that wraps over several lines');
   await goTo(page, 'A2');
   await page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Wrap text' }).click();
-  const box = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const box = (await grid(page).first().boundingBox())!;
   // Row 2's bottom edge, under the 24 pixel letters.
   await page.mouse.dblclick(box.x + 20, box.y + 24 + 20 * 2);
   await goTo(page, 'A2');

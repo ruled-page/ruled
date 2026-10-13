@@ -17,6 +17,11 @@ const ALL_BROWSERS = process.env.E2E_BROWSERS === 'all';
  */
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 process.env.E2E_PORT = String(PORT);
+/**
+ * With E2E_GRID=ruled, the demo is built to draw sheets in Ruled's own grid
+ * rather than Glide, so the same specs run against either.
+ */
+if (process.env.E2E_GRID) process.env.VITE_RULED_GRID = process.env.E2E_GRID;
 const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
 
 /**

@@ -13,7 +13,7 @@ async function gridPixels(page: Page, color: string): Promise<number> {
     probe.fillRect(0, 0, 1, 1);
     const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
     let n = 0;
-    for (const canvas of document.querySelectorAll<HTMLCanvasElement>('canvas[data-testid="data-grid-canvas"]')) {
+    for (const canvas of document.querySelectorAll<HTMLCanvasElement>('[data-testid="wbe-grid"] canvas')) {
       const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
       for (let i = 0; i < data.length; i += 4) if (Math.abs(data[i] - r) + Math.abs(data[i + 1] - g) + Math.abs(data[i + 2] - b) < 6) n++;
     }

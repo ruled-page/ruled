@@ -1,36 +1,26 @@
-import type { GridCell, ProvideEditorComponent, TextCell } from '@glideapps/glide-data-grid';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toA1 } from '@ruled/formula/refs';
+import { PORTAL_ID, type CellEditorProps } from '../grid/contract';
 import type { WorkbookStore } from '../state/store';
 import { useT } from '../i18n/react';
 import { AssistPopup, assistKey, FormulaText, HintAnnouncer, pickFunction, useAutoComplete, useFormulaAssist } from './FormulaAssist';
-import { GLIDE_CLICK_OUTSIDE_IGNORE, PORTAL_ID } from './glideDom';
 
 /**
- * The editor for text cells, in place of Glide's own and working as it does
- * (a text area that grows with its text; Shift+Enter starts a new line),
- * with the formula bar's help while a formula is typed: functions offered as
- * their names are typed, argument hints, references coloured here and
- * outlined on the grid, and F4. Text is finished from the column as it is
- * typed, as Excel's AutoComplete does.
+ * The editor for text cells: a text area that grows with its text, where
+ * Shift+Enter starts a new line, with the formula bar's help while a formula
+ * is typed: functions offered as their names are typed, argument hints,
+ * references coloured here and outlined on the grid, and F4. Text is
+ * finished from the column as it is typed, as Excel's AutoComplete does.
  */
-export function textCellEditor(store: WorkbookStore): ProvideEditorComponent<GridCell> {
-  return (props) => <CellEntry store={store} {...props} />;
-}
-
-type EditorProps = Parameters<ProvideEditorComponent<GridCell>>[0];
-
-function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, isHighlighted, validatedSelection, target }: EditorProps & { store: WorkbookStore }) {
+export function CellEntry({ store, text, onText, finish, typed, selectAll, readOnly, wrap, box: target, popupClass }: CellEditorProps & { store: WorkbookStore }) {
   const t = useT();
-  const cell = value as TextCell;
-  const text = cell.data;
-  const editable = cell.readonly !== true;
+  const editable = !readOnly;
   const area = useRef<HTMLTextAreaElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLSpanElement>(null);
   const id = useId();
-  const [sel, setSel] = useState<[number, number]>(() => [isHighlighted ? 0 : text.length, text.length]);
+  const [sel, setSel] = useState<[number, number]>(() => [selectAll ? 0 : text.length, text.length]);
   const [popup, setPopup] = useState<{ left: number; top: number }>();
   const pendingSel = useRef<[number, number]>(undefined);
   const assist = useFormulaAssist(store, text, sel[0], sel[1], editable);
@@ -38,27 +28,22 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
   const { row, col } = store.selection;
   const auto = useAutoComplete(store, row, col, editable && store.features.autoComplete);
   const apply = (next: string, start: number, end: number) => {
-    onChange({ ...cell, data: next });
+    onText(next);
     setSel([start, end]);
     pendingSel.current = [start, end];
   };
 
-  // Opens focused, with the text selected or the caret at its end, as Glide's own editor does.
+  // Opens focused, with the text selected or the caret at its end.
   // Opened by typing, it holds the key typed, which AutoComplete can already finish.
   useEffect(() => {
     const el = area.current;
     if (!el || el.disabled) return;
     el.focus();
-    const completed = initialValue !== undefined ? auto.changed(text, text.length, text.length, 'insertText') : undefined;
+    const completed = typed ? auto.changed(text, text.length, text.length, 'insertText') : undefined;
     if (completed) apply(completed.text, ...completed.sel);
-    else el.setSelectionRange(isHighlighted ? 0 : el.value.length, el.value.length);
+    else el.setSelectionRange(selectAll ? 0 : el.value.length, el.value.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useLayoutEffect(() => {
-    if (validatedSelection === undefined) return;
-    const [start, end] = typeof validatedSelection === 'number' ? [validatedSelection, null] : validatedSelection;
-    area.current?.setSelectionRange(start, end);
-  }, [validatedSelection]);
 
   // The grid outlines the references of a formula typed here.
   useEffect(() => store.showFormulaRefs(text), [store, text]);
@@ -82,7 +67,7 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
       className={`wbe-cell-entry ${colored ? 'wbe-colored' : ''}`}
       ref={box}
       // A wrapped cell is edited at its column's width, growing down as Excel's does, less the editor's padding.
-      style={cell.allowWrapping ? { width: Math.max(16, target.width - 17) } : undefined}
+      style={wrap ? { width: Math.max(16, target.width - 17) } : undefined}
     >
       <textarea
         ref={area}
@@ -102,7 +87,7 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
           if (completed) {
             apply(completed.text, ...completed.sel);
           } else {
-            onChange({ ...cell, data: e.target.value });
+            onText(e.target.value);
             setSel([start, e.target.selectionEnd]);
           }
           assist.typed(e.target.value, start);
@@ -116,12 +101,12 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
             e.stopPropagation();
             return;
           }
-          // An entry AutoComplete finished goes in written as it is in the column, where Glide would take the text as typed.
+          // An entry AutoComplete finished goes in written as it is in the column, where the grid would take the text as typed.
           const entry = auto.final(text);
           if (entry !== text && ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab')) {
             e.preventDefault();
             e.stopPropagation();
-            onFinishedEditing({ ...cell, data: entry }, e.key === 'Tab' ? [e.shiftKey ? -1 : 1, 0] : [0, 1]);
+            finish(entry, e.key === 'Tab' ? [e.shiftKey ? -1 : 1, 0] : [0, 1]);
           }
         }}
       />
@@ -136,7 +121,7 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
             assist={assist}
             listId={`${id}-list`}
             hintId={`${id}-hint`}
-            className={`wbe-fx-floating ${GLIDE_CLICK_OUTSIDE_IGNORE}`}
+            className={`wbe-fx-floating ${popupClass}`}
             style={popup}
             onPick={(i) => pickFunction(assist, text, i, apply)}
           />,

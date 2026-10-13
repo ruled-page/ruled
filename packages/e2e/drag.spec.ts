@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, shown } from './helpers';
+import { goTo, grid, openFile, ordersWorkbook, shown } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
 });
 
 test("moves cells by dragging the selection's border, and copies them with Ctrl (Option on a Mac)", async ({ page }) => {
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   // Rows are 20 pixels under a 24 pixel heading; columns 64 pixels after the 40 pixel row numbers.
   const x = (col: number) => box.x + 40 + 64 * col + 32;
@@ -40,7 +40,7 @@ test("moves cells by dragging the selection's border, and copies them with Ctrl 
 });
 
 test('moves cells in between others with Shift held, a line showing where they go', async ({ page }) => {
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   const x = box.x + 40 + 32;
   await goTo(page, 'A3:D3');

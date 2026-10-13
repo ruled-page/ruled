@@ -25,35 +25,33 @@ import {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
-import { linkAddress } from '../core/links';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { linkAddress } from '../../core/links';
 import { colToLetters, inRect, rangeToA1, toA1 } from '@ruled/formula/refs';
-import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
-import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
-import { clipboardFormats } from '../state/clipboardFormats';
-import { effectiveStyle } from '../state/cellStyle';
-import { alignment, displayText, editText } from '../state/format';
-import { cellLink, type CellLink } from '../state/links';
-import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, verticalShift, type Overflow } from '../state/overflow';
-import { wrapLines } from '../state/autofit';
-import type { SheetView } from '../state/sheetView';
-import type { Selection, WorkbookStore } from '../state/store';
-import { textCellEditor } from './CellEditor';
-import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
-import { noteSummary } from './FormulaBar';
-import { APPLE, commandKey } from './keys';
-import { LinkTip } from './LinkTip';
-import { NoteTip } from './NoteTip';
-import { ObjectsOverlay } from './ObjectsOverlay';
-
-/** The selection's handles for a finger, loaded once the grid is first touched. */
-const TouchHandles = lazy(() => import('./TouchHandles'));
-import { objectKey } from './objectGeometry';
+import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../../core/types';
+import { clipboardNumbers, parseClipboardText } from '../../state/clipboard';
+import { clipboardFormats } from '../../state/clipboardFormats';
+import { effectiveStyle } from '../../state/cellStyle';
+import { alignment, displayText, editText } from '../../state/format';
+import { cellLink, type CellLink } from '../../state/links';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, verticalShift, type Overflow } from '../../state/overflow';
+import { wrapLines } from '../../state/autofit';
+import type { SheetView } from '../../state/sheetView';
+import type { Selection, WorkbookStore } from '../../state/store';
+import { CellEntry } from '../../ui/CellEditor';
+import { EnumEditor } from '../../ui/EnumEditor';
+import { enumOptionsOf, glideEditor, type EnumCell } from './editors';
+import { noteSummary } from '../../ui/FormulaBar';
+import { APPLE, commandKey } from '../../ui/keys';
+import { LinkTip } from '../../ui/LinkTip';
+import { NoteTip } from '../../ui/NoteTip';
+import { objectKey } from '../../ui/objectGeometry';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
-import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
-import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from './paint';
-import { checkboxState } from '../state/checkbox';
-import { useT } from '../i18n/react';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../../ui/gridPalette';
+import { glideTheme } from './theme';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../../ui/paint';
+import { checkboxState } from '../../state/checkbox';
+import { useT } from '../../i18n/react';
 
 /**
  * Glide's cell renderers, with text cells in the table for screen readers
@@ -211,6 +209,21 @@ function gridStyles(p: GridPalette) {
   };
 }
 
+/** One of the sheet's Glide grids, as GlideGrid's handle sees it. */
+export interface GlidePane {
+  grid: DataEditorRef;
+  host: HTMLDivElement;
+  /** Its rows, as grid rows of the sheet view. */
+  rowStart: number;
+  rowCount: number;
+  /** Whether it shows the column letters. */
+  header: boolean;
+  /** The grid rows and columns in view, frozen columns aside, as Glide last told. */
+  region: { x: number; y: number; width: number; height: number };
+  /** The cell under a point, or the nearest in view past either end. */
+  cellNear: (x: number, y: number) => { row: number; col: number } | undefined;
+}
+
 interface Props {
   store: WorkbookStore;
   view: SheetView;
@@ -231,6 +244,8 @@ interface Props {
   /** Whether this pane shows the column letters. */
   header?: boolean;
   gridRef?: RefObject<DataEditorRef | null>;
+  /** Kept up to date with this grid's part in the sheet's handle. */
+  paneRef?: RefObject<GlidePane | null>;
   onKeyDown?: (e: GridKeyEventArgs) => void;
   /** Told the cells in view whenever they change, as the grid scrolls or resizes. */
   onRegion?: (r: Rectangle) => void;
@@ -264,6 +279,7 @@ export function SheetGrid({
   rowCount,
   header = true,
   gridRef,
+  paneRef,
   onKeyDown,
   onRegion,
   className,
@@ -290,7 +306,6 @@ export function SheetGrid({
   useEffect(() => {
     store.measureText = g.measure;
   }, [store, g]);
-  const [region, setRegion] = useState(0);
   const [hoverNote, setHoverNote] = useState<{ note: CellNote; x: number; y: number } | null>(null);
   const [hoverLink, setHoverLink] = useState<{ link: CellLink; x: number; y: number } | null>(null);
   /** Where the selection being dragged by its border would land, and whether it would be copied. */
@@ -1509,16 +1524,42 @@ export function SheetGrid({
     [view, rowStart, layoutVersion],
   );
   // Lists get a dropdown; text gets the editor that helps with formulas.
-  const textEditor = useMemo(() => textCellEditor(store), [store]);
+  const textEditor = useMemo(() => glideEditor((props) => <CellEntry store={store} {...props} />), [store]);
+  const listEditor = useMemo(() => glideEditor(EnumEditor), []);
   const provideEditor = useCallback(
     (cell: GridCell) =>
       enumOptionsOf(cell)
-        ? { editor: EnumEditor, disablePadding: true }
+        ? { editor: listEditor, disablePadding: true }
         : cell.kind === GridCellKind.Text
           ? { editor: textEditor }
           : undefined,
-    [textEditor],
+    [textEditor, listEditor],
   );
+
+  // This grid's part in the sheet's handle; the scroller is named for tests, as the editor's own grids name theirs.
+  useLayoutEffect(() => {
+    host.current?.querySelector(`.${GLIDE_SCROLLER}`)?.setAttribute('data-testid', 'wbe-grid-scroller');
+    if (!paneRef) return;
+    const grid = ref.current;
+    const el = host.current;
+    paneRef.current =
+      grid && el
+        ? {
+            grid,
+            host: el,
+            rowStart,
+            rowCount: rows,
+            header,
+            get region() {
+              return visible.current;
+            },
+            cellNear: cellUnder,
+          }
+        : null;
+  });
+  useEffect(() => () => {
+    if (paneRef) paneRef.current = null;
+  }, [paneRef]);
 
   return (
     <div
@@ -1529,6 +1570,7 @@ export function SheetGrid({
       onMouseDownCapture={onHostMouseDown}
       onPointerDownCapture={onHostPointerDown}
     >
+      <div className="wbe-grid-surface" data-testid="wbe-grid">
       <DataEditorCore
         ref={ref}
         key={view.info.index}
@@ -1577,7 +1619,6 @@ export function SheetGrid({
         maxColumnWidth={1200}
         onVisibleRegionChanged={(r) => {
           visible.current = { x: r.x, y: r.y, width: r.width, height: r.height };
-          setRegion((n) => n + 1);
           onRegion?.(r);
           // Near the last row or column shown, more follow, as far as Excel's sheet goes.
           const lastRow = Math.min(rowStart + r.y + r.height, view.rowCount - 1);
@@ -1587,16 +1628,11 @@ export function SheetGrid({
         onItemHovered={onItemHovered}
         experimental={experimental}
       />
+      </div>
       {hoverNote && <NoteTip {...hoverNote} />}
       {hoverLink && <LinkTip {...hoverLink} follows={store.followsLinks} />}
       {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
       {insertGuide && <div className="wbe-insert-guide" style={insertGuide} />}
-      <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} scrollRow={visible.current.y} top={header ? 24 : 0} />
-      {store.touchMode && (
-        <Suspense fallback={null}>
-          <TouchHandles store={store} host={host} boxOf={boxOf} cellUnder={cellUnder} />
-        </Suspense>
-      )}
     </div>
   );
 }

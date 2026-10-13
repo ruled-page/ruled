@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GLIDE_CLICK_OUTSIDE_IGNORE, GLIDE_CLIP_REGION, GLIDE_SCROLLER, PORTAL_ID } from '../src/ui/glideDom';
+import { PORTAL_ID } from '../src/grid/contract';
+import { GLIDE_CLICK_OUTSIDE_IGNORE, GLIDE_CLIP_REGION, GLIDE_SCROLLER } from '../src/grid/glide/glideDom';
 import { glidePatches } from '../vite.glide.ts';
 
 // Installed once, at the workspace's root.

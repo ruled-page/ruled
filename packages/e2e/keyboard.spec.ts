@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, openSample, ordersWorkbook, shown } from './helpers';
+import { focusedGrid, goTo, grid as surface, openFile, openSample, ordersWorkbook, shown } from './helpers';
 
 /** Everything here is done without the mouse. */
 
-const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
+const grid = (page: Page) => focusedGrid(page);
 const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' });
 
 test.describe('with only a keyboard', () => {
@@ -150,7 +150,7 @@ test.describe('with only a keyboard', () => {
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
     await page.keyboard.press('Escape');
     // A German keyboard: / is Shift+7, but the key in the US / place still counts.
-    await page.locator('canvas[data-testid="data-grid-canvas"]').first().dispatchEvent('keydown', { key: '-', code: 'Slash', metaKey: apple, ctrlKey: !apple, bubbles: true });
+    await surface(page).first().dispatchEvent('keydown', { key: '-', code: 'Slash', metaKey: apple, ctrlKey: !apple, bubbles: true });
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
   });
 
@@ -206,7 +206,7 @@ test('picks a cell for a schema from the keyboard', async ({ page }) => {
   await page.keyboard.press('Enter');
 
   // The sheet takes the focus for picking; F6 reaches the bar.
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await expect(focusedGrid(page)).toHaveCount(1);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('F6');

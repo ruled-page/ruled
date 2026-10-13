@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GLIDE_SCROLLER } from '../src/ui/glideDom';
+import { GLIDE_SCROLLER } from '../src/grid/glide/glideDom';
 
 const src = join(__dirname, '..', 'src');
 

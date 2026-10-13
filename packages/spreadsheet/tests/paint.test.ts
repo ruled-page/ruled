@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
-import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
+import { glideTheme } from '../src/grid/glide/theme';
 import { FREEZE_LINE, GRID_LINE, checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
 
 interface Gradient {

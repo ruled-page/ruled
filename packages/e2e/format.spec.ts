@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { strFromU8, unzipSync } from 'fflate';
-import { goTo, openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
+import { goTo, grid as gridSurface, openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
 
 async function save(page: Page) {
   const download = page.waitForEvent('download');
@@ -87,7 +87,7 @@ test('inserts Excel 365 checkboxes, ticks them by click and Space, unticks then 
   await expect(page.getByRole('combobox', { name: 'Cell contents' })).toHaveValue('FALSE');
 
   // A click on E2's box ticks it; Space ticks the selected E3.
-  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const grid = (await gridSurface(page).first().boundingBox())!;
   await page.mouse.click(grid.x + 40 + 64 * 4 + 32, grid.y + 24 + 20 + 10);
   await expect(shown(page, 'E2')).toHaveAttribute('aria-label', /^E2, Checkbox, ticked/);
   await goTo(page, 'E3');

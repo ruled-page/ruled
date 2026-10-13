@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, readWorkbook, shown } from './helpers';
+import { focusedGrid, goTo, grid as gridSurface, openFile, readWorkbook, shown } from './helpers';
 
 /**
  * tests/corpus/outline.xlsx: on "Report", rows 2-7 grouped with their total
@@ -35,7 +35,7 @@ async function choose(page: Page, item: string | RegExp, submenu?: string) {
 
 /** Whether a button's middle is y pixels below the top of the grid (a pixel either way, for the frozen pane's edge). */
 async function at(page: Page, name: string, y: number): Promise<boolean> {
-  const top = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!.y;
+  const top = (await gridSurface(page).first().boundingBox())!.y;
   const button = (await page.getByRole('button', { name }).boundingBox())!;
   return Math.abs(button.y + button.height / 2 - top - y) <= 1;
 }
@@ -66,7 +66,7 @@ test('shows the outline bars, and collapses and expands groups and shows levels 
   await expect(shown(page, 'F1')).toHaveText('Apr');
 
   // The buttons leave the focus in the grid, so undo is a key away.
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await expect(focusedGrid(page)).toHaveCount(1);
   await page.keyboard.press('ControlOrMeta+z');
   await expect(colBar(page).getByRole('button', { name: 'Expand columns F to H' })).toBeVisible();
 
@@ -112,10 +112,10 @@ test('keeps the row outline in line with the rows as they scroll, and with froze
   await expect.poll(() => at(page, total, 24 + 5 * 20 + 10)).toBe(true);
   await goTo(page, 'A2');
   await choose(page, 'Freeze top row', 'Freeze panes');
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]')).toHaveCount(2);
+  await expect(page.getByRole('grid', { name: /^Frozen rows of / })).toHaveCount(1);
   await expect.poll(() => at(page, total, 24 + 5 * 20 + 10)).toBe(true);
   // Scrolled down two rows, the button follows its row; scrolled well past it, it goes.
-  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').last().boundingBox())!;
+  const grid = (await gridSurface(page).last().boundingBox())!;
   await page.mouse.move(grid.x + grid.width / 2, grid.y + grid.height / 2);
   await page.mouse.wheel(0, 40);
   await expect.poll(() => at(page, total, 24 + 3 * 20 + 10)).toBe(true);

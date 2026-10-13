@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
+import { focusedGrid, openFile, ordersWorkbook, readWorkbook, shown, tabKey } from './helpers';
 
 /** Everything here is done with the keyboard. */
 
-const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
+const grid = (page: Page) => focusedGrid(page);
 const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' });
 const formulaBar = (page: Page) => page.getByRole('combobox', { name: 'Cell contents' });
 

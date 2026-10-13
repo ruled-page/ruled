@@ -6,7 +6,7 @@ import { ChartSlot } from '../ui/ChartSlot';
 import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
-import { PORTAL_ID } from '../ui/glideDom';
+import { PORTAL_ID } from '../grid/contract';
 import { Icon, IconContext } from '../ui/icons';
 import { APPLE, commandKey, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
@@ -17,7 +17,7 @@ import { I18nextProvider, Trans } from 'react-i18next';
 import { NAMESPACE } from '../i18n';
 import { useT } from '../i18n/react';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
-import { SheetPanes } from '../ui/SheetPanes';
+import { preloadGrid, SheetArea } from '../ui/SheetArea';
 import { SidePanel } from '../ui/SidePanel';
 import './editor.css';
 
@@ -64,7 +64,7 @@ function nextRegion(root: HTMLElement, store: WorkbookStore, back: boolean): voi
   target.focus();
 }
 
-/** The element Glide opens cell editors in, one for the page, inside the editor's style scope. */
+/** The element cell editors open in, one for the page, inside the editor's style scope. */
 function ensurePortal(): void {
   if (document.getElementById(PORTAL_ID)) return;
   const portal = document.createElement('div');
@@ -132,6 +132,8 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(ensurePortal, []);
+  // The grid loads alongside the workbook, rather than once it has opened.
+  useEffect(() => preloadGrid(store.grid), [store]);
 
   // Phone-sized layout follows the editor's own width, which in a host's layout can be less than the window's.
   useEffect(() => {
@@ -142,7 +144,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
     return () => watch.disconnect();
   }, [store]);
 
-  // Glide opens cell editors in one portal for the whole page; it takes the
+  // Cell editors open in one portal for the whole page; it takes the
   // theme and language of the editor being used, however the host set them.
   const themeVersion = store.themeVersion;
   const language = store.t.language;
@@ -354,7 +356,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
             </div>
           )}
           {ready && view.info.kind === 'worksheet' && (
-            <SheetPanes
+            <SheetArea
               store={store}
               view={view}
               dataVersion={view.version * 31 + store.styles.length}

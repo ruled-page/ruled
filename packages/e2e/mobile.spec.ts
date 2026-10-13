@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { devices, expect, test, type Locator, type Page } from '@playwright/test';
-import { goTo, openFile, openSample, ordersWorkbook, serverUrl, shown } from './helpers';
+import { goTo, grid as gridSurface, openFile, openSample, ordersWorkbook, serverUrl, shown } from './helpers';
 
 /** A phone, with touch: the editor, the demo and the portal at that size. */
 test.use({ ...devices['Pixel 7'] });
@@ -54,7 +54,7 @@ test('the checks panel waits to be opened, and going to a problem shows its cell
 
 test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {
   await openSample(page, 'Price list');
-  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const grid = (await gridSurface(page).first().boundingBox())!;
   // Row 3, column B: past the row numbers and the headings.
   await page.touchscreen.tap(grid.x + 120, grid.y + 24 + 34 * 2 + 10);
   await expect(page.getByRole('combobox', { name: 'Go to cell' })).not.toHaveValue('A1');
@@ -85,7 +85,7 @@ async function centre(locator: Locator): Promise<{ x: number; y: number }> {
 /** Opens the orders workbook, touches its grid, and selects B2, whose handles then show. */
 async function touchedOrders(page: Page): Promise<void> {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
-  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const grid = (await gridSurface(page).first().boundingBox())!;
   await page.touchscreen.tap(grid.x + 120, grid.y + 60);
   await goTo(page, 'B2');
 }

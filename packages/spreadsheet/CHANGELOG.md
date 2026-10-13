@@ -110,6 +110,9 @@ what it doesn't change.
   editor handle and events.
 - Themes through CSS tokens, English and German and any language the host
   adds, right-to-left layouts, and phone-sized screens.
+- The grid loads in a chunk of its own, alongside the workbook. An
+  experimental option, `experimental: { grid: 'ruled' }`, tries Ruled's own
+  grid, which is still being built to replace Glide Data Grid.
 
 ### In Node
 

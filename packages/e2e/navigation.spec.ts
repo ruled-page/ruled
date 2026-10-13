@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openFile, openSample, ordersWorkbook, shown } from './helpers';
+import { grid as gridSurface, openFile, openSample, ordersWorkbook, shown } from './helpers';
 
 const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' });
 
@@ -11,7 +11,7 @@ async function goTo(page: Page, text: string): Promise<void> {
 
 test("the sheet goes on past Z and row 500 as it is scrolled, to Excel's last cell", async ({ page }) => {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
-  const grid = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const grid = gridSurface(page).first();
   const box = (await grid.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   // Scrolling right shows columns beyond the 26 an empty sheet starts with: a click there selects one.

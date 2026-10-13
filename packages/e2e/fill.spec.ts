@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { de } from '@ruled/sheet/internal/i18n/index.ts';
-import { goTo, openFile, shown, XLSX } from './helpers';
+import { focusedGrid, goTo, openFile, shown, XLSX } from './helpers';
 
 /** "Data": A1 = 1, B1 = 31 January 2026 as a date, E1 = "Low". */
 async function fillWorkbook(): Promise<Uint8Array> {
@@ -16,7 +16,7 @@ async function fillWorkbook(): Promise<Uint8Array> {
   return new Uint8Array(await wb.xlsx.writeBuffer());
 }
 
-const grid = (page: Page) => page.locator('canvas[data-testid="data-grid-canvas"]:focus-within');
+const grid = (page: Page) => focusedGrid(page);
 
 /** Opens the cell menu on the selection and picks an item, without the mouse. */
 async function fromMenu(page: Page, item: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { useEffect, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import type { Rect } from '../core/types';
+import type { GridHandle } from '../grid/contract';
 import type { WorkbookStore } from '../state/store';
-import { GLIDE_SCROLLER } from './glideDom';
 
 /** A block of cells on the grid, in the host's pixels. */
 interface Box {
@@ -29,19 +29,12 @@ const span = (a: Cell, b: Cell): Rect => ({ r1: Math.min(a.row, b.row), c1: Math
  * right edges, dragged to fill down or across, as Excel's phone app has
  * them. Keyboards have Shift and the arrow keys, and Fill down, instead.
  */
-export default function TouchHandles({
-  store,
-  host,
-  boxOf,
-  cellUnder,
-}: {
-  store: WorkbookStore;
-  host: RefObject<HTMLDivElement | null>;
-  boxOf: (r: Rect) => Box | undefined;
-  cellUnder: (x: number, y: number) => Cell | undefined;
-}) {
+export default function TouchHandles({ store, host, handle }: { store: WorkbookStore; host: RefObject<HTMLDivElement | null>; handle: GridHandle }) {
   const [preview, setPreview] = useState<Rect>();
   const filling = store.touchFill;
+  // The handles follow the cells as the grid scrolls.
+  const [, moved] = useState(0);
+  useEffect(() => handle.subscribe(() => moved((n) => n + 1)), [handle]);
   useEffect(() => {
     if (!filling) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && store.set('touchFill', false);
@@ -52,6 +45,13 @@ export default function TouchHandles({
   const sel = store.selection;
   const rect = sel.rects[0];
   const el = host.current;
+  /** Where a block of cells is, in the host's pixels. */
+  const boxOf = (r: Rect): Box | undefined => {
+    const a = handle.cellBox(r.r1, r.c1);
+    const b = handle.cellBox(r.r2, r.c2);
+    const h = el?.getBoundingClientRect();
+    return a && b && h ? { left: a.x - h.left, top: a.y - h.top, right: b.x + b.width - h.left, bottom: b.y + b.height - h.top } : undefined;
+  };
   if (!el || !rect || sel.rects.length !== 1 || sel.lines) return null;
   const box = boxOf(rect);
   if (!box) return null;
@@ -67,17 +67,16 @@ export default function TouchHandles({
     let x = e.clientX;
     let y = e.clientY;
     const follow = () => {
-      const cell = cellUnder(x, y);
+      const cell = handle.cellNear(x, y);
       if (cell) move(cell);
     };
     let frame = 0;
     const scroll = () => {
-      const scroller = el.querySelector<HTMLElement>(`.${GLIDE_SCROLLER}`);
       const h = el.getBoundingClientRect();
       const dx = x > h.right - EDGE ? STEP : x < h.left + EDGE ? -STEP : 0;
       const dy = y > h.bottom - EDGE ? STEP : y < h.top + EDGE ? -STEP : 0;
-      if (scroller && (dx || dy)) {
-        scroller.scrollBy(dx, dy);
+      if (dx || dy) {
+        handle.scrollBy(dx, dy);
         follow();
       }
       frame = requestAnimationFrame(scroll);

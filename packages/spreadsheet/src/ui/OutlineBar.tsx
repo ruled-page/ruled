@@ -1,19 +1,11 @@
-import type { DataEditorRef, Rectangle } from '@glideapps/glide-data-grid';
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { colToLetters } from '@ruled/formula/refs';
 import type { OutlineAxis } from '../core/types';
+import type { GridHandle } from '../grid/contract';
 import { useT } from '../i18n/react';
 import { outlineDepth, outlineGroups, OUTLINE_LANE, summaryLine, type Axis, type OutlineGroup } from '../state/outline';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
-
-/** One of the sheet's grids: frozen rows have a grid of their own above the rest. */
-export interface OutlinePane {
-  ref: RefObject<DataEditorRef | null>;
-  /** Its rows, as grid rows of the sheet view. */
-  rowStart: number;
-  rowCount: number;
-}
 
 /** A group's line beside the lines of it in view, along the bar; `cap` is its far end, away from the summary, when in view. */
 interface Line {
@@ -77,56 +69,64 @@ function lay(view: SheetView, axis: Axis, o: OutlineAxis | undefined, boxes: Map
   return { lines, toggles };
 }
 
-/** Where everything in the bars goes, measured from the grids as they now are. */
-function measure(el: HTMLElement, view: SheetView, panes: OutlinePane[], regions: (Rectangle | undefined)[], rows: boolean, cols: boolean): Geometry {
+/** Where everything in the bars goes, measured from the grid as it now is. */
+function measure(el: HTMLElement, view: SheetView, handle: GridHandle, rows: boolean, cols: boolean): Geometry {
   const origin = el.getBoundingClientRect();
-  const hosts = [...(el.parentElement?.querySelectorAll<HTMLElement>('.wbe-grid-host') ?? [])];
   const out: Geometry = { rows: [] };
-  const head = panes[0]?.ref.current;
-  const corner = head?.getBounds(0, -1);
-  if (!head || !corner) return out;
+  const at = handle.view();
+  const corner = at.corner;
+  if (!corner) return out;
   out.rowLevelsAt = corner.y - origin.top + corner.height / 2;
   out.colLevelsAt = corner.x - origin.left + corner.width / 2;
+  /** Lines `from` to `to` of the view's visible lines, a line further each way for those partly in view. */
+  const around = (visible: Int32Array, lines: number[], lo: number, hi: number) => {
+    if (!lines.length) return [];
+    const a = Math.max(lo, search(visible, lines[0]) - 1);
+    const b = Math.min(hi, search(visible, lines[lines.length - 1]) + 2);
+    return Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => visible[a + i]);
+  };
   if (rows) {
-    panes.forEach((pane, i) => {
-      const grid = pane.ref.current;
-      const host = hosts[i]?.getBoundingClientRect();
-      if (!grid || !host) return;
-      const top = (i === 0 ? corner.y + corner.height : host.top) - origin.top;
-      const r = regions[i];
-      const from = Math.max(0, (r?.y ?? 0) - 1);
-      const to = Math.min(pane.rowCount, r ? r.y + r.height + 2 : 100);
+    for (const pane of at.panes) {
+      const top = pane.box.y - origin.top;
       // Glide's bounds take in the line after a cell, which belongs to the next.
       const boxes = new Map<number, [number, number]>();
-      for (let gr = from; gr < to; gr++) {
-        const b = grid.getBounds(0, gr);
-        if (b) boxes.set(view.visibleRows[pane.rowStart + gr], [b.y - origin.top - top, b.y + b.height - 1 - origin.top - top]);
+      for (const row of around(view.visibleRows, pane.rows, view.gridRow(pane.range[0]), view.gridRow(pane.range[1]))) {
+        const b = handle.headingBox('rows', row);
+        if (b) boxes.set(row, [b.y - origin.top - top, b.y + b.height - 1 - origin.top - top]);
       }
-      out.rows.push({ offset: top, size: host.bottom - origin.top - top, ...lay(view, 'rows', view.info.outline?.rows, boxes) });
-    });
+      out.rows.push({ offset: top, size: pane.box.height, ...lay(view, 'rows', view.info.outline?.rows, boxes) });
+    }
   }
   if (cols) {
     // Columns that scroll slide under the frozen ones, and the row numbers.
-    let frozen = 0;
-    for (let c = 0; c < view.info.frozenCols; c++) if (view.gridCol(c) >= 0) frozen++;
     const left = corner.x + corner.width - 1 - origin.left;
-    const edge = head.getBounds(frozen, -1);
-    const freezeX = frozen && edge ? edge.x + edge.width - 1 - origin.left : left;
-    const r = regions[0];
-    const shown = new Set<number>();
-    for (let gc = 1; gc <= frozen; gc++) shown.add(gc);
-    for (let gc = Math.max(frozen + 1, (r?.x ?? 0) - 1); gc <= Math.min(view.colCount, r ? r.x + r.width + 2 : 40); gc++) shown.add(gc);
+    const freezeX = at.frozenCols ? at.freezeX - origin.left : left;
+    const frozen = new Set(at.cols.slice(0, at.frozenCols));
+    const shown = [...frozen, ...around(view.visibleCols, at.cols.slice(at.frozenCols), at.frozenCols, view.colCount - 1)];
     const boxes = new Map<number, [number, number]>();
-    for (const gc of shown) {
-      const b = head.getBounds(gc, -1);
+    for (const col of shown) {
+      const b = handle.headingBox('cols', col);
       if (!b) continue;
-      const a = gc > frozen ? Math.max(b.x - origin.left, freezeX) : b.x - origin.left;
+      const a = frozen.has(col) ? b.x - origin.left : Math.max(b.x - origin.left, freezeX);
       const e = b.x + b.width - 1 - origin.left;
-      if (e > a) boxes.set(view.visibleCols[gc - 1], [a - left, e - left]);
+      if (e > a) boxes.set(col, [a - left, e - left]);
     }
     out.cols = { offset: left, size: origin.width - left, ...lay(view, 'cols', view.info.outline?.cols, boxes) };
   }
   return out;
+}
+
+/** The index of `v` in a sorted array, or -1. */
+function search(arr: Int32Array, v: number): number {
+  let lo = 0;
+  let hi = arr.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] === v) return mid;
+    if (arr[mid] < v) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
 }
 
 /**
@@ -139,20 +139,14 @@ function measure(el: HTMLElement, view: SheetView, panes: OutlinePane[], regions
 export function OutlineBars({
   store,
   view,
-  panes,
-  regions,
-  onRegionChange,
+  handle,
   width,
   height,
   colVersion,
 }: {
   store: WorkbookStore;
   view: SheetView;
-  panes: OutlinePane[];
-  /** Each pane's cells in view, as last told. */
-  regions: RefObject<(Rectangle | undefined)[]>;
-  /** Has `fn` called when they change, until the function it returns is called. */
-  onRegionChange: (fn: () => void) => () => void;
+  handle: GridHandle;
   /** The bars' width beside the rows, and height above the columns; 0 for one not shown. */
   width: number;
   height: number;
@@ -165,7 +159,7 @@ export function OutlineBars({
 
   useEffect(() => {
     const changed = () => setTick((n) => n + 1);
-    const stop = onRegionChange(changed);
+    const stop = handle.subscribe(changed);
     const el = host.current?.parentElement;
     const watch = el && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(changed) : undefined;
     if (el) watch?.observe(el);
@@ -173,12 +167,12 @@ export function OutlineBars({
       stop();
       watch?.disconnect();
     };
-  }, [onRegionChange]);
+  }, [handle]);
 
   const layoutVersion = view.layoutVersion;
   useLayoutEffect(() => {
-    if (host.current) setGeo(measure(host.current, view, panes, regions.current ?? [], width > 0, height > 0));
-  }, [view, layoutVersion, panes, regions, width, height, colVersion, tick]);
+    if (host.current) setGeo(measure(host.current, view, handle, width > 0, height > 0));
+  }, [view, layoutVersion, handle, width, height, colVersion, tick]);
 
   // A click leaves the focus where it was, in the grid, as Excel's outline buttons do.
   const keep = (e: MouseEvent) => e.preventDefault();

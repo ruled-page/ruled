@@ -1167,6 +1167,17 @@
   inset: 0;
 }
 
+/* The part of a grid that draws and takes the focus. */
+.wbe .wbe-grid-surface {
+  position: absolute;
+  inset: 0;
+}
+
+.wbe .wbe-grid-unbuilt {
+  margin: 24px;
+  color: var(--wbe-text-muted);
+}
+
 /* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */
 .wbe .wbe-outline-frame,
 .wbe .wbe-outline-bars {
@@ -1311,9 +1322,10 @@
   display: none;
 }
 
+/* Over a band of the grid's rows, placed by the grid's handle; the sheet reads left to right. */
 .wbe .wbe-objects-overlay {
   position: absolute;
-  inset: 24px 0 0 0;
+  direction: ltr;
   pointer-events: none;
   overflow: hidden;
   clip-path: inset(0 0 0 0);

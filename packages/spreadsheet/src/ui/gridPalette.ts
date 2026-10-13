@@ -1,5 +1,3 @@
-import type { Theme } from '@glideapps/glide-data-grid';
-
 /**
  * The grid's colours and fonts. The grid is drawn on a canvas, which CSS
  * can't style, so these are read from the editor's --wbe-grid-* custom
@@ -112,33 +110,4 @@ export function readRefColors(el: Element | null): readonly string[] {
   if (!el || typeof getComputedStyle === 'undefined') return DEFAULT_REF_COLORS;
   const css = getComputedStyle(el);
   return DEFAULT_REF_COLORS.map((fallback, i) => css.getPropertyValue(`--wbe-formula-ref${i + 1}`).trim() || fallback);
-}
-
-/** Glide's theme from the palette. Grid lines are drawn with the cells, so Glide's own are off. */
-export function glideTheme(p: GridPalette): Partial<Theme> {
-  return {
-    accentColor: p.selection,
-    accentFg: p.onSelection,
-    accentLight: p.selectionFill,
-    textDark: p.text,
-    textMedium: p.textMuted,
-    textLight: p.textLight,
-    textHeader: p.headerText,
-    textHeaderSelected: p.headerSelectedText,
-    bgCell: p.bg,
-    bgCellMedium: p.bgAlt,
-    bgHeader: p.headerBg,
-    bgHeaderHasFocus: p.headerSelectedBg,
-    bgHeaderHovered: p.headerHoverBg,
-    borderColor: 'transparent',
-    horizontalBorderColor: 'transparent',
-    headerBottomBorderColor: p.headerLine,
-    headerFontStyle: `${p.headerFontWeight} ${p.headerFontSize}`,
-    baseFontStyle: '14.7px',
-    fontFamily: p.font,
-    editorFontSize: '14.7px',
-    cellHorizontalPadding: 4,
-    cellVerticalPadding: 2,
-    lineHeight: 1.25,
-  };
 }

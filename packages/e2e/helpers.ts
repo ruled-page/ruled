@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
-import { parseA1 } from '@ruled/formula/refs';
+import { parseA1, toA1 } from '@ruled/formula/refs';
 
 /** Where the test servers are: the app's port, then the library's, the Angular example's and the host app's (see playwright.config.ts). */
 export const serverUrl = (which: 'app' | 'lib' | 'angular' | 'hostApp' | 'portal') =>
@@ -34,13 +34,27 @@ export function tabKey(page: Page, back = false): string {
   return `${back ? 'Shift+' : ''}${mac ? 'Alt+' : ''}Tab`;
 }
 
+/**
+ * The part of the grid that draws the cells and takes the focus: one per
+ * pane in Glide (two with frozen rows, the frozen one first), one per sheet
+ * in Ruled's own grid. Geometry is the same in both: 24 pixel column
+ * letters, then the cells.
+ */
+export const grid = (page: Page): Locator => page.getByTestId('wbe-grid');
+
+/** The grid, while it has the focus. */
+export const focusedGrid = (page: Page): Locator => page.locator('[data-testid="wbe-grid"]:focus-within');
+
+/** The elements the grid scrolls in: one per pane in Glide, one in Ruled's own grid. */
+export const gridScroller = (page: Page): Locator => page.getByTestId('wbe-grid-scroller');
+
 /** Selects a cell or range by typing it into the name box; the grid takes the focus. */
 export async function goTo(page: Page, ref: string): Promise<void> {
   const box = page.getByRole('combobox', { name: 'Go to cell' });
   await box.click();
   await box.fill(ref);
   await box.press('Enter');
-  await expect(page.locator('canvas[data-testid="data-grid-canvas"]:focus-within')).toHaveCount(1);
+  await expect(focusedGrid(page)).toHaveCount(1);
   await expect(box).toHaveValue(ref.replace(/^.*!/, '').toUpperCase());
 }
 
@@ -54,14 +68,14 @@ export async function setCell(page: Page, ref: string, text: string): Promise<vo
 
 /**
  * A cell as the grid shows it, from the table the grid keeps for screen
- * readers (the grid itself is drawn on a canvas). Covers the visible part of
- * sheets without hidden columns or frozen rows.
+ * readers (the grid itself is drawn on a canvas), where each cell is named
+ * by its reference first. The cells of a merge are all named as the merge,
+ * the first of them being the merge itself. Covers the cells in view.
  */
 export function shown(page: Page, ref: string): Locator {
   const at = parseA1(ref);
   if (!at) throw new Error(`Not a cell: ${ref}`);
-  // Column 0 is the row numbers.
-  return page.locator(`[data-testid="glide-cell-${at.col + 1}-${at.row}"]`);
+  return page.getByRole('gridcell', { name: new RegExp(`^${toA1(at.row, at.col)}(,|$)`) }).first();
 }
 
 /** A small workbook with formulas across two sheets. */

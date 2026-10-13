@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, shown } from './helpers';
+import { goTo, grid, openFile, ordersWorkbook, shown } from './helpers';
 
 /**
  * Lines!A1:D3 of the orders workbook: Item, Qty, Price, Total, with Total a
@@ -10,7 +10,7 @@ const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' 
 
 /** Where to press: columns are 64 pixels after the 40 pixel row numbers, rows 20 pixels under the 24 pixel letters. */
 async function at(page: Page) {
-  const box = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  const box = (await grid(page).first().boundingBox())!;
   return {
     letter: (col: number) => ({ x: box.x + 40 + 64 * col + 32, y: box.y + 12 }),
     number: (row: number) => ({ x: box.x + 20, y: box.y + 24 + 20 * (row - 1) + 10 }),

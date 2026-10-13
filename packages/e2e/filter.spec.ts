@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { goTo, openFile, ordersWorkbook, shown } from './helpers';
+import { goTo, grid, openFile, ordersWorkbook, shown } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
@@ -32,7 +32,7 @@ test("opens a heading's filter menu from its button", async ({ page }) => {
   await page.keyboard.press('Control+Shift+L');
   // Turning the filter on is a step that can be undone: once it can, the buttons are there to click.
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveAttribute('aria-disabled', 'false');
-  const canvas = page.locator('canvas[data-testid="data-grid-canvas"]').first();
+  const canvas = grid(page).first();
   const box = (await canvas.boundingBox())!;
   // The button sits at the right of the heading cell: column B ends 40 + 2 × 64 pixels in, under a 24 pixel heading.
   await page.mouse.click(box.x + 40 + 2 * 64 - 10, box.y + 24 + 10);
