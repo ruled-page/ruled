@@ -68,7 +68,9 @@ it('writes the Excel check workbooks', async () => {
       const ours = answers[i];
       ws.getCell(`A${r}`).value = f;
       ws.getCell(`B${r}`).value = { formula: toFileFormula(f).slice(1) } as ExcelJS.CellFormulaValue;
-      ws.getCell(`C${r}`).value = ours === null ? '(nothing)' : (ours as ExcelJS.CellValue);
+      const error = ours && typeof ours === 'object' ? ours.error : undefined;
+      // An error past the first seven as an error value makes Excel repair the file, so it's shown as text.
+      ws.getCell(`C${r}`).value = ours === null ? '(nothing)' : error && ERROR_TYPES[error] > 7 ? error : (ours as ExcelJS.CellValue);
       const same =
         typeof ours === 'number'
           ? `AND(ISNUMBER(B${r}),ABS(B${r}-C${r})<=${Math.max(tolerance(functionNames(toFileFormula(f).slice(1))), iteration?.delta ?? 0)}*MAX(1,ABS(C${r})))`
