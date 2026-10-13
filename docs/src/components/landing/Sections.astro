@@ -171,6 +171,8 @@ const fidelity = [
 <style>
   .wb-landing {
     display: grid;
+    /* No wider than the page, so a long line of code scrolls in its box rather than widening the page on a phone. */
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(4rem, 9vw, 7rem);
     padding-block: 4rem 2rem;
   }
