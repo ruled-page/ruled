@@ -833,11 +833,6 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     );
   };
 
-  /** A double-click that a press took (on a line's edge or the fill handle) isn't also one that edits. */
-  const tookDouble = useRef(false);
-  /** The last press, to tell a second one soon after, at the same place, as a double-click. */
-  const lastPress = useRef({ at: 0, x: 0, y: 0 });
-
   /**
    * A press with a mouse or a pen, or a tap with a finger (whose drags
    * scroll): on a line's edge, the fill handle or the selection's border it
@@ -855,29 +850,12 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     // The grid takes the focus, which then follows the active cell.
     activeCell.current?.focus({ preventScroll: true });
     wantFocus.current = true;
-    const now = performance.now();
-    const twice = now - lastPress.current.at < 500 && Math.abs(e.clientX - lastPress.current.x) < 5 && Math.abs(e.clientY - lastPress.current.y) < 5;
-    lastPress.current = twice ? { at: 0, x: 0, y: 0 } : { at: now, x: e.clientX, y: e.clientY };
-    tookDouble.current = false;
+    // A line's edge resizes it, the fill handle fills and the selection's border moves it; a double-click on them is onDoubleClick's.
     const grab = grabAt(x, y, layout);
-    if (grab?.kind === 'col' || grab?.kind === 'row') {
-      // A double-click on an edge fits the line to what it holds, as in Excel.
-      tookDouble.current = twice;
-      if (twice) void store.autofit(grab.kind === 'col' ? 'cols' : 'rows', grab.kind === 'col' ? grab.col : grab.row);
-      else if (grab.kind === 'col') resizeColumn(e, grab.col);
-      else resizeRow(e, grab.row, grab.edge);
-      return;
-    }
-    if (grab?.kind === 'fill') {
-      tookDouble.current = twice;
-      if (twice) fillDown();
-      else dragFill();
-      return;
-    }
-    if (grab?.kind === 'border' && !twice) {
-      dragSelection(e);
-      return;
-    }
+    if (grab?.kind === 'col') return resizeColumn(e, grab.col);
+    if (grab?.kind === 'row') return resizeRow(e, grab.row, grab.edge);
+    if (grab?.kind === 'fill') return dragFill();
+    if (grab?.kind === 'border') return dragSelection(e);
     const hit = layout.hit(x, y);
     if (hit.area === 'corner') store.selectAll();
     else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col], drags);
@@ -885,12 +863,18 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     else pressHeading(e, 'cols', view.visibleCols[hit.col]);
   };
 
-  /** A double-click on a cell edits it. */
+  /**
+   * A double-click on a line's edge fits the line to what it holds, on the
+   * fill handle fills down beside data, as in Excel; on a cell, it edits it.
+   */
   const onDoubleClick = (e: ReactMouseEvent) => {
     const layout = layoutNow();
+    if (!layout) return;
     const { x, y } = local(e);
-    if (!tookDouble.current && layout?.hit(x, y).area === 'cells') startEdit();
-    tookDouble.current = false;
+    const grab = grabAt(x, y, layout);
+    if (grab?.kind === 'col' || grab?.kind === 'row') void store.autofit(grab.kind === 'col' ? 'cols' : 'rows', grab.kind === 'col' ? grab.col : grab.row);
+    else if (grab?.kind === 'fill') fillDown();
+    else if (!grab && layout.hit(x, y).area === 'cells') startEdit();
   };
 
   /** Right-clicking outside the selection selects what was clicked first, as Excel does, then opens the menu for it. */
