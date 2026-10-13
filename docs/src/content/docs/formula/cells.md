@@ -1,6 +1,6 @@
 ---
 title: Cells, changes and formulas
-description: Reading and writing cells by A1 reference, the changes a write makes, spills, names, sheets and dates.
+description: Reading and writing cells by A1 reference, the changes a write makes, spills, names, sheets, rows and columns, and dates.
 sidebar:
   order: 2
 ---
@@ -106,6 +106,33 @@ book.set('Prices!A5', '=Later!A1+1'); // [{ cell: 'Prices!A5', value: { error: '
 book.addSheet('Later', [[41]]); // [{ cell: 'Prices!A5', value: 42 }]
 ```
 
+`renameSheet`, `moveSheet` and `deleteSheet` change the others. References to a renamed sheet take its new name, and references to a deleted one become `#REF!`. A reference across sheets (`Jan:Mar!B2`) takes in whichever sheets are between its ends now. Text that INDIRECT reads as a reference isn't changed, as in Excel.
+
+```ts
+book.renameSheet('Prices', 'Costs'); // []
+book.formula("'Q1 Sales'!C1"); // '=Costs!B3*2'
+book.moveSheet('Q1 Sales', 0); // [], and book.sheets is ['Q1 Sales', 'Costs']
+book.deleteSheet('Costs'); // [{ cell: "'Q1 Sales'!C1", value: { error: '#REF!' } }]
+```
+
+## Rows and columns
+
+`insertRows` and `deleteRows` take rows as Excel names them, `"Prices!3:4"`, or `"3"` on the first sheet; `insertColumns` and `deleteColumns` take columns, `"Prices!B:C"`. Inserting puts empty rows (or columns) where those are, moving them and the rest along. References follow their cells as Excel moves them: a range grows to take in rows inserted within it, and a reference to a deleted cell becomes `#REF!`, in a name as in a formula.
+
+```ts
+book.insertRows('Prices!2'); // []
+book.formula('Prices!B4'); // '=SUM(B1:B3)'
+book.formula("'Q1 Sales'!C1"); // '=Prices!B4*2'
+book.deleteRows('Prices!1');
+// [
+//   { cell: 'Prices!B3', value: 3 },
+//   { cell: "'Q1 Sales'!C1", value: 6 },
+// ]
+book.evaluate('=Rate'); // { error: '#REF!' }
+```
+
+Like `set`, these return the values that changed, at the cells' new places. Cells that only moved aren't in the list: a host that moves its own copy of the cells as it inserted or deleted them, then applies the list, has every value as it is now.
+
 ## Dates
 
 Excel stores a date as a number: the days since 1900 began, with the time of day as a fraction. A JavaScript `Date` given to a cell is turned into one, read in UTC, and dates come back as numbers. `dateToSerial` and `serialToDate` convert between the two.
@@ -123,11 +150,10 @@ A workbook made with `date1904: true` counts from 1904, as workbooks from older 
 
 ## Mistakes
 
-A reference to a sheet that isn't there, a reference that isn't one (`"1A"`), a range given to `get`, a sheet name Excel doesn't allow or already has, and a name that can't be defined each throw an `Error` saying what is wrong. Mistakes in formulas don't throw: they give Excel's errors, such as `#NAME?` for a function Excel doesn't have.
+A reference to a sheet that isn't there, a reference that isn't one (`"1A"`, or `"B"` given as rows), a range given to `get`, a sheet name Excel doesn't allow or already has, a place beyond the last sheet's, and deleting the only sheet each throw an `Error` saying what is wrong. Mistakes in formulas don't throw: they give Excel's errors, such as `#NAME?` for a function Excel doesn't have.
 
 ## What it leaves out
 
-- Sheets can be added but not renamed, moved or deleted, and rows and columns can't be inserted or deleted; references are as written.
 - Tables and their structured references (`Sales[Amount]`), links to other workbooks, and CELL's information about formats and files.
 - Text starting with `=`, which is always read as a formula.
-- Opening and saving `.xlsx` files: the engine works on values and formulas. The editor, `@ruled/sheet`, reads and writes files.
+- Opening and saving `.xlsx` files: the engine works on values and formulas. [Recalculating saved workbooks](/formula/saved-workbooks/) does that in Node, with `@ruled/sheet/node`.

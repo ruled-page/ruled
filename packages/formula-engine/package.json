@@ -27,6 +27,9 @@
     "./refs": {
       "source": "./src/refs.ts"
     },
+    "./reshape": {
+      "source": "./src/reshape.ts"
+    },
     "./wildcard": {
       "source": "./src/wildcard.ts"
     }

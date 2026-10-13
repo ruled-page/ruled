@@ -67,18 +67,6 @@ needs no server, and nothing here should add one.
   their own domain, or the editor would start the worker from a script
   fetched across domains.
 
-## The formula engine on its own
-
-`createWorkbook` in `@ruled/formula` works out a workbook with no editor.
-
-- **No changes to a workbook's shape.** Sheets can be added, not renamed,
-  moved or deleted, and rows and columns can't be inserted or deleted. The
-  editor rewrites references for these itself
-  (`packages/spreadsheet/src/core/refTransform.ts`); the workbook would need
-  the same.
-- **No files.** Recalculating a saved .xlsx in Node would reuse the editor's
-  reader and writer.
-
 ## Known issues
 
 Small gaps found along the way.

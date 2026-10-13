@@ -62,24 +62,28 @@ export function displayFormula(fileFormula: string): string {
  * TRUE() and FALSE() functions; it reads exponents only with a lower-case
  * "e" (1e+3, not 1E+3); and it can't read a quote doubled inside a string,
  * so "say ""hi""" becomes ("say "&CHAR(34)&"hi"&CHAR(34)&""), except in an
- * array constant, where & isn't allowed. It has no LET either, which is
- * written out (expandLets).
+ * array constant, where & isn't allowed. It reads a reference whose cells
+ * were deleted, which Excel writes with its sheet (Prices!#REF!), only as
+ * the error alone. It has no LET either, which is written out (expandLets).
  */
 export function engineFormula(fileFormula: string): string {
   let f = stripFunctionPrefixes(expandLets(fileFormula) ?? fileFormula);
-  if (/TRUE|FALSE|\dE|""/i.test(f)) {
+  if (/TRUE|FALSE|\dE|""|!#REF!/i.test(f)) {
     try {
       let depth = 0;
+      const list = tokens(f);
+      const deleted = (i: number) => list[i]?.type === 'context' && list[i + 1]?.value === '!' && list[i + 2]?.type === 'error';
       f = stringifyTokens(
-        tokens(f).map((t) => {
+        list.flatMap((t, i) => {
+          if (deleted(i) || deleted(i - 1)) return [];
           if (t.type === 'operator' && (t.value === '{' || t.value === '}')) depth += t.value === '{' ? 1 : -1;
-          if (t.type === 'bool') return { ...t, value: `${t.value}()` };
-          if (t.type === 'number') return { ...t, value: t.value.toLowerCase() };
+          if (t.type === 'bool') return [{ ...t, value: `${t.value}()` }];
+          if (t.type === 'number') return [{ ...t, value: t.value.toLowerCase() }];
           if (t.type === 'string' && !depth && t.value.slice(1, -1).includes('""')) {
             const parts = t.value.slice(1, -1).split('""');
-            return { ...t, value: `(${parts.map((part) => `"${part}"`).join('&CHAR(34)&')})` };
+            return [{ ...t, value: `(${parts.map((part) => `"${part}"`).join('&CHAR(34)&')})` }];
           }
-          return t;
+          return [t];
         }),
       );
     } catch {

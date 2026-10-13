@@ -8,14 +8,13 @@ import {
   refMapFor,
   reorderedWithin,
   splits,
-  transformFormula,
   transformSqref,
   type CellShiftOp,
-  type FormulaContext,
   type LineOp,
   type RefMap,
   type StructuralOp,
 } from './refTransform';
+import { transformFormula, type FormulaContext } from '@ruled/formula/reshape';
 import type { Rect } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
 import { countElements, decodeEntities, elements, escapeXml, findTagEnd, replaceElements } from './xml';

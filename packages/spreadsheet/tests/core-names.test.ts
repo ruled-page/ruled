@@ -390,12 +390,15 @@ describe('names and the rest of the workbook', () => {
 });
 
 describe('the engine', () => {
-  it('takes names, changes and removes them, and leaves out what it can’t hold', () => {
+  it('takes names, changes and removes them', () => {
     const e = nativeEngine.create([{ name: 'S', rows: [[2, '=N*3']] }, null], [], false);
     expect(e.setName('N', undefined, 'S!$A$1')).toEqual({ changes: [{ sheet: 0, row: 0, col: 1, value: 6 }], held: true });
     expect(e.setName('n', undefined, '5').changes).toEqual([{ sheet: 0, row: 0, col: 1, value: 15 }]);
-    expect(e.setName('N', undefined, '#REF!')).toMatchObject({ held: false, changes: [{ value: { error: '#NAME?' } }] });
-    expect(e.setName('N', undefined, null)).toEqual({ changes: [], held: false });
+    // A name whose cells were deleted gives #REF!, as Excel's does.
+    expect(e.setName('N', undefined, '#REF!')).toMatchObject({ held: true, changes: [{ value: { error: '#REF!' } }] });
+    expect(e.setName('N', undefined, 'S!#REF!')).toMatchObject({ held: true, changes: [] });
+    expect(e.setName('N', undefined, 'SUM(S!$A$1,#REF!)')).toMatchObject({ held: true, changes: [] });
+    expect(e.setName('N', undefined, null)).toEqual({ changes: [{ sheet: 0, row: 0, col: 1, value: { error: '#NAME?' } }], held: false });
     // A name like Year2026, which Excel takes.
     expect(e.setName('Year2026', undefined, '1').held).toBe(true);
     expect(e.setName('Local', 1, '1')).toEqual({ changes: [], held: false });

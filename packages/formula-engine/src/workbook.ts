@@ -368,6 +368,17 @@ export class NativeEngine implements FormulaEngine, Host {
     return queue.slice(0, limit);
   }
 
+  /** A sheet's values, leaving out its formulas and what they spill: what was put in it, to build it again from. */
+  constants(sheet: number): EngineChange[] {
+    const out: EngineChange[] = [];
+    this.sheets[sheet]?.columns.forEach((column, col) =>
+      column.forEach((v, row) => {
+        if (v !== undefined && !(v instanceof Formula)) out.push({ sheet, row, col, value: v });
+      }),
+    );
+    return out;
+  }
+
   destroy(): void {
     this.sheets.length = 0;
     this.names.clear();
@@ -902,7 +913,7 @@ export class NativeEngine implements FormulaEngine, Host {
   /** Defines (or with null removes) a name; false when it can't be calculated here, and is left out. */
   private defineName(name: string, localSheet: number | undefined, formula: string | null): boolean {
     const k = `${localSheet ?? -1}:${name.toUpperCase()}`;
-    if (formula === null || name.startsWith('_xlnm.') || /#REF!/.test(formula)) {
+    if (formula === null || name.startsWith('_xlnm.')) {
       this.names.delete(k);
       return false;
     }

@@ -88,7 +88,7 @@ describe('a workbook on its own', () => {
     book.set('Prices!C1', '=Rate*10');
     expect(book.setName('Rate', 'Prices!$B$2')).toEqual([{ cell: 'Prices!C1', value: 30 }]);
     expect(book.setName('Rate', null)).toEqual([{ cell: 'Prices!C1', value: { error: '#NAME?' } }]);
-    expect(() => book.setName('Broken', '#REF!')).toThrow('"Broken"');
+    expect(book.setName('Rate', 'Prices!#REF!')).toEqual([{ cell: 'Prices!C1', value: { error: '#REF!' } }]);
   });
 
   it('adds sheets, which formulas that named them read', () => {
@@ -117,5 +117,85 @@ describe('a workbook on its own', () => {
     expect(dateToSerial(new Date('1900-03-01'))).toBe(61);
     expect(serialToDate(46308.5).toISOString()).toBe('2026-10-13T12:00:00.000Z');
     expect(serialToDate(44846, true).toISOString()).toBe('2026-10-13T00:00:00.000Z');
+  });
+
+  it('inserts and deletes rows, references following the cells as Excel moves them', () => {
+    const book = prices();
+    book.set('Prices!C3', '=ROW()');
+    expect(book.insertRows('Prices!2')).toEqual([{ cell: 'Prices!C4', value: 4 }]);
+    expect(book.getRange('Prices!A1:B4')).toEqual([
+      ['Tea', 4.5],
+      [null, null],
+      ['Cake', 3],
+      ['Total', 7.5],
+    ]);
+    expect(book.formula('Prices!B4')).toBe('=SUM(B1:B3)');
+    expect(book.formula("'Q1 Sales'!C1")).toBe('=Prices!B4*2');
+    expect(book.set('Prices!B2', 1)).toEqual([
+      { cell: 'Prices!B2', value: 1 },
+      { cell: 'Prices!B4', value: 8.5 },
+      { cell: "'Q1 Sales'!C1", value: 17 },
+    ]);
+    expect(book.deleteRows('Prices!1:2')).toEqual([
+      { cell: 'Prices!B2', value: 3 },
+      { cell: 'Prices!C2', value: 2 },
+      { cell: "'Q1 Sales'!C1", value: 6 },
+    ]);
+    expect(book.evaluate('=Rate')).toEqual({ error: '#REF!' });
+    expect(() => book.insertRows('Prices!B')).toThrow('isn\'t a reference to rows');
+  });
+
+  it('inserts and deletes columns', () => {
+    const book = prices();
+    expect(book.insertColumns('Prices!A')).toEqual([]);
+    expect(book.formula('Prices!C3')).toBe('=SUM(C1:C2)');
+    expect(book.formula("'Q1 Sales'!C1")).toBe('=Prices!C3*2');
+    expect(book.evaluate('=Rate')).toBe(4.5);
+    expect(book.deleteColumns('Prices!C')).toEqual([{ cell: "'Q1 Sales'!C1", value: { error: '#REF!' } }]);
+    expect(book.formula("'Q1 Sales'!C1")).toBe('=#REF!*2');
+    expect(() => book.deleteColumns('Prices!3')).toThrow('isn\'t a reference to columns');
+  });
+
+  it('reports what a host shifting its cells by the rows inserted needs to know to show them as they are', () => {
+    const book = createWorkbook({ sheets: { S: [['=SEQUENCE(3)', 'a', '=ROWS(A1:A3)'], [null, 'b'], [null, 'c']] } });
+    const shown = book.getRange('A1:C5');
+    shown.splice(1, 0, [null, null, null]);
+    for (const { cell, value } of book.insertRows('2')) {
+      const at = /^S!([A-Z])(\d+)$/.exec(cell)!;
+      shown[Number(at[2]) - 1][at[1].charCodeAt(0) - 65] = value;
+    }
+    expect(shown.slice(0, 5)).toEqual(book.getRange('A1:C5'));
+    expect(book.getRange('A1:C4')).toEqual([
+      [1, 'a', 4],
+      [2, null, null],
+      [3, 'b', null],
+      [null, 'c', null],
+    ]);
+  });
+
+  it('renames, moves and deletes sheets, references following them', () => {
+    const book = prices();
+    book.set('Prices!C1', '=INDIRECT("Prices!B1")');
+    expect(book.renameSheet('Prices', 'Costs')).toEqual([{ cell: 'Costs!C1', value: { error: '#REF!' } }]);
+    expect(book.sheets).toEqual(['Costs', 'Q1 Sales']);
+    expect(book.formula("'Q1 Sales'!C1")).toBe('=Costs!B3*2');
+    expect(book.evaluate('=Rate')).toBe(4.5);
+    expect(book.renameSheet('costs', 'COSTS')).toEqual([]);
+    expect(() => book.renameSheet('COSTS', 'q1 sales')).toThrow('already a sheet named');
+    expect(book.moveSheet('Q1 Sales', 0)).toEqual([]);
+    expect(book.sheets).toEqual(['Q1 Sales', 'COSTS']);
+    expect(book.get('A1')).toBe(1);
+    expect(() => book.moveSheet('COSTS', 2)).toThrow('numbered from 0 to 1');
+    expect(book.deleteSheet('COSTS')).toEqual([{ cell: "'Q1 Sales'!C1", value: { error: '#REF!' } }]);
+    expect(book.formula('C1')).toBe('=#REF!*2');
+    expect(() => book.deleteSheet('Q1 Sales')).toThrow("only sheet");
+  });
+
+  it('works out references across sheets by where the sheets are', () => {
+    const book = createWorkbook({ sheets: { Jan: [[1]], Feb: [[2]], Mar: [[4]], Summary: [['=SUM(Jan:Feb!A1)']] } });
+    expect(book.get('Summary!A1')).toBe(3);
+    expect(book.moveSheet('Mar', 1)).toEqual([{ cell: 'Summary!A1', value: 7 }]);
+    expect(book.deleteSheet('Jan')).toEqual([{ cell: 'Summary!A1', value: 6 }]);
+    expect(book.formula('Summary!A1')).toBe('=SUM(Mar:Feb!A1)');
   });
 });

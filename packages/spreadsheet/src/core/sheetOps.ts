@@ -1,6 +1,6 @@
-import { parseA1Ref, stringifyA1Ref, stringifyTokens, tokenize } from '@borgar/fx';
 import { msg, TextError } from '../i18n/message';
 import { quoteSheetName } from '@ruled/formula/refs';
+import { changeSheetRefs, mentionsSheet, type SheetRefChange } from '@ruled/formula/reshape';
 import { nearestVisible, sheetIndexMap, sheetOpProblem, type SheetOp } from './sheetRules';
 import type { SheetInfo } from './types';
 import type { SheetModel, WorkbookModel } from './workbook';
@@ -148,80 +148,6 @@ function setTabSelected(pkg: OoxmlPackage, path: string | undefined, on: boolean
 // ---------------------------------------------------------------------------
 // References by name
 
-interface RefChange {
-  /** The sheet renamed or deleted, in lower case. */
-  sheet: string;
-  /** Its new name; null when it is deleted. */
-  to: string | null;
-  /** Every sheet's name in order, for 3-D references that lose an end. */
-  order: string[];
-  /** Tables that went with a deleted sheet, in lower case. */
-  tables: Set<string>;
-}
-
-/** Whether a formula may refer to the sheet or its tables: a quick test before tokenizing it. */
-function mentions(text: string, c: RefChange): boolean {
-  const lower = text.toLowerCase();
-  if (lower.includes(c.sheet) || lower.includes(c.sheet.replace(/'/g, "''"))) return true;
-  for (const t of c.tables) if (lower.includes(t)) return true;
-  return false;
-}
-
-/**
- * A sheet reference's context ("Data", or "Jan:Mar" for a 3-D reference)
- * after the change: undefined when it doesn't involve the sheet, null when it
- * is lost. A 3-D reference that loses an end sheet ends at the next one in.
- */
-function changeContext(context: string, c: RefChange): string | null | undefined {
-  const ends = context.split(':');
-  const hit = ends.map((e) => e.toLowerCase() === c.sheet);
-  if (ends.length > 2 || !hit.some(Boolean)) return undefined;
-  if (c.to !== null) return ends.map((e, i) => (hit[i] ? c.to : e)).join(':');
-  if (ends.length === 1) return null;
-  const [a, b] = ends.map((e) => c.order.findIndex((n) => n.toLowerCase() === e.toLowerCase()));
-  const step = a < b ? 1 : -1;
-  const from = hit[0] ? a + step : a;
-  const to = hit[1] ? b - step : b;
-  if (a < 0 || b < 0 || a === b || (to - from) * step < 0) return null;
-  return from === to ? c.order[from] : `${c.order[from]}:${c.order[to]}`;
-}
-
-/** A formula (file form) after the change; the same string when nothing in it changes. */
-function changeRefs(formula: string, c: RefChange): string {
-  if (!mentions(formula, c)) return formula;
-  let tokens;
-  try {
-    tokens = tokenize(formula, { mergeRefs: true, allowTernary: false });
-  } catch {
-    return formula;
-  }
-  let changed = false;
-  for (const t of tokens) {
-    let next: string | undefined;
-    if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_named') {
-      const ref = parseA1Ref(t.value, { allowTernary: false });
-      // References into other workbooks have the workbook in their context too.
-      if (!ref || ref.context?.length !== 1) continue;
-      const context = changeContext(ref.context[0], c);
-      if (context === undefined) continue;
-      if (context === null) {
-        next = '#REF!';
-      } else {
-        ref.context = [context];
-        next = stringifyA1Ref(ref);
-      }
-    } else if (t.type === 'structured') {
-      const table = t.value.slice(0, t.value.indexOf('['));
-      if (c.tables.has(table.slice(table.lastIndexOf('!') + 1).toLowerCase())) next = '#REF!';
-    }
-    if (next !== undefined && next !== t.value) {
-      t.value = next;
-      changed = true;
-    }
-  }
-  return changed ? stringifyTokens(tokens) : formula;
-}
-
 /** Rewrites the text of formula elements, which hold escaped XML text. */
 function rewriteFormulas(xml: string, tags: string[], fn: (f: string) => string): string {
   for (const tag of tags) {
@@ -261,12 +187,12 @@ function rewritePart(pkg: OoxmlPackage, path: string, fn: (xml: string) => strin
  * rename), defined names (by `name`), charts, table formulas, pivot sources
  * and form controls. Returns how many cell formulas lost a reference.
  */
-function followNames(pkg: OoxmlPackage, model: WorkbookModel, c: RefChange, skip: number): number {
-  const fx = (f: string) => changeRefs(f, c);
+function followNames(pkg: OoxmlPackage, model: WorkbookModel, c: SheetRefChange, skip: number): number {
+  const fx = (f: string) => changeSheetRefs(f, c);
   let broken = 0;
   model.sheets.forEach((m, s) => {
     if (s === skip || !m.path) return;
-    const formulas = m.scan ? [...m.scan.grid.formulas.values()].filter((f) => mentions(f, c)) : [];
+    const formulas = m.scan ? [...m.scan.grid.formulas.values()].filter((f) => mentionsSheet(f, c)) : [];
     for (const f of formulas) {
       const next = fx(f);
       if (next !== f && next.includes('#REF!') && !f.includes('#REF!')) broken++;
@@ -310,7 +236,7 @@ function rewriteSheet(xml: string, m: SheetModel, cells: boolean, fx: (f: string
 }
 
 /** A pivot cache's source after the change: renamed, or #REF! when its sheet or table is gone. */
-function pivotSource(xml: string, c: RefChange): string {
+function pivotSource(xml: string, c: SheetRefChange): string {
   let gone = false;
   const next = replaceElements(xml, 'worksheetSource', (el, text) => {
     const a = parseAttrs(el.attrs);
@@ -325,7 +251,7 @@ function pivotSource(xml: string, c: RefChange): string {
 }
 
 /** A pivot chart names its pivot table as "[Book.xlsx]Sheet!PivotTable1". */
-function pivotChartSource(xml: string, c: RefChange): string {
+function pivotChartSource(xml: string, c: SheetRefChange): string {
   return replaceElements(xml, 'pivotSource', (src, text) => {
     const name = firstElement(src.inner ?? '', 'name');
     if (!name?.inner) return text;
@@ -514,7 +440,7 @@ function addSheet(pkg: OoxmlPackage, model: WorkbookModel, book: Book, op: Extra
 function renameSheet(pkg: OoxmlPackage, model: WorkbookModel, book: Book, op: Extract<SheetOp, { type: 'renameSheet' }>): void {
   const old = model.sheets[op.sheet].info.name;
   if (old === op.name) return;
-  const c: RefChange = { sheet: old.toLowerCase(), to: op.name, order: [], tables: new Set() };
+  const c: SheetRefChange = { sheet: old.toLowerCase(), to: op.name, order: [], tables: new Set() };
   followNames(pkg, model, c, -1);
   const entries = book.entries.map((e) => e.text);
   entries[op.sheet] = retag(elements(entries[op.sheet], 'sheet')[0], { name: op.name });
@@ -522,7 +448,7 @@ function renameSheet(pkg: OoxmlPackage, model: WorkbookModel, book: Book, op: Ex
     pkg,
     book,
     entries,
-    (formula, local) => ({ formula: changeRefs(formula, c), local }),
+    (formula, local) => ({ formula: changeSheetRefs(formula, c), local }),
     (active, first) => [active, first],
   );
   editTitles(pkg, (groups) => {
@@ -549,7 +475,7 @@ function deleteSheet(pkg: OoxmlPackage, model: WorkbookModel, book: Book, d: num
   }
 
   const order = model.sheets.map((s) => s.info.name);
-  const c: RefChange = { sheet: name.toLowerCase(), to: null, order, tables: new Set(m.info.tables.map((t) => t.name.toLowerCase())) };
+  const c: SheetRefChange = { sheet: name.toLowerCase(), to: null, order, tables: new Set(m.info.tables.map((t) => t.name.toLowerCase())) };
   const broken = followNames(pkg, model, c, d);
 
   const states = model.sheets.filter((_s, i) => i !== d).map((s) => s.info);
@@ -565,7 +491,7 @@ function deleteSheet(pkg: OoxmlPackage, model: WorkbookModel, book: Book, d: num
     (formula, local) => {
       // Names local to the sheet go with it, as Excel's print areas and titles do.
       if (local === d) return null;
-      return { formula: changeRefs(formula, c), local: local !== undefined && local > d ? local - 1 : local };
+      return { formula: changeSheetRefs(formula, c), local: local !== undefined && local > d ? local - 1 : local };
     },
     (at, first) => {
       active = at === d ? nearestVisible(states, d) : at > d ? at - 1 : at;
