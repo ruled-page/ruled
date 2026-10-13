@@ -59,7 +59,7 @@ interface Received {
       <h1>Forecast review</h1>
       <span class="status" role="status">{{ status() }}</span>
       <label>
-        Language
+        <span class="label-text">Language</span>
         <select (change)="setLanguage($any($event.target).value)">
           <option value="en">English</option>
           <option value="de" lang="de">Deutsch</option>
@@ -115,6 +115,8 @@ interface Received {
       display: grid;
       grid-template-rows: auto 1fr auto;
       height: 100vh;
+      /* The height a phone's browser leaves once its own bars are shown. */
+      height: 100dvh;
     }
     header {
       display: flex;
@@ -176,6 +178,46 @@ interface Received {
     }
     .muted {
       color: var(--host-muted);
+    }
+    /* A phone: the header in two short rows, and less of the screen for what Angular received, so the sheet has room. */
+    @media (max-width: 600px) {
+      header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'title language' 'status save';
+        gap: 6px 10px;
+        padding: 8px 12px;
+      }
+      h1 {
+        grid-area: title;
+        font-size: 16px;
+      }
+      .status {
+        grid-area: status;
+        font-size: 13px;
+      }
+      label {
+        grid-area: language;
+      }
+      .label-text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      button {
+        grid-area: save;
+        padding: 4px 10px;
+      }
+      select {
+        padding: 4px 8px;
+      }
+      section {
+        max-height: 24vh;
+        padding: 6px 12px 10px;
+      }
     }
   `,
 })
