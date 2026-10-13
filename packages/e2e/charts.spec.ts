@@ -90,12 +90,16 @@ test('keeps a chart where it is anchored as the sheet scrolls past a tall row, a
   await expect.poll(top).toBeGreaterThan(0);
   const before = await top();
 
-  // Scrolled until row 19 has gone above the panes' join, the chart goes up with it.
+  // Scrolled until row 19 has gone above the panes' join, the chart goes up with it, as far as the
+  // sheet went: browsers scroll a turn of the wheel by different amounts.
+  const scrolled = () => page.locator('.dvn-scroller').evaluateAll((all) => Math.max(...all.map((s) => s.scrollTop)));
+  const start = await scrolled();
   const grid = page.locator('canvas[data-testid="data-grid-canvas"]').last();
   const box = (await grid.boundingBox())!;
   await page.mouse.move(box.x + 200, box.y + box.height / 2);
-  await page.mouse.wheel(0, 500);
-  await expect.poll(async () => Math.round(before - (await top()))).toBe(500);
+  for (let turns = 0; turns < 20 && (await scrolled()) - start < 500; turns++) await page.mouse.wheel(0, 100);
+  await expect.poll(async () => Math.round(before - (await top())) - ((await scrolled()) - start)).toBe(0);
+  expect((await scrolled()) - start).toBeGreaterThanOrEqual(500);
 
   // Charts stop short of each pane's scrollbars.
   const overlaps = await page.locator('.wbe-objects-overlay').evaluateAll((overlays) =>
