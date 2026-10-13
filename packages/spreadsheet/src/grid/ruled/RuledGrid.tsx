@@ -483,7 +483,9 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     // Enter and F2 edit what the cell holds; a key that types a character, or Backspace, replaces it, as Excel does.
     const command = e.ctrlKey || e.metaKey;
     const typesText = [...e.key].length === 1 && !command && (!e.altKey || APPLE || e.getModifierState('AltGraph'));
-    if (((e.key === 'Enter' || e.key === 'F2') && !command && !e.altKey) || typesText || (e.key === 'Backspace' && !APPLE && !command && !e.altKey && !e.shiftKey)) {
+    // Shift+F2 is the note's key, not editing's.
+    const opens = (e.key === 'Enter' || (e.key === 'F2' && !e.shiftKey)) && !command && !e.altKey;
+    if (opens || typesText || (e.key === 'Backspace' && !APPLE && !command && !e.altKey && !e.shiftKey)) {
       e.preventDefault();
       startEdit(typesText ? e.key : e.key === 'Backspace' ? '' : undefined);
       return;
