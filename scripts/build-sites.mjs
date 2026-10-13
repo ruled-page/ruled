@@ -62,7 +62,7 @@ if (sites.includes('angular')) {
   // The Angular app loads the editor's standalone build.
   run('npm run build:lib');
   if (!existsSync('examples/angular-portal/node_modules')) run('npm ci', { cwd: 'examples/angular-portal' });
-  run('npx ng build', { cwd: 'examples/angular-portal' });
+  run('npm run build', { cwd: 'examples/angular-portal' });
   rmSync('dist-sites/angular', { recursive: true, force: true });
   cpSync('examples/angular-portal/dist/browser', 'dist-sites/angular', { recursive: true });
   copyFileSync('examples/demo/public/_headers', 'dist-sites/angular/_headers');

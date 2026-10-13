@@ -3,7 +3,9 @@
   "private": true,
   "description": "An Angular app hosting the <workbook-editor> element",
   "scripts": {
+    "prestart": "node scripts/copy-samples.mjs",
     "start": "ng serve",
+    "prebuild": "node scripts/copy-samples.mjs",
     "build": "ng build",
     "preview": "vite preview --outDir dist/browser --port 4175 --strictPort"
   },

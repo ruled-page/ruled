@@ -22,5 +22,6 @@ export default defineConfig({
   // The supplier workbooks are among the demo's samples.
   publicDir: '../demo/public',
   server: { port: 5181 },
-  build: process.env.SITE ? { outDir: '../../dist-sites/portal', emptyOutDir: true } : {},
+  // The editor is one large chunk by design; scripts/check-bundle.mjs holds it to its budget instead.
+  build: { chunkSizeWarningLimit: 4096, ...(process.env.SITE ? { outDir: '../../dist-sites/portal', emptyOutDir: true } : {}) },
 });

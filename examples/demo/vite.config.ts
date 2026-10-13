@@ -20,5 +20,6 @@ export default defineConfig({
   // The dev server bundles Glide ahead of time, outside the plugins above.
   optimizeDeps: { rolldownOptions: { plugins: [glidePatches()] } },
   server: { port: 5180 },
-  build: process.env.SITE ? { outDir: '../../dist-sites/demo', emptyOutDir: true } : {},
+  // The editor is one large chunk by design; scripts/check-bundle.mjs holds it to its budget instead.
+  build: { chunkSizeWarningLimit: 4096, ...(process.env.SITE ? { outDir: '../../dist-sites/demo', emptyOutDir: true } : {}) },
 });

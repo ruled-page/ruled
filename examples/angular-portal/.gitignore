@@ -2,3 +2,5 @@ node_modules
 dist
 .angular
 out-tsc
+# Copied in from the demo by scripts/copy-samples.mjs.
+samples
