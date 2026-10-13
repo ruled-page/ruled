@@ -1192,8 +1192,44 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  opacity: 0;
   pointer-events: none;
+  color: transparent;
+  caret-color: transparent;
+}
+
+.wbe .wbe-grid-access td {
+  outline: none;
+}
+
+/* While an input method composes in the active cell, it shows what it composes over the grid's cell. */
+.wbe .wbe-grid-access td.wbe-composing {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  white-space: pre;
+  font-size: 14.7px;
+  font-family: var(--wbe-grid-font);
+  color: var(--wbe-grid-text);
+  caret-color: var(--wbe-grid-text);
+  background: var(--wbe-grid-bg);
+  box-shadow: 0 0 0 2px var(--wbe-grid-selection);
+}
+
+/* Ruled's grid's cell editor, over its cell. */
+.wbe .wbe-cell-editor {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  padding: 0 8.5px 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--wbe-grid-selection), var(--wbe-shadow-sm);
+}
+
+.wbe .wbe-cell-editor.wbe-list {
+  padding: 0;
+  overflow: visible;
 }
 
 /* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */

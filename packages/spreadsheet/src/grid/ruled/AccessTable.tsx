@@ -1,5 +1,6 @@
 import { inRect } from '@ruled/formula/refs';
-import type { RefObject } from 'react';
+import { useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
+import type { Box } from '../contract';
 import { effectiveStyle } from '../../state/cellStyle';
 import { checkboxState } from '../../state/checkbox';
 import type { SheetView } from '../../state/sheetView';
@@ -22,6 +23,27 @@ interface Props {
   activeRef: RefObject<HTMLTableCellElement | null>;
   /** How many of the sheet's first rows are frozen: they come first, as a group of their own. */
   frozenRows: number;
+  /** The active cell takes typing: a key, a dead key or an input method's composition starts editing it. */
+  typing: boolean;
+  /** Where the active cell is, in the table's own pixels, for an input method's window to open beside it. */
+  activeBox: () => Box | undefined;
+  /** Called with the text an input method composed in the active cell. */
+  onComposed: (text: string) => void;
+}
+
+/**
+ * A cell of the table, its text set here rather than by React, so that an
+ * input method composing in the active cell can't leave React's text out of
+ * step with the page.
+ */
+function Cell({ text, cellRef, ...props }: HTMLAttributes<HTMLTableCellElement> & { text: string; cellRef?: RefObject<HTMLTableCellElement | null> }) {
+  const own = useRef<HTMLTableCellElement>(null);
+  useLayoutEffect(() => {
+    const el = own.current;
+    if (el && el.textContent !== text && !el.classList.contains('wbe-composing')) el.textContent = text;
+    if (cellRef) cellRef.current = el;
+  });
+  return <td ref={own} {...props} />;
 }
 
 /**
@@ -30,7 +52,7 @@ interface Props {
  * reference, what it shows and what else is true of it. The active cell
  * has the focus while the grid has it, and moves as the selection does.
  */
-export function AccessTable({ store, view, selection, drawn, rows, cols, activeRef, frozenRows }: Props) {
+export function AccessTable({ store, view, selection, drawn, rows, cols, activeRef, frozenRows, typing, activeBox, onComposed }: Props) {
   const t = useT();
   const selected = (row: number, col: number) => selection.lines === 'all' || selection.rects.some((r) => (selection.lines === 'rows' ? row >= r.r1 && row <= r.r2 : selection.lines === 'cols' ? col >= r.c1 && col <= r.c2 : inRect(r, row, col)));
   /** What a cell shows: its text as drawn (a number shown as #### in full), or whether its checkbox is ticked. */
@@ -41,6 +63,24 @@ export function AccessTable({ store, view, selection, drawn, rows, cols, activeR
     if (box !== undefined) return t(box ? 'checkbox.ticked' : 'checkbox.unticked');
     return drawn ? drawn.painter.cellText(drawn.input, row, col) : '';
   };
+  // The active cell sets this once rendered; a table without one (its line hidden) leaves it unset.
+  activeRef.current = null;
+  /** An input method starts composing: the cell shows what it composes, over the grid's own cell. */
+  const composing = (e: { currentTarget: HTMLTableCellElement }) => {
+    const el = e.currentTarget;
+    const box = activeBox();
+    el.textContent = '';
+    el.classList.add('wbe-composing');
+    if (box) Object.assign(el.style, { left: `${box.x}px`, top: `${box.y}px`, minWidth: `${box.width}px`, height: `${box.height}px` });
+  };
+  /** What it composed goes to the cell editor, and the cell goes back to saying what it holds. */
+  const composed = (e: { currentTarget: HTMLTableCellElement; data: string }) => {
+    const el = e.currentTarget;
+    el.classList.remove('wbe-composing');
+    el.removeAttribute('style');
+    el.textContent = '';
+    if (e.data) onComposed(e.data);
+  };
   const rowsOf = (list: number[]) =>
     list.map((row) => (
       <tr key={row} aria-rowindex={row + 1}>
@@ -48,18 +88,18 @@ export function AccessTable({ store, view, selection, drawn, rows, cols, activeR
           const active = row === selection.row && col === selection.col;
           const text = shown(row, col);
           return (
-            <td
+            <Cell
               key={col}
+              text={text}
               aria-colindex={col + 1}
               aria-selected={selected(row, col)}
               // oxlint-disable-next-line jsx-a11y/role-supports-aria-props -- ARIA 1.2 gives grid cells aria-readonly; a td in a grid is one
               aria-readonly={!!view.readOnlyReason(row, col)}
               aria-label={spokenText(store, view, row, col, view.mergeAt(row, col), text, !!cellOptions(store, view, row, col))}
               tabIndex={active ? 0 : -1}
-              ref={active ? activeRef : undefined}
-            >
-              {text}
-            </td>
+              cellRef={active ? activeRef : undefined}
+              {...(active && typing && { contentEditable: 'plaintext-only', spellCheck: false, autoCapitalize: 'off', onCompositionStart: composing, onCompositionEnd: composed })}
+            />
           );
         })}
       </tr>

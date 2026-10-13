@@ -22,7 +22,8 @@ import { SidePanel } from '../ui/SidePanel';
 import './editor.css';
 
 function isTextField(el: EventTarget | null): boolean {
-  return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  // The grid's cells take typing to start editing, but aren't text fields: undo there is the workbook's.
+  return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el.isContentEditable && !el.closest('.wbe-grid-access')));
 }
 
 // Dialogs seldom opened, loaded when first wanted or once the page is idle.

@@ -1,17 +1,21 @@
 import { inRect } from '@ruled/formula/refs';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { CellNote, Rect } from '../../core/types';
+import { effectiveStyle } from '../../state/cellStyle';
+import { editText } from '../../state/format';
 import { cellLink, type CellLink } from '../../state/links';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../../ui/gridPalette';
 import { APPLE, commandKey } from '../../ui/keys';
 import { LinkTip } from '../../ui/LinkTip';
 import { NoteTip } from '../../ui/NoteTip';
-import type { Box, GridHandle, Pane, SurfaceProps } from '../contract';
+import type { Box, EditMove, GridHandle, Pane, SurfaceProps } from '../contract';
 import { useSheetEvents } from '../hooks';
 import { editorKey, type FilterButton } from '../keys';
+import { cellOptions } from '../lists';
 import { sheetMarks } from '../marks';
 import { navigate, navSheet } from '../navigation';
 import { AccessTable } from './AccessTable';
+import { CellEditorBox, type Edit } from './CellEditing';
 import { colAxis, rowAxis } from './axis';
 import { Painter, type PaintInput } from './draw';
 import { contentScroll, Layout, scrollerPosition, scrollLength } from './layout';
@@ -323,7 +327,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     const el = activeCell.current;
     const now = document.activeElement;
     const kept = hasFocus.current && (!now || now === document.body || !!host.current?.contains(now));
-    if (el && (wantFocus.current || kept) && now !== el) el.focus({ preventScroll: true });
+    if (el && !editing.current && (wantFocus.current || kept) && now !== el) el.focus({ preventScroll: true });
     wantFocus.current = false;
   });
 
@@ -378,20 +382,110 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     [view, handle],
   );
 
+  // The cell being edited, if any.
+  const [edit, setEdit] = useState<Edit | null>(null);
+  const editing = useRef<Edit | null>(null);
+  editing.current = edit;
+  /** Navigation's view of the sheet, a page being what the grid shows. */
+  const navNow = () => {
+    const layout = layoutNow();
+    const page = (run: { first: number; last: number } | undefined) => (run ? run.last - run.first : 1);
+    return navSheet(view, page(layout?.rowRun), page(layout?.colRun));
+  };
+  /**
+   * Edits the active cell (a merge's top-left cell): with `typed`, what
+   * was typed in place of what it holds; else what it holds, selected.
+   * A cell that can't be edited says why instead.
+   */
+  const startEdit = (typed?: string) => {
+    const sel = store.selection;
+    const m = view.mergeAt(sel.row, sel.col);
+    const row = m?.r1 ?? sel.row;
+    const col = m?.c1 ?? sel.col;
+    const reason = view.readOnlyReason(row, col);
+    if (reason) {
+      store.toast('warn', reason);
+      return;
+    }
+    const rec = view.get(row, col);
+    const style = effectiveStyle(view, store.styles, row, col, rec ? rec.style : view.styleAt(row, col, null), palette.link);
+    pending.current = { row, col };
+    setEdit({
+      row,
+      col,
+      text: typed ?? editText(rec, style, store.date1904, store.locale),
+      typed: typed !== undefined,
+      selectAll: typed === undefined,
+      mode: typed === undefined ? 'edit' : 'enter',
+      options: cellOptions(store, view, row, col),
+      wrap: style.wrap,
+    });
+  };
+  /** Ends editing: enters the text (unless undefined) and moves, within a selected range as Enter and Tab do there. */
+  const finishEdit = (text: string | undefined, move: EditMove) => {
+    const e = editing.current;
+    if (!e) return;
+    editing.current = null;
+    setEdit(null);
+    wantFocus.current = true;
+    if (text !== undefined) void store.input(e.row, e.col, text);
+    const [dx, dy] = move;
+    if (!dx && !dy) return;
+    const sheet = navNow();
+    const back = dx < 0 || dy < 0;
+    const moved =
+      navigate(store.selection, { key: dy ? 'Enter' : 'Tab', shiftKey: back, altKey: false, command: false }, sheet) ??
+      navigate(store.selection, { key: dy ? (dy > 0 ? 'ArrowDown' : 'ArrowUp') : dx > 0 ? 'ArrowRight' : 'ArrowLeft', shiftKey: false, altKey: false, command: false }, sheet);
+    if (moved) {
+      store.setSelection(moved.selection);
+      pending.current = moved.reveal;
+    }
+  };
+  // The editor stays over its cell as the grid scrolls.
+  const [, scrolled] = useState(0);
+  useEffect(() => (edit ? handle.subscribe(() => scrolled((n) => n + 1)) : undefined), [edit, handle]);
+  /** The edited cell's box on the page: a merge's whole box. */
+  const editBox = (e: Edit): Box | undefined => {
+    const m = view.mergeAt(e.row, e.col);
+    const a = handle.cellBox(e.row, e.col);
+    const b = m ? handle.cellBox(m.r2, m.c2) : a;
+    return a && b ? { x: a.x, y: a.y, width: b.x + b.width - a.x, height: b.y + b.height - a.y } : undefined;
+  };
+  // Text from anywhere but a key (dictation, an emoji picker) starts editing too; an input method's composition is the cell's own.
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const input = (e: InputEvent) => {
+      if (!(e.target as Element).closest?.('.wbe-grid-access') || e.isComposing || e.inputType === 'insertCompositionText') return;
+      e.preventDefault();
+      if (e.inputType === 'insertText' && e.data) startEditRef.current(e.data);
+    };
+    el.addEventListener('beforeinput', input);
+    return () => el.removeEventListener('beforeinput', input);
+  }, []);
+  const startEditRef = useRef(startEdit);
+  startEditRef.current = startEdit;
+
   const onKeyDown = (e: ReactKeyboardEvent) => {
-    if (!(e.target as Element).closest?.('.wbe-grid-access')) return;
+    if (editing.current || !(e.target as Element).closest?.('.wbe-grid-access')) return;
     if (editorKey(store, e, filterButton)) {
       e.preventDefault();
       return;
     }
-    const layout = layoutNow();
-    const page = (run: { first: number; last: number } | undefined) => (run ? run.last - run.first : 1);
-    const moved = navigate(store.selection, { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, command: commandKey(e) }, navSheet(view, page(layout?.rowRun), page(layout?.colRun)));
+    const moved = navigate(store.selection, { key: e.key, shiftKey: e.shiftKey, altKey: e.altKey, command: commandKey(e) }, navNow());
     if (moved) {
       e.preventDefault();
       if (moved.selection !== store.selection) store.setSelection(moved.selection);
       pending.current = moved.reveal;
       redraw();
+      return;
+    }
+    // Enter and F2 edit what the cell holds; a key that types a character, or Backspace, replaces it, as Excel does.
+    const command = e.ctrlKey || e.metaKey;
+    const typesText = [...e.key].length === 1 && !command && (!e.altKey || APPLE || e.getModifierState('AltGraph'));
+    if (((e.key === 'Enter' || e.key === 'F2') && !command && !e.altKey) || typesText || (e.key === 'Backspace' && !APPLE && !command && !e.altKey && !e.shiftKey)) {
+      e.preventDefault();
+      startEdit(typesText ? e.key : e.key === 'Backspace' ? '' : undefined);
       return;
     }
     // Delete clears what is selected, whole rows and columns as far as they hold anything; so does a Mac's delete key.
@@ -445,6 +539,12 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   const pressCell = (e: ReactMouseEvent, row: number, col: number) => {
     const sel = store.selection;
     const command = APPLE ? e.metaKey : e.ctrlKey;
+    // A second click on a list cell opens its dropdown.
+    const only = sel.rects.length === 1 && sel.rects[0].r1 === sel.rects[0].r2 && sel.rects[0].c1 === sel.rects[0].c2;
+    if (!command && !e.shiftKey && only && sel.row === row && sel.col === col && cellOptions(store, view, row, col)) {
+      startEdit();
+      return;
+    }
     // Ctrl+click (⌘-click on a Mac) follows a cell's link; a plain click only selects it.
     if (command && !e.shiftKey && cellLink(view, row, col)) {
       store.setSelection({ row, col, rects: [span({ row, col }, { row, col })] });
@@ -501,6 +601,13 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     else if (hit.area === 'cells') pressCell(e, view.visibleRows[hit.row], view.visibleCols[hit.col]);
     else if (hit.area === 'numbers') pressHeading(e, 'rows', view.visibleRows[hit.row]);
     else pressHeading(e, 'cols', view.visibleCols[hit.col]);
+  };
+
+  /** A double-click on a cell edits it. */
+  const onDoubleClick = (e: ReactMouseEvent) => {
+    const layout = layoutNow();
+    const { x, y } = local(e);
+    if (layout?.hit(x, y).area === 'cells') startEdit();
   };
 
   /** Right-clicking outside the selection selects what was clicked first, as Excel does, then opens the menu for it. */
@@ -574,7 +681,15 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         cols={view.gridCol(selection.col) >= 0 ? withLine(lines.cols, selection.col) : lines.cols}
         activeRef={activeCell}
         frozenRows={view.info.frozenRows}
+        typing={!store.touchMode && !edit}
+        activeBox={() => {
+          const b = handle.cellBox(store.selection.row, store.selection.col);
+          const at = host.current?.getBoundingClientRect();
+          return b && at ? { ...b, x: b.x - at.left, y: b.y - at.top } : undefined;
+        }}
+        onComposed={(text) => startEdit(text)}
       />
+      {edit && <CellEditorBox store={store} edit={edit} box={editBox(edit)} palette={palette} onText={(text) => setEdit((e) => e && { ...e, text })} finish={finishEdit} onMode={() => setEdit((e) => e && { ...e, mode: e.mode === 'edit' ? 'enter' : 'edit' })} />}
       <div
         className="wbe-grid-scroller"
         ref={scroller}
@@ -582,6 +697,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
         tabIndex={-1}
         onMouseDown={onMouseDown}
         onContextMenu={onContextMenu}
+        onDoubleClick={onDoubleClick}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
       >
