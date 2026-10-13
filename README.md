@@ -937,9 +937,10 @@ npm run deploy:angular
 anything (`node scripts/build-sites.mjs portal` builds one). The sites link to
 each other at the addresses above; to build them for others, such as their
 `*.pages.dev` addresses, set `DEMO_URL`, `PORTAL_URL` or `ANGULAR_URL`.
-Angular's CLI needs Node 22.22.3 or later, so switch to it before deploying
-the Angular site or all three (with fnm, `fnm use 22.23`); with an older
-Node, `npm run deploy` stops after the demo and the portal.
+Angular's CLI needs Node 22.22.3 or later. The repository's `.nvmrc` asks
+for 22.23, which `nvm use` or `fnm use` switches to (and fnm or nvm set to
+switch on entering a folder do by themselves); with an older Node,
+`npm run deploy` stops after the demo and the portal.
 
 To check a site locally the way Pages serves it, build it, then:
 
