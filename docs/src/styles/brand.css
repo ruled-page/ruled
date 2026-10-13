@@ -312,3 +312,24 @@ h1#_top {
     height: min(var(--wb-live-height, 480px), 70vh);
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * On wide screens the page's outline takes the width it needs rather than
+ * half the spare space, and the content, centred in the rest, widens a little.
+ */
+@media (min-width: 72rem) {
+  .right-sidebar-container {
+    width: var(--sl-sidebar-width);
+  }
+
+  [data-has-sidebar][data-has-toc] .main-pane {
+    --sl-content-margin-inline: auto;
+    width: calc(100% - var(--sl-sidebar-width));
+  }
+}
+
+@media (min-width: 90rem) {
+  :root {
+    --sl-content-width: 50rem;
+  }
+}
