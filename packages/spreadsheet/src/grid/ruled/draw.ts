@@ -19,6 +19,12 @@ const V_PAD = 2;
 const LINE_HEIGHT = 1.25;
 /** Text whose height a font's lines are measured by: capitals, ascenders, descenders and digits. */
 const METRIC_TEXT = 'ABCi09jgqpy';
+/**
+ * How far below its measured place text sits: a pixel, which puts Calibri
+ * 11's baseline 15 pixels down a 20 pixel row, as Excel and the editor's
+ * earlier grid put it.
+ */
+const TEXT_DROP = 1;
 
 /** What the grid is drawing. */
 export interface PaintInput {
@@ -446,7 +452,7 @@ export class Painter {
     const indent = indentPx(s, look.align);
     const lines = s.wrap ? this.wrap(look.text, box.width - CELL_PADDING * 2 - indent, s, font) : [look.text];
     const step = LINE_HEIGHT * em;
-    const top = box.y + textTop(s.vAlign, box.height, em + step * (lines.length - 1), V_PAD);
+    const top = box.y + textTop(s.vAlign, box.height, em + step * (lines.length - 1), V_PAD) + TEXT_DROP;
     // The start edge is the right one when the sheet reads right to left.
     const align = input.layout.spec.rtl && look.align !== 'center' ? (look.align === 'left' ? 'right' : 'left') : look.align;
     const x = align === 'left' ? box.x + CELL_PADDING + indent : align === 'right' ? box.x + box.width - CELL_PADDING - indent : box.x + box.width / 2;
@@ -460,7 +466,8 @@ export class Painter {
       const y = top + i * step;
       if (y > box.y + box.height || y + em < box.y) return;
       ctx.fillText(line, x, y + ascent);
-      this.decorate(line, x, align, y + em / 2, s);
+      // Lines through and under text keep to its measured middle, just under its baseline.
+      this.decorate(line, x, align, y - TEXT_DROP + em / 2, s);
     });
     ctx.restore();
   }
@@ -490,7 +497,7 @@ export class Painter {
     const startX = layout.x(own) + overflowTextX(o, view.colWidth(o.col));
     const span = layout.box(layout.x(from), y, layout.x(to) + layout.spec.cols.size(to) - layout.x(from), height);
     const at = layout.box(startX, y, o.width, height);
-    const top = y + textTop(o.style.vAlign, height, em, V_PAD);
+    const top = y + textTop(o.style.vAlign, height, em, V_PAD) + TEXT_DROP;
     ctx.save();
     this.clip(span);
     ctx.font = font;
@@ -498,7 +505,7 @@ export class Painter {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText(o.text, at.x, top + ascent);
-    this.decorate(o.text, at.x, 'left', top + em / 2, o.style);
+    this.decorate(o.text, at.x, 'left', top - TEXT_DROP + em / 2, o.style);
     ctx.restore();
   }
 
@@ -535,7 +542,7 @@ export class Painter {
         this.fill(b);
       }
       ctx.fillStyle = selected === 'line' ? palette.headerSelectedText : color;
-      ctx.fillText(text, b.x + b.width / 2, b.y + (b.height - ascent - descent) / 2 + ascent);
+      ctx.fillText(text, b.x + b.width / 2, b.y + (b.height - ascent - descent) / 2 + ascent + TEXT_DROP);
     };
     ctx.save();
     ctx.font = font;
