@@ -11,7 +11,7 @@ Everything in a schema except its hooks is data, so a schema can be stored, vers
 
 The editor's toolbar has a schema button that opens the schema designer. With a workbook open, it can:
 
-- **Generate a schema from the workbook**: it finds the tables and their headings, and guesses each field's type from the values under them.
+- **Generate a schema from the workbook**: it finds the tables and their headings, and guesses each field's type from the values under them. A table needs a row of at least two typed headings (a formula's result is data, not a heading), and a label beside a value counts as a single cell when the label ends with a colon or the value is calculated.
 - **Edit it**: the sheets, tables, fields, their types and checks, and the workbook's settings, with the workbook beside it.
 - **Export it as JSON**, or import one.
 

@@ -36,8 +36,8 @@ function shiftTo(formula: string, anchor: Rect, row: number, col: number): strin
 
 /**
  * Resolves a list rule's formula to a range or a set of values. OFFSET and
- * INDIRECT are handled here because the engine only accepts constant OFFSET
- * arguments and has no INDIRECT; their arguments are evaluated by the engine.
+ * INDIRECT are resolved here to the range they refer to, which a list's
+ * choices come from; their arguments are evaluated by the engine.
  */
 export function evaluateListFormula(formula: string, sheet: number, ctx: ListContext, ev: Evaluator): ListSource | undefined {
   let ast: Node;

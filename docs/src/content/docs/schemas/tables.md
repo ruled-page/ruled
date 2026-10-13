@@ -23,7 +23,7 @@ A table is a block of records with a heading for each field. `at` is its top-lef
 | --- | --- |
 | `orientation` | `'rows'` (the default): one record per row, fields across. `'columns'`: one record per column, fields down, as in a forecast with a column per quarter. |
 | `header` | Whether the first row (or column) holds the field labels. Default `true`. |
-| `records.min`, `records.max` | How many records there may be. People add one by typing just past the last, or with the toolbar's insert and delete buttons. |
+| `records.min`, `records.max` | How many records there may be. People add one by typing just past the last, or with the toolbar's insert and delete buttons. The toolbar's buttons move cells within the table, so formulas outside it that point into it aren't adjusted; inserting rows from the grid's menu adjusts them. |
 | `records.labels` | Fixed records, named in the first column (or row): the number of records is fixed and the labels can't change, as in a budget with a row per category. |
 | `corner` | The text expected in the top-left cell when the table has labels both ways. |
 | `checks` | Rules across the records, as data. |
