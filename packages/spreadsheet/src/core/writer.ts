@@ -60,6 +60,8 @@ export interface SaveInput {
   objects?: ReadonlyMap<number, SheetObject[]>;
   /** Pivot tables worked out again: their parts, and where they now lie. */
   pivots?: { path: string; ref: string; firstHeaderRow: number; firstDataRow: number; firstDataCol: number }[];
+  /** Parts of pivot tables whose fields were changed, and of their caches, written again whole. */
+  pivotParts?: { path: string; xml: string }[];
 }
 
 type Patch =
@@ -143,6 +145,8 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
       ),
     );
   }
+
+  for (const part of input.pivotParts ?? []) pkg.setText(part.path, part.xml);
 
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
   if (input.properties) setCustomProperties(pkg, input.properties);

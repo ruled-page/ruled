@@ -23,6 +23,8 @@ export interface PivotItem {
   collapsed: boolean;
   /** A name typed over the item's own. */
   name?: string;
+  /** Its value's index among the cache's shared items; undefined for one the cache doesn't have yet. */
+  x?: number;
 }
 
 export interface PivotField {
@@ -85,7 +87,8 @@ function serialOf(iso: string): number {
   return Number.isNaN(t) ? 0 : t / 86_400_000 + 25_569;
 }
 
-function sharedValue(n: XmlNode): PivotValue {
+/** A cache's shared item, or a record's value, as a value. */
+export function sharedValue(n: XmlNode): PivotValue {
   const v = attr(n, 'v');
   switch (n.name) {
     case 'n':
@@ -129,6 +132,7 @@ export function readPivot(table: XmlNode, cache: XmlNode | undefined): PivotMode
           const x = int(it, 'x');
           return {
             value: x === undefined ? undefined : shared[x],
+            ...(x !== undefined && { x }),
             hidden: flag(it, 'h', false),
             collapsed: !flag(it, 'sd', true),
             ...(attr(it, 'n') !== undefined && { name: attr(it, 'n') }),
@@ -174,6 +178,88 @@ export function readPivot(table: XmlNode, cache: XmlNode | undefined): PivotMode
 }
 
 // ---------------------------------------------------------------------------
+// Changing a pivot table's fields
+
+/**
+ * What Excel's PivotTable Fields pane sets: the fields in each area,
+ * outermost first (-2 being the Values field among the rows or columns),
+ * the item each report filter picks, how each value is summarised, and the
+ * items each field hides. Items are named by their keys (`keyOf`).
+ */
+export interface PivotSetup {
+  rows: number[];
+  cols: number[];
+  pages: { field: number; item?: string }[];
+  data: { field: number; fn: PivotFn; name: string }[];
+  hidden: Record<number, string[]>;
+}
+
+/** A pivot table's fields as the pane shows them. */
+export function setupOf(model: PivotModel): PivotSetup {
+  const hidden: Record<number, string[]> = {};
+  model.fields.forEach((f, i) => {
+    const keys = f.items.filter((it) => it.hidden && it.value !== undefined).map((it) => keyOf(it.value));
+    if (keys.length) hidden[i] = keys;
+  });
+  return {
+    rows: [...model.rows],
+    cols: [...model.cols],
+    pages: model.pages.map((p) => {
+      const value = p.item !== undefined ? model.fields[p.field]?.items[p.item]?.value : undefined;
+      return value !== undefined ? { field: p.field, item: keyOf(value) } : { field: p.field };
+    }),
+    data: model.data.map((d) => ({ field: d.field, fn: d.fn, name: d.name })),
+    hidden,
+  };
+}
+
+/**
+ * The pivot table with its fields set as `setup` says. A field put on the
+ * rows, columns or filters for the first time has its items from `records`
+ * (the source's rows), sorted as Excel first lists them; one already there
+ * keeps its order, with values new since after it.
+ */
+export function withSetup(model: PivotModel, setup: PivotSetup, records: Rec[]): PivotModel {
+  const n = model.fields.length;
+  const valid = (x: number) => Number.isInteger(x) && x >= 0 && x < n;
+  const data = setup.data.filter((d) => valid(d.field) && FNS.has(d.fn));
+  // The Values field is among the rows or columns only with several values, and across the columns unless put down the rows.
+  const axis = (list: number[]) => [...new Set(list.filter((x) => valid(x) || (x === -2 && data.length > 1)))];
+  let rows = axis(setup.rows);
+  let cols = axis(setup.cols).filter((x) => !rows.includes(x));
+  if (data.length > 1 && !rows.includes(-2) && !cols.includes(-2)) cols = [...cols, -2];
+  const pages = setup.pages.filter((p, i) => valid(p.field) && !rows.includes(p.field) && !cols.includes(p.field) && setup.pages.findIndex((q) => q.field === p.field) === i);
+  const fields = model.fields.map((f, i): PivotField => {
+    const on = rows.includes(i) ? 'row' : cols.includes(i) ? 'col' : pages.some((p) => p.field === i) ? 'page' : undefined;
+    const hidden = new Set(setup.hidden[i] ?? []);
+    const known = f.items.filter((it) => it.value !== undefined);
+    const seen = new Set(known.map((it) => keyOf(it.value)));
+    const fresh: PivotItem[] = [];
+    if (on) {
+      for (const r of records) {
+        const k = keyOf(r[i]);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        fresh.push({ value: r[i] ?? null, hidden: false, collapsed: false });
+      }
+      if (!known.length) fresh.sort((a, b) => compareValues(a.value, b.value));
+    }
+    return { ...f, axis: on, items: [...known, ...fresh].map((it) => ({ ...it, hidden: !!on && hidden.has(keyOf(it.value)) })) };
+  });
+  return {
+    ...model,
+    fields,
+    rows,
+    cols,
+    pages: pages.map((p) => {
+      const at = p.item === undefined ? -1 : fields[p.field].items.findIndex((it) => keyOf(it.value) === p.item);
+      return at < 0 ? { field: p.field } : { field: p.field, item: at };
+    }),
+    data: data.map((d) => ({ ...d, numFmtId: model.data.find((was) => was.field === d.field)?.numFmtId })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Laying a pivot table out
 
 /** A cell of a laid-out pivot table: where it is from the table's top-left, what it holds, and what kind of cell it is. */
@@ -200,7 +286,7 @@ export interface PivotLayout {
 type Rec = PivotValue[];
 
 /** Which items match each other: Excel's are case-insensitive, and blank is its own item. */
-function keyOf(v: PivotValue | undefined): string {
+export function keyOf(v: PivotValue | undefined): string {
   if (v === null || v === undefined || v === '') return 'm';
   if (typeof v === 'string') return `s${v.toLowerCase()}`;
   if (typeof v === 'number') return `n${v}`;
@@ -317,7 +403,9 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
   // Which label column each row level is in: compact levels share their parent's.
   const rowCol: number[] = [];
   rowLevels.forEach((l, i) => rowCol.push(i === 0 ? 0 : formOf(l, i) === 'compact' && formOf(rowLevels[i - 1], i - 1) === 'compact' ? rowCol[i - 1] : rowCol[i - 1] + 1));
-  const labelCols = rowLevels.length ? rowCol[rowCol.length - 1] + 1 : 1;
+  const onlyValuesAcross = colLevels.length === 1 && 'values' in colLevels[0];
+  // With no row fields there is a label column only for the column fields' labels.
+  const labelCols = rowLevels.length ? rowCol[rowCol.length - 1] + 1 : colLevels.length && !onlyValuesAcross ? 1 : 0;
 
   /** The rows (or columns) under one level, recursively. */
   const entries = (levels: Level[], at: number, recs: Rec[], axis: 'row' | 'col'): Entry[] => {
@@ -376,7 +464,6 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
   if (model.colGrand) colsOut.push(...grand(colLevels));
 
   // Header rows: one per column level and one for the row labels' headers, or one alone when only the Values field is across.
-  const onlyValuesAcross = colLevels.length === 1 && 'values' in colLevels[0];
   const headerRows = colLevels.length && !onlyValuesAcross ? colLevels.length + 1 : 1;
   const firstDataRow = headerRows;
   const cells: PivotCell[] = [];
@@ -400,7 +487,9 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
     // The caption row: the one data field's name, then the column fields' heading.
     if (!values) put(0, 0, data[0]?.name ?? '', 'header');
     const first = colLevels[0];
-    put(0, labelCols, compactRows || !('field' in first) ? model.captions.colHeader : fields[first.field].name, 'header');
+    // Compact form captions it Excel's way; the others name the field. With no row fields, the column field's own form says which.
+    const compact = rowLevels.length ? compactRows : 'field' in first && fields[first.field].compact && fields[first.field].outline;
+    put(0, labelCols, compact || !('field' in first) ? model.captions.colHeader : fields[first.field].name, 'header');
   }
   // Column labels, each on its level's row, then the data fields' names where only they go across.
   colsOut.forEach((c, i) => {
@@ -438,7 +527,8 @@ export function layoutPivot(model: PivotModel, records: Rec[], label: (v: PivotV
 
   return {
     height: firstDataRow + rowsOut.length,
-    width: labelCols + colsOut.length,
+    // With no values and nothing across, there is only the row labels' column.
+    width: labelCols + (data.length || colLevels.length ? colsOut.length : 0),
     firstHeaderRow: 1,
     firstDataRow,
     firstDataCol: labelCols,

@@ -2210,6 +2210,121 @@
   line-height: 1.45;
 }
 
+/* The PivotTable Fields pane: the fields, ticked when used, then the four areas they go in, two by two. */
+.wbe .wbe-pivot-fields {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 4px 0;
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius);
+}
+
+.wbe .wbe-pivot-fields > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  cursor: grab;
+}
+
+.wbe .wbe-pivot-fields > li > label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.wbe .wbe-pivot-fields .wbe-btn.wbe-on {
+  color: var(--wbe-accent);
+}
+
+.wbe .wbe-pivot-filter {
+  flex-basis: 100%;
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+  padding: 8px;
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-surface-sunken);
+  cursor: auto;
+}
+
+.wbe .wbe-pivot-filter label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wbe .wbe-pivot-items {
+  display: grid;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.wbe .wbe-pivot-areas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.wbe .wbe-report .wbe-pivot-area {
+  min-height: 96px;
+  padding: 6px;
+  border: 1px solid var(--wbe-border);
+  border-radius: var(--wbe-radius);
+}
+
+.wbe .wbe-report .wbe-pivot-area.wbe-drop {
+  border-color: var(--wbe-accent);
+  background: var(--wbe-accent-tint);
+}
+
+.wbe .wbe-pivot-area h4 {
+  margin: 0 0 6px;
+  font-size: var(--wbe-font-size-sm);
+  font-weight: 600;
+}
+
+.wbe .wbe-pivot-area ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wbe .wbe-pivot-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--wbe-border-strong);
+  border-radius: var(--wbe-radius);
+  background: var(--wbe-surface);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: grab;
+}
+
+.wbe .wbe-pivot-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbe .wbe-pivot-chip:focus-visible {
+  outline: 2px solid var(--wbe-accent);
+  outline-offset: 1px;
+}
+
 .wbe .wbe-findings {
   list-style: none;
   margin: 0;

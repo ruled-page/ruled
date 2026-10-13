@@ -83,8 +83,9 @@ async function pivotSample() {
   const pivot = wb.addWorksheet('Pivot');
   pivot.getColumn(1).width = 16;
   pivot.getColumn(2).width = 14;
-  pivot.getCell('A1').value = 'Units by region (pivot table)';
-  pivot.getCell('A1').font = { bold: true };
+  // A1 and A2 are left for report filters, which go above the table, as Excel leaves them.
+  pivot.getCell('D1').value = 'Units by region (pivot table)';
+  pivot.getCell('D1').font = { bold: true };
   const sorted = [...REGIONS].sort();
   pivot.getCell('A3').value = 'Row Labels';
   pivot.getCell('B3').value = 'Sum of Units';
@@ -94,7 +95,7 @@ async function pivotSample() {
   });
   pivot.getCell('A8').value = 'Grand Total';
   pivot.getCell('B8').value = rows.reduce((a, r) => a + r.units, 0);
-  pivot.getCell('D3').value = 'Edit units on the Data sheet; the pivot refreshes when the file is opened in Excel.';
+  pivot.getCell('D2').value = 'Edit the Data sheet and the pivot table follows; right-click it and choose Show Field List to change its fields.';
 
   const bytes = new Uint8Array(await wb.xlsx.writeBuffer());
   const files = unzipSync(bytes);

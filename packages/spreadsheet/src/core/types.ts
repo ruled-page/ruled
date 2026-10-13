@@ -2,6 +2,8 @@ import type { Text } from '../i18n/message';
 import type { ChartSpec } from './charts';
 import type { NewChartKind } from './chartWriter';
 import type { ChartEdit } from './chartEdit';
+import type { PivotSetup } from './pivotTable';
+
 /** Inclusive, 0-based cell rectangle. */
 export interface Rect {
   r1: number;
@@ -406,6 +408,29 @@ export interface OutlineAxis {
   summaryAfter: boolean;
 }
 
+/** A pivot table as Excel's PivotTable Fields pane shows it. */
+export interface PivotInfo {
+  /** Its definition's part, which names it in changes to it. */
+  path: string;
+  name: string;
+  /** The cells it covers: its table, and its report filters' above it. */
+  regions: Rect[];
+  /** Why its fields can't be changed here, when they can't. */
+  kept?: Text;
+  fields: PivotFieldInfo[];
+  setup: PivotSetup;
+}
+
+export interface PivotFieldInfo {
+  name: string;
+  /** Its values are all numbers, so ticking it sums it, as Excel's pane does. */
+  numeric: boolean;
+  /** Its items as the source has them, for its filter, up to a limit. */
+  items: { key: string; label: string }[];
+  /** It has more items than are listed. */
+  more?: boolean;
+}
+
 export interface SheetInfo {
   index: number;
   name: string;
@@ -440,6 +465,8 @@ export interface SheetInfo {
   validationsKept?: boolean;
   blocked: BlockedRegion[];
   objects: SheetObject[];
+  /** Its pivot tables, as Excel's PivotTable Fields pane shows them. */
+  pivots?: PivotInfo[];
   notes: CellNote[];
   tables: TableInfo[];
   conditionalFormats: CfRule[];
@@ -712,7 +739,9 @@ export type LayoutOp =
   /** Excel's Insert Chart: a chart of `chart`'s kind plotting `rect`, placed between `from` and `to`; `title` is Excel's "Chart Title" in the user's language. */
   | { kind: 'insertChart'; chart: NewChartKind; rect: Rect; from: Anchor; to: Anchor; title: string }
   /** Excel's chart dialogs: the chart with key `key` changed as `edit` says; `title` is Excel's "Chart Title" in the user's language. */
-  | { kind: 'editChart'; key: string; edit: ChartEdit; title: string };
+  | { kind: 'editChart'; key: string; edit: ChartEdit; title: string }
+  /** Excel's PivotTable Fields pane: the pivot table whose part is `path` with its fields set as `setup` says; the setup before undoes it. */
+  | { kind: 'pivot'; path: string; setup: PivotSetup };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours
@@ -805,4 +834,6 @@ export interface EditResult {
   circular?: { sheet: number; row: number; col: number }[];
   /** Sheets whose read-only regions changed (a pivot table grown or shrunk), with all of them as they now are. */
   blocked?: { sheet: number; regions: BlockedRegion[] }[];
+  /** Sheets' pivot tables, where they were worked out again or changed. */
+  pivots?: { sheet: number; list: PivotInfo[] }[];
 }

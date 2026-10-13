@@ -46,6 +46,7 @@ import {
   type Rect,
   type RuleValidation,
   type ValidationAlert,
+  type PivotInfo,
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
 import { CSV_FILE, type CsvOptions } from '../core/csv';
@@ -59,6 +60,7 @@ import { fittedColumnWidth, fittedRowHeight, type MeasureText } from './autofit'
 import { checkboxState } from './checkbox';
 import type { NewChartKind } from '../core/chartWriter';
 import type { ChartEdit } from '../core/chartEdit';
+import type { PivotSetup } from '../core/pivotTable';
 import { objectEditable, objectKey, objectSize, shiftAnchor } from '../ui/objectGeometry';
 import { displayText, editText, exactText, isDateStyle } from './format';
 import { excelTextWidth } from './overflow';
@@ -345,7 +347,7 @@ export interface SchemaMismatch {
   tried: number;
 }
 
-export type Panel = 'issues' | 'changes' | 'report';
+export type Panel = 'issues' | 'changes' | 'report' | 'pivot';
 
 /** The dialog that defines a name, or edits the one `from` identifies, as it opens. */
 export interface NameDialog {
@@ -1510,6 +1512,10 @@ export class WorkbookStore {
     for (const b of r.blocked ?? []) {
       const view = this.sheets[b.sheet];
       if (view) view.info.blocked = b.regions;
+    }
+    for (const p of r.pivots ?? []) {
+      const view = this.sheets[p.sheet];
+      if (view) view.info.pivots = p.list;
     }
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     for (const n of r.noteRedo ?? []) this.sheets[n.sheet]?.setNote(n.row, n.col, n.note);
@@ -3158,6 +3164,24 @@ export class WorkbookStore {
   get inPivot(): boolean {
     const { row, col } = this.selection;
     return !!this.view?.info.blocked.some((b) => b.kind === 'pivot' && row >= b.r1 && row <= b.r2 && col >= b.c1 && col <= b.c2);
+  }
+
+  /** The pivot table the active cell is in, as the PivotTable Fields pane shows it. */
+  get activePivot(): PivotInfo | undefined {
+    const { row, col } = this.selection;
+    return this.view?.info.pivots?.find((p) => p.regions.some((r) => row >= r.r1 && row <= r.r2 && col >= r.c1 && col <= r.c2));
+  }
+
+  /** Excel's Show Field List: the PivotTable Fields pane, beside the sheet. */
+  showFieldList(): void {
+    this.set('panel', 'pivot');
+  }
+
+  /** Sets a pivot table's fields, as Excel's PivotTable Fields pane does, and lays it out again. One undoable step. */
+  async setPivotFields(path: string, setup: PivotSetup): Promise<void> {
+    const pivot = this.view?.info.pivots?.find((p) => p.path === path);
+    if (!pivot || pivot.kept) return;
+    await this.changeLayout({ kind: 'pivot', path, setup }, msg('pivot.history.fields', { name: pivot.name }));
   }
 
   // ---------------------------------------------------------------------------

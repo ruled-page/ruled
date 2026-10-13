@@ -6,6 +6,13 @@ export function distinctTexts(texts: Text[]): Text[] {
   return [...new Map(texts.map((t) => [JSON.stringify(t), t])).values()];
 }
 
+/** Each sheet's last entry in the results' lists of `key`, as one list, if any has one. */
+function lastPerSheet<K extends 'blocked' | 'pivots'>(results: EditResult[], key: K): Partial<Pick<EditResult, K>> {
+  const by = new Map<number, { sheet: number }>();
+  for (const r of results) for (const x of (r[key] ?? []) as { sheet: number }[]) by.set(x.sheet, x);
+  return by.size ? ({ [key]: [...by.values()] } as Partial<Pick<EditResult, K>>) : {};
+}
+
 /**
  * Combines results of edits applied one after another into one result that
  * undoes and redoes as a single step. Restoring applies snapshots in order
@@ -35,5 +42,7 @@ export function mergeEditResults(results: EditResult[]): EditResult {
     newStyles: results.flatMap((r) => r.newStyles),
     editedCount: results.length ? results[results.length - 1].editedCount : 0,
     rejected: results.find((r) => r.rejected)?.rejected,
+    ...lastPerSheet(results, 'blocked'),
+    ...lastPerSheet(results, 'pivots'),
   };
 }

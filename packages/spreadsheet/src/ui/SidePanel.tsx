@@ -206,11 +206,13 @@ function summarize(t: Translator, changes: CellChange[]): string {
 
 /** "What's in this file", loaded when its tab is first shown. */
 const report = lazyModule(() => import('./ReportPanel'));
+const pivotPanel = lazyModule(() => import('./PivotPanel'));
 
 export function SidePanel({ store }: { store: WorkbookStore }) {
   const t = useT();
   const panel = store.panel;
   const Report = report.useModule(panel === 'report');
+  const Pivot = pivotPanel.useModule(panel === 'pivot');
   if (!panel || (panel === 'report' && !store.features.report)) return null;
   return (
     <aside className="wbe-report" aria-label={t('panel.label')}>
@@ -219,6 +221,8 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           { id: 'issues', label: t('panel.checks') },
           { id: 'changes', label: t('panel.changes') },
           ...(store.features.report ? [{ id: 'report' as const, label: t('panel.report') }] : []),
+          // Excel's field list, there while a pivot table's cell is active or it is open.
+          ...(store.activePivot || panel === 'pivot' ? [{ id: 'pivot' as const, label: t('panel.pivot') }] : []),
         ]}
         value={panel}
         onChange={(id) => store.set('panel', id)}
@@ -238,7 +242,15 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           </div>
         )}
       >
-        {panel === 'issues' ? <IssuesBody store={store} /> : panel === 'changes' ? <ChangesBody store={store} /> : Report && <Report.ReportBody store={store} />}
+        {panel === 'issues' ? (
+          <IssuesBody store={store} />
+        ) : panel === 'changes' ? (
+          <ChangesBody store={store} />
+        ) : panel === 'pivot' ? (
+          Pivot && <Pivot.PivotFieldsBody store={store} />
+        ) : (
+          Report && <Report.ReportBody store={store} />
+        )}
       </Tabs>
     </aside>
   );

@@ -162,6 +162,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     ? [
         { label: t('pivot.menu.refresh'), hint: APPLE ? '⌥F5' : t('keys.altF5'), onSelect: () => void store.refreshPivots() },
         { label: t('pivot.menu.refreshAll'), hint: APPLE ? '⌃⌥F5' : t('keys.ctrlAltF5'), onSelect: () => void store.refreshPivots(true) },
+        { label: t('pivot.menu.fieldList'), onSelect: () => store.showFieldList() },
         { separator: true },
       ]
     : [];
