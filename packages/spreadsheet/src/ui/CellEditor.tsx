@@ -33,7 +33,7 @@ function CellEntry({ store, value, initialValue, onChange, onFinishedEditing, is
   const [sel, setSel] = useState<[number, number]>(() => [isHighlighted ? 0 : text.length, text.length]);
   const [popup, setPopup] = useState<{ left: number; top: number }>();
   const pendingSel = useRef<[number, number]>(undefined);
-  const assist = useFormulaAssist(text, sel[0], sel[1], editable);
+  const assist = useFormulaAssist(store, text, sel[0], sel[1], editable);
   const colored = editable && text.startsWith('=');
   const { row, col } = store.selection;
   const auto = useAutoComplete(store, row, col, editable && store.features.autoComplete);

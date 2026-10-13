@@ -85,34 +85,54 @@ function contextAt(text: string, at: number): { literal: boolean; calls: Call[] 
   return { literal: !!quote || brackets > 0, calls };
 }
 
+/** A defined name or a table, which Excel's list offers with the functions. */
+export interface NameHelp {
+  name: string;
+  kind: 'name' | 'table';
+  /** What it is: a name's comment, or what it refers to. */
+  description?: string;
+}
+
+/** A function, name or table the list offers. */
+export type CompletionItem = FunctionHelp | NameHelp;
+
+export const isNameHelp = (item: CompletionItem): item is NameHelp => 'kind' in item;
+
 export interface Completion {
   /** Where the name being typed starts; it ends at the caret. */
   start: number;
   end: number;
-  /** The functions it could be, in alphabetical order. */
-  matches: FunctionHelp[];
+  /** The functions, names and tables it could be, in alphabetical order. */
+  matches: CompletionItem[];
 }
 
 /**
- * The function name being typed at the caret and the functions it could be:
- * a word at the caret after "=", an operator, a comma, a bracket or a space,
- * and not in text, a sheet name or a table reference.
+ * The name being typed at the caret and the functions, and of `names` the
+ * names and tables, it could be: a word at the caret after "=", an
+ * operator, a comma, a bracket or a space, and not in text, a sheet name or
+ * a table reference.
  */
-export function completionAt(text: string, caret: number): Completion | undefined {
+export function completionAt(text: string, caret: number, names: readonly NameHelp[] = []): Completion | undefined {
   if (!text.startsWith('=') || NAME_CHAR.test(text[caret] ?? '')) return undefined;
   const word = NAME_AT_END.exec(text.slice(Math.max(1, caret - LONGEST_NAME), caret))?.[0];
   if (!word) return undefined;
   const start = caret - word.length;
   if (start > 1 && !BEFORE_NAME.test(text[start - 1])) return undefined;
   if (contextAt(text, start).literal) return undefined;
-  const matches = catalog?.functionsStartingWith(word) ?? [];
+  const prefix = word.toUpperCase();
+  const matches: CompletionItem[] = [...(catalog?.functionsStartingWith(word) ?? []), ...names.filter((n) => n.name.toUpperCase().startsWith(prefix))];
+  matches.sort((a, b) => (a.name.toUpperCase() < b.name.toUpperCase() ? -1 : a.name.toUpperCase() > b.name.toUpperCase() ? 1 : 0));
   return matches.length ? { start, end: caret, matches } : undefined;
 }
 
-/** The formula with the name being typed replaced by a function's and its opening bracket, and where the caret goes: inside the brackets. */
-export function insertFunction(text: string, at: Pick<Completion, 'start' | 'end'>, name: string): { text: string; caret: number } {
-  const bracket = text[at.end] === '(' ? '' : '(';
-  return { text: text.slice(0, at.start) + name + bracket + text.slice(at.end), caret: at.start + name.length + 1 };
+/**
+ * The formula with the name being typed replaced by a function's and its
+ * opening bracket, and where the caret goes: inside the brackets. A name or
+ * table (`call` false) goes in alone, the caret after it.
+ */
+export function insertFunction(text: string, at: Pick<Completion, 'start' | 'end'>, name: string, call = true): { text: string; caret: number } {
+  const bracket = !call || text[at.end] === '(' ? '' : '(';
+  return { text: text.slice(0, at.start) + name + bracket + text.slice(at.end), caret: at.start + name.length + (call ? 1 : 0) };
 }
 
 /** The function whose brackets the caret is in, where its name starts, and which of its arguments the caret is in (from 0), when Excel has it. */

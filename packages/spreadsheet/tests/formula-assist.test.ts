@@ -59,6 +59,19 @@ describe('function names as they are typed', () => {
     expect(names("='My Sheet'!A1+VL|")).toEqual(['VLOOKUP']);
   });
 
+  it("come with the workbook's names and tables, in one alphabetical list", () => {
+    const book = [
+      { name: 'TaxRate', kind: 'name', description: '=Prices!$B$2' },
+      { name: 'Sales', kind: 'table' },
+    ] as const;
+    const offered = (marked: string) => completionAt(...at(marked), book)?.matches.map((m) => m.name);
+    expect(offered('=ta|')).toEqual(['TAKE', 'TAN', 'TANH', 'TaxRate']);
+    expect(offered('=SUM(sa|')).toEqual(['Sales']);
+    expect(offered('="sa|')).toBeUndefined();
+    // A name or table goes in without a bracket.
+    expect(insertFunction('=1+sa*2', { start: 3, end: 5 }, 'Sales', false)).toEqual({ text: '=1+Sales*2', caret: 8 });
+  });
+
   it('are inserted with an opening bracket, the caret inside it', () => {
     const [text, caret] = at('=1+vl|*2');
     const c = completionAt(text, caret)!;

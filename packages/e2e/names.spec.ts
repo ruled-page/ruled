@@ -61,7 +61,15 @@ test('names the selection from the name box, goes to the name, uses it in a form
 
   await nameBoxEnter(page, 'Summary!B2');
   await expect(grid(page)).toHaveCount(1);
-  await page.keyboard.type('=SUM(Totals)*2', { delay: 30 });
+  // The function list offers the name too, with what it refers to; Tab puts it in, with no bracket.
+  await page.keyboard.type('=SUM(Tot', { delay: 30 });
+  const option = page.getByRole('listbox', { name: 'Functions and names' }).getByRole('option');
+  await expect(option).toHaveCount(1);
+  await expect(option).toContainText('Totals');
+  await expect(option).toContainText('Name');
+  await expect(page.locator('.wbe-fx-about')).toHaveText('=Lines!$D$2:$D$3');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type(')*2', { delay: 30 });
   await page.keyboard.press('Enter');
   await expect(shown(page, 'B2')).toHaveText('16');
 

@@ -247,7 +247,7 @@ export function FormulaBar({ store, view, selection }: { store: WorkbookStore; v
   const [scroll, setScroll] = useState(0);
   const [popupX, setPopupX] = useState(0);
   const pendingSel = useRef<[number, number]>(undefined);
-  const assist = useFormulaAssist(draft, sel[0], sel[1], focused && !readOnly);
+  const assist = useFormulaAssist(store, draft, sel[0], sel[1], focused && !readOnly);
   const auto = useAutoComplete(store, selection.row, selection.col, focused && !readOnly && store.features.autoComplete);
   const colored = focused && draft.startsWith('=');
   const apply = (text: string, start: number, end: number) => {

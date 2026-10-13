@@ -6,13 +6,19 @@ import {
   loadFunctionHelp,
   formulaReferences,
   insertFunction,
+  isNameHelp,
   signature,
   toggleAbsolute,
   type Completion,
   type FormulaRef,
+  type NameHelp,
 } from '../core/formulaAssist';
 import type { FunctionHelp } from '../core/functionCatalog';
+import { isListedName } from '../core/names';
+import type { DefinedName } from '../core/types';
+import { displayFormula } from '@ruled/formula/formula';
 import { autoComplete, columnEntries } from '../state/autoComplete';
+import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { useT } from '../i18n/react';
 
@@ -37,8 +43,23 @@ export interface FormulaAssist {
   setActive(index: number): void;
 }
 
+/**
+ * The names and tables a formula on the active sheet can use, as Excel's
+ * list offers them: the workbook's names and the sheet's own (which come
+ * first), and every table.
+ */
+function namesFor(names: readonly DefinedName[], sheets: readonly SheetView[], active: number): NameHelp[] {
+  const out = new Map<string, NameHelp>();
+  for (const n of [...names].sort((a, b) => (b.localSheet === active ? 1 : 0) - (a.localSheet === active ? 1 : 0))) {
+    if (!isListedName(n) || (n.localSheet !== undefined && n.localSheet !== active) || out.has(n.name.toUpperCase())) continue;
+    out.set(n.name.toUpperCase(), { name: n.name, kind: 'name', description: n.comment || displayFormula(n.formula) });
+  }
+  for (const v of sheets) for (const t of v.info.tables) out.set(t.name.toUpperCase(), { name: t.name, kind: 'table' });
+  return [...out.values()];
+}
+
 /** The help for a field holding `text` with the selection from `start` to `end`; off, it gives none. */
-export function useFormulaAssist(text: string, start: number, end: number, on: boolean): FormulaAssist {
+export function useFormulaAssist(store: WorkbookStore, text: string, start: number, end: number, on: boolean): FormulaAssist {
   const formula = on && text.startsWith('=');
   // The functions' list loads with the first formula; once it has, the help below is worked out again.
   const [loaded, setLoaded] = useState(functionHelpLoaded);
@@ -49,9 +70,10 @@ export function useFormulaAssist(text: string, start: number, end: number, on: b
   const [typedAt, setTypedAt] = useState<{ text: string; caret: number }>();
   const [picked, setPicked] = useState({ word: '', index: 0 });
   const caret = start === end ? end : -1;
+  const { names, sheets, active: sheet } = store;
   const completion = useMemo(
-    () => (formula && loaded && typedAt?.text === text && typedAt.caret === caret ? completionAt(text, caret) : undefined),
-    [formula, loaded, typedAt, text, caret],
+    () => (formula && loaded && typedAt?.text === text && typedAt.caret === caret ? completionAt(text, caret, namesFor(names, sheets, sheet)) : undefined),
+    [formula, loaded, typedAt, text, caret, names, sheets, sheet],
   );
   const hint = useMemo(() => (formula && loaded ? argumentAt(text, end) : undefined), [formula, loaded, text, end]);
   const refs = useMemo(() => (formula ? formulaReferences(text) : []), [formula, text]);
@@ -75,7 +97,8 @@ export function useFormulaAssist(text: string, start: number, end: number, on: b
 export function pickFunction(assist: FormulaAssist, text: string, index: number, apply: (text: string, start: number, end: number) => void): void {
   const c = assist.completion;
   if (!c) return;
-  const done = insertFunction(text, c, c.matches[index].name);
+  const item = c.matches[index];
+  const done = insertFunction(text, c, item.name, !isNameHelp(item));
   assist.dismiss();
   apply(done.text, done.caret, done.caret);
 }
@@ -146,14 +169,14 @@ export function FormulaText({ text, refs, anchor, anchorRef }: { text: string; r
   return <>{out}</>;
 }
 
-/** The list of functions matching the name being typed, and what the highlighted one does. */
+/** The list of functions, names and tables matching the name being typed, and what the highlighted one is. */
 export function FunctionList({ id, completion, active, onPick, onHover }: { id: string; completion: Completion; active: number; onPick: (i: number) => void; onHover: (i: number) => void }) {
   const t = useT();
   const list = useRef<HTMLUListElement>(null);
   useEffect(() => {
     list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active, completion]);
-  const fn = completion.matches[active];
+  const item = completion.matches[active];
   return (
     <>
       <ul
@@ -169,7 +192,7 @@ export function FunctionList({ id, completion, active, onPick, onHover }: { id: 
       >
         {completion.matches.map((f, i) => (
           <li
-            key={f.name}
+            key={`${isNameHelp(f) ? f.kind : 'function'}:${f.name}`}
             id={`${id}-${i}`}
             role="option"
             aria-selected={i === active}
@@ -182,16 +205,26 @@ export function FunctionList({ id, completion, active, onPick, onHover }: { id: 
             }}
           >
             <span>{f.name}</span>
-            {!f.calculated && <span className="wbe-fx-tag">{t('formulaHelp.notCalculated')}</span>}
+            {isNameHelp(f) ? (
+              <span className="wbe-fx-tag">{t(f.kind === 'name' ? 'formulaHelp.name' : 'formulaHelp.table')}</span>
+            ) : (
+              !f.calculated && <span className="wbe-fx-tag">{t('formulaHelp.notCalculated')}</span>
+            )}
           </li>
         ))}
       </ul>
-      {fn?.args !== undefined && (
-        <div className="wbe-fx-about">
-          <div className="wbe-fx-signature">{signature(fn, -1).map((p) => p.text)}</div>
-          {fn.description && <div>{fn.description}</div>}
-        </div>
-      )}
+      {item && isNameHelp(item)
+        ? item.description && (
+            <div className="wbe-fx-about">
+              <div>{item.description}</div>
+            </div>
+          )
+        : item?.args !== undefined && (
+            <div className="wbe-fx-about">
+              <div className="wbe-fx-signature">{signature(item, -1).map((p) => p.text)}</div>
+              {item.description && <div>{item.description}</div>}
+            </div>
+          )}
     </>
   );
 }

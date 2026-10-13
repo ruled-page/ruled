@@ -137,7 +137,9 @@ export const ui: Record<keyof typeof en, string> = {
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} Antworten)',
   'formulaBar.cell': 'Inhalt von {{ref}}',
 
-  'formulaHelp.functions': 'Funktionen',
+  'formulaHelp.functions': 'Funktionen und Namen',
+  'formulaHelp.name': 'Name',
+  'formulaHelp.table': 'Tabelle',
   'formulaHelp.notCalculated': 'Wird hier nicht berechnet',
   'formulaHelp.spokenArgument': '{{name}}, Argument {{number}}: {{argument}}',
   'formulaHelp.spokenFunction': 'Funktion {{name}}',

@@ -139,7 +139,9 @@ export const ui = {
   'formulaBar.withReplies_other': '{{summary}} ({{count, number}} replies)',
   'formulaBar.cell': 'Contents of {{ref}}',
 
-  'formulaHelp.functions': 'Functions',
+  'formulaHelp.functions': 'Functions and names',
+  'formulaHelp.name': 'Name',
+  'formulaHelp.table': 'Table',
   'formulaHelp.notCalculated': 'Not calculated here',
   'formulaHelp.spokenArgument': '{{name}}, argument {{number}}: {{argument}}',
   'formulaHelp.spokenFunction': '{{name}} function',
