@@ -42,7 +42,7 @@ Its answers are checked against Excel's, function by function, with workbooks Ex
 - Checking what a user typed against a formula before it reaches a sheet.
 - Running a pricing or quoting model written as Excel formulas, with inputs from a form.
 
-When people edit the workbook themselves, use the editor, `@ruled/sheet`, which calculates with this engine in a worker.
+To work out a saved .xlsx in Node, setting its inputs and saving it with its values up to date, see [recalculating saved workbooks](/formula/saved-workbooks/). When people edit the workbook themselves, use the editor, `@ruled/sheet`, which calculates with this engine in a worker.
 
 ## Install
 
