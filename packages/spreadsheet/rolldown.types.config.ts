@@ -12,6 +12,9 @@ const entry = (name: string, input: string, cleanDir = false) =>
   defineConfig({
     input: { [name]: input },
     plugins: [dts({ dtsInput: true })],
+    // Packages are never loaded: the types the exports use are the editor's own, so imports of
+    // other packages' types fall away, and check:bundle fails if any but React's remain.
+    external: (id) => !id.startsWith('.') && !id.startsWith('/'),
     output: { dir: 'dist/types', entryFileNames: '[name].d.ts', cleanDir },
   });
 

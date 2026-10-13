@@ -42,6 +42,12 @@ for (const [dir, pattern, kB] of BUDGETS) {
     if (size > kB) problems.push(line);
   }
 }
+// The type declarations import nothing a host would have to install but React.
+const types = join(root, 'packages/spreadsheet/dist/types');
+for (const f of existsSync(types) ? readdirSync(types) : []) {
+  const imported = [...readFileSync(join(types, f), 'utf8').matchAll(/(?:from|import\()\s*["']([^"'.][^"']*)["']/g)].map((m) => m[1]);
+  for (const pkg of new Set(imported)) if (!/^react(-dom)?(\/|$)/.test(pkg)) problems.push(`packages/spreadsheet/dist/types/${f}: imports ${pkg}, which hosts would have to install`);
+}
 for (const dir of PAGE_CODE) {
   const path = join(root, dir);
   if (!existsSync(path)) continue;
