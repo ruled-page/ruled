@@ -98,4 +98,9 @@ body,
   margin-top: 10px;
 }
 
-
+/* Which grid draws the sheets is for trying out on a desktop; on a phone the address's ?grid= chooses it. */
+@container wbe (max-width: 720px) {
+  .demo-grid {
+    display: none;
+  }
+}
