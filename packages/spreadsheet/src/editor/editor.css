@@ -2598,6 +2598,11 @@
 .wbe .wbe-modal {
   width: 440px;
   max-width: 100%;
+  /* No taller than the screen, as a phone's is, scrolling within instead. */
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--wbe-surface);
   border-radius: var(--wbe-radius-lg);
   box-shadow: var(--wbe-shadow);
@@ -3765,6 +3770,12 @@
 
 .wbe .wbe-save-short {
     display: inline;
+  }
+
+/* A finger's height to tap: each check or finding in the side panel, and a change's cell. */
+.wbe .wbe-finding-main,
+.wbe .wbe-cell-link {
+    min-height: 40px;
   }
 
 /* The format bar takes room the sheet needs: it shows when asked for, from "More". */

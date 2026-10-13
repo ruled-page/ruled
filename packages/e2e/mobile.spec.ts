@@ -138,6 +138,10 @@ test('dialogs fit the screen', async ({ page }) => {
   const box = (await dialog.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  // Taller than the screen, it scrolls within it, its last line within reach.
+  expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  await dialog.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  await expect(dialog.getByRole('row').last()).toBeInViewport();
   await page.getByRole('button', { name: 'Close' }).last().tap();
   await page.getByRole('button', { name: 'More' }).tap();
   await page.getByRole('button', { name: 'Schemas' }).tap();
