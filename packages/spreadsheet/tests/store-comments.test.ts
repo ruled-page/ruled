@@ -40,6 +40,18 @@ const toasts = () => store.toasts.map((t) => english.text(t.text));
 const actions = () => store.history.map((h) => [english.text(h.action), h.cells, h.refs.join(' ')]);
 
 describe('notes', () => {
+  it('are counted in the report as the sheets have them now, undo too', async () => {
+    await open();
+    const counted = () => store.findings.filter((f) => f.kind === 'comment').map((f) => `${f.sheet}: ${english.text(f.detail)}`);
+    const opening = counted();
+    expect(opening).toEqual([expect.stringMatching(/^Review: 1 note and 2 comment threads\./), expect.stringMatching(/^Locked: 1 note\./)]);
+    store.setActive(PLAIN);
+    await store.setNote(1, 1, 'Counted.');
+    expect(counted()).toContainEqual(expect.stringMatching(/^Plain: 1 note\./));
+    await store.undo();
+    expect(counted()).toEqual(opening);
+  });
+
   it('are added, edited and deleted with the user as author, a step of undo each', async () => {
     await open();
     store.setActive(PLAIN);

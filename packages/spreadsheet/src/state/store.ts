@@ -1,3 +1,4 @@
+import { notesFinding } from '../core/comments';
 import { mergeEditResults } from '../core/editResult';
 import { moveInsertLanding } from '../core/refTransform';
 import type { EditorTheme } from '../editor/theme';
@@ -1525,6 +1526,8 @@ export class WorkbookStore {
     }
     for (const u of r.updates) this.sheets[u.sheet]?.apply(u);
     for (const n of r.noteRedo ?? []) this.sheets[n.sheet]?.setNote(n.row, n.col, n.note);
+    // The report counts the notes and comments the sheets have now.
+    if (r.noteRedo?.length) this.findings = [...this.findings.filter((f) => f.kind !== 'comment'), ...this.sheets.flatMap((v) => notesFinding(v.info.name, v.noteList) ?? [])];
     this.noteCircular(r.circular, false);
     this.editedCount = r.editedCount;
     if (r.rejected) this.toast('error', r.rejected);

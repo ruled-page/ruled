@@ -1,5 +1,6 @@
 import { parseRange } from '@ruled/formula/refs';
-import type { CellNote, NoteEntry } from './types';
+import { msg } from '../i18n/message';
+import type { CellNote, Finding, NoteEntry } from './types';
 import { attr, child, decodeOoxmlText, descendants, parseXml, textOf } from './xml';
 
 /** Someone who has written a threaded comment in the workbook. */
@@ -79,4 +80,15 @@ export function parseThreads(xml: string, persons: Map<string, string>): CellNot
 export function mergeNotes(notes: CellNote[], threads: CellNote[]): CellNote[] {
   const threaded = new Set(threads.map((t) => `${t.row}:${t.col}`));
   return [...threads, ...notes.filter((n) => !threaded.has(`${n.row}:${n.col}`))];
+}
+
+/** The report's line on a sheet's notes and comment threads, how many of each it has; none when it has neither. */
+export function notesFinding(sheet: string, notes: readonly CellNote[]): Finding | undefined {
+  if (!notes.length) return undefined;
+  const threadCount = notes.filter((n) => n.kind === 'thread').length;
+  const noteCount = notes.length - threadCount;
+  const notesText = msg('core.finding.comments.notes', { count: noteCount });
+  const threadsText = msg('core.finding.comments.threads', { count: threadCount });
+  const what = noteCount && threadCount ? msg('core.finding.comments.notesAndThreads', { notes: notesText, threads: threadsText }) : noteCount ? notesText : threadsText;
+  return { kind: 'comment', severity: 'info', title: msg('core.finding.comments.title'), detail: msg('core.finding.comments.detail', { what }), sheet };
 }

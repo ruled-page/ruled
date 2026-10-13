@@ -6,7 +6,7 @@ import { parseConditionalFormats } from './conditionalFormat';
 import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
-import { mergeNotes, parseNotes, parsePeople, parseThreads, type Person } from './comments';
+import { mergeNotes, notesFinding, parseNotes, parsePeople, parseThreads, type Person } from './comments';
 import { readHyperlinks } from './hyperlinks';
 import type { Anchor, BlockedRegion, CellNote, DefinedName, FilterCondition, FilterOperator, FilterState, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
@@ -706,20 +706,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
       }
     }
     info.notes = mergeNotes(notes, threads);
-    if (info.notes.length) {
-      const threadCount = threads.length;
-      const noteCount = info.notes.length - threadCount;
-      const notesText = msg('core.finding.comments.notes', { count: noteCount });
-      const threadsText = msg('core.finding.comments.threads', { count: threadCount });
-      const what = noteCount && threadCount ? msg('core.finding.comments.notesAndThreads', { notes: notesText, threads: threadsText }) : noteCount ? notesText : threadsText;
-      findings.push({
-        kind: 'comment',
-        severity: 'info',
-        title: msg('core.finding.comments.title'),
-        detail: msg('core.finding.comments.detail', { what }),
-        sheet: name,
-      });
-    }
+    const noted = notesFinding(name, info.notes);
+    if (noted) findings.push(noted);
 
     const charts = info.objects.filter((o) => o.kind === 'chart');
     for (const c of charts) {

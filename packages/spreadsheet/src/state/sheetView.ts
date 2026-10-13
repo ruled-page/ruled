@@ -360,6 +360,11 @@ export class SheetView {
     return undefined;
   }
 
+  /** Its notes and comment threads as they now are. */
+  get noteList(): CellNote[] {
+    return [...this.notes.values()];
+  }
+
   noteAt(row: number, col: number): CellNote | undefined {
     return this.notes.get(cellKey(row, col));
   }

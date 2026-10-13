@@ -76,8 +76,6 @@ Small gaps found along the way.
   hold; the engine's limit (`MAX_ARRAY_CELLS` in
   `packages/formula-engine/src/sizeLimits.ts`) keeps a stray formula from
   taking the page's memory.
-- **The report's "Notes and comments" count** is what the file had when it
-  was opened, not what it has now.
 - **Deleting the rows that hold a sheet's last notes** leaves its comments
   part with no comments in it. It is valid, but Excel removes the part.
 - **Excel for the web may refuse a workbook whose LET formulas lack Excel's
