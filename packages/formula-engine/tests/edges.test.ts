@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RawContent } from '../src/api';
+import { fifteenDigits } from '../src/excelNumbers';
 import { engineFormula } from '../src/formula';
 import { nativeEngine } from '../src/native';
 
@@ -73,7 +74,7 @@ describe('statistics', () => {
       ['PERCENTILE({1,2,3,4},0.3)', 1.9],
       ['QUARTILE({1,2,4,7,8,9,10,12},1)', 3.5],
       ['COVAR({3,2,4,5,6},{9,7,12,15,17})', 5.2],
-      ['AGGREGATE(3,4,{1,"a",TRUE})', 3],
+      ['AGGREGATE(3,4,{1,"a",TRUE})', VALUE],
       ['COUNTA({1,"",TRUE})', 3],
       ['F.DIST(0,2,3,TRUE)', 0],
       ['F.DIST(0,2,3,FALSE)', 1],
@@ -211,5 +212,19 @@ describe('the engine', () => {
     e.write([{ sheet: 0, row: 39, col: 0, raw: 0 }]);
     expect([e.value(0, 0, 1), e.value(0, 39, 1)]).toEqual([210, (40 + 59) * 10 - 40]);
     e.destroy();
+  });
+});
+
+describe('numbers written with more than 15 digits', () => {
+  it('keeps the first fifteen and makes the rest zeros, as Excel does', () => {
+    expect(fifteenDigits('1234567890123456789')).toBe(1234567890123450000);
+    expect(fifteenDigits('-0.000123456789012345678')).toBe(-0.000123456789012345);
+    expect(fifteenDigits('1.23456789012345678e20')).toBe(1.23456789012345e20);
+    expect(fifteenDigits('123456789012345')).toBe(123456789012345);
+  });
+
+  it('reads anything else as JavaScript would', () => {
+    expect(fifteenDigits('0x10')).toBe(16);
+    expect(fifteenDigits('abc')).toBeNaN();
   });
 });

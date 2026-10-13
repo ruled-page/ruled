@@ -37,7 +37,7 @@ describe('strict paste', () => {
     expect(risks.map((r) => [r.text, english.text(r.reason), r.becomes])).toEqual([
       ['03/04/2026', 'ambiguous date', '3 Apr 2026'],
       ['007', 'leading zeros', '7'],
-      ['12345678901234567890', 'too many digits', '12345678901234567000'],
+      ['12345678901234567890', 'too many digits', '12345678901234500000'],
     ]);
   });
 });

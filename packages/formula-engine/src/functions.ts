@@ -527,7 +527,8 @@ const liftFirst = (spec: FunctionSpec): FunctionSpec => ({
 });
 
 function vlookup(args: Operand[], ctx: Ctx, horizontal: boolean): Scalar {
-  const target = scalarOf(args[0], ctx);
+  // An empty cell looked up is 0, as the older lookups read it.
+  const target = scalarOf(args[0], ctx) ?? 0;
   if (isError(target)) throw target;
   // Text can't be a table; a number or TRUE is a table of one.
   if (typeof args[1] === 'string') throw VALUE;
@@ -566,7 +567,8 @@ function flat(op: Operand, ctx: Ctx): { values: Scalar[]; rows: number; cols: nu
 }
 
 function match(args: Operand[], ctx: Ctx): number {
-  const target = scalarOf(args[0], ctx);
+  // An empty cell looked up is 0, as the older lookups read it.
+  const target = scalarOf(args[0], ctx) ?? 0;
   if (isError(target)) throw target;
   const { values, rows, cols } = flat(args[1], ctx);
   if (rows > 1 && cols > 1) throw NA;
@@ -1013,10 +1015,12 @@ function wrapLine(a: Operand[], ctx: Ctx, rows: boolean): Matrix {
   const m = matrixOf(a[0], ctx);
   if (m.rows > 1 && m.cols > 1) throw VALUE;
   const n = Math.trunc(num(scalarOf(a[1], ctx)));
-  if (n < 1 || n > (rows ? MAX_COLS : MAX_ROWS)) throw NUM;
+  if (n < 1) throw NUM;
   const pad = given(a, 2) ? scalarOf(a[2], ctx) : NA;
   const values = m.data.map((v) => v ?? 0);
   const lines = Math.ceil(values.length / n);
+  // An array inside a formula may be wider or taller than a sheet, as Excel's may, up to the engine's limit on its size.
+  if (lines * n > MAX_ARRAY_CELLS) throw NUM;
   const at = (line: number, i: number) => (line * n + i < values.length ? values[line * n + i] : pad);
   return rows ? Matrix.build(lines, n, (r, c) => at(r, c)) : Matrix.build(n, lines, (r, c) => at(c, r));
 }
@@ -3249,7 +3253,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         if (x instanceof Ref || x instanceof Matrix) for (const v of matrixOf(x, ctx).data) out += text(v);
         else out += text(scalarOf(x, ctx));
       }
-      return cellText(out);
+      // Longer than a cell holds is #CALC!, as Excel's newer text functions say.
+      if (out.length > MAX_TEXT) throw err('#CALC!');
+      return out;
     },
   },
   TEXTJOIN: {
@@ -3475,7 +3481,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
         results = result.data;
       }
       return eachValue(a[0], ctx, (target) => {
-        const at = approximate(keys, target);
+        // An empty cell looked up is 0, as the older lookups read it.
+        const at = approximate(keys, target ?? 0);
         if (at < 0 || at >= results.length) throw NA;
         return results[at];
       });
@@ -3689,13 +3696,14 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       }
       const f = code === 3 ? undefined : AGGREGATE_LISTS[code];
       const rest = a.slice(2);
+      // The functions that aren't ranked take references, not arrays, as Excel's reference form does.
+      if (rest.some((x) => x instanceof Matrix)) throw VALUE;
       if (code === 3) {
         // COUNTA, leaving out errors when asked.
         let n = 0;
         const count = (v: Scalar) => void (v !== null && !(skipErrors && isError(v)) && n++);
         for (const x of rest) {
           if (x instanceof Ref) ctx.host.each(x, count, skipSubtotals);
-          else if (x instanceof Matrix) x.data.forEach(count);
           else if (x !== undefined) count(scalarOf(x, ctx));
         }
         return n;

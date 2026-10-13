@@ -20,9 +20,9 @@ describe('values a paste would change', () => {
 
   it('flags numbers past 15 significant digits, not counting zeros at either end', () => {
     expect(risks([['1234567890123456', '0.1234567890123456789', '-12345678901234567']], 'en-US')).toEqual([
-      ['1234567890123456', '1234567890123456', 'too many digits'],
-      ['0.1234567890123456789', '0.12345678901234568', 'too many digits'],
-      ['-12345678901234567', '-12345678901234568', 'too many digits'],
+      ['1234567890123456', '1234567890123450', 'too many digits'],
+      ['0.1234567890123456789', '0.123456789012345', 'too many digits'],
+      ['-12345678901234567', '-12345678901234500', 'too many digits'],
     ]);
     expect(risks([['123456789012345', '1000000000000000000000', '0.000000000000000001']], 'en-US')).toEqual([]);
   });
@@ -38,15 +38,15 @@ describe('values a paste would change', () => {
     // These read as NaN before the separators were dropped.
     expect(risks([['01,234', '1,234,567,890,123,456']], 'en-US')).toEqual([
       ['01,234', '1234', 'leading zeros'],
-      ['1,234,567,890,123,456', '1234567890123456', 'too many digits'],
+      ['1,234,567,890,123,456', '1234567890123450', 'too many digits'],
     ]);
   });
 
   it('reads numbers with a decimal comma where the locale uses one', () => {
     expect(risks([['01,5', '1.234', '0123', '1.234.567.890.123.456', '0,1234567890123456789']], 'de-DE')).toEqual([
       ['0123', '123', 'leading zeros'],
-      ['1.234.567.890.123.456', '1234567890123456', 'too many digits'],
-      ['0,1234567890123456789', '0.12345678901234568', 'too many digits'],
+      ['1.234.567.890.123.456', '1234567890123450', 'too many digits'],
+      ['0,1234567890123456789', '0.123456789012345', 'too many digits'],
     ]);
   });
 

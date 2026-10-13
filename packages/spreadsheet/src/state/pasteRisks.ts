@@ -1,3 +1,4 @@
+import { fifteenDigits } from '@ruled/formula';
 import { localeInfo, normalizeForLocale, readLocalDate } from '../core/locale';
 import { msg, type Text } from '../i18n/message';
 
@@ -36,7 +37,8 @@ export function pasteRisks(values: readonly (readonly string[])[], locale: strin
       const digits = /^[-+]?(\d[\d,]*)(\.\d+)?$/.exec(number);
       if (!digits) continue;
       const significant = (digits[1] + (digits[2] ?? '')).replace(/[,.]/g, '').replace(/^0+/, '').replace(/0+$/, '');
-      const becomes = String(Number(number.replace(/,/g, '')));
+      // Digits past the fifteenth become zeros, as Excel and the editor store them.
+      const becomes = String(fifteenDigits(number.replace(/,/g, '')));
       if (significant.length > 15) {
         out.push({ text, becomes, reason: msg('store.paste.tooManyDigits') });
       } else if (/^0\d/.test(digits[1]) && !digits[2]) {

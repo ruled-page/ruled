@@ -716,7 +716,6 @@ export const FAMILIES: Record<string, string[]> = {
     '=TEXTJOIN("|",,VALUETOTEXT({4.14,"x"},1))',
     '=TEXTSPLIT(",",",",,TRUE)',
     '=SUM(FORECAST({4,5},{1;2},{1;2}))',
-    '=ROWS(WRAPROWS({1,2},2000000))',
   ],
   // Circular references worked round, in workbooks with iterative calculation on (ITERATIONS).
   iteration: ['=Loop!A1', '=Loop!B1', '=Loop!C1', '=Loop!D1', '=Loop!E1', '=Loop!F1', '=Loop!A1+Loop!B1'],

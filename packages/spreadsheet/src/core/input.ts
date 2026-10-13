@@ -1,6 +1,7 @@
 import { isDateFormat, isTextFormat, parseValue } from 'numfmt';
 import { msg, type Text } from '../i18n/message';
 import { parse, tokenize } from '@borgar/fx';
+import { fifteenDigits } from '@ruled/formula';
 import { toFileFormula } from '@ruled/formula/formula';
 import { localeInfo, normalizeForLocale } from './locale';
 import { EMPTY, type CellContent } from './types';
@@ -65,7 +66,10 @@ export function parseInput(text: string, cellNumFmt: string, locale = 'en-US', d
       const z = local.numFmt ?? parsed.z;
       const numFmt = z && cellNumFmt === 'General' ? z : undefined;
       // The parser counts days from 1900; a time on its own has no date to move.
-      const value = date1904 && z && isDateFormat(z) && parsed.v >= 1 ? parsed.v - DAYS_1900_TO_1904 : parsed.v;
+      // A plain number keeps fifteen significant digits, the rest becoming zeros, as Excel keeps them.
+      const plain = local.text.trim().replace(/,/g, '');
+      const v = /^[+-]?\d*\.?\d*(e[+-]?\d+)?$/i.test(plain) ? fifteenDigits(plain) : parsed.v;
+      const value = date1904 && z && isDateFormat(z) && v >= 1 ? v - DAYS_1900_TO_1904 : v;
       return { content: { kind: 'number', value }, numFmt };
     }
   }

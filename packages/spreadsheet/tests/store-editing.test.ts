@@ -297,7 +297,7 @@ describe('strict pasting of numbers', () => {
     expect(english.text(asked.title)).toBe('Check 2 pasted values');
     expect(asked.details?.rows).toEqual([
       ['007', '7', 'leading zeros'],
-      ['1234567890123456789', '1234567890123456800', 'too many digits'],
+      ['1234567890123456789', '1234567890123450000', 'too many digits'],
     ]);
     expect(asked.details?.more).toBe(0);
     expect(cell(5, 0)).toBeFalsy();

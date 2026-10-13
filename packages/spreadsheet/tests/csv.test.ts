@@ -194,7 +194,7 @@ describe('values, as Excel reads them from a CSV file', () => {
 
   it('loses leading zeros and digits past the fifteenth, as Excel does', () => {
     expect(read('007').content).toEqual({ kind: 'number', value: 7 });
-    expect(read('12345678901234567890').content).toEqual({ kind: 'number', value: 12345678901234567000 });
+    expect(read('12345678901234567890').content).toEqual({ kind: 'number', value: 12345678901234500000 });
   });
 
   it('reads dates and decimals in the locale', () => {

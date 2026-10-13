@@ -1,3 +1,4 @@
+import { fifteenDigits } from './excelNumbers';
 import { parse, parseR1C1Ref, tokenize, translateFormulaToR1C1 } from '@borgar/fx';
 import { stripFunctionPrefixes } from './formula';
 import { MAX_COLS, MAX_ROWS, toA1 } from './refs';
@@ -97,7 +98,7 @@ function compileR1C1(r1c1: string): Template {
 
 type AstNode =
   | { type: 'ReferenceIdentifier'; value: string; kind: string }
-  | { type: 'Literal'; value: string | number | boolean }
+  | { type: 'Literal'; value: string | number | boolean; raw?: string }
   | { type: 'ErrorLiteral'; value: string }
   | { type: 'UnaryExpression'; operator: string; arguments: AstNode[] }
   | { type: 'BinaryExpression'; operator: string; arguments: AstNode[] }
@@ -155,7 +156,8 @@ function node(n: AstNode | null | undefined, t: Template): Node {
   if (!n) return () => null;
   switch (n.type) {
     case 'Literal': {
-      const v = n.value;
+      // A number written with more than fifteen digits keeps fifteen, as Excel keeps them.
+      const v = typeof n.value === 'number' && n.raw !== undefined ? fifteenDigits(n.raw) : n.value;
       return () => v;
     }
     case 'ErrorLiteral': {
@@ -299,11 +301,8 @@ function binary(op: string, left: Node, right: Node): Node {
     const test = COMPARISON[op];
     f = (x, y) => (isError(x) ? x : isError(y) ? y : test(compare(x, y)));
   } else if (op === '&') {
-    // No longer than a cell holds.
-    f = guard((x, y) => {
-      const t = text(x) + text(y);
-      return t.length > 32767 ? VALUE : t;
-    });
+    // Cut off at what a cell holds, as Excel cuts it.
+    f = guard((x, y) => (text(x) + text(y)).slice(0, 32767));
   } else {
     return () => err('#NAME?');
   }

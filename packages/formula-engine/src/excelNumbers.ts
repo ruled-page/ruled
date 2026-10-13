@@ -25,3 +25,19 @@ export function numberText(n: number): string {
   const m = mantissa.replace(/\.?0+$/, '');
   return `${m}E${exp < 0 ? '-' : '+'}${String(Math.abs(exp)).padStart(2, '0')}`;
 }
+
+/**
+ * A number as Excel reads one written out (in a formula, or typed into a
+ * cell): digits past the fifteenth significant one become zeros rather than
+ * being rounded, so 1234567890123456789 is 1234567890123450000.
+ */
+export function fifteenDigits(written: string): number {
+  const m = /^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i.exec(written.trim());
+  if (!m) return Number(written);
+  const [, sign, int, frac = '', exp = '0'] = m;
+  const all = int + frac;
+  const lead = all.length - all.replace(/^0+/, '').length;
+  if (all.length - lead <= 15) return Number(written);
+  const kept = all.slice(0, lead + 15).padEnd(all.length, '0');
+  return Number(`${sign}${kept.slice(0, int.length) || '0'}.${kept.slice(int.length)}e${exp}`);
+}
