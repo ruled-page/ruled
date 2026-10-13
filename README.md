@@ -398,13 +398,23 @@ flavours into `packages/spreadsheet/dist/`:
 React:
 
 ```tsx
-import { createWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
+import { useWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
 import '@sitepen/spreadsheet/style.css';
 
-const editor = createWorkbookEditor({ schemas, onSave: (file) => upload(file.bytes) });
-<WorkbookEditor editor={editor} />;
-// Later: editor.destroy() stops its worker.
+function Review() {
+  // Made on mount, destroyed (with its worker) on unmount; null on the first render.
+  const editor = useWorkbookEditor({ schemas, onSave: (file) => upload(file.bytes) });
+  return editor && <WorkbookEditor editor={editor} />;
+}
 ```
+
+Theme, language, user, schemas and custom lists follow the hook's options as
+they change; callbacks can be inline (the latest is called); other options
+are read when the editor is made, so change them with a new `key`.
+`useEditorState(editor)` gives the status, file name, edit count and unsaved
+flag as React state. `createWorkbookEditor(options)` makes an editor to manage
+yourself; make it in an effect and call `destroy()` in its cleanup, as
+`useMemo` may throw one away without stopping its worker.
 
 Every host controls the editor through the same handle (`EditorHandle`):
 

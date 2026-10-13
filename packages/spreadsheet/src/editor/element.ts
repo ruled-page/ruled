@@ -1,3 +1,4 @@
+import { applyLiveOptions, changedOptions, LIVE_OPTIONS } from './liveOptions';
 import type { CsvOptions } from '../core/csv';
 import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
@@ -88,7 +89,6 @@ declare global {
 }
 
 /** Options a connected element applies without re-creating the editor. */
-const LIVE: (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas', 'customLists'];
 
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
@@ -147,17 +147,9 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       const next = value ?? {};
       this.opts = next;
       if (!this.handle) return;
-      const changed = (Object.keys({ ...before, ...next }) as (keyof StoreOptions)[]).filter((k) => before[k] !== next[k]);
-      if (changed.every((k) => LIVE.includes(k))) {
-        if (changed.includes('theme')) this.handle.setTheme(next.theme);
-        if (changed.includes('language') && next.language) this.handle.setLanguage(next.language);
-        if (changed.includes('user')) this.handle.setUser(next.user);
-        if (changed.includes('customLists')) this.handle.setCustomLists(next.customLists);
-        if (changed.includes('schemas')) {
-          const ids = new Set((next.schemas ?? []).map((s) => s.id));
-          for (const s of before.schemas ?? []) if (!ids.has(s.id)) this.handle.removeSchema(s.id);
-          for (const s of [...(next.schemas ?? [])].reverse()) this.handle.registerSchema(s);
-        }
+      const changed = changedOptions(before, next);
+      if (changed.every((k) => LIVE_OPTIONS.includes(k))) {
+        applyLiveOptions(this.handle, before, next, changed);
         return;
       }
       this.end();

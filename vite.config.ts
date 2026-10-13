@@ -31,6 +31,7 @@ export default defineConfig({
       exclude: [
         'packages/spreadsheet/src/ui/**/*.tsx',
         'packages/spreadsheet/src/ui/useDialog.ts',
+        'packages/spreadsheet/src/editor/hooks.ts',
         'packages/spreadsheet/src/editor/{WorkbookEditor.tsx,ErrorBoundary.tsx,mount.tsx,element.ts,standalone.ts,index.ts}',
         'examples/demo/src/{main.tsx,Welcome.tsx,i18n.ts,sites.ts}',
         'examples/react-portal/src/{*.tsx,i18n.ts,format.ts,sites.ts}',

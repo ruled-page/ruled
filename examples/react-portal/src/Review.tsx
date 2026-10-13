@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createWorkbookEditor, WorkbookEditor, type EditorHandle, type EditorTheme } from '@sitepen/spreadsheet';
+import { useWorkbookEditor, WorkbookEditor, type EditorTheme } from '@sitepen/spreadsheet';
 import { go } from './App';
 import { NS } from './i18n';
 import { readPriceLines } from './parse';
@@ -44,40 +44,42 @@ export function startReview(name: string, bytes: ArrayBuffer): void {
  */
 export function Review({ id }: { id?: string }) {
   const { t, i18n } = useTranslation(NS);
-  const [editor, setEditor] = useState<EditorHandle | null>(null);
   const [fileName, setFileName] = useState('');
   const [missing, setMissing] = useState(false);
 
+  // The editor follows the portal's language as it changes, and lives as long as this page.
+  const editor = useWorkbookEditor({
+    schemas: [supplierPriceList],
+    language: i18n.language,
+    theme: PORTAL_THEME,
+    // The portal chooses the file, and suppliers need neither the schema designer
+    // nor the report on what the file holds beyond what they fill in.
+    features: { open: false, schemas: false, report: false },
+    saveLabel: { en: 'Submit price list', de: 'Preisliste einreichen' },
+    user: 'Supplier',
+    // The host's save: read the values into the portal's own records and store them.
+    onSave: async (saved) => {
+      const submission: Submission = {
+        id: id ?? newId(),
+        fileName: saved.fileName,
+        submittedAt: new Date().toISOString(),
+        status: 'submitted',
+        bytes: saved.bytes,
+        lines: readPriceLines(saved, approvedPrices()),
+        changedCells: saved.editedCount,
+        warnings: saved.schema?.warnings ?? 0,
+      };
+      await putSubmission(submission);
+      pending = undefined;
+      // Once the editor has finished its save.
+      setTimeout(() => go(`/submissions/${submission.id}`), 0);
+    },
+  });
+
+  // The workbook: a submission being edited again, or the file just uploaded.
   useEffect(() => {
+    if (!editor) return;
     let current = true;
-    const editor = createWorkbookEditor({
-      schemas: [supplierPriceList],
-      language: i18n.language,
-      theme: PORTAL_THEME,
-      // The portal chooses the file, and suppliers need neither the schema designer
-      // nor the report on what the file holds beyond what they fill in.
-      features: { open: false, schemas: false, report: false },
-      saveLabel: { en: 'Submit price list', de: 'Preisliste einreichen' },
-      user: 'Supplier',
-      // The host's save: read the values into the portal's own records and store them.
-      onSave: async (saved) => {
-        const submission: Submission = {
-          id: id ?? newId(),
-          fileName: saved.fileName,
-          submittedAt: new Date().toISOString(),
-          status: 'submitted',
-          bytes: saved.bytes,
-          lines: readPriceLines(saved, approvedPrices()),
-          changedCells: saved.editedCount,
-          warnings: saved.schema?.warnings ?? 0,
-        };
-        await putSubmission(submission);
-        pending = undefined;
-        // Once the editor has finished its save.
-        setTimeout(() => go(`/submissions/${submission.id}`), 0);
-      },
-    });
-    setEditor(editor);
     const source = id
       ? getSubmission(id).then((s) => s && { name: s.fileName, bytes: s.bytes.slice().buffer as ArrayBuffer })
       : Promise.resolve(pending && { ...pending, bytes: pending.bytes.slice(0) });
@@ -90,18 +92,8 @@ export function Review({ id }: { id?: string }) {
     });
     return () => {
       current = false;
-      editor.destroy();
     };
-    // The language is passed on below, without re-creating the editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  useEffect(() => {
-    if (!editor) return;
-    const follow = (lng: string) => editor.setLanguage(lng);
-    i18n.on('languageChanged', follow);
-    return () => i18n.off('languageChanged', follow);
-  }, [editor, i18n]);
+  }, [editor, id]);
 
   if (missing) {
     return (

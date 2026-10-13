@@ -36,16 +36,17 @@ const pillars = [
   },
 ];
 
-const react = `import { createWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
+const react = `import { useWorkbookEditor, WorkbookEditor } from '@sitepen/spreadsheet';
 import '@sitepen/spreadsheet/style.css';
 import { priceList } from './schemas';
 
-const editor = createWorkbookEditor({
-  schemas: [priceList],
-  onSave: async (file) => upload(file.bytes, file.values),
-});
-
-export const Review = () => <WorkbookEditor editor={editor} />;`;
+export function Review() {
+  const editor = useWorkbookEditor({
+    schemas: [priceList],
+    onSave: async (file) => upload(file.bytes, file.values),
+  });
+  return editor && <WorkbookEditor editor={editor} />;
+}`;
 
 const element = `<workbook-editor src="/files/prices.xlsx" save-handler="event"></workbook-editor>
 

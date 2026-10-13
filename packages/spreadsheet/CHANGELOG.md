@@ -61,6 +61,23 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   columns, values, report filters, subtotals and grand totals, in compact,
   outline or tabular form. Their cells are worked out, not counted as
   edits; the change list notes each pivot table instead.
+- The PivotTable Fields pane, from "Show Field List" in a pivot table's cell
+  menu: tick fields, drag them between Filters, Columns, Rows and Values,
+  filter their items, and change how values are summarised, each an
+  undoable step. A changed pivot table is saved with its definition written
+  again and its cache made again from the source, for Excel to refresh.
+- Insert PivotTable, from the cell menu: an empty pivot table over a range,
+  a table or a name, on a new sheet or at a cell, with the Fields pane open.
+- Show Values As: percentages of totals and parents, differences, running
+  totals, ranks and index against base fields and items, worked out live.
+- A pivot table's report filters above it are read-only, as its table is.
+- `useWorkbookEditor(options)`: a React hook that makes an editor when the
+  component mounts and destroys it when it unmounts, applies theme,
+  language, user, schema and custom list changes as they come, and calls
+  the latest callbacks. `useEditorState(editor)` gives its status, file name
+  and edits as React state.
+- The element no longer re-creates its editor when it's given options with
+  a new but equal theme, schema list or custom lists.
 - Radar, bubble and stock charts are drawn, as are 3-D charts (flat) and
   pie of pie (as one pie); the demo has a Chart gallery sample of them.
   Changing only the title of a chart of such a kind no longer turns it

@@ -9,7 +9,7 @@ The editor is one package, `@sitepen/spreadsheet`, with two builds:
 
 | Import | What it is | Use it from |
 | --- | --- | --- |
-| `@sitepen/spreadsheet` | The React component, `createWorkbookEditor` and the types. React 18 or 19 is a peer dependency. | React apps |
+| `@sitepen/spreadsheet` | The React component, the `useWorkbookEditor` hook, `createWorkbookEditor` and the types. React 18 or 19 is a peer dependency. | React apps |
 | `@sitepen/spreadsheet/standalone` | Everything bundled, React, the worker and the styles included, defining the `<workbook-editor>` element. | Plain HTML, Angular, Vue, Svelte, server-rendered pages |
 
 ```sh
