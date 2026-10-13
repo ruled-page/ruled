@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toA1 } from '@ruled/formula/refs';
 import type { FindQuery, WorkbookStore } from '../state/store';
 import { Icon } from './icons';
-import { shortcutKey } from './keys';
+import { commandKey, shortcutKey } from './keys';
 import { useDialog } from './useDialog';
 import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
@@ -65,7 +65,7 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
   step.current = go;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || shortcutKey(e) !== 'g') return;
+      if (!commandKey(e) || e.altKey || shortcutKey(e) !== 'g') return;
       e.preventDefault();
       step.current(e.shiftKey ? -1 : 1);
     };

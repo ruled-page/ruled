@@ -22,6 +22,15 @@ export function redoKey(t: Translator, apple = APPLE): string {
 }
 
 /**
+ * Whether a key was pressed with the platform's command key: ⌘ (or ⌃) on
+ * Apple devices, Ctrl elsewhere, where the Meta key (Windows, Super) is the
+ * system's.
+ */
+export function commandKey(e: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey'>, apple = APPLE): boolean {
+  return e.ctrlKey || (apple && e.metaKey);
+}
+
+/**
  * The key of a shortcut such as Ctrl+Z: the letter the key types, so the
  * shortcut follows the keyboard's layout, or where it types no Latin letter
  * (a Cyrillic layout, or a browser that doesn't say) the key in that place on

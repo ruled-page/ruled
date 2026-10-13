@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shortcutKey } from '../src/ui/keys';
+import { commandKey, shortcutKey } from '../src/ui/keys';
 
 describe('shortcut keys', () => {
   it('follow the letter the key types, so they move with the keyboard layout', () => {
@@ -26,5 +26,13 @@ describe('shortcut keys', () => {
   it('leave other keys as they are', () => {
     expect(shortcutKey({ key: 'F6', code: 'F6' })).toBe('f6');
     expect(shortcutKey({ key: 'Enter', code: 'Enter' })).toBe('enter');
+  });
+});
+
+describe('the command key', () => {
+  it('is ⌘ or ⌃ on Apple devices, and Ctrl elsewhere, where Meta (Windows, Super) is the system’s', () => {
+    expect([commandKey({ ctrlKey: false, metaKey: true }, true), commandKey({ ctrlKey: true, metaKey: false }, true)]).toEqual([true, true]);
+    expect([commandKey({ ctrlKey: false, metaKey: true }, false), commandKey({ ctrlKey: true, metaKey: false }, false)]).toEqual([false, true]);
+    expect(commandKey({ ctrlKey: false, metaKey: false }, true)).toBe(false);
   });
 });

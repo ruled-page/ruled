@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, ty
 import { toA1 } from '@ruled/formula/refs';
 import type { CellNote, NoteEntry } from '../core/types';
 import type { WorkbookStore } from '../state/store';
-import { mod } from './keys';
+import { commandKey, mod } from './keys';
 import { noteDate } from './NoteTip';
 import { useDialog } from './useDialog';
 import { useT } from '../i18n/react';
@@ -18,7 +18,7 @@ function useFocusFirst<T extends HTMLElement>(): RefObject<T | null> {
 
 /** Ctrl+Enter (⌘Enter) in a note's or comment's text sends it, as in Excel; Enter starts a new line. */
 function sendOnModEnter(e: KeyboardEvent<HTMLTextAreaElement>): void {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+  if (e.key === 'Enter' && commandKey(e)) {
     e.preventDefault();
     e.currentTarget.form?.requestSubmit();
   }

@@ -41,7 +41,7 @@ import type { Selection, WorkbookStore } from '../state/store';
 import { textCellEditor } from './CellEditor';
 import { EnumEditor, enumOptionsOf, type EnumCell } from './EnumEditor';
 import { noteSummary } from './FormulaBar';
-import { APPLE } from './keys';
+import { APPLE, commandKey } from './keys';
 import { LinkTip } from './LinkTip';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
@@ -1398,7 +1398,7 @@ export function SheetGrid({
         void store.toggleCheckboxes();
         return;
       }
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      if (e.key === 'Enter' && commandKey(e) && !e.shiftKey && !e.altKey) {
         e.cancel();
         e.preventDefault();
         void store.followLink();
@@ -1461,7 +1461,7 @@ export function SheetGrid({
       }
       // Ctrl+Shift+L, or ⇧⌘F on a Mac, turns the filter buttons on or off, as in Excel.
       const letter = e.key.toLowerCase();
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {
+      if (commandKey(e) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {
         e.cancel();
         e.preventDefault();
         void store.toggleFilter();
@@ -1469,7 +1469,7 @@ export function SheetGrid({
       }
       // Ctrl++ (Ctrl+Shift+= on a US keyboard) inserts and Ctrl+- deletes, as in Excel, in place of the browser's zoom.
       const insert = e.key === '+' || (e.key === '=' && e.shiftKey);
-      if ((insert || e.key === '-') && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      if ((insert || e.key === '-') && commandKey(e) && !e.altKey) {
         e.cancel();
         e.preventDefault();
         store.changeCells(insert ? 'insert' : 'delete');

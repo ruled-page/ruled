@@ -8,7 +8,7 @@ import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
 import { PORTAL_ID } from '../ui/glideDom';
 import { Icon, IconContext } from '../ui/icons';
-import { APPLE, shortcutKey, shortcutsKey } from '../ui/keys';
+import { APPLE, commandKey, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
 import { EditorBoundary } from './ErrorBoundary';
 import { storeOf, type EditorHandle } from './handle';
@@ -169,7 +169,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
     const inEditor = (target: EventTarget | null) =>
       target instanceof Node && (root.current?.contains(target) || document.getElementById(PORTAL_ID)?.contains(target));
     const onKey = (e: KeyboardEvent) => {
-      const command = e.metaKey || e.ctrlKey;
+      const command = commandKey(e);
       if (!inEditor(e.target) || !root.current) return;
       // F6 is Excel's key for this; browsers that keep F6 for their address bar leave Ctrl+F6.
       if (e.key === 'F6' && !e.altKey && !e.metaKey && (!store.designerOpen || store.designerPick) && !store.confirmRequest) {
