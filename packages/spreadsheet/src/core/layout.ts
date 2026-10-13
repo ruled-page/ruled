@@ -202,7 +202,7 @@ export class SheetLayout {
   }
 
   /** Makes the change, returning the change that undoes it. */
-  apply(op: Exclude<LayoutOp, { kind: 'links' | 'validations' | 'conditionalFormats' | 'objects' | 'insertChart' | 'editChart' | 'pivot' }>): LayoutOp {
+  apply(op: Exclude<LayoutOp, { kind: 'links' | 'validations' | 'conditionalFormats' | 'objects' | 'insertChart' | 'editChart' | 'pivot' | 'insertPivot' | 'removePivot' }>): LayoutOp {
     switch (op.kind) {
       case 'colWidths':
         return { kind: 'colWidths', widths: setEach(op.widths, (c) => this.colWidth(c), (c, px) => this.colWidths.set(c, px)) };

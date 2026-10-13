@@ -1,3 +1,4 @@
+import { addPivotTable, type NewPivotParts } from './pivotWriter';
 import type { EngineValue } from '@sitepen/formula-engine';
 import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
@@ -62,6 +63,8 @@ export interface SaveInput {
   pivots?: { path: string; ref: string; firstHeaderRow: number; firstDataRow: number; firstDataCol: number }[];
   /** Parts of pivot tables whose fields were changed, and of their caches, written again whole. */
   pivotParts?: { path: string; xml: string }[];
+  /** Pivot tables inserted here, to be added as new parts. */
+  newPivots?: NewPivotParts[];
 }
 
 type Patch =
@@ -147,6 +150,10 @@ export function buildPackage(input: SaveInput): OoxmlPackage {
   }
 
   for (const part of input.pivotParts ?? []) pkg.setText(part.path, part.xml);
+  for (const p of input.newPivots ?? []) {
+    const sheet = model.sheets[p.sheet];
+    if (sheet) addPivotTable(pkg, model.workbookPath, sheet.path, p);
+  }
 
   if (input.stripMacros) removeMacros(pkg, model.workbookPath);
   if (input.properties) setCustomProperties(pkg, input.properties);

@@ -741,7 +741,16 @@ export type LayoutOp =
   /** Excel's chart dialogs: the chart with key `key` changed as `edit` says; `title` is Excel's "Chart Title" in the user's language. */
   | { kind: 'editChart'; key: string; edit: ChartEdit; title: string }
   /** Excel's PivotTable Fields pane: the pivot table whose part is `path` with its fields set as `setup` says; the setup before undoes it. */
-  | { kind: 'pivot'; path: string; setup: PivotSetup };
+  | { kind: 'pivot'; path: string; setup: PivotSetup }
+  /**
+   * Excel's Insert PivotTable: an empty pivot table named `name` (the next
+   * PivotTableN if not given) over `source`, a range such as Data!$A$1:$E$101
+   * or a table's or a name's name, with its top-left cell at `row` and `col`.
+   * `path` is its part's, when it is put back; `removePivot` undoes it.
+   */
+  | { kind: 'insertPivot'; source: string; row: number; col: number; name?: string; path?: string }
+  /** A pivot table inserted here taken out again. */
+  | { kind: 'removePivot'; path: string };
 
 /**
  * A change to cells' formats; what it leaves out stays as it was. Colours

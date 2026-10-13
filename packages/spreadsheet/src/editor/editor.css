@@ -1347,6 +1347,11 @@
   color: var(--wbe-placeholder-text-muted);
 }
 
+/* Insert PivotTable: the data, then where it goes. */
+.wbe .wbe-modal.wbe-pivot-dialog {
+  width: 420px;
+}
+
 /* The chart dialog: type and legend side by side, then the title and the data. */
 .wbe .wbe-modal.wbe-chart-dialog {
   width: 560px;

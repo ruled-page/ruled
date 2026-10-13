@@ -75,3 +75,25 @@ test('the PivotTable Fields pane changes a pivot table’s fields, filters its i
   await expect(shown(page, 'A1')).toHaveText('');
   await expect(shown(page, 'A5')).toHaveText('East');
 });
+
+test('Insert PivotTable puts an empty pivot table on a new sheet, ready for its fields', async ({ page }) => {
+  await openSample(page, 'Pivot table');
+  await page.getByRole('tab', { name: 'Data' }).click();
+  await goTo(page, 'B5');
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Insert PivotTable…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Insert PivotTable' });
+  await expect(dialog.getByLabel('Table or range')).toHaveValue('Data!$A$1:$E$101');
+  await dialog.getByRole('button', { name: 'OK' }).click();
+
+  // A new sheet before the data, with the Fields pane open beside the empty pivot table.
+  await expect(page.getByRole('tab', { name: 'Sheet1' })).toBeVisible();
+  const pane = page.getByRole('complementary');
+  await expect(pane.getByText('PivotTable1')).toBeVisible();
+  await pane.getByRole('checkbox', { name: 'Region' }).click();
+  await expect(pane.getByRole('checkbox', { name: 'Region' })).toBeChecked();
+  await pane.getByRole('checkbox', { name: 'Units' }).click();
+  await expect(shown(page, 'A3')).toHaveText('Row Labels');
+  await expect(shown(page, 'A8')).toHaveText('Grand Total');
+  await expect(shown(page, 'B8')).toHaveText(/^4,?554$/);
+});

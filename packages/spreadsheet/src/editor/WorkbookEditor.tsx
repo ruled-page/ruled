@@ -36,6 +36,7 @@ const validationDialog = lazyModule(() => import('../ui/ValidationDialog'));
 const cfDialogs = lazyModule(() => import('../ui/CfDialogs'));
 const numberFormatDialog = lazyModule(() => import('../ui/NumberFormatDialog'));
 const chartDialog = lazyModule(() => import('../ui/ChartDialog'));
+const pivotDialog = lazyModule(() => import('../ui/PivotDialog'));
 // The cell menu, the filter menu, Find, and the dialogs for sizes, inserting cells and the shortcuts.
 const gridMenu = lazyModule(() => import('../ui/GridMenu'));
 const filterPicker = lazyModule(() => import('../ui/FilterPicker'));
@@ -259,6 +260,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Validation = validationDialog.useModule(!!store.validationDialog);
   const NumberFormat = numberFormatDialog.useModule(store.numberFormatOpen);
   const ChartEditor = chartDialog.useModule(!!store.chartDialog);
+  const PivotInserter = pivotDialog.useModule(!!store.pivotDialog);
   const Cf = cfDialogs.useModule(!!store.cfDialog || !!store.cfManager || !!store.cfGallery);
   const Menu = gridMenu.useModule(!!store.menu);
   const Filter = filterPicker.useModule(!!store.filterPicker);
@@ -275,7 +277,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog, validationDialog, cfDialogs, numberFormatDialog, chartDialog]) m.preload();
+      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog, validationDialog, cfDialogs, numberFormatDialog, chartDialog, pivotDialog]) m.preload();
     });
   }, [opened]);
 
@@ -390,6 +392,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.validationDialog && Validation && <Validation.ValidationDialog store={store} />}
       {ready && store.numberFormatOpen && NumberFormat && <NumberFormat.NumberFormatDialog store={store} />}
       {ready && store.chartDialog && ChartEditor && <ChartEditor.ChartDialog store={store} />}
+      {ready && store.pivotDialog && PivotInserter && <PivotInserter.PivotDialog store={store} />}
       {ready && store.cfManager && Cf && <Cf.CfManager store={store} />}
       {ready && store.cfDialog && Cf && <Cf.CfDialog store={store} />}
       {ready && store.cfGallery && Cf && <Cf.CfGallery store={store} />}

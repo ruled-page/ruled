@@ -4,11 +4,15 @@
  * in their new places. Excel is asked to refresh the cache on opening, so it
  * works out the rows and columns of items itself.
  */
+import { addRel, setOverride } from './commentWriter';
 import { keyOf, sharedValue, type PivotModel, type PivotValue } from './pivotTable';
-import { attr, child, children, elements, escapeXml, findTagEnd, parseXml, replaceElements, setAttributes } from './xml';
+import { attr, child, children, elements, escapeXml, findTagEnd, firstElement, parseXml, replaceElements, setAttributes } from './xml';
+import type { OoxmlPackage } from './zip';
 
 const MAIN_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+const CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml';
 
 /** A date's serial number as the date-time a cache gives it. */
 function isoOf(serial: number): string {
@@ -207,4 +211,66 @@ export function rewritePivotTable(
     }),
   );
   return setRoot(out, 'pivotTableDefinition', { dataOnRows: model.rows.includes(-2) ? '1' : null, dataPosition: null });
+}
+
+/** A new pivot table's cache before its values are in: its source and a field for each column. */
+export function newPivotCacheXml(model: PivotModel): string {
+  const src = model.source ?? {};
+  const where = src.name !== undefined ? `name="${escapeXml(src.name)}"` : `ref="${escapeXml(src.ref ?? '')}" sheet="${escapeXml(src.sheet ?? '')}"`;
+  const fields = model.fields.map((f) => `<cacheField name="${escapeXml(f.name)}" numFmtId="${f.numFmtId ?? 0}"><sharedItems/></cacheField>`).join('');
+  return (
+    `${XML_HEAD}<pivotCacheDefinition xmlns="${MAIN_NS}" xmlns:r="${R_NS}" refreshOnLoad="1" createdVersion="8" refreshedVersion="8" minRefreshableVersion="3" recordCount="0">` +
+    `<cacheSource type="worksheet"><worksheetSource ${where}/></cacheSource><cacheFields count="${model.fields.length}">${fields}</cacheFields></pivotCacheDefinition>`
+  );
+}
+
+/** A new pivot table's definition before its fields are placed, with Excel's default style. */
+export function newPivotTableXml(model: PivotModel, cacheId: number): string {
+  return (
+    `${XML_HEAD}<pivotTableDefinition xmlns="${MAIN_NS}" name="${escapeXml(model.name)}" cacheId="${cacheId}" applyNumberFormats="0" applyBorderFormats="0" applyFontFormats="0" applyPatternFormats="0" applyAlignmentFormats="0" applyWidthHeightFormats="1" dataCaption="Values" updatedVersion="8" minRefreshableVersion="3" useAutoFormatting="1" itemPrintTitles="1" createdVersion="8" indent="0" outline="1" outlineData="1" multipleFieldFilters="0">` +
+    `<location ref="A1" firstHeaderRow="1" firstDataRow="1" firstDataCol="0"/><pivotFields count="${model.fields.length}">${'<pivotField showAll="0"/>'.repeat(model.fields.length)}</pivotFields>` +
+    '<pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1" showRowStripes="0" showColStripes="0" showLastColumn="1"/></pivotTableDefinition>'
+  );
+}
+
+export interface NewPivotParts {
+  sheet: number;
+  cacheId: number;
+  table: { path: string; xml: string };
+  cache: { path: string; xml: string };
+  records: { path: string; xml: string };
+}
+
+/** Workbook elements a `<pivotCaches>` goes before. */
+const AFTER_PIVOT_CACHES = ['smartTagPr', 'smartTagTypes', 'webPublishing', 'fileRecoveryPr', 'webPublishObjects', 'extLst'];
+
+/** The workbook's list of pivot caches with one more. */
+function withPivotCache(xml: string, cacheId: number, id: string): string {
+  const prefix = /<(\w+:)?workbook\b/.exec(xml)?.[1] ?? '';
+  const ns = /<(\w+:)?workbook\b[^>]*\sxmlns:r=/.test(xml) ? '' : ` xmlns:r="${R_NS}"`;
+  const tag = `<${prefix}pivotCache cacheId="${cacheId}" r:id="${id}"${ns}/>`;
+  const caches = firstElement(xml, 'pivotCaches');
+  if (caches) {
+    const inner = `${caches.inner ?? ''}${tag}`;
+    return `${xml.slice(0, caches.start)}<${caches.qname}${caches.attrs}>${inner}</${caches.qname}>${xml.slice(caches.end)}`;
+  }
+  const before = AFTER_PIVOT_CACHES.map((n) => firstElement(xml, n)?.start).filter((n): n is number => n !== undefined);
+  const at = before.length ? Math.min(...before) : xml.lastIndexOf(`</${prefix}workbook>`);
+  return `${xml.slice(0, at)}<${prefix}pivotCaches>${tag}</${prefix}pivotCaches>${xml.slice(at)}`;
+}
+
+/** A pivot table inserted here added to the package: its parts, their content types, and the relationships that find them. */
+export function addPivotTable(pkg: OoxmlPackage, workbookPath: string, sheetPath: string, parts: NewPivotParts): void {
+  pkg.setText(parts.records.path, parts.records.xml);
+  setOverride(pkg, parts.records.path, `${CT}.pivotCacheRecords+xml`);
+  const records = addRel(pkg, parts.cache.path, `${R_NS}/pivotCacheRecords`, parts.records.path);
+  pkg.setText(parts.cache.path, setRoot(parts.cache.xml, 'pivotCacheDefinition', { 'r:id': records }));
+  setOverride(pkg, parts.cache.path, `${CT}.pivotCacheDefinition+xml`);
+  pkg.setText(parts.table.path, parts.table.xml);
+  setOverride(pkg, parts.table.path, `${CT}.pivotTable+xml`);
+  addRel(pkg, parts.table.path, `${R_NS}/pivotCacheDefinition`, parts.cache.path);
+  addRel(pkg, sheetPath, `${R_NS}/pivotTable`, parts.table.path);
+  const id = addRel(pkg, workbookPath, `${R_NS}/pivotCacheDefinition`, parts.cache.path);
+  const workbook = pkg.text(workbookPath);
+  if (workbook) pkg.setText(workbookPath, withPivotCache(workbook, parts.cacheId, id));
 }

@@ -174,3 +174,94 @@ describe('a pivot table whose fields were changed, saved', () => {
     expect(reopen(s.save()).apply({ type: 'refreshPivots' }).undo).toEqual([]);
   });
 });
+
+describe('Insert PivotTable', () => {
+  const insert = (s: WorkbookSession, sheet: number, source: string, row: number, col: number) => s.apply({ type: 'layout', sheet, op: { kind: 'insertPivot', source, row, col } });
+  const pivots = (s: WorkbookSession, sheet: number) => s.loadResult().sheets[sheet].pivots ?? [];
+
+  it('makes an empty pivot table with a field for each heading, covering Excel’s outline of one until fields are placed', () => {
+    const s = open('pivot.xlsx');
+    const r = insert(s, 1, 'Data!$A$1:$E$101', 12, 0);
+    expect(r.rejected).toBeUndefined();
+    const made = pivots(s, 1)[1];
+    expect(made).toMatchObject({ path: 'xl/pivotTables/pivotTable2.xml', name: 'PivotTable1', regions: [{ r1: 12, c1: 0, r2: 29, c2: 2 }] });
+    expect(made.fields.map((f) => f.name)).toEqual(['Region', 'Product', 'Units', 'Price', 'Revenue']);
+    expect(made.setup).toEqual({ rows: [], cols: [], pages: [], data: [], hidden: {} });
+    expect(r.layout?.undo).toEqual([{ sheet: 1, op: { kind: 'removePivot', path: made.path } }]);
+    expect(s.changes().map((c) => english.text(c.note!))).toEqual(['Pivot table “PivotTable1” inserted']);
+
+    // Its fields placed, a value takes its source's number format, as Excel 365 gives it.
+    s.apply({ type: 'layout', sheet: 1, op: { kind: 'pivot', path: made.path, setup: { ...made.setup, rows: [1], data: [{ field: 4, fn: 'sum', name: 'Sum of Revenue' }] } } });
+    // Gadget's 1,513 units at $30 make $45,390.
+    expect(grid(s, 17, 2).slice(12)).toEqual([
+      ['Row Labels', 'Sum of Revenue'],
+      ['Gadget', 45390],
+      ['Gizmo', 11368],
+      ['Widget', 18412.5],
+      ['Grand Total', 75170.5],
+    ]);
+    expect(s.model.styles.get(s.current(1, 13, 1).style).numFmt).toBe(s.model.styles.get(s.current(0, 1, 4).style).numFmt);
+
+    // Undone, it goes, and its cells with it; redone, it comes back where it was, as it was named.
+    const undone = s.apply({ type: 'restore', cells: r.undo, layout: r.layout!.undo });
+    expect(undone.rejected).toBeUndefined();
+    expect(pivots(s, 1)).toHaveLength(1);
+    expect(s.model.sheets[1].info.blocked.filter((b) => b.kind === 'pivot')).toHaveLength(1);
+    s.apply({ type: 'restore', cells: r.redo, layout: r.layout!.applied });
+    expect(pivots(s, 1)[1]).toMatchObject({ path: made.path, name: 'PivotTable1' });
+  });
+
+  it('is saved as new parts the workbook finds, and opens as it was', () => {
+    const s = open('pivot.xlsx');
+    insert(s, 1, 'Data!$A$1:$E$101', 12, 0);
+    const path = pivots(s, 1)[1].path;
+    s.apply({ type: 'layout', sheet: 1, op: { kind: 'pivot', path, setup: { rows: [0], cols: [1], pages: [], data: [{ field: 2, fn: 'sum', name: 'Sum of Units' }], hidden: {} } } });
+    const bytes = s.save();
+    const p = parts(bytes);
+    expect(p['xl/workbook.xml']).toMatch(/<pivotCaches><pivotCache cacheId="1" r:id="[^"]+"\/><pivotCache cacheId="2" r:id="rId\d+"\/><\/pivotCaches>/);
+    expect(p['xl/worksheets/_rels/sheet2.xml.rels']).toContain('Target="../pivotTables/pivotTable2.xml"');
+    expect(p['xl/pivotTables/_rels/pivotTable2.xml.rels']).toContain('Target="../pivotCache/pivotCacheDefinition2.xml"');
+    expect(p['xl/pivotCache/_rels/pivotCacheDefinition2.xml.rels']).toContain('Target="pivotCacheRecords2.xml"');
+    expect(p['[Content_Types].xml']).toContain('<Override PartName="/xl/pivotTables/pivotTable2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>');
+    expect(p['xl/pivotTables/pivotTable2.xml']).toContain('name="PivotTable1" cacheId="2"');
+    expect(p['xl/pivotCache/pivotCacheDefinition2.xml']).toMatch(/<worksheetSource ref="A1:E101" sheet="Data"\/>.*recordCount|recordCount="100".*<worksheetSource ref="A1:E101" sheet="Data"\/>/);
+    const again = reopen(bytes);
+    expect(pivots(again, 1).map((q) => q.name)).toEqual(['UnitsByRegion', 'PivotTable1']);
+    expect(again.apply({ type: 'refreshPivots' }).undo).toEqual([]);
+    // A rebuilt workbook, as after a sheet is added, keeps it.
+    const rebuilt = s.restructure({ type: 'addSheet', at: 0, name: 'First' });
+    expect(pivots(rebuilt, 2).map((q) => q.name)).toEqual(['UnitsByRegion', 'PivotTable1']);
+  });
+
+  it('takes the data a name gives by the name, and an empty one is saved too', () => {
+    const p = parts(sample('pivot.xlsx'));
+    p['xl/workbook.xml'] = p['xl/workbook.xml'].replace('</sheets>', '</sheets><definedNames><definedName name="Sales">Data!$A$1:$E$101</definedName></definedNames>');
+    const s = reopen(zipSync(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, strToU8(v)]))));
+    expect(insert(s, 1, 'Sales', 12, 4).rejected).toBeUndefined();
+    const saved = parts(s.save());
+    expect(saved['xl/pivotCache/pivotCacheDefinition2.xml']).toContain('<worksheetSource name="Sales"/>');
+    expect(saved['xl/pivotTables/pivotTable2.xml']).toContain('<location ref="E13:G30"');
+  });
+
+  it("says why it can't be made: no such data, data without headings or rows, or no room", () => {
+    const s = open('pivot.xlsx');
+    const why = (r: ReturnType<typeof insert>) => english.text(r.rejected!);
+    expect(why(insert(s, 1, 'Nowhere', 12, 0))).toBe("That isn't a range or a table: Nowhere");
+    expect(why(insert(s, 1, 'Data!$A$1:$E$1', 12, 0))).toBe("A pivot table's data needs its headings and at least one row under them.");
+    s.apply({ type: 'input', sheet: 0, row: 0, col: 1, text: '' });
+    expect(why(insert(s, 1, 'Data!$A$1:$E$101', 12, 0))).toBe("Every column of a pivot table's data needs a heading. Fill in the empty ones, or choose other cells.");
+    expect(why(insert(s, 1, 'Data!$A$1:$A$101', 0, 3))).toBe("There's no room for the pivot table at D1:F18: there are other cells there. Choose somewhere empty.");
+    expect(english.text(s.apply({ type: 'layout', sheet: 1, op: { kind: 'removePivot', path: 'xl/pivotTables/pivotTable1.xml' } }).rejected!)).toBe('That pivot table is no longer there.');
+  });
+
+  it('names headings that repeat apart, and numbers its name after the others', () => {
+    const s = open('pivot.xlsx');
+    s.apply({ type: 'input', sheet: 0, row: 0, col: 1, text: 'Region' });
+    insert(s, 1, 'Data!$A$1:$B$101', 12, 0);
+    insert(s, 1, 'Data!$A$1:$B$101', 12, 4);
+    expect(pivots(s, 1).slice(1).map((q) => [q.name, q.fields.map((f) => f.name)])).toEqual([
+      ['PivotTable1', ['Region', 'Region2']],
+      ['PivotTable2', ['Region', 'Region2']],
+    ]);
+  });
+});

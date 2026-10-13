@@ -182,6 +182,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
           },
         ]
       : []),
+    { label: t('pivot.menu.insert'), onSelect: () => store.openInsertPivot(), disabled: view.info.kind !== 'worksheet' },
     {
       label: t(view.filter && !view.filter.table ? 'menu.filterOff' : 'menu.filterOn'),
       hint: APPLE ? '⇧⌘F' : t('keys.filterToggle'),

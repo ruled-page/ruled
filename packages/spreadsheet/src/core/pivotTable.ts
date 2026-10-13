@@ -177,6 +177,23 @@ export function readPivot(table: XmlNode, cache: XmlNode | undefined): PivotMode
   };
 }
 
+/** A pivot table as Excel's Insert PivotTable makes it: fields from its source's headings, none of them placed yet. */
+export function newPivot(name: string, fields: { name: string; numFmtId?: number }[], source: NonNullable<PivotModel['source']>, ref: Rect): PivotModel {
+  return {
+    name,
+    location: { ref, firstHeaderRow: 1, firstDataRow: 1, firstDataCol: 0 },
+    source,
+    fields: fields.map((f) => ({ name: f.name, items: [], compact: true, outline: true, subtotalTop: true, subtotals: true, sort: 'manual', showAll: false, numFmtId: f.numFmtId })),
+    rows: [],
+    cols: [],
+    pages: [],
+    data: [],
+    rowGrand: true,
+    colGrand: true,
+    captions: { data: 'Values', grand: 'Grand Total', rowHeader: 'Row Labels', colHeader: 'Column Labels' },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Changing a pivot table's fields
 
@@ -255,7 +272,12 @@ export function withSetup(model: PivotModel, setup: PivotSetup, records: Rec[]):
       const at = p.item === undefined ? -1 : fields[p.field].items.findIndex((it) => keyOf(it.value) === p.item);
       return at < 0 ? { field: p.field } : { field: p.field, item: at };
     }),
-    data: data.map((d) => ({ ...d, numFmtId: model.data.find((was) => was.field === d.field)?.numFmtId })),
+    // A value keeps its field's format when summarised another way, and a new one takes its source's, as Excel 365 does; counts are plain numbers.
+    data: data.map((d) => {
+      const counted = d.fn === 'count' || d.fn === 'countNums';
+      const was = model.data.find((x) => x.field === d.field);
+      return { ...d, numFmtId: counted ? undefined : was ? was.numFmtId : model.fields[d.field].numFmtId || undefined };
+    }),
   };
 }
 

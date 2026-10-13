@@ -7,7 +7,7 @@ import { shiftFormula } from '@sitepen/formula-engine/formula';
 import { formulaReferences } from '../core/formulaAssist';
 import type { NameTarget } from '../core/names';
 import { linkDestination, replaceLinks, resolvePlace, type LinkFields } from '../core/links';
-import { colToLetters, inRect, MAX_COLS, MAX_ROWS, parseRange, toA1 } from '@sitepen/formula-engine/refs';
+import { colToLetters, inRect, MAX_COLS, MAX_ROWS, parseA1, parseRange, quoteSheetName, toA1 } from '@sitepen/formula-engine/refs';
 import { bindSchema, type Binding, type BindResult } from '../schema/binding';
 import { describeMatch, textMatches } from '../schema/json';
 import { withHooksFrom } from '../schema/hooks';
@@ -3172,6 +3172,55 @@ export class WorkbookStore {
     return this.view?.info.pivots?.find((p) => p.regions.some((r) => row >= r.r1 && row <= r.r2 && col >= r.c1 && col <= r.c2));
   }
 
+  /** Excel's Insert PivotTable dialog, open with the data and the place it starts with. */
+  pivotDialog?: { source: string; location: string };
+
+  /** Opens Insert PivotTable over the table the active cell is in, the cells selected, or the data around the active cell. */
+  openInsertPivot(): void {
+    const view = this.view;
+    if (!view || view.info.kind !== 'worksheet') return;
+    const { row, col } = this.selection;
+    const table = view.info.tables.find((t) => inRect(t.rect, row, col));
+    const sel = this.selection.rects[0];
+    const rect = sel && (sel.r1 !== sel.r2 || sel.c1 !== sel.c2) ? sel : this.dataRegion();
+    const sheet = quoteSheetName(view.info.name);
+    const range = rect && `${sheet}!$${colToLetters(rect.c1)}$${rect.r1 + 1}:$${colToLetters(rect.c2)}$${rect.r2 + 1}`;
+    this.set('pivotDialog', { source: table?.name ?? range ?? '', location: `${sheet}!${toA1(row, col)}` });
+  }
+
+  /**
+   * Excel's Insert PivotTable: an empty pivot table over `source` (a range,
+   * or a table's or a name's name), on a new sheet before the active one at
+   * A3, as Excel puts it, or at `location`, a cell on any sheet. The Fields
+   * pane opens beside it. Resolves false if it wasn't inserted.
+   */
+  async insertPivot(source: string, location?: string): Promise<boolean> {
+    let at = { row: 2, col: 0 };
+    if (location === undefined) {
+      if (!(await this.addSheet(this.active))) return false;
+    } else {
+      const m = /^(?:'((?:[^']|'')+)'|([^!]+))!(.+)$/.exec(location.trim().replace(/^=/, ''));
+      const name = m && (m[1]?.replace(/''/g, "'") ?? m[2]);
+      const sheet = name ? this.sheets.findIndex((v) => v.info.name.toLowerCase() === name.toLowerCase()) : this.active;
+      const cell = parseA1(m ? m[3] : location.trim());
+      if (sheet < 0 || !cell) {
+        this.toast('error', msg('pivot.insert.badLocation', { ref: location }));
+        return false;
+      }
+      if (sheet !== this.active) this.showSheet(sheet);
+      at = cell;
+    }
+    const r = await this.changeLayout({ kind: 'insertPivot', source, row: at.row, col: at.col }, msg('pivot.history.insert'));
+    if (!r || r.rejected) {
+      // The sheet made for it goes again.
+      if (location === undefined) await this.undo();
+      return false;
+    }
+    this.setSelection({ row: at.row, col: at.col, rects: [{ r1: at.row, c1: at.col, r2: at.row, c2: at.col }] });
+    this.showFieldList();
+    return true;
+  }
+
   /** Excel's Show Field List: the PivotTable Fields pane, beside the sheet. */
   showFieldList(): void {
     this.set('panel', 'pivot');
@@ -4180,6 +4229,7 @@ export class WorkbookStore {
       | 'sortDialog'
       | 'selectedObject'
       | 'chartDialog'
+      | 'pivotDialog'
       | 'numberFormatOpen'
       | 'cellsDialog'
       | 'customListsOpen'

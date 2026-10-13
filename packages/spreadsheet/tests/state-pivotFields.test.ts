@@ -104,4 +104,26 @@ describe('the PivotTable Fields pane’s store', () => {
     await store.setPivotFields('xl/pivotTables/none.xml', pivot.setup);
     expect(store.history).toHaveLength(steps);
   });
+
+  it('starts Insert PivotTable over the data around the active cell, and inserts it on a new sheet or at a cell', async () => {
+    store = await testStore();
+    await opened(store, sample('pivot.xlsx'), 'pivot.xlsx');
+    store.setSelection({ row: 5, col: 2, rects: [{ r1: 5, c1: 2, r2: 5, c2: 2 }] });
+    store.openInsertPivot();
+    expect(store.pivotDialog).toEqual({ source: 'Data!$A$1:$E$101', location: 'Data!C6' });
+
+    // On a new sheet before the one shown, at A3, with the Fields pane open.
+    expect(await store.insertPivot('Data!$A$1:$E$101')).toBe(true);
+    expect([store.active, store.sheets.map((v) => v.info.name), store.activePivot?.name, store.panel]).toEqual([0, ['Sheet1', 'Data', 'Pivot'], 'PivotTable1', 'pivot']);
+    expect(store.selection.row).toBe(2);
+
+    // At a cell of another sheet.
+    expect(await store.insertPivot('Data!$A$1:$E$101', "'Pivot'!H3")).toBe(true);
+    expect([store.active, store.activePivot?.name]).toEqual([2, 'PivotTable2']);
+
+    // Refused: no such cell, or no such data, when the sheet made for it goes again.
+    expect(await store.insertPivot('Data!$A$1:$E$101', 'Nowhere!A1')).toBe(false);
+    expect(await store.insertPivot('Nothing')).toBe(false);
+    expect(store.sheets.map((v) => v.info.name)).toEqual(['Sheet1', 'Data', 'Pivot']);
+  });
 });

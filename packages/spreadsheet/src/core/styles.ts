@@ -428,6 +428,14 @@ export class StyleBook {
     return this.numFmtCode(id, this.locale);
   }
 
+  /** The id of a number format the workbook has, built in or its own; the short date and date-time formats are in the user's locale's order. */
+  numFmtId(code: string): number | undefined {
+    const id = [14, 22].find((n) => builtinNumFmt(n, this.locale) === code) ?? builtinIdFor(code);
+    if (id !== undefined) return id;
+    for (const [cid, c] of this.customNumFmts) if (c === code) return cid;
+    return undefined;
+  }
+
   get(index: number): DisplayStyle {
     return this.display[index] ?? this.display[0];
   }
@@ -464,8 +472,7 @@ export class StyleBook {
 
     if (change.numFmt !== undefined && change.numFmt !== shown.numFmt) {
       // The short date and date-time formats show in the user's locale's order, as Excel's built-in ones do.
-      let id = [14, 22].find((n) => builtinNumFmt(n, this.locale) === change.numFmt) ?? builtinIdFor(change.numFmt);
-      if (id === undefined) for (const [cid, c] of this.customNumFmts) if (c === change.numFmt) id = cid;
+      let id = this.numFmtId(change.numFmt);
       if (id === undefined) {
         id = this.nextNumFmtId++;
         this.customNumFmts.set(id, change.numFmt);
