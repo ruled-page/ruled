@@ -1,5 +1,5 @@
 import type { DragEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { quoteSheetName, toA1 } from '@ruled/formula/refs';
 import { VT, type Finding } from '../core/types';
 import type { SheetView } from '../state/sheetView';
@@ -116,6 +116,21 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const across = (target?.table ?? growable[0])?.byRow === false;
   const outside = across ? t('toolbar.selectColumnFirst') : t('toolbar.selectRowFirst');
   const exact = store.numbers.display === 'full';
+  // On a phone the less used controls are behind "More", in a panel under the toolbar.
+  const [more, setMore] = useState(false);
+  const moreId = useId();
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const morePanel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!more) return;
+    morePanel.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select, a[href]')?.focus();
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!morePanel.current?.contains(target) && !moreButton.current?.contains(target)) setMore(false);
+    };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [more]);
   return (
     // Not a <header>: a page that embeds the editor has its own banner landmark.
     <div className="wbe-toolbar" ref={bar}>
@@ -175,6 +190,20 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             </button>
           </div>
         )}
+        <div
+          className="wbe-toolbar-more"
+          id={moreId}
+          ref={morePanel}
+          data-open={more || undefined}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape' || !more) return;
+            e.stopPropagation();
+            setMore(false);
+            moreButton.current?.focus();
+          }}
+          // A button done with closes the panel; toggles and pickers keep it open.
+          onClick={(e) => (e.target as Element).closest('button') && setMore(false)}
+        >
         <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.exactTitle')}>
           <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
           <span className="wbe-toggle-long">{t('toolbar.exact')}</span>
@@ -189,6 +218,12 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             {t('toolbar.highlightShort')}
           </span>
         </label>
+        {ready && store.features.format && (
+          <label className="wbe-toggle wbe-phone-only">
+            <input type="checkbox" checked={store.formatBarShown} onChange={(e) => store.set('formatBarShown', e.target.checked)} />
+            <span className="wbe-toggle-long">{t('toolbar.formatBar')}</span>
+          </label>
+        )}
         {store.features.schemas && (
           <button className={`wbe-btn ${store.designerOpen ? 'wbe-active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
             <Icon name="schema" /> <span className="wbe-label">{t('toolbar.schemas')}</span>
@@ -208,7 +243,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           </button>
         )}
         <button className="wbe-btn wbe-icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
-          <Icon name="keyboard" />
+          <Icon name="keyboard" /> <span className="wbe-more-label">{t('toolbar.shortcuts')}</span>
         </button>
         {extra}
         {store.features.csv && store.features.download && (
@@ -232,13 +267,35 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             title={t('toolbar.downloadTitle')}
             aria-label={t('toolbar.download')}
           >
-            <Icon name="download" />
+            <Icon name="download" /> <span className="wbe-more-label">{t('toolbar.download')}</span>
           </button>
         )}
+        </div>
+        <button
+          ref={moreButton}
+          className="wbe-btn wbe-icon wbe-toolbar-more-btn"
+          aria-expanded={more}
+          aria-controls={moreId}
+          aria-label={t('toolbar.more')}
+          title={t('toolbar.more')}
+          onClick={() => setMore(!more)}
+        >
+          <Icon name="more" />
+        </button>
         {store.features.save && (
           // Busy for a moment while saving, without taking the focus away from the button.
           <button className="wbe-btn wbe-primary" disabled={!ready} aria-disabled={store.busy} onClick={() => !store.busy && void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
-            <Icon name={store.hasSaveHandler ? 'check' : 'download'} /> {store.saveLabel}
+            <Icon name={store.hasSaveHandler ? 'check' : 'download'} />{' '}
+            {store.hasSaveHandler ? (
+              store.saveLabel
+            ) : (
+              <>
+                <span className="wbe-save-long">{store.saveLabel}</span>
+                <span className="wbe-save-short" aria-hidden="true">
+                  {t('toolbar.save')}
+                </span>
+              </>
+            )}
           </button>
         )}
       </div>

@@ -48,6 +48,8 @@ export const ui = {
   'toolbar.reportNotable_one': "What's in this file ({{count, number}} to note)",
   'toolbar.reportNotable_other': "What's in this file ({{count, number}} to note)",
   'toolbar.shortcuts': 'Keyboard shortcuts',
+  'toolbar.more': 'More',
+  'toolbar.formatBar': 'Formatting',
   'toolbar.shortcutsTitle': 'Keyboard shortcuts ({{key}})',
   'toolbar.download': 'Download a copy',
   'toolbar.downloadTitle': 'Download a copy (.xlsx)',

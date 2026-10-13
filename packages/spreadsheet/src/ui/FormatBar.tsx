@@ -78,7 +78,7 @@ export function FormatBar({ store }: { store: WorkbookStore }) {
     </button>
   );
   return (
-    <div className="wbe-format-bar" role="group" aria-label={t('format.label')}>
+    <div className="wbe-format-bar" role="group" aria-label={t('format.label')} data-shown={store.formatBarShown || undefined}>
       <Select
         className="wbe-format-font"
         value={s.fontFamily}

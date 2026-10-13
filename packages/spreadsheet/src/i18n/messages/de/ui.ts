@@ -46,6 +46,8 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.reportNotable_one': 'Was diese Datei enthält ({{count, number}} Hinweis)',
   'toolbar.reportNotable_other': 'Was diese Datei enthält ({{count, number}} Hinweise)',
   'toolbar.shortcuts': 'Tastenkombinationen',
+  'toolbar.more': 'Mehr',
+  'toolbar.formatBar': 'Formatierung',
   'toolbar.shortcutsTitle': 'Tastenkombinationen ({{key}})',
   'toolbar.download': 'Kopie herunterladen',
   'toolbar.downloadTitle': 'Kopie herunterladen (.xlsx)',

@@ -546,6 +546,8 @@ export class WorkbookStore {
   findOpen = false;
   /** The list of keyboard shortcuts. */
   shortcutsOpen = false;
+  /** On a phone, whether the format bar shows: it is hidden there to leave the sheet room. */
+  formatBarShown = false;
   /** Asking for a column's width, from the keyboard. */
   columnWidthFor?: number;
   /** Asking for a row's height, from the keyboard. */
@@ -4212,6 +4214,7 @@ export class WorkbookStore {
       | 'conditionDialog'
       | 'findOpen'
       | 'shortcutsOpen'
+      | 'formatBarShown'
       | 'columnWidthFor'
       | 'rowHeightFor'
       | 'commentFor'

@@ -15,9 +15,26 @@ test('the start screen and an open workbook fit the screen', async ({ page }) =>
   await fitsWidth(page);
   await openSample(page, 'Price list');
   await fitsWidth(page);
-  // The toolbar is one row of actions that scrolls sideways, not several rows.
-  const toolbar = await page.locator('.wbe-toolbar-actions').boundingBox();
-  expect(toolbar!.height).toBeLessThan(60);
+  // The toolbar's actions are one row that fits: nothing scrolls out of it, Save included.
+  const actions = page.locator('.wbe-toolbar-actions');
+  expect((await actions.boundingBox())!.height).toBeLessThan(60);
+  expect(await actions.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('button', { name: 'Save as Excel' })).toBeInViewport({ ratio: 1 });
+});
+
+test('the less used controls are behind "More", and the format bar shows when asked for', async ({ page }) => {
+  await openSample(page, 'Price list');
+  await expect(page.getByRole('group', { name: 'Format', exact: true })).toBeHidden();
+  const more = page.getByRole('button', { name: 'More' });
+  await more.tap();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  for (const name of ['Schemas', 'Samples', 'Keyboard shortcuts']) await expect(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 });
+  await page.getByRole('checkbox', { name: 'Formatting' }).tap();
+  await expect(page.getByRole('group', { name: 'Format', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(more).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Schemas', exact: true })).toBeHidden();
 });
 
 test('the checks panel waits to be opened, and going to a problem shows its cell', async ({ page }) => {
@@ -64,12 +81,14 @@ test('the cell menu opens from the formula bar, without right-clicking', async (
 
 test('dialogs fit the screen', async ({ page }) => {
   await openSample(page, 'Price list');
+  await page.getByRole('button', { name: 'More' }).tap();
   await page.getByRole('button', { name: 'Keyboard shortcuts' }).tap();
   const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
   const box = (await dialog.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByRole('button', { name: 'Close' }).last().tap();
+  await page.getByRole('button', { name: 'More' }).tap();
   await page.getByRole('button', { name: 'Schemas' }).tap();
   const designer = page.getByRole('dialog', { name: 'Schemas' });
   await expect(designer.getByRole('button', { name: /Apply/ })).toBeInViewport();

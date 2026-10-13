@@ -466,6 +466,19 @@
   flex-shrink: 0;
 }
 
+/* The toolbar's less used controls sit in its row, except on a phone, where they
+   are behind "More" (see the phone rules). */
+.wbe .wbe-toolbar-more {
+  display: contents;
+}
+
+.wbe .wbe-btn.wbe-toolbar-more-btn,
+.wbe .wbe-toolbar-more .wbe-phone-only,
+.wbe .wbe-save-short,
+.wbe .wbe-more-label {
+  display: none;
+}
+
 .wbe .wbe-btn {
   display: inline-flex;
   align-items: center;
@@ -3628,6 +3641,7 @@
 
 .wbe .wbe-toolbar-actions {
     flex-wrap: nowrap;
+    gap: 6px;
     overflow-x: auto;
     width: 100%;
     padding-bottom: 2px;
@@ -3636,6 +3650,86 @@
 
 .wbe .wbe-toolbar-actions > * {
     flex-shrink: 0;
+  }
+
+/* Opening, undoing and saving stay in the row; the rest is behind "More", in a
+   panel under the toolbar with every label written out. The panel is placed by
+   the toolbar, so the row's sideways scrolling doesn't clip it. */
+.wbe .wbe-toolbar {
+    position: relative;
+  }
+
+.wbe .wbe-btn.wbe-toolbar-more-btn {
+    display: inline-flex;
+  }
+
+.wbe .wbe-toolbar-more {
+    display: none;
+  }
+
+.wbe .wbe-toolbar-more[data-open] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    position: absolute;
+    top: calc(100% + 4px);
+    inset-inline-end: 8px;
+    z-index: 30;
+    min-width: 220px;
+    max-width: calc(100% - 16px);
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 8px;
+    background: var(--wbe-surface);
+    border: 1px solid var(--wbe-border);
+    border-radius: var(--wbe-radius);
+    box-shadow: var(--wbe-shadow);
+  }
+
+.wbe .wbe-toolbar-more[data-open] > * {
+    justify-content: flex-start;
+    min-height: 40px;
+  }
+
+.wbe .wbe-toolbar-more[data-open] .wbe-more-label {
+    display: inline;
+  }
+
+.wbe .wbe-toolbar .wbe-toolbar-more[data-open] .wbe-btn .wbe-label,
+.wbe .wbe-toolbar .wbe-toolbar-more[data-open] .wbe-toggle .wbe-toggle-long {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+
+.wbe .wbe-toolbar .wbe-toolbar-more[data-open] .wbe-toggle .wbe-toggle-short {
+    display: none;
+  }
+
+.wbe .wbe-toolbar-more .wbe-phone-only {
+    display: inline-flex;
+  }
+
+/* "Save as Excel" says "Save", leaving room for the rest of the row; screen readers still hear it all. */
+.wbe .wbe-save-long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+.wbe .wbe-save-short {
+    display: inline;
+  }
+
+/* The format bar takes room the sheet needs: it shows when asked for, from "More". */
+.wbe .wbe-format-bar:not([data-shown]) {
+    display: none;
   }
 
 .wbe .wbe-formula-bar {
