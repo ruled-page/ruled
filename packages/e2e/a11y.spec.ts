@@ -6,8 +6,9 @@ import { goTo, openFile, openSample, ordersWorkbook, setCell } from './helpers';
 
 /** WCAG 2.2 A and AA problems on the page as it is now, one line each. */
 async function violations(page: Page): Promise<string[]> {
-  // Let transitions finish so colours are measured as they end up.
+  // Let transitions and animations finish so colours are measured as they end up, however slow the browser.
   await page.waitForTimeout(300);
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
   return violations.flatMap((v) => v.nodes.map((n) => `${v.id} (${v.impact}): ${n.target.join(' ')}: ${n.failureSummary?.split('\n')[1]?.trim() ?? v.help}`));
 }
