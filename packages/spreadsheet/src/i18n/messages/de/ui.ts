@@ -279,6 +279,7 @@ export const ui: Record<keyof typeof en, string> = {
   'menu.pasteFormulas': 'Formeln',
   'menu.pasteFormats': 'Formate',
   'menu.pasteTransposed': 'Transponiert',
+  'menu.fillDrag': 'Durch Ziehen ausfüllen',
   'menu.fillDown': 'Nach unten ausfüllen',
   'menu.fillRight': 'Nach rechts ausfüllen',
   'menu.newNote': 'Neue Notiz',

@@ -281,6 +281,7 @@ export const ui = {
   'menu.pasteFormulas': 'Formulas',
   'menu.pasteFormats': 'Formats',
   'menu.pasteTransposed': 'Transposed',
+  'menu.fillDrag': 'Fill by dragging',
   'menu.fillDown': 'Fill down',
   'menu.fillRight': 'Fill right',
   'menu.newNote': 'New note',

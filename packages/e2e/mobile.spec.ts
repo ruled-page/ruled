@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { devices, expect, test, type Page } from '@playwright/test';
-import { goTo, openSample, serverUrl } from './helpers';
+import { devices, expect, test, type Locator, type Page } from '@playwright/test';
+import { goTo, openFile, openSample, ordersWorkbook, serverUrl, shown } from './helpers';
 
 /** A phone, with touch: the editor, the demo and the portal at that size. */
 test.use({ ...devices['Pixel 7'] });
@@ -65,6 +65,57 @@ test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {
   await input.press('Enter');
   await goTo(page, name);
   await expect(input).toHaveValue('Bracket, edited on a phone');
+});
+
+/** A finger dragged from one point to another: Playwright taps but doesn't drag, so the touches go through Chromium's DevTools protocol. */
+async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const at = (t: number) => [{ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) });
+  for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(i / 10) });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+async function centre(locator: Locator): Promise<{ x: number; y: number }> {
+  const b = (await locator.boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+/** Opens the orders workbook, touches its grid, and selects B2, whose handles then show. */
+async function touchedOrders(page: Page): Promise<void> {
+  await openFile(page, 'orders.xlsx', await ordersWorkbook());
+  const grid = (await page.locator('canvas[data-testid="data-grid-canvas"]').first().boundingBox())!;
+  await page.touchscreen.tap(grid.x + 120, grid.y + 60);
+  await goTo(page, 'B2');
+}
+
+test("a finger drags the selection's corner to select a range", async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', "touches are sent through Chromium's DevTools protocol");
+  await touchedOrders(page);
+  const handles = page.locator('.wbe-touch-handle');
+  await expect(handles).toHaveCount(2);
+  const [corner, far] = [await centre(handles.first()), await centre(handles.last())];
+  const height = far.y - corner.y;
+  // From B2's bottom-right corner into column C, two rows down.
+  await touchDrag(page, far, { x: far.x + 10, y: far.y + height * 1.5 });
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B2:C4');
+});
+
+test('filling by dragging, from the cell menu, continues the selection down', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', "touches are sent through Chromium's DevTools protocol");
+  await touchedOrders(page);
+  const height = (await centre(page.locator('.wbe-touch-handle').last())).y - (await centre(page.locator('.wbe-touch-handle').first())).y;
+  await page.getByRole('button', { name: 'Cell menu' }).tap();
+  await page.getByRole('menuitem', { name: 'Fill by dragging' }).tap();
+  const arrows = page.locator('.wbe-touch-fill');
+  await expect(arrows).toHaveCount(2);
+  const down = await centre(arrows.first());
+  await touchDrag(page, down, { x: down.x, y: down.y + height * 1.5 });
+  await expect(shown(page, 'B3')).toHaveText('2');
+  await expect(shown(page, 'B4')).toHaveText('2');
+  await expect(page.getByRole('combobox', { name: 'Go to cell' })).toHaveValue('B2:B4');
+  await expect(arrows).toHaveCount(0);
 });
 
 test('the cell menu opens from the formula bar, without right-clicking', async ({ page }) => {

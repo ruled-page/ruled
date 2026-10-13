@@ -1427,6 +1427,46 @@
   outline-width: 2.5px;
 }
 
+/* On a touch screen: handles on the selection's corners to drag a range out,
+   and in fill mode arrows on its edges. Each is a finger's width to press,
+   and dragging one doesn't scroll the page. */
+.wbe .wbe-touch-handle {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  color: var(--wbe-on-accent);
+}
+
+.wbe .wbe-touch-handle:not(.wbe-touch-fill)::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--wbe-accent);
+  border-radius: 50%;
+  background: var(--wbe-surface);
+  box-shadow: var(--wbe-shadow-sm);
+}
+
+.wbe .wbe-touch-fill svg {
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--wbe-accent);
+  box-shadow: var(--wbe-shadow-sm);
+}
+
+.wbe .wbe-touch-preview {
+  position: absolute;
+  z-index: 5;
+  border: 2px dashed var(--wbe-accent);
+  pointer-events: none;
+}
+
 .wbe .wbe-object-handle {
   position: absolute;
   width: 9px;

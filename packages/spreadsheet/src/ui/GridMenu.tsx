@@ -205,6 +205,7 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
         { label: t('menu.pasteTransposed'), onSelect: () => void store.pasteSpecial('all', true) },
       ],
     },
+    ...(store.touchMode ? [{ label: t('menu.fillDrag'), onSelect: () => store.set('touchFill', true), disabled: cellsLocked }] : []),
     { label: t('menu.fillDown'), onSelect: () => void store.fillDown(), disabled: cellsLocked },
     { label: t('menu.fillRight'), onSelect: () => void store.fillDown(true), disabled: cellsLocked },
     { label: t('fill.menu.series'), onSelect: () => store.set('seriesDialog', true), disabled: cellsLocked },

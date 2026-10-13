@@ -25,7 +25,7 @@ import {
   type Theme,
 } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { linkAddress } from '../core/links';
 import { colToLetters, inRect, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { CellFlag, VT, type CellNote, type DisplayStyle, type Rect } from '../core/types';
@@ -45,6 +45,9 @@ import { APPLE, commandKey } from './keys';
 import { LinkTip } from './LinkTip';
 import { NoteTip } from './NoteTip';
 import { ObjectsOverlay } from './ObjectsOverlay';
+
+/** The selection's handles for a finger, loaded once the grid is first touched. */
+const TouchHandles = lazy(() => import('./TouchHandles'));
 import { objectKey } from './objectGeometry';
 import { GLIDE_CLIP_REGION, GLIDE_SCROLLER } from './glideDom';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, glideTheme, readGridPalette, readRefColors, type GridPalette } from './gridPalette';
@@ -1193,6 +1196,15 @@ export function SheetGrid({
     const col = lineLevelWith('cols', x, y);
     return row === undefined || col === undefined ? undefined : { row, col };
   };
+  /**
+   * Notes whether the grid is being used with a finger, which shows the
+   * selection's handles; a touch away from them ends filling by dragging.
+   */
+  const onHostPointerDown = (e: ReactPointerEvent) => {
+    const touch = e.pointerType === 'touch';
+    if (store.touchMode !== touch) store.set('touchMode', touch);
+    if (store.touchFill && !(e.target as Element).closest('.wbe-touch-handle')) store.set('touchFill', false);
+  };
   /** Where a block of cells is on this pane, in the host's pixels. */
   const boxOf = (r: Rect) => {
     const grid = ref.current;
@@ -1509,7 +1521,14 @@ export function SheetGrid({
   );
 
   return (
-    <div className={`wbe-grid-host ${className ?? ''}`} ref={host} style={hostStyle} onMouseMoveCapture={onHostMouseMove} onMouseDownCapture={onHostMouseDown}>
+    <div
+      className={`wbe-grid-host ${className ?? ''}`}
+      ref={host}
+      style={hostStyle}
+      onMouseMoveCapture={onHostMouseMove}
+      onMouseDownCapture={onHostMouseDown}
+      onPointerDownCapture={onHostPointerDown}
+    >
       <DataEditorCore
         ref={ref}
         key={view.info.index}
@@ -1573,6 +1592,11 @@ export function SheetGrid({
       {rowDrag && host.current && <div className="wbe-row-guide" style={{ top: rowDrag.y - host.current.getBoundingClientRect().top }} />}
       {insertGuide && <div className="wbe-insert-guide" style={insertGuide} />}
       <ObjectsOverlay store={store} view={view} gridRef={ref} tick={region + colVersion} rowStart={rowStart} rowCount={rows} scrollRow={visible.current.y} top={header ? 24 : 0} />
+      {store.touchMode && (
+        <Suspense fallback={null}>
+          <TouchHandles store={store} host={host} boxOf={boxOf} cellUnder={cellUnder} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -548,6 +548,10 @@ export class WorkbookStore {
   shortcutsOpen = false;
   /** On a phone, whether the format bar shows: it is hidden there to leave the sheet room. */
   formatBarShown = false;
+  /** Whether the grid was last touched with a finger, which gives the selection handles to drag. */
+  touchMode = false;
+  /** Filling by dragging, on a touch screen: arrows on the selection's edges, from the cell menu. */
+  touchFill = false;
   /** Asking for a column's width, from the keyboard. */
   columnWidthFor?: number;
   /** Asking for a row's height, from the keyboard. */
@@ -4215,6 +4219,8 @@ export class WorkbookStore {
       | 'findOpen'
       | 'shortcutsOpen'
       | 'formatBarShown'
+      | 'touchMode'
+      | 'touchFill'
       | 'columnWidthFor'
       | 'rowHeightFor'
       | 'commentFor'
