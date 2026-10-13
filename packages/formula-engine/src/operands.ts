@@ -16,7 +16,8 @@ export interface Host {
   /** Each value of a reference, blanks included up to the last used row and column; `skipSubtotals` leaves out cells that are SUBTOTAL formulas. */
   each(ref: Ref, f: (v: Scalar, row: number, col: number) => void, skipSubtotals?: boolean): void;
   /** A defined name as the formula at `ctx` sees it, its sheet's own first. */
-  name(name: string, ctx: Ctx): Operand;
+  /** A defined name's value, as a formula on ctx's sheet reads it, or for one qualified with a sheet (Prices!Rate), as that sheet reads it. */
+  name(name: string, ctx: Ctx, sheet?: string): Operand;
   /** The range a formula in a cell spills into (for A2#), if it spills. */
   spillOf(sheet: number, row: number, col: number): Ref | undefined;
   isFormula(sheet: number, row: number, col: number): boolean;

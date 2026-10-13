@@ -87,13 +87,6 @@ needs no server, and nothing here should add one.
 
 Small gaps found along the way.
 
-- **A name qualified with its sheet** (`Prices!Rate`, for a name that belongs
-  to one sheet) gives #NAME?, though the engine reads the name unqualified
-  on its own sheet. A file's formulas in this form disagree with Excel's
-  saved values on opening, so they keep them; typed here, they show #NAME?.
-  The engine would look the name up on the sheet the reference names
-  (`name` in `packages/formula-engine/src/workbook.ts`), and register the
-  formula as using it.
 - **Enter pressed within a few milliseconds of Backspace** can lose the cell
   edit when the page is busy. A person's keys are rarely that quick;
   `packages/e2e/autocomplete.spec.ts` holds its Backspace a moment to avoid

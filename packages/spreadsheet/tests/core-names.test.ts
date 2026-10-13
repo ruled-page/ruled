@@ -276,6 +276,12 @@ describe('changing a name', () => {
     expect(s.editedCount).toBe(0);
   });
 
+  it('calculates a name qualified with a sheet, the sheet’s own first, following what it refers to', () => {
+    const s = open();
+    s.apply({ type: 'input', sheet: CALC, row: 0, col: 2, text: '7' });
+    expect([shown(s, 'Calc', 'A3'), shown(s, 'Calc', 'A5')]).toEqual([7, 14]);
+  });
+
   it('keeps the attributes it doesn’t change, and notes a new comment', () => {
     const s = open();
     name(s, { from: { name: 'Values' }, to: { name: 'Values', formula: 'Data!$A$1:$A$3', comment: 'New' } });

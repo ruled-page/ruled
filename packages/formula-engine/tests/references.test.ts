@@ -37,6 +37,38 @@ describe('a sheet that arrives after the formulas naming it', () => {
   });
 });
 
+describe('a name qualified with a sheet', () => {
+  it("reads the name local to that sheet, else the workbook's, from any sheet", () => {
+    expect(nativeEngine.unsupportedReason('Prices!Rate*2')).toBeUndefined();
+    expect(nativeEngine.unsupportedReason('[1]Prices!Rate')).toEqual({ kind: 'externalLinks' });
+    const e = nativeEngine.create(
+      [
+        sheet('Prices', [[5, engineFormula('Rate*2'), engineFormula('Prices!Rate*2')]]),
+        sheet('Q1 Sales', [[7, engineFormula("'Q1 Sales'!Rate"), engineFormula('Prices!Rate+Prices!Tax'), engineFormula('Prices!Nothing'), engineFormula('Nowhere!Rate')]]),
+      ],
+      [
+        { name: 'Rate', formula: 'Prices!$A$1', localSheet: 0 },
+        { name: 'Rate', formula: "'Q1 Sales'!$A$1", localSheet: 1 },
+        { name: 'Tax', formula: '0.5' },
+      ],
+      false,
+    );
+    expect([e.value(0, 0, 1), e.value(0, 0, 2)]).toEqual([10, 10]);
+    expect([e.value(1, 0, 1), e.value(1, 0, 2), e.value(1, 0, 3), e.value(1, 0, 4)]).toEqual([7, 5.5, { error: '#NAME?' }, { error: '#REF!' }]);
+    // It follows the cells the name refers to, and the name's definition.
+    expect(e.write([{ sheet: 0, row: 0, col: 0, raw: 6 }])).toContainEqual({ sheet: 1, row: 0, col: 2, value: 6.5 });
+    expect(e.setName('Rate', 0, 'Prices!$A$1*10').changes).toContainEqual({ sheet: 1, row: 0, col: 2, value: 60.5 });
+    e.destroy();
+  });
+
+  it('reads a sheet that arrives after it', () => {
+    const e = nativeEngine.create([sheet('S', [[engineFormula('Later!Rate+1')]])], [{ name: 'Rate', formula: 'Later!$A$1' }], false);
+    expect(e.value(0, 0, 0)).toEqual({ error: '#REF!' });
+    expect(e.addSheet(1, sheet('Later', [[41]]))).toEqual([{ sheet: 0, row: 0, col: 0, value: 42 }]);
+    e.destroy();
+  });
+});
+
 describe('CELL in the native engine', () => {
   it('is calculated for what the cell itself gives, and left to Excel for the rest', () => {
     const calculated = (f: string) => nativeEngine.unsupportedReason(f) === undefined;

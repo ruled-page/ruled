@@ -1,5 +1,5 @@
 import { fifteenDigits } from './excelNumbers';
-import { parse, parseR1C1Ref, tokenize, translateFormulaToR1C1 } from '@borgar/fx';
+import { parse, parseA1Ref, parseR1C1Ref, tokenize, translateFormulaToR1C1 } from '@borgar/fx';
 import { stripFunctionPrefixes } from './formula';
 import { MAX_COLS, MAX_ROWS, toA1 } from './refs';
 import { FUNCTIONS } from './functions';
@@ -35,7 +35,7 @@ export interface Template {
   run: Node;
   /** The references it makes, for its dependencies. */
   refs: RefSpec[];
-  /** Defined names it uses, in capitals. */
+  /** Defined names it uses, in capitals, each qualified with a sheet as written ("Prices!RATE") when it is. */
   names: string[];
   /** Functions it calls, in capitals. */
   calls: Set<string>;
@@ -186,6 +186,16 @@ function node(n: AstNode | null | undefined, t: Template): Node {
 
 function reference(n: { value: string; kind: string }, t: Template): Node {
   if (n.kind === 'name') {
+    if (n.value.includes('!')) {
+      // A name qualified with a sheet, Prices!Rate: the one local to that sheet, else the workbook's.
+      const ref = parseA1Ref(n.value, { allowTernary: false });
+      const named = ref && 'name' in ref && ref.name && ref.context?.length === 1 ? { sheet: ref.context[0], name: ref.name } : undefined;
+      if (!named || named.sheet.includes('[')) return () => REF;
+      const { sheet } = named;
+      const name = stripFunctionPrefixes(named.name).toUpperCase();
+      t.names.push(`${sheet}!${name}`);
+      return (ctx) => ctx.host.name(name, ctx, sheet);
+    }
     const name = stripFunctionPrefixes(n.value).toUpperCase();
     // A parameter can hold a blank, REDUCE(,…) giving one.
     if (inScope(name)) return (ctx) => (ctx.vars && name in ctx.vars ? ctx.vars[name] : NAME);

@@ -302,7 +302,7 @@ export class NativeEngine implements FormulaEngine, Host {
         grew = false;
         for (const [k, def] of this.names) {
           const n = k.slice(k.indexOf(':') + 1);
-          if (!names.has(n) && def.template.names.some((x) => names.has(x))) {
+          if (!names.has(n) && def.template.names.some((x) => names.has(splitName(x).name))) {
             names.add(n);
             grew = true;
           }
@@ -446,11 +446,18 @@ export class NativeEngine implements FormulaEngine, Host {
     }
   }
 
-  name(name: string, ctx: Ctx): Operand {
-    const def = this.names.get(`${ctx.sheet}:${name}`) ?? this.names.get(`-1:${name}`);
+  name(name: string, ctx: Ctx, sheet?: string): Operand {
+    const at = sheet === undefined ? ctx.sheet : this.sheetIndex(sheet);
+    if (at < 0) return REF;
+    const def = this.definition(name, at);
     if (!def) return err('#NAME?');
     return def.template.run({ host: this, sheet: ctx.sheet, row: ctx.row, col: ctx.col, legacy: false });
   }
+  /** The name a formula on `sheet` means by `name`: the one local to that sheet, else the workbook's. */
+  private definition(name: string, sheet: number) {
+    return this.names.get(`${sheet}:${name}`) ?? this.names.get(`-1:${name}`);
+  }
+
 
   spillOf(sheet: number, row: number, col: number): Ref | undefined {
     const c = this.sheets[sheet]?.get(row, col);
@@ -547,12 +554,21 @@ export class NativeEngine implements FormulaEngine, Host {
     for (const spec of f.template.refs) add(spec);
     // A name's cells, and those of the names it is defined with.
     const seen = new Set<string>();
-    const follow = (name: string) => {
-      if (seen.has(name)) return;
-      seen.add(name);
+    const follow = (used: string) => {
+      if (seen.has(used)) return;
+      seen.add(used);
+      const { name, sheet } = splitName(used);
       if (!this.nameUsers.has(name)) this.nameUsers.set(name, new Set());
       this.nameUsers.get(name)!.add(f);
-      const def = this.names.get(`${f.sheet}:${name}`) ?? this.names.get(`-1:${name}`);
+      const at = sheet === undefined ? f.sheet : this.sheetIndex(sheet);
+      if (at < 0) {
+        // A sheet that isn't here yet: read once it is added.
+        const k = sheet!.toLowerCase();
+        if (!this.waiting.has(k)) this.waiting.set(k, new Set());
+        this.waiting.get(k)!.add(f);
+        return;
+      }
+      const def = this.definition(name, at);
       if (!def) return;
       for (const spec of def.template.refs) add(spec);
       for (const inner of def.template.names) follow(inner);
@@ -894,4 +910,10 @@ export class NativeEngine implements FormulaEngine, Host {
     this.names.set(k, { template });
     return true;
   }
+}
+
+/** A name as a formula's template lists it, "RATE" or, qualified with a sheet, "Prices!RATE". */
+function splitName(used: string): { name: string; sheet?: string } {
+  const at = used.lastIndexOf('!');
+  return at < 0 ? { name: used } : { name: used.slice(at + 1), sheet: used.slice(0, at) };
 }

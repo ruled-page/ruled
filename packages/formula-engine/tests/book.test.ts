@@ -70,6 +70,8 @@ describe('a workbook on its own', () => {
   it('works out formulas without putting them in cells', () => {
     const book = prices();
     expect(book.evaluate('=Rate*2')).toBe(9);
+    // A workbook's name read through a sheet that has none of its own.
+    expect(book.evaluate("='Q1 Sales'!Rate")).toBe(4.5);
     expect(book.evaluate('=B1+1', 'Prices')).toBe(5.5);
     expect(book.evaluate('=SEQUENCE(2,2)')).toEqual([
       [1, 2],

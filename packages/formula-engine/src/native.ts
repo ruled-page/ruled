@@ -71,7 +71,7 @@ function unsupportedReason(fileFormula: string, lambdas: ReadonlySet<string> = n
   for (const t of tokens) {
     if (t.type === 'structured') return { kind: 'tableRefs' };
     if (t.type === 'func' && t.value.toUpperCase() === 'CELL' && !cellCalculable(tokens, tokens.indexOf(t))) return { kind: 'function', name: 'CELL' };
-    if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'unknown') {
+    if (t.type === 'range' || t.type === 'range_beam' || t.type === 'range_ternary' || t.type === 'range_named' || t.type === 'unknown') {
       if (t.value.includes('[')) return { kind: 'externalLinks' };
     }
   }
