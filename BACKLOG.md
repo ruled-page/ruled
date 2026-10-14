@@ -38,10 +38,12 @@ needs no server, and nothing here should add one.
   and shown as placeholders; the common kinds, text boxes among them, are
   drawn. Gradients are drawn in their first colour, and shadows and other
   effects are left out. A shape's text can't be edited here.
-- **Surface charts and Excel 2016's newer kinds** (waterfall, histogram,
-  treemap, funnel and the rest). Kept in the file and shown as placeholders;
-  the other kinds are drawn, and a host can turn drawing off
-  (`features.charts`).
+- **Surface charts and Excel 2016's other newer kinds** (histogram,
+  treemap, sunburst, box and whisker, maps). Kept in the file and shown as
+  placeholders; the other kinds are drawn, waterfalls and funnels among
+  them, and a host can turn drawing off (`features.charts`). Waterfalls are
+  drawn without their connecting lines, and neither they nor funnels can be
+  changed here.
 - **.xls, .xlsb and .ods files.** Refused with a message. A converter such
   as SheetJS could open them as .xlsx, losing charts and pivot tables.
 - **Printing and PDF.** Print settings are kept in the file; nothing prints.

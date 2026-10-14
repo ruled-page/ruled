@@ -1,5 +1,5 @@
 import { msg, TextError, type Message, type MessageKey, type Text } from '../i18n/message';
-import { parseChart, type ChartContext, type ChartSpec } from './charts';
+import { parseChart, parseChartEx, type ChartContext, type ChartSpec } from './charts';
 import { parseRange, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
@@ -169,7 +169,7 @@ function anchorOf(node: XmlNode | undefined): Anchor | undefined {
   };
 }
 
-function readChart(pkg: OoxmlPackage, path: string, ctx: ChartContext): { title?: string; type?: Text; chart?: ChartSpec } {
+function readChart(pkg: OoxmlPackage, path: string, ctx: ChartContext, ex = false): { title?: string; type?: Text; chart?: ChartSpec } {
   const xml = pkg.text(path);
   if (!xml) return {};
   const root = parseXml(xml);
@@ -197,7 +197,7 @@ function readChart(pkg: OoxmlPackage, path: string, ctx: ChartContext): { title?
     const id = layout ? attr(layout, 'layoutId') : undefined;
     if (id) type = id.charAt(0).toUpperCase() + id.slice(1);
   }
-  return { title: title || undefined, type, chart: plot ? parseChart(root, ctx) : undefined };
+  return { title: title || undefined, type, chart: ex ? parseChartEx(root, ctx) : plot ? parseChart(root, ctx) : undefined };
 }
 
 /** A picture's image part, and its cropping, turn and flips. */
@@ -235,9 +235,10 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
     const chartRef = descendants(anchor, 'chart').find((c) => attr(c, 'id'));
     const rel = chartRef ? rels.get(attr(chartRef, 'id') ?? '') : undefined;
     if (rel && (rel.type === 'chart' || rel.type === 'chartEx')) {
-      const { title, type, chart } = readChart(pkg, rel.target, ctx);
-      // Excel's newer kinds of chart (chartEx: waterfall, treemap…) aren't read.
-      out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx, source, chartPart: rel.target });
+      const ex = rel.type === 'chartEx';
+      // Excel 2016's newer kinds (chartEx): waterfalls and funnels are drawn, the rest (treemap…) are placeholders; none is edited here.
+      const { title, type, chart } = readChart(pkg, rel.target, ctx, ex);
+      out.push({ kind: 'chart', name, title, chartType: type, chart, from, to, sizePx, source, chartPart: rel.target, ...(ex && { chartEx: true }) });
     } else if (descendants(anchor, 'pic').length) {
       const picture = pictureOf(descendants(anchor, 'pic')[0], rels);
       out.push({ kind: 'image', name, from, to, sizePx, source, ...(picture && { picture }) });

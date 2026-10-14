@@ -293,6 +293,8 @@ export interface SheetObject {
   chartPart?: string;
   /** A chart added or changed in the editor: its chart part, as it is saved. */
   chartXml?: string;
+  /** A chart in Excel 2016's newer format (waterfall, funnel, treemap…), which is drawn where the editor can, but not edited. */
+  chartEx?: boolean;
   /** A picture: its image part, and how it is cropped (fractions of the image cut from each edge), turned (degrees clockwise) and flipped. */
   picture?: { part: string; crop?: { l: number; t: number; r: number; b: number }; rotate?: number; flipH?: boolean; flipV?: boolean };
   /** A shape or text box of a kind the editor draws, as it is drawn. */

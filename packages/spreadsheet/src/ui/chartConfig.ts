@@ -1,5 +1,5 @@
 import type { ChartConfiguration, ChartDataset, LegendItem, ScaleOptions } from 'chart.js';
-import type { Text } from '../i18n/message';
+import { msg, type Text } from '../i18n/message';
 import { formatValue, type ChartPlot, type PlotAxis, type PlotGroup, type PlotSeries } from '../state/charts';
 
 /**
@@ -330,6 +330,8 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
     };
   }
 
+  if (kind === 'waterfall' || kind === 'funnel') return stepsConfig(plot, groups[0], palette, look, options, text, valueScale);
+
   // Bars, lines and areas, alone or combined; Excel's bar chart runs sideways.
   const sideways = groups.some((g) => g.kind === 'bar' && g.horizontal);
   const index = sideways ? 'y' : 'x';
@@ -404,5 +406,87 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
     type: groups.some((g) => g.kind === 'bar') ? 'bar' : 'line',
     data: { labels: plot.categories, datasets: datasets as ChartDataset[] },
     options: { ...options, indexAxis: index, scales } as ChartConfiguration['options'],
+  };
+}
+
+/**
+ * Excel 2016's waterfall and funnel charts, as floating bars. A waterfall's
+ * bars step up or down from the running total, or stand from zero for the
+ * points that are totals, in the theme's first three accents for increases,
+ * decreases and totals, as Excel colours them. A funnel's bars are centred,
+ * the first at the top, with no value axis.
+ */
+function stepsConfig(
+  plot: ChartPlot,
+  g: PlotGroup,
+  palette: string[],
+  look: ChartLook,
+  options: ChartConfiguration['options'],
+  text: (t: Text) => string,
+  valueScale: (axis: PlotAxis | undefined, position: 'left' | 'bottom', values: (number | null)[], percentStacked: boolean, format: string) => ScaleOptions,
+): ChartConfiguration {
+  const s = g.series[0];
+  const font = { family: look.font, size: 12 };
+  const funnel = g.kind === 'funnel';
+  const bar = { type: 'bar' as const, borderWidth: 0, grouped: false, categoryPercentage: 1 / (1 + g.gapWidth / 100), barPercentage: 1, pointStyle: 'rect' };
+  const category = plot.axes.category;
+  const categoryScale = {
+    type: 'category',
+    position: funnel ? 'left' : 'bottom',
+    reverse: !!category?.reversed,
+    display: !category?.hidden,
+    grid: { display: false },
+    border: { color: look.axis },
+    ticks: { color: look.muted, font },
+    title: { display: !!category?.title, text: category?.title ?? '', color: look.text, font: { ...font, size: 13 } },
+  } as ScaleOptions;
+  let datasets: ChartDataset[];
+  let values: number[];
+  if (funnel) {
+    const widths = s.values.map((v) => (v === null ? null : Math.abs(v)));
+    values = widths.flatMap((w) => (w === null ? [] : [w / 2, -w / 2]));
+    const color = s.style.color ?? palette[0];
+    datasets = [
+      {
+        ...bar,
+        label: text(s.name),
+        data: widths.map((w) => (w === null ? null : [-w / 2, w / 2])),
+        backgroundColor: widths.map((_, i) => s.style.pointColors?.[i] ?? color),
+      } as ChartDataset,
+    ];
+  } else {
+    const totals = new Set(g.subtotals ?? []);
+    let run = 0;
+    const steps = s.values.map((v, i) => {
+      if (v === null) return null;
+      if (totals.has(i)) {
+        run = v;
+        return { from: 0, to: v, kind: 2 };
+      }
+      const from = run;
+      run += v;
+      return { from, to: run, kind: v >= 0 ? 0 : 1 };
+    });
+    values = [0, ...steps.flatMap((p) => (p ? [p.from, p.to] : []))];
+    const names = [msg('charts.waterfall.increase'), msg('charts.waterfall.decrease'), msg('charts.waterfall.total')];
+    datasets = names
+      .map((name, k) => ({
+        ...bar,
+        label: text(name),
+        data: steps.map((p) => (p && p.kind === k ? [p.from, p.to] : null)),
+        backgroundColor: steps.map((_, i) => s.style.pointColors?.[i] ?? palette[k % palette.length]),
+      }))
+      .filter((d) => d.data.some((v) => v !== null)) as ChartDataset[];
+  }
+  const value = funnel ? ({ type: 'linear', display: false, grid: { display: false } } as ScaleOptions) : valueScale(plot.axes.value, 'left', values, false, plot.axes.value?.format ?? s.format);
+  return {
+    type: 'bar',
+    data: { labels: plot.categories, datasets },
+    options: {
+      ...options,
+      indexAxis: funnel ? 'y' : 'x',
+      plugins: { ...options?.plugins, legend: { ...options?.plugins?.legend, display: !!plot.legend } },
+      scales: funnel ? { y: categoryScale, x: value } : { x: categoryScale, y: value },
+    } as ChartConfiguration['options'],
   };
 }

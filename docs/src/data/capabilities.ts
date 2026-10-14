@@ -81,7 +81,8 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
     rows: [
       { what: 'Column, bar, line, area, pie, doughnut and scatter charts', support: 'edit', note: 'Inserted from a selection, moved, resized, and their type, title, legend and data changed.' },
       { what: 'Radar, bubble, stock, 3-D and pie-of-pie charts', support: 'show', note: 'Drawn from the cells (3-D drawn flat), moved, resized and retitled.' },
-      { what: 'Surface, waterfall, treemap, histogram, funnel and other newer charts', support: 'keep', note: 'Shown as a placeholder with the chart’s title.' },
+      { what: 'Waterfall and funnel charts', support: 'show', note: 'Drawn from the cells, moved, resized and deleted; not changed here.' },
+      { what: 'Surface, treemap, histogram, sunburst and other newer charts', support: 'keep', note: 'Shown as a placeholder with the chart’s title.' },
       { what: 'Data labels, trendlines, error bars and gradient fills on charts', support: 'keep' },
       { what: 'Pictures', support: 'show', note: 'Drawn where they sit, cropped, turned and flipped as in Excel, and moved, resized and deleted.' },
       { what: 'Shapes and text boxes', support: 'show', note: 'The common kinds drawn with their fill, outline and text; groups and the rest shown as placeholders. Moved, resized and deleted; their text not changed here.' },

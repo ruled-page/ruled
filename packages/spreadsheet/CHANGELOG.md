@@ -8,6 +8,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
+- Excel 2016's waterfall and funnel charts are drawn from the cells, in place
+  of placeholders: a waterfall's steps and totals in Excel's increase,
+  decrease and total colours, a funnel's centred bars. They can be moved,
+  resized and deleted, but not changed. Excel's newer charts could
+  previously be opened in the chart dialog, which didn't apply to them.
 - Password-protected workbooks open: the editor asks for the password, as
   Excel does, and saves the workbook encrypted with it again. They're
   decrypted in the browser, and no drafts of them are kept there. Node's

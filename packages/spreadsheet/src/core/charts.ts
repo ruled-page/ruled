@@ -11,7 +11,7 @@ import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import type { Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';
 
-export type ChartKind = 'bar' | 'line' | 'area' | 'pie' | 'doughnut' | 'scatter' | 'radar' | 'bubble' | 'stock';
+export type ChartKind = 'bar' | 'line' | 'area' | 'pie' | 'doughnut' | 'scatter' | 'radar' | 'bubble' | 'stock' | 'waterfall' | 'funnel';
 export type ChartGrouping = 'clustered' | 'stacked' | 'percentStacked' | 'standard';
 
 /** A series' name, categories or values: where they come from, and what Excel saved. */
@@ -68,6 +68,8 @@ export interface ChartGroup {
   filled?: boolean;
   /** A bubble chart's largest bubble, as a percentage of Excel's default size, and whether sizes give a bubble's area or its width. */
   bubbles?: { scale: number; area: boolean };
+  /** A waterfall's points that are totals, drawn from zero, rather than steps up or down from the running total. */
+  subtotals?: number[];
   /** A stock chart's lines from each category's highest value to its lowest, and its bars from its first series to its last (up and down colours). */
   stock?: { hiLow: boolean; upDown?: { up?: string; down?: string } };
 }
@@ -469,5 +471,103 @@ export function parseChart(root: XmlNode, ctx: ChartContext): ChartSpec {
     visibleOnly: flag(child(chart, 'plotVisOnly'), true),
     accents: ctx.theme.slice(4, 10).map((c) => '#' + c.toUpperCase()),
     unsupported,
+  };
+}
+
+/** Excel 2016's newer kinds of chart (chartEx) the editor draws, by the layout their series names. */
+const EX_KINDS: Record<string, ChartKind> = { waterfall: 'waterfall', funnel: 'funnel' };
+
+/** A chartEx name or title: its text written in, or a reference with the text Excel saved. */
+function exText(tx: XmlNode | undefined, ctx: ChartContext): ChartData | undefined {
+  const rich = child(tx, 'rich');
+  if (rich) {
+    const text = children(rich, 'p')
+      .map((p) => descendants(p, 't').map((t) => t.text).join(''))
+      .join('\n')
+      .trim();
+    return text ? { cache: [text] } : undefined;
+  }
+  const data = child(tx, 'txData');
+  if (!data) return undefined;
+  const formula = child(data, 'f')?.text.trim() || undefined;
+  const v = child(data, 'v')?.text;
+  return { formula, ref: formula ? resolveRef(formula, ctx) : undefined, cache: v === undefined ? [] : [v] };
+}
+
+/** A chartEx dimension: its reference, and the points Excel saved in its first level. */
+function exDimension(dim: XmlNode | undefined, ctx: ChartContext): ChartData | undefined {
+  if (!dim) return undefined;
+  const formula = child(dim, 'f')?.text.trim() || undefined;
+  const lvl = child(dim, 'lvl');
+  const numeric = dim.name === 'numDim';
+  const count = Math.min(MAX_POINTS, Number(attr(lvl, 'ptCount') ?? 0));
+  const cache: (string | number | null)[] = new Array(count).fill(null);
+  for (const p of children(lvl, 'pt')) {
+    const i = Number(attr(p, 'idx'));
+    if (!(i >= 0 && i < count)) continue;
+    const n = Number(p.text);
+    cache[i] = numeric ? (p.text.trim() !== '' && Number.isFinite(n) ? n : null) : p.text;
+  }
+  // Several levels (a treemap's) keep Excel's labels.
+  const levels = children(dim, 'lvl').length;
+  return { formula, ref: formula && levels <= 1 ? resolveRef(formula, ctx) : undefined, cache, format: attr(lvl, 'formatCode') || undefined };
+}
+
+/**
+ * A chart in Excel 2016's newer format (chartEx): waterfall and funnel
+ * charts, read into the same shape as other charts; other kinds (histogram,
+ * treemap, sunburst, box and whisker, maps) are marked unsupported.
+ */
+export function parseChartEx(root: XmlNode, ctx: ChartContext): ChartSpec {
+  const chart = child(root, 'chart');
+  const plot = child(chart, 'plotArea');
+  const region = child(plot, 'plotAreaRegion');
+  const data = new Map(children(child(root, 'chartData'), 'data').map((d) => [attr(d, 'id') ?? '', d]));
+  const all = children(region, 'series');
+  const layout = attr(all[0], 'layoutId') ?? 'empty';
+  const kind = EX_KINDS[layout];
+  const series: ChartSeries[] = [];
+  let subtotals: number[] | undefined;
+  for (const s of all) {
+    if (attr(s, 'layoutId') !== layout || attr(s, 'hidden') === '1') continue;
+    const d = data.get(attr(child(s, 'dataId'), 'val') ?? '');
+    const dims = d?.children ?? [];
+    const pointColors: Record<number, string> = {};
+    for (const p of children(s, 'dataPt')) {
+      const color = solidFill(child(p, 'spPr'), ctx.theme);
+      if (color) pointColors[Number(attr(p, 'idx'))] = color;
+    }
+    series.push({
+      name: exText(child(s, 'tx'), ctx),
+      categories: exDimension(dims.find((c) => attr(c, 'type') === 'cat'), ctx),
+      values: exDimension(dims.find((c) => attr(c, 'type') === 'val'), ctx) ?? { cache: [] },
+      color: solidFill(child(s, 'spPr'), ctx.theme),
+      ...(Object.keys(pointColors).length && { pointColors }),
+      line: false,
+      markers: false,
+      smooth: false,
+      dashed: false,
+    });
+    subtotals ??= children(child(child(s, 'layoutPr'), 'subtotals'), 'idx').map((i) => Number(attr(i, 'val')));
+  }
+  const axes = children(plot, 'axis');
+  const axisOf = (scaling: string): ChartAxis | undefined => {
+    const a = axes.find((x) => child(x, scaling));
+    return a && { title: exText(child(child(a, 'title'), 'tx'), ctx), reversed: false, hidden: attr(a, 'hidden') === '1', gridlines: !!child(a, 'majorGridlines') };
+  };
+  const gap = Number(attr(child(axes.find((x) => child(x, 'catScaling')), 'catScaling'), 'gapWidth'));
+  const legend = child(chart, 'legend');
+  const pos = attr(legend, 'pos') ?? 'r';
+  return {
+    title: exText(child(child(chart, 'title'), 'tx'), ctx),
+    groups: kind
+      ? [{ kind, horizontal: kind === 'funnel', grouping: 'standard', varyColors: false, secondary: false, series, gapWidth: Number.isFinite(gap) ? gap * 100 : kind === 'funnel' ? 6 : 50, ...(subtotals?.length && { subtotals }) }]
+      : [],
+    axes: { category: axisOf('catScaling'), value: axisOf('valScaling') },
+    legend: legend ? { position: pos === 't' ? 'top' : pos === 'b' ? 'bottom' : pos === 'l' ? 'left' : 'right', deleted: [] } : undefined,
+    blanks: 'gap',
+    visibleOnly: true,
+    accents: ctx.theme.slice(4, 10).map((c) => '#' + c.toUpperCase()),
+    ...(!kind ? { unsupported: layout } : !series.length ? { unsupported: 'empty' } : {}),
   };
 }

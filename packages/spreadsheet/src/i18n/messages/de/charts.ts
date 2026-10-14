@@ -3,6 +3,9 @@ import type { charts as en } from '../en/charts';
 /** German messages for drawn charts; every English key needs one (the type checks it). */
 export const charts: Record<keyof typeof en, string> = {
   'charts.seriesName': 'Datenreihe{{n}}',
+  'charts.waterfall.increase': 'Zunahme',
+  'charts.waterfall.decrease': 'Abnahme',
+  'charts.waterfall.total': 'Summe',
   'charts.noData': 'Es gibt keine Daten zum Darstellen.',
   'charts.menu.insert': 'Diagramm einfügen',
   'charts.history.insert': 'Diagramm einfügen',

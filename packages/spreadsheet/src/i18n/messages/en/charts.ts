@@ -2,6 +2,9 @@
 export const charts = {
   /** A series the workbook doesn't name, called what Excel calls it. */
   'charts.seriesName': 'Series{{n}}',
+  'charts.waterfall.increase': 'Increase',
+  'charts.waterfall.decrease': 'Decrease',
+  'charts.waterfall.total': 'Total',
   'charts.noData': 'There is no data to plot.',
   'charts.menu.insert': 'Insert chart',
   'charts.history.insert': 'Insert chart',

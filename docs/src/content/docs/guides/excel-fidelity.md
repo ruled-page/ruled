@@ -10,7 +10,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 ## Worked out live
 
 - **Formulas**, by the editor's own calculation engine, as cells change: Excel's function library, dynamic arrays and their spills, `LET`, `LAMBDA` with `MAP`, `REDUCE`, `SCAN` and the rest, names, tables' structured references, 3-D references, and iterative calculation where a workbook asks for it. On opening, its results are compared with the values Excel saved, and a formula that disagrees is reported.
-- **Charts**, drawn from the current cells: column, bar, line, area, pie, doughnut, scatter, radar, bubble and stock charts, and 3-D charts drawn flat. People insert, move, resize, restyle and delete them as in Excel.
+- **Charts**, drawn from the current cells: column, bar, line, area, pie, doughnut, scatter, radar, bubble and stock charts, 3-D charts drawn flat, and Excel 2016's waterfall and funnel charts. People insert, move, resize, restyle and delete them as in Excel.
 - **Pivot tables**, worked out again as their source changes, with Excel's PivotTable Fields pane, filters, subtotals, grand totals, compact, outline and tabular forms, and Show Values As. People insert their own.
 - **Conditional formatting**: cell rules, top and bottom, averages, duplicates, colour scales, data bars and icon sets.
 - **Pictures, shapes and text boxes**, drawn where they sit; people move, resize and delete them as in Excel.
@@ -45,7 +45,7 @@ What the file holds is kept in each case; these are limits on how the editor sho
 
 - Text in one cell with several fonts is drawn in one font.
 - A font the device lacks is drawn with a free font of the same widths for Calibri, Cambria, Arial, Times New Roman, Courier New and Georgia (see [Fonts](/start/install/#fonts)), and otherwise in the device's own font, a little wider or narrower than in Excel. Aptos, Excel's newest default, is one of those.
-- Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Excel's newer chart kinds (waterfall, treemap, histogram, funnel) and surface charts show as placeholders.
+- Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Waterfall and funnel charts are drawn without their connecting lines, and can be moved, resized and deleted but not changed. Excel 2016's other newer kinds (histogram, treemap, sunburst, box and whisker, maps) and surface charts show as placeholders.
 - Excel's built-in table styles are drawn from each style's pattern in the theme's colours: close to Excel, not exact. A file's own table styles are drawn as it defines them.
 - Pictures are drawn cropped, turned and flipped as the file sets them, but without their borders, shadows and other effects. Pictures in formats browsers don't show, such as Windows metafiles (.emf, .wmf) and TIFFs, show as placeholders.
 - Shapes are drawn in their fill, outline and text, as the file or its theme's styles set them: rectangles, rounded rectangles, ellipses, triangles, diamonds, parallelograms, trapezoids, pentagons, hexagons, octagons, chevrons, arrows, stars, crosses, the flowchart's basic boxes, lines and connectors. Gradients are drawn in their first colour, and shadows, glows and 3-D effects are left out. Grouped shapes, freeform shapes and the rarer kinds show as placeholders. A shape's text can't be changed here.

@@ -2588,7 +2588,7 @@ export class WorkbookSession {
     const ctx = this.model.chartContext;
     const obj = info.objects.find((o) => o.kind === 'chart' && objectKey(o) === op.key);
     const xml = obj && (obj.chartXml ?? (obj.chartPart ? this.pkg.text(obj.chartPart) : undefined));
-    if (!obj || !xml) return { reason: msg('core.chart.missing') };
+    if (!obj || !xml || obj.chartEx) return { reason: msg('core.chart.missing') };
     const current = chartKindOf(obj.chart);
     // Only a new type makes a new plot area; a chart of a kind Insert Chart doesn't make keeps its own.
     const rebuild = !!op.edit.kind && op.edit.kind !== current;

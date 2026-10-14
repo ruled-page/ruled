@@ -266,7 +266,8 @@ export function ObjectsOverlay({
 
   /** Excel's chart dialogs, for a chart. */
   const openEditor = (b: Box) => {
-    if (b.editable && b.obj.kind === 'chart') store.set('chartDialog', { key: b.id });
+    // Excel 2016's newer charts are kept as they are, not changed here.
+    if (b.editable && b.obj.kind === 'chart' && !b.obj.chartEx) store.set('chartDialog', { key: b.id });
   };
 
   /** Right-clicking an object selects it and offers what can be done with it. */
@@ -373,7 +374,7 @@ export function ObjectsOverlay({
           label={menu.box.obj.name}
           onClose={() => setMenu(undefined)}
           items={[
-            ...(menu.box.obj.kind === 'chart' ? [{ label: t('charts.menu.edit'), onSelect: () => openEditor(menu.box) }] : []),
+            ...(menu.box.obj.kind === 'chart' && !menu.box.obj.chartEx ? [{ label: t('charts.menu.edit'), onSelect: () => openEditor(menu.box) }] : []),
             { label: t('objects.menu.delete'), danger: true, onSelect: () => void store.deleteObject(menu.box.id).then(() => store.focusGrid()) },
           ]}
         />
