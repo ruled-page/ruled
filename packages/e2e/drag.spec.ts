@@ -7,7 +7,8 @@ test.beforeEach(async ({ page }) => {
 
 test("moves cells by dragging the selection's border, and copies them with Ctrl (Option on a Mac)", async ({ page }) => {
   const canvas = grid(page).first();
-  const box = (await canvas.boundingBox())!;
+  // Where the grid is, read again before each drag: the toolbar above it folds its labels as it settles, which moves it.
+  let box = (await canvas.boundingBox())!;
   // Rows are 20 pixels under a 24 pixel heading; columns 64 pixels after the 40 pixel row numbers.
   const x = (col: number) => box.x + 40 + 64 * col + 32;
   const bottom = (row: number) => box.y + 24 + 20 * (row + 1);
@@ -29,6 +30,7 @@ test("moves cells by dragging the selection's border, and copies them with Ctrl 
 
   const copy = (await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))) ? 'Alt' : 'Control';
   await goTo(page, 'B6');
+  box = (await canvas.boundingBox())!;
   await page.mouse.move(x(1), bottom(5));
   await page.mouse.down();
   await page.keyboard.down(copy);
