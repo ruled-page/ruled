@@ -5,6 +5,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+## 0.1.0 (2026-10-14)
+
 The first release: a spreadsheet editor for web apps that opens Excel
 workbooks, checks them against a schema, and saves them back without losing
 what it doesn't change. Released with its calculation engine,
