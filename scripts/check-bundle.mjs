@@ -29,9 +29,6 @@ const BUDGETS = [
   ['packages/formula-engine/dist', /^index\.js$/, 85],
 ];
 
-/** Measured but not budgeted yet: each grid's own chunk, while Ruled's grid is being built to replace Glide's. */
-const REPORTED = [['packages/spreadsheet/dist/react', /^(Glide|Ruled)Grid-.*\.js$/]];
-
 /** Directories of code that runs on the page, where the engine must not be. */
 const PAGE_CODE = ['examples/demo/dist/assets', 'examples/react-portal/dist/assets', 'packages/spreadsheet/dist/react'];
 
@@ -45,12 +42,6 @@ for (const [dir, pattern, kB] of BUDGETS) {
     const line = `${join(dir, f)}: ${size.toFixed(0)} kB gzipped, budget ${kB} kB`;
     console.log(line);
     if (size > kB) problems.push(line);
-  }
-}
-for (const [dir, pattern] of REPORTED) {
-  const path = join(root, dir);
-  for (const f of existsSync(path) ? readdirSync(path).filter((n) => pattern.test(n)) : []) {
-    console.log(`${join(dir, f)}: ${(gzipSync(readFileSync(join(path, f))).length / 1024).toFixed(0)} kB gzipped, no budget yet`);
   }
 }
 // The type declarations import nothing a host would have to install but React (the editor's) or nothing at all (the engine's).

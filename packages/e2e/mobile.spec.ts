@@ -167,7 +167,6 @@ test('meets the accessibility checks on a phone', async ({ page }) => {
 });
 
 test('holding a finger on a cell opens the cell menu', async ({ page }) => {
-  test.skip(process.env.E2E_GRID !== 'ruled', "Glide's grid opens no menu for a long press");
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
   const box = (await gridSurface(page).first().boundingBox())!;
   // B3: 40 pixel row numbers, then 64 pixel columns, under a 24 pixel heading.

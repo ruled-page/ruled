@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DisplayStyle, SheetInfo } from '../src/core/types';
-import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, verticalShift, type Overflow } from '../src/state/overflow';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, type Overflow } from '../src/state/overflow';
 import { sheet, style, type FileCell } from './state-fixtures';
 
 /** 7px a character; columns are 64px, so a cell holds 7 characters after padding. */
@@ -155,10 +155,10 @@ describe('indents and vertical alignment', () => {
     expect(spills([[0, 1, 'twelve chars']], [style({ indent: 6 })])).toEqual([[1, 1, 3, 'left']]);
   });
 
-  it("move text from Glide's centre to Excel's top, middle or bottom, bottom unless set", () => {
-    // A 40px row, 12px of text and 2px of padding: centred, the text starts at 14.
-    expect([verticalShift('top', 40, 12, 2), verticalShift('center', 40, 12, 2), verticalShift(undefined, 40, 12, 2)]).toEqual([-12, 0, 12]);
-    expect(verticalShift('distributed', 40, 12, 2)).toBe(0);
+  it("put text at Excel's top, middle or bottom, bottom unless set", () => {
+    // A 40px row, 12px of text and 2px of padding.
+    expect([textTop('top', 40, 12, 2), textTop('center', 40, 12, 2), textTop(undefined, 40, 12, 2)]).toEqual([2, 14, 26]);
+    expect(textTop('distributed', 40, 12, 2)).toBe(14);
     // Text taller than its cell: at the top its first lines show, at the bottom its last.
     expect([textTop('top', 20, 30, 2), textTop('center', 20, 30, 2), textTop('bottom', 20, 30, 2)]).toEqual([2, -5, -12]);
   });

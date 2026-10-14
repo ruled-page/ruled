@@ -1,21 +1,11 @@
 import { useRef, useState } from 'react';
-import type { GridHandle, GridImplementation, GridKind } from '../grid/contract';
+import type { GridHandle } from '../grid/contract';
+import { SheetSurface } from '../grid/SheetSurface';
 import { outlineBarSize } from '../state/outline';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 import { lazyModule } from './lazyModule';
 import { ObjectsOverlay } from './ObjectsOverlay';
-
-/** Each grid in a chunk of its own, so either can be measured on its own. */
-const GRIDS: Record<GridKind, ReturnType<typeof lazyModule<GridImplementation>>> = {
-  glide: lazyModule(() => import('../grid/glide/GlideGrid')),
-  ruled: lazyModule(() => import('../grid/ruled/RuledGrid')),
-};
-
-/** Starts loading a grid, so it arrives alongside the workbook rather than after it. */
-export function preloadGrid(kind: GridKind): void {
-  GRIDS[kind].preload();
-}
 
 /** The outline bars, loaded for the first sheet with groups. */
 const outlineBars = lazyModule(() => import('./OutlineBar'));
@@ -37,13 +27,12 @@ interface Props {
 }
 
 /**
- * A worksheet: drawn by the grid the editor was given, with what goes over
- * it (charts, pictures and shapes, and touch handles) and, on a sheet with
- * groups, outline bars beside the row numbers and above the column letters.
+ * A worksheet: drawn by the grid, with what goes over it (charts, pictures
+ * and shapes, and touch handles) and, on a sheet with groups, outline bars
+ * beside the row numbers and above the column letters.
  */
 export function SheetArea(props: Props) {
   const { store, view } = props;
-  const Grid = GRIDS[store.grid].useModule(true);
   const [handle, setHandle] = useState<GridHandle>();
   const body = useRef<HTMLDivElement>(null);
 
@@ -59,7 +48,7 @@ export function SheetArea(props: Props) {
   return (
     <div className="wbe-outline-frame">
       <div className="wbe-outline-body" ref={body} style={{ left: barWidth, top: barHeight }}>
-        {Grid && <Grid.SheetSurface {...props} onHandle={setHandle} />}
+        <SheetSurface {...props} onHandle={setHandle} />
         {handle && Array.from({ length: panes }, (_, i) => <ObjectsOverlay key={i} store={store} view={view} handle={handle} pane={i} colVersion={store.colVersion} />)}
         {handle && store.touchMode && Touch && <Touch.default store={store} host={body} handle={handle} />}
       </div>

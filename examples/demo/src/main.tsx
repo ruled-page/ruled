@@ -27,15 +27,11 @@ function rememberSample(fileName: string | undefined): void {
   if (url.href !== location.href) history.replaceState(history.state, '', url);
 }
 
-/** The grid to draw sheets in: ?grid=ruled tries Ruled's own; the end-to-end tests can choose it for a whole build. */
-const grid = new URLSearchParams(location.search).get('grid') ?? import.meta.env.VITE_RULED_GRID;
-
 // The status bar says how long opening, calculating and edits take.
 const store = new WorkbookStore({
   schemas: DEMO_SCHEMAS,
   language: i18next.language,
   diagnostics: true,
-  ...((grid === 'glide' || grid === 'ruled') && { experimental: { grid } }),
   onEvent: (e) => {
     if (e.type === 'opened') rememberSample(e.fileName);
   },
@@ -118,26 +114,6 @@ function SamplesButton() {
   );
 }
 
-/**
- * Switches between Glide's grid and Ruled's own, which is replacing it. The
- * editor chooses its grid when it starts, so the page reloads with ?grid=,
- * the sample open kept.
- */
-function GridPicker() {
-  const { t } = useTranslation(DEMO_NS);
-  const choose = (next: string) => {
-    const url = new URL(location.href);
-    url.searchParams.set('grid', next);
-    location.assign(url);
-  };
-  return (
-    <Select className="demo-grid" value={store.grid} onChange={(e) => choose(e.target.value)} aria-label={t('picker.grid')} title={t('picker.grid')}>
-      <option value="glide">{t('picker.gridGlide')}</option>
-      <option value="ruled">{t('picker.gridRuled')}</option>
-    </Select>
-  );
-}
-
 /** Switches the language of the demo's own text and of the editor together. */
 function LanguagePicker() {
   const { t, i18n } = useTranslation(DEMO_NS);
@@ -168,7 +144,6 @@ createRoot(document.getElementById('root')!).render(
       toolbarEnd={
         <HostText>
           <SamplesButton />
-          <GridPicker />
           <ThemePicker />
           <LanguagePicker />
         </HostText>

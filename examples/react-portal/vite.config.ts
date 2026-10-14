@@ -1,6 +1,4 @@
-import { fileURLToPath } from 'node:url';
 import { defaultClientConditions, defineConfig } from 'vite';
-import { glidePatches } from '../../packages/spreadsheet/vite.glide.ts';
 
 /**
  * The editor embedded in a React supplier portal, using the editor from its source. `npm run build` builds it into
@@ -13,14 +11,7 @@ export default defineConfig({
   // the worker's entry for their shared code, which WebKit runs a second time: that copy took the
   // messages after the workbook opened in the first, and every edit failed with "No workbook is open".
   worker: { format: 'es', rolldownOptions: { output: { codeSplitting: false } } },
-  plugins: [glidePatches()],
-  resolve: {
-    conditions: ['source', ...defaultClientConditions],
-    // The grid's markdown cells are never shown, so their parser isn't needed.
-    alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('../../packages/spreadsheet/src/editor/shims/marked.ts', import.meta.url)) }],
-  },
-  // The dev server bundles Glide ahead of time, outside the plugins above.
-  optimizeDeps: { rolldownOptions: { plugins: [glidePatches()] } },
+  resolve: { conditions: ['source', ...defaultClientConditions] },
   // The supplier workbooks are among the demo's samples.
   publicDir: '../demo/public',
   server: { port: 5181 },

@@ -16,7 +16,6 @@ import { SchemaController } from '../schema/controller';
 import { hasWildcards, matchesWhole, matchSpan, parsePattern, searchIn } from '@ruled/formula/wildcard';
 import { stepDecimals } from './numberFormats';
 import type { FieldValue, NumberOptions, SchemaValues, WorkbookSchema } from '../schema/types';
-import type { GridKind } from '../grid/contract';
 import {
   CellFlag,
   VT,
@@ -290,11 +289,6 @@ export interface StoreOptions {
    * and how long opening, calculating and the last edit took, for comparing engines.
    */
   diagnostics?: boolean;
-  /** Features still being tried out, which may change or go without notice. */
-  experimental?: {
-    /** The grid sheets are drawn in: Glide Data Grid (the default), or Ruled's own, which is still being built. */
-    grid?: GridKind;
-  };
   /**
    * Called when the editor stops working: its worker couldn't load, crashed,
    * ran out of memory or stopped answering. The editor shows what happened
@@ -667,8 +661,6 @@ export class WorkbookStore {
   private dataVersion = 0;
 
   readonly features: EditorFeatures;
-  /** The grid sheets are drawn in. */
-  readonly grid: GridKind;
 
   constructor(options: StoreOptions = {}) {
     // A copy: changing the theme or user later doesn't touch the host's object.
@@ -676,7 +668,6 @@ export class WorkbookStore {
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
     this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, ...options.features };
-    this.grid = options.experimental?.grid ?? 'glide';
     this.i18n = createI18n(options.language ?? this.locale, options.translations);
     this.t = translator(this.i18n);
   }

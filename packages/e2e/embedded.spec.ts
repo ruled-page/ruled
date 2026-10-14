@@ -9,7 +9,7 @@ import { goTo, readWorkbook, serverUrl, setCell } from './helpers';
  * values into its own view.
  */
 
-/** A cell's contents, read from the formula bar (the template freezes its heading row, so the grid is two panes). */
+/** A cell's contents, read from the formula bar. */
 async function contents(page: Page, ref: string): Promise<string> {
   await goTo(page, ref);
   return page.getByRole('combobox', { name: 'Cell contents' }).inputValue();

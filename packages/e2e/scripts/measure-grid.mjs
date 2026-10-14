@@ -1,17 +1,17 @@
 /**
- * Measures Glide's grid and Ruled's on the demo's samples, in Chromium at a
- * 2× pixel ratio: how long a sample takes to open and draw its first sheet,
- * frame times while scrolling by wheel and in jumps, time per key while an
- * arrow key is held down, and memory after opening and after scrolling.
- * Each grid runs RUNS times, taking turns, and the medians are printed and
- * written to packages/e2e/grid-compare/measurements.json. Needs the demo
- * served, at GRID_MEASURE_URL or http://localhost:4190:
+ * Measures the grid on the demo's samples, in Chromium at a 2× pixel ratio:
+ * how long a sample takes to open and draw its first sheet, main-thread work
+ * and frame times while scrolling by wheel and in jumps, time per key while
+ * an arrow key is held down, and memory after opening and after scrolling.
+ * Each sample runs RUNS times, and the medians are printed and written to
+ * packages/e2e/grid-measure/measurements.json. Needs the demo served, at
+ * GRID_MEASURE_URL or http://localhost:4190:
  *
  *   npm run build -w @ruled/demo && npm run preview -w @ruled/demo -- --port 4190
- *   node packages/e2e/scripts/measure-grids.mjs [sample.xlsx ...]
+ *   node packages/e2e/scripts/measure-grid.mjs [sample.xlsx ...]
  *
- * Headless Chromium draws without a GPU, so the times are for comparing the
- * grids, not for what a person sees.
+ * Headless Chromium draws without a GPU, so the times are for comparing one
+ * build with another, not for what a person sees.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
-const out = join(root, 'packages/e2e/grid-compare');
+const out = join(root, 'packages/e2e/grid-measure');
 const base = process.env.GRID_MEASURE_URL ?? 'http://localhost:4190';
 const RUNS = Number(process.env.RUNS ?? 3);
 const samples = process.argv.slice(2).length ? process.argv.slice(2) : ['big.xlsx', 'kitchen-sink.xlsx', 'formatting.xlsx'];
@@ -75,15 +75,15 @@ async function memory(cdp) {
   return { heapMB: m.JSHeapUsedSize / 1048576, nodes: m.Nodes, listeners: m.JSEventListeners };
 }
 
-async function measure(browser, sample, grid) {
+async function measure(browser, sample) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send('Performance.enable');
-  const result = { sample, grid };
+  const result = { sample };
 
   // Opening: from the page's start until the first sheet's canvas has been sized and drawn.
-  await page.goto(`${base}/?sample=${sample}&grid=${grid}`);
+  await page.goto(`${base}/?sample=${sample}`);
   await page.waitForFunction(() => {
     const c = document.querySelector('[data-testid="wbe-grid"] canvas');
     return !!c && c.width > 300;
@@ -92,7 +92,7 @@ async function measure(browser, sample, grid) {
   result.openMs = await page.evaluate(() => performance.now());
   result.afterOpen = await memory(cdp);
 
-  const surface = page.getByTestId('wbe-grid').last();
+  const surface = page.getByTestId('wbe-grid');
   const box = await surface.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
@@ -112,8 +112,7 @@ async function measure(browser, sample, grid) {
   before = await work(cdp);
   await page.evaluate(RECORD);
   await page.evaluate(async () => {
-    // Glide's grid may remake its scroller while scrolling, so it is found by its class rather than its test id.
-    const s = [...document.querySelectorAll('.dvn-scroller, .wbe-grid-scroller')].pop();
+    const s = document.querySelector('[data-testid="wbe-grid-scroller"]');
     for (let i = 0; i < 60; i++) {
       s.scrollTop += 4000;
       await new Promise((r) => requestAnimationFrame(r));
@@ -155,34 +154,29 @@ const browser = await chromium.launch();
 const all = [];
 for (const sample of samples) {
   for (let run = 0; run < RUNS; run++) {
-    for (const grid of ['glide', 'ruled']) {
-      const r = await measure(browser, sample, grid);
-      all.push(r);
-      console.log(`${sample} ${grid} run ${run + 1}: open ${r.openMs.toFixed(0)} ms, work per wheel turn ${r.wheelWork.taskMs.toFixed(2)} ms, per jump ${r.jumpWork.taskMs.toFixed(2)} ms, key ${r.keyMs.toFixed(1)} ms, heap ${r.afterScroll.heapMB.toFixed(1)} MB`);
-    }
+    const r = await measure(browser, sample);
+    all.push(r);
+    console.log(`${sample} run ${run + 1}: open ${r.openMs.toFixed(0)} ms, work per wheel turn ${r.wheelWork.taskMs.toFixed(2)} ms, per jump ${r.jumpWork.taskMs.toFixed(2)} ms, key ${r.keyMs.toFixed(1)} ms, heap ${r.afterScroll.heapMB.toFixed(1)} MB`);
   }
 }
 await browser.close();
 
 const rows = [];
 for (const sample of samples) {
-  for (const grid of ['glide', 'ruled']) {
-    const runs = all.filter((r) => r.sample === sample && r.grid === grid);
-    const m = (f) => median(runs.map(f));
-    rows.push({
-      sample,
-      grid,
-      'open ms': m((r) => r.openMs).toFixed(0),
-      'work per wheel turn ms (all / script)': `${m((r) => r.wheelWork.taskMs).toFixed(2)} / ${m((r) => r.wheelWork.scriptMs).toFixed(2)}`,
-      'work per jump ms (all / script)': `${m((r) => r.jumpWork.taskMs).toFixed(2)} / ${m((r) => r.jumpWork.scriptMs).toFixed(2)}`,
-      'slow frames (wheel, jumps)': `${m((r) => r.wheel.slow)}, ${m((r) => r.jumps.slow)}`,
-      'long tasks ms': m((r) => r.wheel.longTaskMs + r.jumps.longTaskMs).toFixed(0),
-      'ms per key': m((r) => r.keyMs).toFixed(1),
-      'heap MB (opened / scrolled)': `${m((r) => r.afterOpen.heapMB).toFixed(1)} / ${m((r) => r.afterScroll.heapMB).toFixed(1)}`,
-      'DOM nodes': m((r) => r.afterScroll.nodes),
-      listeners: m((r) => r.afterScroll.listeners),
-    });
-  }
+  const runs = all.filter((r) => r.sample === sample);
+  const m = (f) => median(runs.map(f));
+  rows.push({
+    sample,
+    'open ms': m((r) => r.openMs).toFixed(0),
+    'work per wheel turn ms (all / script)': `${m((r) => r.wheelWork.taskMs).toFixed(2)} / ${m((r) => r.wheelWork.scriptMs).toFixed(2)}`,
+    'work per jump ms (all / script)': `${m((r) => r.jumpWork.taskMs).toFixed(2)} / ${m((r) => r.jumpWork.scriptMs).toFixed(2)}`,
+    'slow frames (wheel, jumps)': `${m((r) => r.wheel.slow)}, ${m((r) => r.jumps.slow)}`,
+    'long tasks ms': m((r) => r.wheel.longTaskMs + r.jumps.longTaskMs).toFixed(0),
+    'ms per key': m((r) => r.keyMs).toFixed(1),
+    'heap MB (opened / scrolled)': `${m((r) => r.afterOpen.heapMB).toFixed(1)} / ${m((r) => r.afterScroll.heapMB).toFixed(1)}`,
+    'DOM nodes': m((r) => r.afterScroll.nodes),
+    listeners: m((r) => r.afterScroll.listeners),
+  });
 }
 console.table(rows);
 mkdirSync(out, { recursive: true });

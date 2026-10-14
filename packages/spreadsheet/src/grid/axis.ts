@@ -1,4 +1,4 @@
-import type { SheetView } from '../../state/sheetView';
+import type { SheetView } from '../state/sheetView';
 
 /**
  * The rows, or the columns, a grid shows, hidden ones left out, and where

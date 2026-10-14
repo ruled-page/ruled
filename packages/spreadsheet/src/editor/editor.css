@@ -13,7 +13,7 @@
   container: wbe / inline-size;
 }
 
-/* The popup layer Glide renders cell editors into; it shares the scope but not the layout. */
+/* The popup layer cell editors open in; it shares the scope but not the layout. */
 .wbe.wbe-portal {
   position: fixed;
   left: 0;
@@ -991,7 +991,8 @@
 }
 
 /* The cell editor: the text area over a copy of its text, which sizes it
-   (as Glide's own editor does) and, for a formula, shows it coloured. */
+   and, for a formula, shows it coloured. Its font and colour are the grid's,
+   set on the editor as --wbe-entry-font and --wbe-entry-text. */
 .wbe .wbe-cell-entry {
   position: relative;
   height: 100%;
@@ -1002,12 +1003,12 @@
 .wbe .wbe-cell-entry-text {
   margin: 0;
   padding: 0;
-  font-size: var(--gdg-editor-font-size);
-  font-family: var(--gdg-font-family);
+  font-size: 14.7px;
+  font-family: var(--wbe-entry-font);
   line-height: 16px;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  color: var(--gdg-text-dark);
+  color: var(--wbe-entry-text);
 }
 
 .wbe .wbe-cell-entry-input {
@@ -1022,7 +1023,7 @@
   overflow: hidden;
   outline: none;
   background: transparent;
-  -webkit-text-fill-color: var(--gdg-text-dark);
+  -webkit-text-fill-color: var(--wbe-entry-text);
 }
 
 .wbe .wbe-cell-entry-input:focus-visible {
@@ -1039,7 +1040,7 @@
 
 .wbe .wbe-colored > .wbe-cell-entry-input {
   -webkit-text-fill-color: transparent;
-  caret-color: var(--gdg-text-dark);
+  caret-color: var(--wbe-entry-text);
 }
 
 .wbe .wbe-colored > .wbe-cell-entry-text {
@@ -1158,22 +1159,14 @@
   z-index: 5;
 }
 
+/* The part of the grid that draws and takes the focus. */
 .wbe .wbe-grid-host {
+  position: absolute;
+  inset: 0;
   direction: ltr;
 }
 
-.wbe .wbe-grid-host {
-  position: absolute;
-  inset: 0;
-}
-
-/* The part of a grid that draws and takes the focus. */
-.wbe .wbe-grid-surface {
-  position: absolute;
-  inset: 0;
-}
-
-/* Ruled's grid: the canvas it draws on, under the browser's own scroller. */
+/* The canvas the grid draws on, under the browser's own scroller. */
 .wbe .wbe-grid-canvas {
   position: absolute;
   left: 0;
@@ -1216,7 +1209,7 @@
   box-shadow: 0 0 0 2px var(--wbe-grid-selection);
 }
 
-/* Ruled's grid's cell editor, over its cell. */
+/* The cell editor, over its cell. */
 .wbe .wbe-cell-editor {
   position: fixed;
   z-index: 30;
@@ -1232,7 +1225,7 @@
   overflow: visible;
 }
 
-/* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grids fill the rest. */
+/* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grid fills the rest. */
 .wbe .wbe-outline-frame,
 .wbe .wbe-outline-bars {
   position: absolute;
@@ -1341,39 +1334,6 @@
 .wbe .wbe-outline-button:disabled {
   cursor: default;
   color: var(--wbe-grid-text-light);
-}
-
-/* Frozen rows: a fixed pane above the scrolling one. */
-.wbe .wbe-grid-panes {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.wbe .wbe-grid-panes > .wbe-grid-host {
-  position: relative;
-  inset: auto;
-}
-
-.wbe .wbe-grid-panes > .wbe-pane-top {
-  flex: none;
-  max-height: 50%;
-  border-bottom: 1px solid var(--wbe-grid-freeze-line);
-}
-
-.wbe .wbe-grid-panes > .wbe-pane-bottom {
-  flex: 1;
-  min-height: 0;
-}
-
-/* The lower pane's scrollbar moves both panes sideways. */
-.wbe .wbe-pane-top .dvn-scroller {
-  scrollbar-width: none;
-}
-
-.wbe .wbe-pane-top .dvn-scroller::-webkit-scrollbar {
-  display: none;
 }
 
 /* Over a band of the grid's rows, placed by the grid's handle; the sheet reads left to right. */

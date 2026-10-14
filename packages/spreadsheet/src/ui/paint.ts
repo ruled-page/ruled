@@ -1,15 +1,11 @@
 import type { BorderEdge, DisplayStyle } from '../core/types';
 import { CELL_PADDING, textTop } from '../state/overflow';
 
-export const GRID_LINE = '#E1E3E3';
-/** The line Excel draws where frozen columns meet the scrolling ones. */
-export const FREEZE_LINE = '#B7BCC2';
-
 /**
  * Draws a cell's left or top edge, starting on the boundary pixel (where the
  * grid line sits) and growing into the cell for wider borders. The context is
- * restored afterwards: Glide caches the fill style between cells. `auto` is
- * the colour for a border in Excel's automatic colour.
+ * restored afterwards, so what is drawn next keeps its own fill style. `auto`
+ * is the colour for a border in Excel's automatic colour.
  */
 export function drawEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, edge: BorderEdge, auto: string): void {
   ctx.save();
@@ -49,14 +45,6 @@ function paintEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: numbe
   for (let p = 0, i = 0; p < length; p += run[i], i = (i + 1) % run.length) {
     if (i % 2 === 0) line(0, edge.pattern === 'hair' ? 1 : w, p, Math.min(run[i], length - p));
   }
-}
-
-export function drawGridLine(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: number, y: number, length: number, color = GRID_LINE): void {
-  const fill = ctx.fillStyle;
-  ctx.fillStyle = color;
-  if (side === 'left') ctx.fillRect(x, y, 1, length);
-  else ctx.fillRect(x, y, length, 1);
-  ctx.fillStyle = fill;
 }
 
 /** A conditional-format data bar, behind the cell's text. */

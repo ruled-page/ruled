@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GLIDE_SCROLLER } from '../src/grid/glide/glideDom';
 
 const src = join(__dirname, '..', 'src');
 
@@ -11,7 +10,7 @@ describe("the editor's class names", () => {
     const preludes = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/[^{};]+(?=\{)/g) ?? [];
     const classes = new Set(preludes.flatMap((p) => [...p.matchAll(/\.([a-zA-Z_][\w-]*)/g)].map((m) => m[1])));
     expect(classes.size).toBeGreaterThan(100);
-    expect([...classes].filter((c) => c !== 'wbe' && !c.startsWith('wbe-') && c !== GLIDE_SCROLLER)).toEqual([]);
+    expect([...classes].filter((c) => c !== 'wbe' && !c.startsWith('wbe-'))).toEqual([]);
   });
 
   it('are the ones the components use', () => {

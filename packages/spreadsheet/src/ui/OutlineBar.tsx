@@ -88,7 +88,7 @@ function measure(el: HTMLElement, view: SheetView, handle: GridHandle, rows: boo
   if (rows) {
     for (const pane of at.panes) {
       const top = pane.box.y - origin.top;
-      // Glide's bounds take in the line after a cell, which belongs to the next.
+      // A row's box runs up to the next row's grid line, which belongs to that row.
       const boxes = new Map<number, [number, number]>();
       for (const row of around(view.visibleRows, pane.rows, view.gridRow(pane.range[0]), view.gridRow(pane.range[1]))) {
         const b = handle.headingBox('rows', row);
@@ -134,7 +134,7 @@ function search(arr: Int32Array, v: number): number {
  * column letters for grouped columns. Each group has a line along it and a
  * button on its summary row (or column) that collapses or expands it; the
  * numbered buttons show the outline to that level. They keep in line with
- * the grids as they scroll, frozen panes included.
+ * the grid as it scrolls, frozen panes included.
  */
 export function OutlineBars({
   store,

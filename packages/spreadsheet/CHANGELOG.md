@@ -54,6 +54,12 @@ what it doesn't change.
   to set its rules, input messages and error alerts.
 - Every change can be undone, and unsaved changes are kept as a draft on the
   device.
+- The grid draws only the cells in view, on a canvas, however large the
+  sheet. It shows frozen rows and columns, merged
+  cells and sheets that read right to left as Excel does, and takes
+  Excel's keys, typing in any language or through an input method, a pen,
+  and on a phone a finger: it scrolls, the selection's handles select, and
+  a long press opens the cell menu.
 
 ### Formatting
 
@@ -110,9 +116,6 @@ what it doesn't change.
   editor handle and events.
 - Themes through CSS tokens, English and German and any language the host
   adds, right-to-left layouts, and phone-sized screens.
-- The grid loads in a chunk of its own, alongside the workbook. An
-  experimental option, `experimental: { grid: 'ruled' }`, tries Ruled's own
-  grid, which is still being built to replace Glide Data Grid.
 
 ### In Node
 

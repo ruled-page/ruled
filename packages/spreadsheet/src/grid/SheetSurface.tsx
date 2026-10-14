@@ -1,20 +1,20 @@
 import { inRect } from '@ruled/formula/refs';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import type { CellNote, Rect } from '../../core/types';
-import { effectiveStyle } from '../../state/cellStyle';
-import { editText } from '../../state/format';
-import { cellLink, type CellLink } from '../../state/links';
-import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../../ui/gridPalette';
-import { APPLE, commandKey } from '../../ui/keys';
-import { LinkTip } from '../../ui/LinkTip';
-import { NoteTip } from '../../ui/NoteTip';
-import { checkboxBox, filterButtonBox } from '../../ui/paint';
-import type { Box, EditMove, GridHandle, Pane, SurfaceProps } from '../contract';
-import { useSheetEvents } from '../hooks';
-import { editorKey, type FilterButton } from '../keys';
-import { cellOptions } from '../lists';
-import { sheetMarks } from '../marks';
-import { growOverMerges, navigate, navSheet } from '../navigation';
+import type { CellNote, Rect } from '../core/types';
+import { effectiveStyle } from '../state/cellStyle';
+import { editText } from '../state/format';
+import { cellLink, type CellLink } from '../state/links';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../ui/gridPalette';
+import { APPLE, commandKey } from '../ui/keys';
+import { LinkTip } from '../ui/LinkTip';
+import { NoteTip } from '../ui/NoteTip';
+import { checkboxBox, filterButtonBox } from '../ui/paint';
+import type { Box, EditMove, GridHandle, Pane, SurfaceProps } from './contract';
+import { useSheetEvents } from './hooks';
+import { editorKey, type FilterButton } from './keys';
+import { cellOptions } from './lists';
+import { sheetMarks } from './marks';
+import { growOverMerges, navigate, navSheet } from './navigation';
 import { AccessTable } from './AccessTable';
 import { CellEditorBox, type Edit } from './CellEditing';
 import { colAxis, rowAxis } from './axis';
@@ -37,12 +37,11 @@ const span = (a: { row: number; col: number }, b: { row: number; col: number }):
 const withLine = (lines: number[], line: number) => (lines.includes(line) ? lines : [...lines, line].sort((a, b) => a - b));
 
 /**
- * Ruled's own grid: the sheet drawn on a canvas, under a scroller whose
- * scrollbars, wheel, trackpad and touch scrolling are the browser's own.
- * Only the cells in view are drawn. Cells are selected with the mouse and
- * the keyboard, as in Excel; a table of the cells in view, whose active
- * cell takes the focus, is what screen readers read. Still to come:
- * editing, the fill handle and resizing.
+ * The grid: the sheet drawn on a canvas, under a scroller whose scrollbars,
+ * wheel, trackpad and touch scrolling are the browser's own. Only the cells
+ * in view are drawn. Cells are selected, edited, filled and resized with the
+ * mouse, a pen, a finger and the keyboard, as in Excel; a table of the cells
+ * in view, whose active cell takes the focus, is what screen readers read.
  */
 export function SheetSurface({ store, view, dataVersion, schemaVersion, selection, onHandle }: SurfaceProps) {
   const host = useRef<HTMLDivElement>(null);

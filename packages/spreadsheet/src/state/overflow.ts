@@ -2,7 +2,7 @@ import { VT, type DisplayStyle } from '../core/types';
 import { alignment, displayText, type CellRecord } from './format';
 import type { SheetView } from './sheetView';
 
-/** Horizontal padding Glide leaves inside a cell, in pixels. */
+/** Horizontal padding inside a cell, in pixels. */
 export const CELL_PADDING = 4.5;
 
 /** Pixels each level of Excel's indent moves text: three spaces of the default font. */
@@ -23,11 +23,6 @@ export function textTop(vAlign: string | undefined, height: number, content: num
   if (vAlign === 'top') return pad;
   if (vAlign === 'center' || vAlign === 'justify' || vAlign === 'distributed') return height / 2 - content / 2;
   return height - pad - content;
-}
-
-/** How far to move a line of text down from where Glide puts it, centred in its cell, to sit where Excel's vertical alignment puts it. */
-export function verticalShift(vAlign: string | undefined, height: number, content: number, pad: number): number {
-  return textTop(vAlign, height, content, pad) - (height / 2 - content / 2);
 }
 
 /** Text that spills out of its cell into empty neighbours, as Excel draws it. */

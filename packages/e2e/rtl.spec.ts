@@ -2,8 +2,6 @@ import { expect, test } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { grid, gridScroller, openFile, shown } from './helpers';
 
-test.skip(process.env.E2E_GRID !== 'ruled', "Glide's grid lays every sheet out left to right");
-
 test('a sheet read right to left has column A at the right, and selects, edits and moves from there', async ({ page }) => {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Arabic', { views: [{ rightToLeft: true }] });

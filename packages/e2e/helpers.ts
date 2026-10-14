@@ -35,17 +35,15 @@ export function tabKey(page: Page, back = false): string {
 }
 
 /**
- * The part of the grid that draws the cells and takes the focus: one per
- * pane in Glide (two with frozen rows, the frozen one first), one per sheet
- * in Ruled's own grid. Geometry is the same in both: 24 pixel column
- * letters, then the cells.
+ * The part of the grid that draws the cells and takes the focus, one per
+ * sheet: 24 pixel column letters, then the cells.
  */
 export const grid = (page: Page): Locator => page.getByTestId('wbe-grid');
 
 /** The grid, while it has the focus. */
 export const focusedGrid = (page: Page): Locator => page.locator('[data-testid="wbe-grid"]:focus-within');
 
-/** The elements the grid scrolls in: one per pane in Glide, one in Ruled's own grid. */
+/** The element the grid scrolls in. */
 export const gridScroller = (page: Page): Locator => page.getByTestId('wbe-grid-scroller');
 
 /** Selects a cell or range by typing it into the name box; the grid takes the focus. */
@@ -71,8 +69,6 @@ export async function setCell(page: Page, ref: string, text: string): Promise<vo
  * readers (the grid itself is drawn on a canvas), where each cell is named
  * by its reference first. The cells of a merge are all named as the merge,
  * the first of them being the merge itself. Covers the cells in view.
- * Glide keeps that table inside its canvas, where screen readers read it but
- * Playwright, which takes what isn't laid out as hidden, wouldn't look.
  */
 export function shown(page: Page, ref: string): Locator {
   const at = parseA1(ref);

@@ -144,7 +144,7 @@ them; and, with `--structure`, that references survive an inserted row.
 ```
 Page                                      Worker
 ────────────────────────────              ─────────────────────────────────────
-React and Glide Data Grid (canvas)        WorkbookSession
+React, the grid drawn on a canvas         WorkbookSession
 SheetView: the file's cells, edits  ◄──     OoxmlPackage   unzipped, every part kept
 store: undo, redo, dialogs          ──►     sheetScanner   cells and their places in the XML
                                             engine         @ruled/formula, checked against Excel

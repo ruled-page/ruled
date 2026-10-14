@@ -17,7 +17,7 @@ import { I18nextProvider, Trans } from 'react-i18next';
 import { NAMESPACE } from '../i18n';
 import { useT } from '../i18n/react';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
-import { preloadGrid, SheetArea } from '../ui/SheetArea';
+import { SheetArea } from '../ui/SheetArea';
 import { SidePanel } from '../ui/SidePanel';
 import './editor.css';
 
@@ -133,8 +133,6 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(ensurePortal, []);
-  // The grid loads alongside the workbook, rather than once it has opened.
-  useEffect(() => preloadGrid(store.grid), [store]);
 
   // Phone-sized layout follows the editor's own width, which in a host's layout can be less than the window's.
   useEffect(() => {

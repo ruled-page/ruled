@@ -1,4 +1,4 @@
-import type { Box } from '../contract';
+import type { Box } from './contract';
 import type { Axis } from './axis';
 
 /**

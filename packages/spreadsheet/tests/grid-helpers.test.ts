@@ -152,7 +152,7 @@ describe('moving the selection with the keyboard, as Excel does', () => {
   });
 });
 
-describe('what the grids share', () => {
+describe("what the grid asks of the sheet and the editor", () => {
   let store: WorkbookStore;
   afterEach(() => store?.dispose());
 

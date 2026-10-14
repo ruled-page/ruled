@@ -1,10 +1,10 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import type { WorkbookStore } from '../../state/store';
-import { CellEntry } from '../../ui/CellEditor';
-import { EnumEditor } from '../../ui/EnumEditor';
-import type { GridPalette } from '../../ui/gridPalette';
-import { PORTAL_ID, type Box, type EditMove } from '../contract';
+import type { WorkbookStore } from '../state/store';
+import { CellEntry } from '../ui/CellEditor';
+import { EnumEditor } from '../ui/EnumEditor';
+import type { GridPalette } from '../ui/gridPalette';
+import { PORTAL_ID, type Box, type EditMove } from './contract';
 
 /** Popups the cell editors open take this class, so clicks in them don't end editing. */
 export const EDITOR_POPUP = 'wbe-editor-popup';
@@ -93,9 +93,8 @@ export function CellEditorBox({ store, edit, box, palette, rtl, onText, finish, 
     minHeight: box.height,
     ...(edit.wrap && { width: box.width }),
     background: palette.bg,
-    '--gdg-editor-font-size': '14.7px',
-    '--gdg-font-family': palette.font,
-    '--gdg-text-dark': palette.text,
+    '--wbe-entry-font': palette.font,
+    '--wbe-entry-text': palette.text,
   } as CSSProperties;
   const props = {
     text: edit.text,

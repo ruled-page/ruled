@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Axis, colAxis, rowAxis } from '../src/grid/ruled/axis';
-import { Painter, type PaintInput } from '../src/grid/ruled/draw';
-import { contentScroll, Layout, SCROLL_LIMIT, scrollerPosition, scrollLength, type LayoutSpec } from '../src/grid/ruled/layout';
+import { Axis, colAxis, rowAxis } from '../src/grid/axis';
+import { Painter, type PaintInput } from '../src/grid/draw';
+import { contentScroll, Layout, SCROLL_LIMIT, scrollerPosition, scrollLength, type LayoutSpec } from '../src/grid/layout';
 import { CellFlag, VT } from '../src/core/types';
 import type { WorkbookStore } from '../src/state/store';
 import { DEFAULT_PALETTE } from '../src/ui/gridPalette';
@@ -124,7 +124,7 @@ describe('where the grid puts things', () => {
   });
 });
 
-describe("drawing a sheet in Ruled's grid", () => {
+describe('drawing a sheet', () => {
   let store: WorkbookStore;
   afterEach(() => store?.dispose());
 

@@ -1,7 +1,5 @@
-import { fileURLToPath } from 'node:url';
 import { defaultClientConditions, defaultServerConditions } from 'vite';
 import { defineConfig } from 'vitest/config';
-import { glidePatches } from './packages/spreadsheet/vite.glide.ts';
 
 /**
  * The unit tests of every package and example, run together so coverage
@@ -12,12 +10,7 @@ import { glidePatches } from './packages/spreadsheet/vite.glide.ts';
 const source = { conditions: ['source', ...defaultClientConditions] };
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  plugins: [glidePatches()],
-  resolve: {
-    ...source,
-    // The grid's markdown cells are never shown, so their parser isn't needed.
-    alias: [{ find: /^marked$/, replacement: fileURLToPath(new URL('packages/spreadsheet/src/editor/shims/marked.ts', import.meta.url)) }],
-  },
+  resolve: source,
   ssr: { resolve: { conditions: ['source', ...defaultServerConditions] } },
   test: {
     environment: 'node',

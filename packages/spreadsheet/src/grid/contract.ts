@@ -1,18 +1,14 @@
-import type { ComponentType } from 'react';
 import type { SheetView } from '../state/sheetView';
 import type { Selection, WorkbookStore } from '../state/store';
 
 /**
- * What the editor and a grid agree on. A grid draws one sheet, frozen panes
- * included, and owns scrolling and where things are on screen; what is drawn
- * over it (charts, outline bars, touch handles) asks it through GridHandle.
- * Everything crosses in sheet rows and columns and in client pixels, never
- * in a grid's own indices, so hidden lines and frozen panes stay each grid's
- * own business.
+ * What the editor and the grid agree on. The grid draws one sheet, frozen
+ * panes included, and owns scrolling and where things are on screen; what
+ * is drawn over it (charts, outline bars, touch handles) asks it through
+ * GridHandle. Everything crosses in sheet rows and columns and in client
+ * pixels, never in the grid's own indices, so hidden lines and frozen panes
+ * stay the grid's own business.
  */
-
-/** The grids there are: Glide Data Grid, and Ruled's own. */
-export type GridKind = 'glide' | 'ruled';
 
 /** A box on screen, in client pixels. */
 export interface Box {
@@ -82,15 +78,10 @@ export interface SurfaceProps {
   onHandle: (handle: GridHandle | undefined) => void;
 }
 
-/** A grid, loaded on its own so its size can be measured apart from the editor's. */
-export interface GridImplementation {
-  SheetSurface: ComponentType<SurfaceProps>;
-}
-
 /** A move once editing ends: across and down, by a cell. */
 export type EditMove = readonly [-1 | 0 | 1, -1 | 0 | 1];
 
-/** What the cell editors are given, whichever grid opens them. */
+/** What the cell editors are given. */
 export interface CellEditorProps {
   /** The text being edited: the cell's, or what was typed to open the editor. */
   text: string;
@@ -114,7 +105,6 @@ export interface CellEditorProps {
 
 /**
  * The element cell editors and their popups open in, one for the page,
- * inside the editor's style scope. Glide looks for "portal"; vite.glide.ts
- * points it here instead, so a host page's own element of that id is left alone.
+ * inside the editor's style scope.
  */
 export const PORTAL_ID = 'wbe-portal';

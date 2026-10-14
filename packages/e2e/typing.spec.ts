@@ -1,9 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { goTo, openFile, ordersWorkbook, shown } from './helpers';
 
-/** Glide's grid starts editing on typing only for the printable characters of ASCII. */
-test.skip(process.env.E2E_GRID !== 'ruled', "Glide's grid doesn't start editing on other characters");
-
 test.beforeEach(async ({ page }) => {
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
 });

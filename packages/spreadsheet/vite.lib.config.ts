@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url';
 import { defaultClientConditions, defineConfig, type Plugin } from 'vite';
-import { glidePatches } from './vite.glide.ts';
 
 /**
  * Vite writes the React build's worker URL as an expression that other
@@ -42,16 +41,13 @@ export default defineConfig(({ mode }) => {
     // A fixed name, which the package exports as @ruled/sheet/worker.
     // One file, the engine inlined, so hosts' bundlers see a single worker.
     worker: { format: 'es', rolldownOptions: { output: { entryFileNames: 'assets/workbook.worker.js', codeSplitting: false } } },
-    plugins: standalone ? [glidePatches()] : [glidePatches(), plainWorkerUrl()],
+    plugins: standalone ? [] : [plainWorkerUrl()],
     resolve: {
       // The engine from its source, as the rest of the workspace reads it, rather than its own build.
       conditions: ['source', ...defaultClientConditions],
       // CommonJS modules that require('react'), which an ES module library can't do once React is external.
       alias: [
         { find: /^use-sync-external-store\/shim$/, replacement: fileURLToPath(new URL('src/editor/shims/useSyncExternalStore.ts', import.meta.url)) },
-        { find: /^react-responsive-carousel$/, replacement: fileURLToPath(new URL('src/editor/shims/carousel.ts', import.meta.url)) },
-        // Not CommonJS, but the markdown it renders is never shown.
-        { find: /^marked$/, replacement: fileURLToPath(new URL('src/editor/shims/marked.ts', import.meta.url)) },
       ],
     },
     define: { 'process.env.NODE_ENV': JSON.stringify('production') },

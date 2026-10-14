@@ -9,8 +9,8 @@ examples/demo/public/samples/lookups.xlsx
 dist-verify
 test-results
 playwright-report
-# Written by packages/e2e/scripts/compare-grids.mjs.
-packages/e2e/grid-compare
+# Written by packages/e2e/scripts/measure-grid.mjs.
+packages/e2e/grid-measure
 dist-sites
 coverage
 

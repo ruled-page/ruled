@@ -3,10 +3,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
-import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors, type GridPalette } from '../src/ui/gridPalette';
-import { glideTheme } from '../src/grid/glide/theme';
+import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors } from '../src/ui/gridPalette';
 import { Recorder, type Gradient } from './canvasRecorder';
-import { FREEZE_LINE, GRID_LINE, checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawGridLine, drawIcon, filterButtonBox } from '../src/ui/paint';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon, filterButtonBox } from '../src/ui/paint';
 
 const RED = '#E0301E';
 const AMBER = '#F5B800';
@@ -98,7 +97,7 @@ describe('cell borders', () => {
     expect(r.rects()).toEqual([[0, 0, 1, 10, '#E8EAED']]);
   });
 
-  it('leaves the context as it found it, which Glide relies on between cells', () => {
+  it('leaves the context as it found it', () => {
     const r = new Recorder();
     r.fillStyle = '#123456';
     drawEdge(r.ctx, 'left', 0, 0, 10, edge('dashed', 1, '#C00000'), '#000000');
@@ -115,20 +114,6 @@ describe('cell borders', () => {
     expect(() => drawEdge(r.ctx, 'top', 0, 0, 10, edge('solid', 1, '#C00000'), '#000000')).toThrow('canvas lost');
     expect(r.fillStyle).toBe('#123456');
     expect(r.stack).toHaveLength(0);
-  });
-});
-
-describe('grid lines', () => {
-  it("draws a one-pixel line in the grid's colour, and puts the fill style back", () => {
-    const r = new Recorder();
-    r.fillStyle = '#ABCDEF';
-    drawGridLine(r.ctx, 'left', 64, 0, 20);
-    drawGridLine(r.ctx, 'top', 0, 20, 64, FREEZE_LINE);
-    expect(r.rects()).toEqual([
-      [64, 0, 1, 20, GRID_LINE],
-      [0, 20, 64, 1, FREEZE_LINE],
-    ]);
-    expect(r.fillStyle).toBe('#ABCDEF');
   });
 });
 
@@ -359,36 +344,6 @@ describe('the grid palette', () => {
     DEFAULT_REF_COLORS.forEach((value, i) => expect(new RegExp(`--wbe-formula-ref${i + 1}:\\s*([^;]+);`).exec(css)?.[1]).toBe(value));
     delete (globalThis as { getComputedStyle?: unknown }).getComputedStyle;
     expect(readRefColors(el)).toBe(DEFAULT_REF_COLORS);
-  });
-
-  it("maps onto Glide's theme, with Glide's own grid lines off", () => {
-    const named = Object.fromEntries(Object.keys(DEFAULT_PALETTE).map((k) => [k, k])) as unknown as GridPalette;
-    expect(glideTheme(named)).toEqual({
-      accentColor: 'selection',
-      accentFg: 'onSelection',
-      accentLight: 'selectionFill',
-      textDark: 'text',
-      textMedium: 'textMuted',
-      textLight: 'textLight',
-      textHeader: 'headerText',
-      textHeaderSelected: 'headerSelectedText',
-      bgCell: 'bg',
-      bgCellMedium: 'bgAlt',
-      bgHeader: 'headerBg',
-      bgHeaderHasFocus: 'headerSelectedBg',
-      bgHeaderHovered: 'headerHoverBg',
-      borderColor: 'transparent',
-      horizontalBorderColor: 'transparent',
-      headerBottomBorderColor: 'headerLine',
-      headerFontStyle: 'headerFontWeight headerFontSize',
-      baseFontStyle: '14.7px',
-      fontFamily: 'font',
-      editorFontSize: '14.7px',
-      cellHorizontalPadding: 4,
-      cellVerticalPadding: 2,
-      lineHeight: 1.25,
-    });
-    expect(glideTheme(DEFAULT_PALETTE).headerFontStyle).toBe('500 12px');
   });
 });
 

@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
-import { RULED_PENDING } from './grid-pending';
 
 /** The workspace's root, where the servers below run. */
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -18,31 +17,21 @@ const ALL_BROWSERS = process.env.E2E_BROWSERS === 'all';
  */
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 process.env.E2E_PORT = String(PORT);
-/**
- * With E2E_GRID=ruled, the demo is built to draw sheets in Ruled's own grid
- * rather than Glide, so the same specs run against either.
- */
-if (process.env.E2E_GRID) process.env.VITE_RULED_GRID = process.env.E2E_GRID;
-/** What Ruled's grid can't do yet stays out of a run against it (see grid-pending.ts). */
-const grepInvert = process.env.E2E_GRID === 'ruled' && RULED_PENDING.length ? RULED_PENDING : undefined;
 const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
 
 /**
  * End-to-end tests in a real browser. The demo and the React portal are
- * tested as they ship, from production builds (React's development-only
- * double mounting stops the grid's screen-reader table from updating, and
- * the tests read cells from it). The HTML host example loads the standalone
- * library build, so a dev server serves it from the workspace's root. With
- * E2E_ANGULAR=1, the Angular portal (examples/angular-portal, installed with
- * `npm ci` there) is built and served too, and with E2E_HOST_APP=1 the React
- * app in host-app, with the library installed from its npm package. Both
- * use the library as already built (`npm run build:lib`), which is then not
- * rebuilt underneath them.
+ * tested as they ship, from production builds. The HTML host example loads
+ * the standalone library build, so a dev server serves it from the
+ * workspace's root. With E2E_ANGULAR=1, the Angular portal
+ * (examples/angular-portal, installed with `npm ci` there) is built and
+ * served too, and with E2E_HOST_APP=1 the React app in host-app, with the
+ * library installed from its npm package. Both use the library as already
+ * built (`npm run build:lib`), which is then not rebuilt underneath them.
  */
 export default defineConfig({
   testDir: '.',
   testIgnore,
-  grepInvert,
   fullyParallel: true,
   // Every test builds a workbook in a worker; with the whole suite running at once, a busy machine needs longer.
   expect: { timeout: 10_000 },

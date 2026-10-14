@@ -1,17 +1,17 @@
 import { cellKey, colToLetters } from '@ruled/formula/refs';
-import { CellFlag, VT, type BorderEdge, type DisplayStyle, type MergeRange } from '../../core/types';
-import { wrapLines } from '../../state/autofit';
-import { effectiveStyle } from '../../state/cellStyle';
-import { checkboxState } from '../../state/checkbox';
-import { alignment, displayText } from '../../state/format';
-import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, type Overflow } from '../../state/overflow';
-import type { SheetView } from '../../state/sheetView';
-import type { Selection } from '../../state/store';
-import type { GridPalette } from '../../ui/gridPalette';
-import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon } from '../../ui/paint';
-import { withAlpha } from '../color';
-import type { Box } from '../contract';
-import type { Mark } from '../marks';
+import { CellFlag, VT, type BorderEdge, type DisplayStyle, type MergeRange } from '../core/types';
+import { wrapLines } from '../state/autofit';
+import { effectiveStyle } from '../state/cellStyle';
+import { checkboxState } from '../state/checkbox';
+import { alignment, displayText } from '../state/format';
+import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOverflows, textTop, type Overflow } from '../state/overflow';
+import type { SheetView } from '../state/sheetView';
+import type { Selection } from '../state/store';
+import type { GridPalette } from '../ui/gridPalette';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon } from '../ui/paint';
+import { withAlpha } from './color';
+import type { Box } from './contract';
+import type { Mark } from './marks';
 import type { Layout, Run } from './layout';
 
 /** Space above and below text in a cell, and between wrapped lines, as a share of the font's height. */

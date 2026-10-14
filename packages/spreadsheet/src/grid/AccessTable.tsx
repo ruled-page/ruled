@@ -1,13 +1,13 @@
 import { inRect } from '@ruled/formula/refs';
 import { memo, useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react';
-import type { Box } from '../contract';
-import { effectiveStyle } from '../../state/cellStyle';
-import { checkboxState } from '../../state/checkbox';
-import type { SheetView } from '../../state/sheetView';
-import type { Selection, WorkbookStore } from '../../state/store';
-import { useT } from '../../i18n/react';
-import { cellOptions } from '../lists';
-import { spokenText } from '../spoken';
+import type { Box } from './contract';
+import { effectiveStyle } from '../state/cellStyle';
+import { checkboxState } from '../state/checkbox';
+import type { SheetView } from '../state/sheetView';
+import type { Selection, WorkbookStore } from '../state/store';
+import { useT } from '../i18n/react';
+import { cellOptions } from './lists';
+import { spokenText } from './spoken';
 
 interface Props {
   store: WorkbookStore;

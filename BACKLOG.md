@@ -19,10 +19,13 @@ needs no server, and nothing here should add one.
   here, keeping at least one); the width of an indent level (9 pixels
   here); and that a range moved with Shift+drag keeps its size when it only
   changes the order of its cells.
-- **Typing letters outside ASCII, or with an input method, into a selected
-  cell.** Glide, the grid, starts an edit only for printable ASCII keys, so
-  typing ä or 日本 into a cell without opening it first may do nothing.
-  Nobody has tried it.
+- **Typing with a real input method** (Japanese, Chinese, Korean) into a
+  selected cell. The end-to-end tests compose text through Chromium's
+  DevTools protocol; nobody has tried a real input method, or one in
+  Firefox or Safari.
+- **Text set to align left or right on a right-to-left sheet.** The grid
+  swaps the two, so text set to the left sits at the cell's right, where
+  it starts; to check in Excel.
 
 ## Excel features left out for now
 
@@ -45,9 +48,9 @@ needs no server, and nothing here should add one.
   Month, Q1 and the rest), and **sorting by colour or icon.** A file's
   filters of these kinds are kept as they are; the editor doesn't offer
   them.
-- **Right-to-left sheets.** A sheet set to read right to left is shown left
-  to right, though the editor's own interface lays out right to left. It
-  waits on the grid that is to replace Glide.
+- **Outline bars on right-to-left sheets.** A sheet that reads right to
+  left is drawn from right to left, but its group bars stay at the left,
+  away from its row numbers at the right.
 - **Several people editing at once.** Live editing needs a server. A host
   can still turn down a save that conflicts (`SaveConflictError`).
 - **Password-protected and sensitivity-labelled files.** Refused with a

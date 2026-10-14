@@ -3,7 +3,6 @@
  * the worker and the styles are all bundled, and importing this module
  * defines the <workbook-editor> element.
  */
-import glideCss from '@glideapps/glide-data-grid/dist/index.css?inline';
 import type { StoreOptions } from '../state/store';
 import InlineWorker from '../worker/workbook.worker.ts?worker&inline';
 import editorCss from './editor.css?inline';
@@ -14,7 +13,7 @@ function injectStyles(): void {
   if (document.getElementById('workbook-editor-styles')) return;
   const style = document.createElement('style');
   style.id = 'workbook-editor-styles';
-  style.textContent = glideCss + '\n' + editorCss;
+  style.textContent = editorCss;
   document.head.appendChild(style);
 }
 
