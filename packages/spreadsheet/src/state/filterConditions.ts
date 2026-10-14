@@ -1,12 +1,16 @@
 import { hasWildcards, matchesWhole, parsePattern } from '@ruled/formula/wildcard';
 import { isDateFormat } from 'numfmt';
 import { parseInput } from '../core/input';
-import type { FilterCondition, FilterOperator } from '../core/types';
+import type { DatePeriod, FilterCondition, FilterOperator } from '../core/types';
 
-/** A cell as a filter sees it: the text it shows, and its number when it holds one. */
+/** A cell as a filter sees it: the text it shows, its number when it holds one, and its colours and icon as drawn. */
 export interface FilterCell {
   text: string;
   n?: number;
+  /** Its fill and text colours, conditional formatting's included; no fill, or the automatic text colour, missing. */
+  fill?: string;
+  font?: string;
+  icon?: { set: string; index: number };
 }
 
 /** The number a rule's value stands for, written as Excel stores it ("5", "45292.5"). */
@@ -61,7 +65,7 @@ export function averageOf(cells: readonly FilterCell[]): number | undefined {
 }
 
 /** Which of a column's cells, in order, a condition lets show. */
-export function conditionPasses(cond: FilterCondition, cells: readonly FilterCell[]): boolean[] {
+export function conditionPasses(cond: FilterCondition, cells: readonly FilterCell[], date1904 = false): boolean[] {
   switch (cond.kind) {
     case 'custom':
       return cells.map((cell) => {
@@ -76,7 +80,71 @@ export function conditionPasses(cond: FilterCondition, cells: readonly FilterCel
       const avg = cond.average ?? averageOf(cells);
       return cells.map((c) => avg !== undefined && c.n !== undefined && (cond.above ? c.n > avg : c.n < avg));
     }
+    case 'color': {
+      const want = cond.color?.toUpperCase();
+      return cells.map((c) => (cond.font ? c.font : c.fill)?.toUpperCase() === want);
+    }
+    case 'icon':
+      return cells.map((c) => (cond.index === undefined ? !c.icon : c.icon?.set === cond.set && c.icon.index === cond.index));
+    case 'period': {
+      const range = cond.from !== undefined && cond.to !== undefined ? { from: cond.from, to: cond.to } : undefined;
+      return cells.map((c) => c.n !== undefined && (range ? c.n >= range.from && c.n < range.to : inPeriod(cond.period, c.n, date1904)));
+    }
   }
+}
+
+/** The periods counted from today, as the Date Filters menu lists them, then the quarters and months of any year. */
+export const DATE_PERIODS: readonly DatePeriod[] = ['tomorrow', 'today', 'yesterday', 'nextWeek', 'thisWeek', 'lastWeek', 'nextMonth', 'thisMonth', 'lastMonth', 'nextQuarter', 'thisQuarter', 'lastQuarter', 'nextYear', 'thisYear', 'lastYear', 'yearToDate'];
+export const ANY_YEAR_PERIODS: readonly DatePeriod[] = ['Q1', 'Q2', 'Q3', 'Q4', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12'];
+
+const DAY = 86_400_000;
+/** A day's serial number in the 1900 date system, from its UTC date. */
+const serial = (y: number, m: number, d: number) => (Date.UTC(y, m, d) - Date.UTC(1899, 11, 30)) / DAY;
+
+/** Whether a date (a serial number) is in a quarter or month of any year. */
+function inPeriod(period: DatePeriod, n: number, date1904: boolean): boolean {
+  const month = new Date(Date.UTC(1899, 11, 30) + (Math.floor(n) + (date1904 ? 1462 : 0)) * DAY).getUTCMonth();
+  const q = /^Q(\d)$/.exec(period);
+  if (q) return Math.floor(month / 3) === Number(q[1]) - 1;
+  const m = /^M(\d+)$/.exec(period);
+  return !!m && month === Number(m[1]) - 1;
+}
+
+/**
+ * The dates a period counted from `today` covers, as serial numbers: from
+ * the first up to but not including the last, weeks starting on Sunday as
+ * in Excel. Undefined for the quarters and months of any year.
+ */
+export function periodRange(period: DatePeriod, today: Date, date1904: boolean): { from: number; to: number } | undefined {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  const shift = date1904 ? 1462 : 0;
+  const span = (from: number, to: number) => ({ from: from - shift, to: to - shift });
+  const day = (k: number) => span(serial(y, m, d + k), serial(y, m, d + k + 1));
+  const week = (k: number) => span(serial(y, m, d - today.getDay() + 7 * k), serial(y, m, d - today.getDay() + 7 * k + 7));
+  const month = (k: number) => span(serial(y, m + k, 1), serial(y, m + k + 1, 1));
+  const quarter = (k: number) => span(serial(y, m - (m % 3) + 3 * k, 1), serial(y, m - (m % 3) + 3 * k + 3, 1));
+  const year = (k: number) => span(serial(y + k, 0, 1), serial(y + k + 1, 0, 1));
+  const ranges: Partial<Record<DatePeriod, () => { from: number; to: number }>> = {
+    tomorrow: () => day(1),
+    today: () => day(0),
+    yesterday: () => day(-1),
+    nextWeek: () => week(1),
+    thisWeek: () => week(0),
+    lastWeek: () => week(-1),
+    nextMonth: () => month(1),
+    thisMonth: () => month(0),
+    lastMonth: () => month(-1),
+    nextQuarter: () => quarter(1),
+    thisQuarter: () => quarter(0),
+    lastQuarter: () => quarter(-1),
+    nextYear: () => year(1),
+    thisYear: () => year(0),
+    lastYear: () => year(-1),
+    yearToDate: () => span(serial(y, 0, 1), serial(y, m, d + 1)),
+  };
+  return ranges[period]?.();
 }
 
 /** A rule as Excel's Custom AutoFilter dialog offers it: its operators, and the text ones it writes with wildcards. */

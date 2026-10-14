@@ -70,7 +70,7 @@ import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
-import { averageOf, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
+import { averageOf, periodRange, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
 import type { DraftPlace } from './validationDraft';
 import type { CfQuick } from './cfRules';
 import { withoutRects, type ListContext } from '../core/validationRules';
@@ -2554,10 +2554,21 @@ export class WorkbookStore {
     return out;
   }
 
-  /** A cell as a filter tests it: the text it shows, and its number. */
+  /** A cell as a filter tests it: the text it shows, its number, and its colours (its own or conditional formatting's, not a table style's) and icon. */
   private filterCell(view: SheetView, row: number, col: number): FilterCell {
     const rec = view.get(row, col);
-    return { text: this.shownText(view, row, col), ...(rec?.t === VT.Number && rec.n !== undefined && { n: rec.n }) };
+    const own = this.styles[view.styleAt(row, col)] ?? this.styles[0];
+    const cf = view.cfAt(row, col);
+    const format = cf?.style !== undefined ? view.cfStyles[cf.style] : undefined;
+    const fill = format?.fill ?? own?.fill;
+    const font = format?.color ?? own?.color;
+    return {
+      text: this.shownText(view, row, col),
+      ...(rec?.t === VT.Number && rec.n !== undefined && { n: rec.n }),
+      ...(fill && { fill }),
+      ...(font && { font }),
+      ...(cf?.icon && { icon: cf.icon }),
+    };
   }
 
   /**
@@ -2570,7 +2581,18 @@ export class WorkbookStore {
   filterChoices(
     col: number,
     range?: Rect,
-  ): { rect: Rect; values: { text: string; count: number }[]; allowed?: Set<string>; condition?: FilterCondition; kind: 'text' | 'number' | 'date'; style: number } | undefined {
+  ):
+    | {
+        rect: Rect;
+        values: { text: string; count: number }[];
+        allowed?: Set<string>;
+        condition?: FilterCondition;
+        kind: 'text' | 'number' | 'date';
+        style: number;
+        /** The column's fill and text colours (undefined: none, or automatic) and conditional formatting's icons, for filtering and sorting by them. */
+        colors: { fill: (string | undefined)[]; font: (string | undefined)[]; icons: { set: string; index?: number }[] };
+      }
+    | undefined {
     const view = this.view;
     if (!view) return undefined;
     const rect = range ?? view.filter?.rect ?? this.dataRegion();
@@ -2578,8 +2600,15 @@ export class WorkbookStore {
     const counts = new Map<string, number>();
     const kinds = { text: 0, number: 0, date: 0 };
     let style = 0;
+    const fills = new Set<string | undefined>();
+    const fonts = new Set<string | undefined>();
+    const icons = new Map<string, { set: string; index?: number }>();
     for (let row = rect.r1 + 1; row <= rect.r2; row++) {
-      const text = this.shownText(view, row, col);
+      const cell = this.filterCell(view, row, col);
+      fills.add(cell.fill?.toUpperCase());
+      fonts.add(cell.font?.toUpperCase());
+      icons.set(cell.icon ? `${cell.icon.set}:${cell.icon.index}` : '', cell.icon ?? { set: '' });
+      const text = cell.text;
       counts.set(text, (counts.get(text) ?? 0) + 1);
       const rec = view.get(row, col);
       if (!rec || rec.t === VT.None) continue;
@@ -2592,7 +2621,11 @@ export class WorkbookStore {
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
     // As Excel chooses, the kind most of the column's values are.
     const kind = kinds.date >= kinds.number && kinds.date > kinds.text ? 'date' : kinds.number > kinds.text ? 'number' : 'text';
-    return { rect, values, allowed: current?.columns.get(col), condition: current?.conditions.get(col), kind, style };
+    // No icon is a choice once some cells have one, of the set they have.
+    const set = [...icons.values()].find((i) => i.set)?.set;
+    const iconList = set ? [...icons.values()].map((i) => (i.set ? i : { set })).sort((a, b) => (b.index ?? -1) - (a.index ?? -1)) : [];
+    const colors = { fill: [...fills], font: [...fonts], icons: iconList };
+    return { rect, values, allowed: current?.columns.get(col), condition: current?.conditions.get(col), kind, style, colors };
   }
 
   /**
@@ -2637,13 +2670,15 @@ export class WorkbookStore {
     if (pick && 'condition' in pick) {
       const cells = Array.from({ length: Math.max(0, target.r2 - target.r1) }, (_, i) => cell(target.r1 + 1 + i, col));
       const c = pick.condition;
+      // A period counted from today keeps the dates it is applied with, as Excel keeps them.
+      const range = c.kind === 'period' && c.from === undefined ? periodRange(c.period, new Date(), this.date1904) : undefined;
       conditions.set(
         col,
-        c.kind === 'top10' ? { ...c, threshold: top10Threshold(c, cells) } : c.kind === 'average' ? { ...c, average: averageOf(cells) } : c,
+        c.kind === 'top10' ? { ...c, threshold: top10Threshold(c, cells) } : c.kind === 'average' ? { ...c, average: averageOf(cells) } : range ? { ...c, ...range } : c,
       );
     }
     const picked = columns.size + conditions.size > 0;
-    const rows = picked ? SheetView.rowsFilteredBy(target, columns, conditions, cell) : [];
+    const rows = picked ? SheetView.rowsFilteredBy(target, columns, conditions, cell, this.date1904) : [];
     const filter: FilterState = {
       rect: target,
       columns: Object.fromEntries([...columns].map(([c, values]) => [c, [...values]])),

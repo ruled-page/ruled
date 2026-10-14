@@ -345,6 +345,7 @@ describe('filtering', () => {
       condition: undefined,
       kind: 'number',
       style: 0,
+      colors: { fill: [undefined], font: [undefined], icons: [] },
     });
     expect(store.filterChoices(9)).toBeUndefined();
   });
@@ -432,6 +433,24 @@ describe('filtering', () => {
     expect(actions()).toEqual(['Filter', 'Filter', 'Filter', 'Filter', 'Clear filter']);
   });
 
+  it('filters by a fill colour, and by dates in a period counted from today, keeping the dates it was applied with', async () => {
+    await open();
+    select(rect(2, 0));
+    await store.formatCells({ fill: '#FF0000' });
+    const choices = store.filterChoices(0, rect(0, 0, 4, 3))!;
+    expect(choices.colors.fill).toEqual([undefined, '#FF0000']);
+    await store.setFilterCondition(rect(0, 0, 4, 3), 0, { kind: 'color', font: false, color: '#FF0000' });
+    expect(store.view!.filteredCount).toBe(3);
+    await store.setFilterCondition(rect(0, 0, 4, 3), 0, { kind: 'color', font: false });
+    expect(store.view!.filteredCount).toBe(1);
+    await store.input(1, 7, '=TODAY()');
+    await store.input(2, 7, '2020-01-05');
+    await store.setFilterCondition(rect(0, 7, 2, 7), 7, { kind: 'period', period: 'today' });
+    const today = store.view!.get(1, 7)!.n!;
+    expect(store.view!.filter?.conditions.get(7)).toEqual({ kind: 'period', period: 'today', from: today, to: today + 1 });
+    expect(store.view!.filteredCount).toBe(1);
+  });
+
   it("names a column's filters by what it mostly holds", async () => {
     await open();
     expect(store.filterChoices(0, rect(0, 0, 4, 3))?.kind).toBe('text');
@@ -444,14 +463,14 @@ describe('filtering', () => {
   it("refuses to change a filter the editor can't, keeping it as the file has it", async () => {
     const files = unzipSync(bytes);
     const path = 'xl/worksheets/sheet3.xml';
-    files[path] = strToU8(strFromU8(files[path]).replace(/<autoFilter ref="A1:B4"\/>/, '<autoFilter ref="A1:B4"><filterColumn colId="0"><colorFilter dxfId="0"/></filterColumn></autoFilter>'));
+    files[path] = strToU8(strFromU8(files[path]).replace(/<autoFilter ref="A1:B4"\/>/, '<autoFilter ref="A1:B4"><filterColumn colId="0"><filters><dateGroupItem year="2026" dateTimeGrouping="year"/></filters></filterColumn></autoFilter>'));
     store = await testStore();
     await opened(store, zipSync(files), 'kept.xlsx');
     store.setActive(2);
     expect(store.view!.filterButtonAt(0, 0)).toEqual({ rect: rect(0, 0, 3, 1), filtered: false, kept: true });
     await store.setFilter(rect(0, 0, 3, 1), 0, new Set(['North']));
     await store.clearFilter();
-    expect(toasts()).toEqual(["This filter picks rows in a way the editor can't change (dates in a period, colours or icons). Change it in Excel."]);
+    expect(toasts()).toEqual(["This filter picks rows in a way the editor can't change (such as by groups of dates). Change it in Excel."]);
     expect(store.history).toHaveLength(0);
   });
 

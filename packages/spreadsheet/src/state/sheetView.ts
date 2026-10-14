@@ -204,9 +204,15 @@ export class SheetView {
    * filtered by values isn't one picked, or whose cell in a column filtered
    * by a condition doesn't meet it.
    */
-  static rowsFilteredBy(rect: Rect, columns: Map<number, Set<string>>, conditions: ReadonlyMap<number, FilterCondition>, cellAt: (row: number, col: number) => FilterCell): number[] {
+  static rowsFilteredBy(
+    rect: Rect,
+    columns: Map<number, Set<string>>,
+    conditions: ReadonlyMap<number, FilterCondition>,
+    cellAt: (row: number, col: number) => FilterCell,
+    date1904 = false,
+  ): number[] {
     const rows = Array.from({ length: Math.max(0, rect.r2 - rect.r1) }, (_, i) => rect.r1 + 1 + i);
-    const passes = [...conditions].map(([col, c]) => conditionPasses(c, rows.map((row) => cellAt(row, col))));
+    const passes = [...conditions].map(([col, c]) => conditionPasses(c, rows.map((row) => cellAt(row, col)), date1904));
     return rows.filter((row, i) => [...columns].some(([col, allowed]) => !allowed.has(cellAt(row, col).text)) || passes.some((p) => !p[i]));
   }
 

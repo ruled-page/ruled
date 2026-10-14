@@ -17,8 +17,11 @@ needs no server, and nothing here should add one.
 - **Details checked only against Excel's documentation**, to try in Excel:
   that a saved checkbox shows as one; how Top 10 by percent rounds (down
   here, keeping at least one); the width of an indent level (9 pixels
-  here); and that a range moved with Shift+drag keeps its size when it only
-  changes the order of its cells.
+  here); that a range moved with Shift+drag keeps its size when it only
+  changes the order of its cells; that Excel reads a colour filter for no
+  fill or the automatic text colour as saved here (a format with a fill of
+  no pattern, or a font of the automatic colour); and that This Week and
+  the other week filters start on Sunday.
 - **Typing with a real input method** (Japanese, Chinese, Korean) into a
   selected cell. The end-to-end tests compose text through Chromium's
   DevTools protocol; nobody has tried a real input method, or one in
@@ -45,10 +48,10 @@ needs no server, and nothing here should add one.
   A print view could use the browser's own printing.
 - **What-if data tables** (`{=TABLE(…)}`). Their cells keep Excel's saved
   values.
-- **Filtering by colour or icon, Excel's date filters by period** (This
-  Month, Q1 and the rest), and **sorting by colour or icon.** A file's
-  filters of these kinds are kept as they are; the editor doesn't offer
-  them.
+- **Sorting by colour or icon.** A file's sort settings are kept as they
+  are; the editor doesn't offer it.
+- **Filtering by groups of dates** (years, months or days ticked in Excel's
+  list). A file's filters of this kind are kept as they are.
 - **Several people editing at once.** Live editing needs a server. A host
   can still turn down a save that conflicts (`SaveConflictError`).
 - **Password-protected and sensitivity-labelled files.** Refused with a

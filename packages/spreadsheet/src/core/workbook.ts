@@ -9,7 +9,7 @@ import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
 import { mergeNotes, notesFinding, parseNotes, parsePeople, parseThreads, type Person } from './comments';
 import { readHyperlinks } from './hyperlinks';
-import type { Anchor, BlockedRegion, CellNote, DefinedName, FilterCondition, FilterOperator, FilterState, Finding, Rect, SheetInfo, SheetObject } from './types';
+import type { Anchor, BlockedRegion, CellNote, DatePeriod, DefinedName, DiffStyle, FilterCondition, FilterOperator, FilterState, Finding, Rect, SheetInfo, SheetObject } from './types';
 import { parseValidations } from './validations';
 import { attr, child, children, descendants, parseXml, textOf, type XmlNode } from './xml';
 import type { OoxmlPackage, Relationship } from './zip';
@@ -82,21 +82,20 @@ export function joinTexts(items: Text[], key: MessageKey = 'core.list.items'): T
   return items.slice(0, -1).reduceRight<Text>((rest, first) => msg(key, { first, rest }), items[items.length - 1] ?? '');
 }
 
-/**
- * A filter's picked values by sheet column, as the cells show them ('' for
- * blanks); undefined when a column filters some other way (by condition,
- * top ten, colour or date groups), which the editor leaves as it is.
- */
+/** Excel's Date Filters by period that the editor offers, as its files name them. */
+const DATE_PERIOD = /^(?:(?:next|this|last)(?:Week|Month|Quarter|Year)|tomorrow|today|yesterday|yearToDate|Q[1-4]|M(?:[1-9]|1[0-2]))$/;
+
 /** The operators Excel writes on a custom filter; "equal" is left out. */
 const FILTER_OPERATORS = new Set<string>(['equal', 'notEqual', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual']);
 
 /**
  * A filter's columns: those filtered by values, and those by a condition the
- * editor can change (custom rules, Top 10, above or below the average).
- * Undefined when a column is filtered some other way (dates in a period, by
- * colour or icon), so that the filter is kept as the file has it.
+ * editor can change (custom rules, Top 10, above or below the average, a
+ * colour, an icon, dates in a period). Undefined when a column is filtered
+ * some other way (by groups of dates), so that the filter is kept as the
+ * file has it. `dxfs` are the workbook's formats, which colour filters name.
  */
-function filterColumns(node: XmlNode | undefined, rect: Rect): Pick<FilterState, 'columns' | 'conditions'> | undefined {
+function filterColumns(node: XmlNode | undefined, rect: Rect, dxfs: DiffStyle[]): Pick<FilterState, 'columns' | 'conditions'> | undefined {
   const columns: Record<number, string[]> = {};
   const conditions: Record<number, FilterCondition> = {};
   const on = (v: string | undefined, dflt: boolean) => (v === undefined ? dflt : v === '1' || v === 'true');
@@ -128,6 +127,21 @@ function filterColumns(node: XmlNode | undefined, rect: Rect): Pick<FilterState,
     } else if (kind === 'dynamicFilter' && (attr(el, 'type') === 'aboveAverage' || attr(el, 'type') === 'belowAverage')) {
       const average = Number(attr(el, 'val'));
       conditions[col] = { kind: 'average', above: attr(el, 'type') === 'aboveAverage', ...(Number.isFinite(average) && attr(el, 'val') !== undefined && { average }) };
+    } else if (kind === 'dynamicFilter' && DATE_PERIOD.test(attr(el, 'type') ?? '')) {
+      const from = Number(attr(el, 'val'));
+      const to = Number(attr(el, 'maxVal'));
+      const range = attr(el, 'val') !== undefined && attr(el, 'maxVal') !== undefined && Number.isFinite(from) && Number.isFinite(to) ? { from, to } : {};
+      conditions[col] = { kind: 'period', period: attr(el, 'type') as DatePeriod, ...range };
+    } else if (kind === 'colorFilter' && attr(el, 'dxfId') !== undefined) {
+      const dxfId = Number(attr(el, 'dxfId'));
+      const font = !on(attr(el, 'cellColor'), true);
+      const format = dxfs[dxfId];
+      if (!format) return undefined;
+      const color = font ? format.color : format.fill;
+      conditions[col] = { kind: 'color', font, dxfId, ...(color && { color }) };
+    } else if (kind === 'iconFilter' && attr(el, 'iconSet')) {
+      const index = attr(el, 'iconId');
+      conditions[col] = { kind: 'icon', set: attr(el, 'iconSet')!, ...(index !== undefined && { index: Number(index) }) };
     } else {
       return undefined;
     }
@@ -609,7 +623,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
     }
     if (child(meta, 'autoFilter')) {
       info.autoFilter = parseRange(attr(child(meta, 'autoFilter'), 'ref') ?? '') ?? undefined;
-      const read = info.autoFilter && filterColumns(child(meta, 'autoFilter'), info.autoFilter);
+      const read = info.autoFilter && filterColumns(child(meta, 'autoFilter'), info.autoFilter, styles.dxfs);
       if (info.autoFilter && picks(read)) info.filter = { rect: info.autoFilter, ...read };
       if (info.autoFilter && !read) info.filterKept = true;
       findings.push({
@@ -690,7 +704,7 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
           // A table's own filter, if the sheet has no other with values picked.
           const af = child(t, 'autoFilter');
           const afRect = af && parseRange(attr(af, 'ref') ?? '');
-          const read = afRect && filterColumns(af, afRect);
+          const read = afRect && filterColumns(af, afRect, styles.dxfs);
           if (afRect && picks(read) && !info.filter) info.filter = { rect: afRect, ...read, table: tname };
           if (afRect && !read) info.tables[info.tables.length - 1].filterKept = true;
         }

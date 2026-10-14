@@ -20,7 +20,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 
 - Number formats, fonts, fills, borders, alignment, wrapping and indents; merged cells; column widths and row heights.
 - Hidden, grouped and frozen rows and columns, with outlines.
-- Sorting, filters (by value and by condition), data validation, names, hyperlinks, notes and threaded comments.
+- Sorting, filters (by value, by condition, by colour or icon, and by dates in a period), data validation, names, hyperlinks, notes and threaded comments.
 - Excel 365's checkboxes.
 - Tables, with their styles and structured references.
 - Sheets: added, renamed, moved, hidden and deleted, with references following them.
@@ -63,6 +63,6 @@ What the file holds is kept in each case; these are limits on how the editor sho
 - A changed note keeps its text but not its formatting (bold, colours), and a changed threaded comment loses its @mentions.
 - Only a formula that is a `HYPERLINK` call is a link; one with `HYPERLINK` inside a larger formula isn't.
 - Cells holding merged cells or tables can't be moved to another sheet. Pictures and charts move with inserted and deleted rows and columns, but not with inserted or deleted cells. Up to 20 inserts, deletes and moves can be undone, fewer in very large workbooks.
-- Only one filter is active on a sheet at a time: filtering another table or range replaces it. A file's filters by a period of dates, by colour or by icon are kept, but can't be changed.
+- Only one filter is active on a sheet at a time: filtering another table or range replaces it. A file's filters by groups of dates (years, months or days ticked in Excel's list) are kept, but can't be changed. Filtering by colour looks at a cell's own fill or text colour and conditional formatting's, not a table style's.
 - Excel's Auto Outline, outline styles and outline settings aren't offered; a file's settings are kept.
 - In a workbook with slicers or timelines, sheets holding pivot tables or tables can't be deleted. A pivot table whose source sheet is deleted keeps its values and isn't refreshed.

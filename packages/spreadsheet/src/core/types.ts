@@ -854,11 +854,42 @@ export type FilterOperator = 'equal' | 'notEqual' | 'greaterThan' | 'greaterThan
  *   them, with the cut-off the filter was applied with.
  * - `average`: the numbers above (or below) the average, with the average it
  *   was applied with.
+ * - `color`: cells whose fill (or, with `font`, text) is a colour, or has
+ *   none (`color` missing); `dxfId` is the format in the file that holds it.
+ * - `icon`: cells that conditional formatting gives an icon of a set, or no
+ *   icon (`index` missing).
+ * - `period`: dates in a period, as Excel's Date Filters pick them; one
+ *   counted from today keeps the dates it was applied with, `from` up to but
+ *   not including `to`.
  */
 export type FilterCondition =
   | { kind: 'custom'; and: boolean; rules: { operator: FilterOperator; value: string }[] }
   | { kind: 'top10'; top: boolean; percent: boolean; count: number; threshold?: number }
-  | { kind: 'average'; above: boolean; average?: number };
+  | { kind: 'average'; above: boolean; average?: number }
+  | { kind: 'color'; font: boolean; color?: string; dxfId?: number }
+  | { kind: 'icon'; set: string; index?: number }
+  | { kind: 'period'; period: DatePeriod; from?: number; to?: number };
+
+/** Excel's Date Filters by period, by the names its files use. */
+export type DatePeriod =
+  | 'tomorrow'
+  | 'today'
+  | 'yesterday'
+  | 'nextWeek'
+  | 'thisWeek'
+  | 'lastWeek'
+  | 'nextMonth'
+  | 'thisMonth'
+  | 'lastMonth'
+  | 'nextQuarter'
+  | 'thisQuarter'
+  | 'lastQuarter'
+  | 'nextYear'
+  | 'thisYear'
+  | 'lastYear'
+  | 'yearToDate'
+  | `Q${1 | 2 | 3 | 4}`
+  | `M${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12}`;
 
 export interface LayoutChange {
   sheet: number;

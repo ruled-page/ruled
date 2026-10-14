@@ -392,6 +392,13 @@ function conditionXml(p: string, c: FilterCondition): string {
       return `<${p}top10${c.top ? '' : ' top="0"'}${c.percent ? ' percent="1"' : ''} val="${c.count}"${c.threshold !== undefined ? ` filterVal="${c.threshold}"` : ''}/>`;
     case 'average':
       return `<${p}dynamicFilter type="${c.above ? 'aboveAverage' : 'belowAverage'}"${c.average !== undefined ? ` val="${c.average}"` : ''}/>`;
+    case 'period':
+      return `<${p}dynamicFilter type="${c.period}"${c.from !== undefined && c.to !== undefined ? ` val="${c.from}" maxVal="${c.to}"` : ''}/>`;
+    // The session gives a new colour its format before the filter is saved.
+    case 'color':
+      return `<${p}colorFilter dxfId="${c.dxfId ?? 0}"${c.font ? ' cellColor="0"' : ''}/>`;
+    case 'icon':
+      return `<${p}iconFilter iconSet="${escapeXml(c.set)}"${c.index !== undefined ? ` iconId="${c.index}"` : ''}/>`;
   }
 }
 

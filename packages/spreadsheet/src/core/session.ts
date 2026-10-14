@@ -2370,7 +2370,7 @@ export class WorkbookSession {
                   ? this.applyPivot(pivots.get(op)!, results)
                   : op.kind === 'insertChart' || op.kind === 'editChart'
                     ? op
-                    : this.layoutOf(sheet).apply(op);
+                    : this.layoutOf(sheet).apply(op.kind === 'filter' ? this.withColorFormats(op) : op);
       undo.unshift({ sheet, op: back });
     }
     const layout: EditResult = { ...this.emptyResult(''), rejected: undefined, layout: { applied: changes, undo } };
@@ -2478,6 +2478,21 @@ export class WorkbookSession {
     info.listValidations = op.lists;
     info.ruleValidations = op.rules;
     return undo;
+  }
+
+  /** A filter whose new colour conditions have the formats Excel's files name them by, joining the workbook's. */
+  private withColorFormats(op: Extract<LayoutOp, { kind: 'filter' }>): Extract<LayoutOp, { kind: 'filter' }> {
+    const conditions = op.filter?.conditions;
+    if (!conditions || !Object.values(conditions).some((c) => c.kind === 'color' && c.dxfId === undefined)) return op;
+    const styles = this.model.styles;
+    const formatted = Object.entries(conditions).map(([col, c]) => {
+      if (c.kind !== 'color' || c.dxfId !== undefined) return [col, c];
+      // No fill is a fill of no pattern; the automatic text colour, a font's automatic colour.
+      const none = c.font ? '<dxf><font><color auto="1"/></font></dxf>' : '<dxf><fill><patternFill patternType="none"/></fill></dxf>';
+      const style = c.font ? { color: c.color } : { fill: c.color };
+      return [col, { ...c, dxfId: c.color ? styles.addDxf(style) : styles.addDxf({}, none) }];
+    });
+    return { ...op, filter: { ...op.filter!, conditions: Object.fromEntries(formatted) } };
   }
 
   /** Sets a sheet's conditional formatting, a new rule's format joining the workbook's; returns the change that puts back the rules before. */

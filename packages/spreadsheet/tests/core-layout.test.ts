@@ -261,12 +261,29 @@ describe('filters', () => {
     expect(info(reopen(s), 'Region').filter).toEqual({ rect, columns: { 0: ['North'] }, conditions: above });
   });
 
-  it("the editor can't change, such as dates in a period, are kept as the file has them", async () => {
+  it('by colour, icon or a period of dates, are saved as Excel saves them and read back, a new colour getting its format', async () => {
+    const s = open(await filterBook());
+    const rect = { r1: 0, c1: 0, r2: 5, c2: 1 };
+    const conditions: Record<number, FilterCondition> = { 0: { kind: 'color', font: false, color: '#FFC7CE' }, 1: { kind: 'period', period: 'thisMonth', from: 46296, to: 46327 } };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: {}, conditions }, rows: [2] });
+    const xml = sheetXml(s, 1);
+    const dxfId = Number(/<colorFilter dxfId="(\d+)"\/>/.exec(xml)![1]);
+    expect(xml).toContain('<filterColumn colId="1"><dynamicFilter type="thisMonth" val="46296" maxVal="46327"/></filterColumn>');
+    const saved = parts(s.save());
+    expect(saved['xl/styles.xml']).toMatch(new RegExp(`<dxfs count="${dxfId + 1}">.*<dxf><fill><patternFill><bgColor rgb="FFFFC7CE"/></patternFill></fill></dxf></dxfs>`));
+    expect(info(reopen(s), 'Region').filter?.conditions).toEqual({ 0: { ...conditions[0], dxfId }, 1: conditions[1] });
+    const icons: Record<number, FilterCondition> = { 0: { kind: 'icon', set: '3Arrows', index: 2 }, 1: { kind: 'period', period: 'Q3' } };
+    layout(s, 0, { kind: 'filter', filter: { rect, columns: {}, conditions: icons }, rows: [] });
+    expect(sheetXml(s, 1)).toContain('<filterColumn colId="0"><iconFilter iconSet="3Arrows" iconId="2"/></filterColumn><filterColumn colId="1"><dynamicFilter type="Q3"/></filterColumn>');
+    expect(info(reopen(s), 'Region').filter?.conditions).toEqual(icons);
+  });
+
+  it("the editor can't change, such as by groups of dates, are kept as the file has them", async () => {
     const files = parts(await filterBook());
-    const kept = '<autoFilter ref="A1:B6"><filterColumn colId="0"><dynamicFilter type="today"/></filterColumn></autoFilter>';
+    const kept = '<autoFilter ref="A1:B6"><filterColumn colId="0"><filters><dateGroupItem year="2026" dateTimeGrouping="year"/></filters></filterColumn></autoFilter>';
     const sheet = files['xl/worksheets/sheet1.xml'].replace('</sheetData>', `</sheetData>${kept}`);
     const tablePath = 'xl/tables/table1.xml';
-    const table = files[tablePath].replace('<filterColumn colId="0" hiddenButton="0"/>', '<filterColumn colId="0"><colorFilter dxfId="0"/></filterColumn>');
+    const table = files[tablePath].replace('<filterColumn colId="0" hiddenButton="0"/>', '<filterColumn colId="0"><filters><dateGroupItem year="2026" month="1" dateTimeGrouping="month"/></filters></filterColumn>');
     // The package's folder entries go, as they hold nothing.
     const entries = Object.entries({ ...files, 'xl/worksheets/sheet1.xml': sheet, [tablePath]: table }).filter(([k]) => !k.endsWith('/'));
     const zipped = zipSync(Object.fromEntries(entries.map(([k, v]) => [k, strToU8(v)])));

@@ -68,7 +68,7 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
     group: 'Working with data',
     rows: [
       { what: 'Sort', support: 'edit', note: 'By several levels, by a custom list, with case, or left to right.' },
-      { what: 'Filters', support: 'edit', note: 'By values and by condition; filters by colour, icon or date period are kept.' },
+      { what: 'Filters', support: 'edit', note: 'By values, by condition, by colour or icon, and by dates in a period; filters by groups of dates are kept.' },
       { what: 'Find and replace', support: 'edit' },
       { what: 'Fill handle, Fill Series, custom lists and AutoComplete', support: 'edit' },
       { what: 'Inserting and deleting rows, columns and cells, and moving cells', support: 'edit', note: 'References everywhere follow them, as in Excel.' },

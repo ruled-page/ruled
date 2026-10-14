@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FilterCondition, FilterOperator } from '../src/core/types';
-import { averageOf, conditionPasses, RULE_OPS, ruleFor, ruleOp, top10Threshold, typedRuleValue, type FilterCell } from '../src/state/filterConditions';
+import { averageOf, conditionPasses, periodRange, RULE_OPS, ruleFor, ruleOp, top10Threshold, typedRuleValue, type FilterCell } from '../src/state/filterConditions';
 
 const cells: FilterCell[] = [
   { text: 'Apple' },
@@ -90,5 +90,44 @@ describe("the Custom AutoFilter dialog's rules", () => {
     expect(typedRuleValue('n/a', 'lessThan', 'number', 'en-US', false)).toBeUndefined();
     expect(typedRuleValue('12', 'contains', 'number', 'en-US', false)).toBe('12');
     expect(typedRuleValue('Pear', 'greaterThan', 'text', 'en-US', false)).toBe('Pear');
+  });
+});
+
+describe('filters by colour, icon and period', () => {
+  const coloured: FilterCell[] = [
+    { text: 'a', fill: '#ff0000', icon: { set: '3Arrows', index: 2 } },
+    { text: 'b', font: '#0000FF' },
+    { text: 'c', fill: '#FF0000', font: '#0000ff', icon: { set: '3Arrows', index: 0 } },
+  ];
+  it('pick cells by their fill or text colour, or the lack of one, ignoring case', () => {
+    expect(conditionPasses({ kind: 'color', font: false, color: '#FF0000' }, coloured)).toEqual([true, false, true]);
+    expect(conditionPasses({ kind: 'color', font: false }, coloured)).toEqual([false, true, false]);
+    expect(conditionPasses({ kind: 'color', font: true, color: '#0000FF' }, coloured)).toEqual([false, true, true]);
+  });
+
+  it('pick cells by their icon, or by having none', () => {
+    expect(conditionPasses({ kind: 'icon', set: '3Arrows', index: 2 }, coloured)).toEqual([true, false, false]);
+    expect(conditionPasses({ kind: 'icon', set: '3Arrows' }, coloured)).toEqual([false, true, false]);
+  });
+
+  it('pick dates in a period: from the dates kept with it, or in a quarter or month of any year', () => {
+    // 2026-10-14 is 46309; 2025-02-01 is 45689; 2026-10-15 at noon is 46310.5.
+    const dates: FilterCell[] = [{ text: '', n: 46309 }, { text: '', n: 45689 }, { text: '', n: 46310.5 }, { text: 'x' }];
+    expect(conditionPasses({ kind: 'period', period: 'today', from: 46309, to: 46310 }, dates)).toEqual([true, false, false, false]);
+    expect(conditionPasses({ kind: 'period', period: 'Q4' }, dates)).toEqual([true, false, true, false]);
+    expect(conditionPasses({ kind: 'period', period: 'M2' }, dates)).toEqual([false, true, false, false]);
+    // In the 1904 date system, the same days are 1,462 lower.
+    expect(conditionPasses({ kind: 'period', period: 'M2' }, [{ text: '', n: 45689 - 1462 }], true)).toEqual([true]);
+  });
+
+  it('work out the dates of a period counted from today, weeks starting on Sunday', () => {
+    const today = new Date(2026, 9, 14); // a Wednesday
+    expect(periodRange('today', today, false)).toEqual({ from: 46309, to: 46310 });
+    expect(periodRange('thisWeek', today, false)).toEqual({ from: 46306, to: 46313 });
+    expect(periodRange('lastMonth', today, false)).toEqual({ from: 46266, to: 46296 });
+    expect(periodRange('nextQuarter', today, false)).toEqual({ from: 46388, to: 46478 });
+    expect(periodRange('yearToDate', today, false)).toEqual({ from: 46023, to: 46310 });
+    expect(periodRange('lastYear', today, true)).toEqual({ from: 45658 - 1462, to: 46023 - 1462 });
+    expect(periodRange('Q1', today, false)).toBeUndefined();
   });
 });

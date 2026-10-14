@@ -4103,6 +4103,49 @@
   justify-content: flex-start;
 }
 
+.wbe .wbe-filter-conditions li > .wbe-btn > span {
+  flex: 1;
+  text-align: start;
+}
+
+/* Filter by colour: a row of swatches for each of fills, text colours and icons. */
+.wbe .wbe-filter-swatch-heading {
+  display: block;
+  padding: 4px 8px 2px;
+  color: var(--wbe-text-muted);
+  font-size: var(--wbe-font-size-sm);
+}
+
+.wbe .wbe-filter-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+
+.wbe .wbe-filter-conditions li .wbe-btn.wbe-filter-swatch {
+  width: auto;
+  padding: 4px;
+}
+
+.wbe .wbe-filter-swatch > span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--wbe-border);
+}
+
+/* No fill, the automatic colour or no icon: crossed through. */
+.wbe .wbe-filter-swatch > .wbe-filter-swatch-none {
+  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--wbe-text-muted) 50%, transparent calc(50% + 1px));
+}
+
+.wbe .wbe-filter-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
 /* The Custom AutoFilter and Top 10 dialogs, wide enough for the longest comparison. */
 .wbe .wbe-modal.wbe-condition-dialog {
   width: 540px;

@@ -1,7 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '@ruled/formula/refs';
+import type { DatePeriod, FilterCondition } from '../core/types';
+import { ANY_YEAR_PERIODS, DATE_PERIODS } from '../state/filterConditions';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
+import { drawIcon } from './paint';
 import { useDialog } from './useDialog';
 import { msg } from '../i18n/message';
 import { useT } from '../i18n/react';
@@ -12,13 +15,28 @@ type ConditionItem = 'equal' | 'notEqual' | 'beginsWith' | 'endsWith' | 'contain
 const CONDITION_ITEMS: Record<'text' | 'number' | 'date', ConditionItem[]> = {
   text: ['equal', 'notEqual', 'beginsWith', 'endsWith', 'contains', 'notContains', 'custom'],
   number: ['equal', 'notEqual', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'top10', 'aboveAverage', 'belowAverage', 'custom'],
-  date: ['equal', 'before', 'after', 'between', 'custom'],
+  date: ['equal', 'before', 'after', 'between'],
 };
+
+/** One of conditional formatting's icons, drawn as the grid draws it. */
+function CfIcon({ set, index }: { set: string; index: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = canvas.height = 14 * ratio;
+    ctx.scale(ratio, ratio);
+    drawIcon(ctx, set, index, 0, 0);
+  }, [set, index]);
+  return <canvas ref={ref} className="wbe-filter-icon" aria-hidden="true" />;
+}
 
 /**
  * Excel's filter menu for a column: sort the filter's range by it, filter
- * it by a condition (Text, Number or Date Filters), or pick which of its
- * values to show.
+ * it by a condition (Text, Number or Date Filters) or by a colour or icon,
+ * or pick which of its values to show.
  */
 export function FilterPicker({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -28,6 +46,8 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [conditions, setConditions] = useState(false);
+  const [anyYear, setAnyYear] = useState(false);
+  const [colors, setColors] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -35,6 +55,8 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     if (choices) setChecked(new Set(choices.allowed ?? choices.values.map((v) => v.text)));
     setSearch('');
     setConditions(false);
+    setAnyYear(false);
+    setColors(false);
   }, [choices]);
 
   useLayoutEffect(() => {
@@ -93,6 +115,39 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
         : { first: item === 'before' ? ('lessThan' as const) : item === 'after' ? ('greaterThan' as const) : item === 'custom' || item === 'top10' ? ('equal' as const) : item, and: true };
     store.set('conditionDialog', { col: at.col, rect: choices.rect, mode: item === 'top10' ? 'top10' : 'custom', preset });
   };
+  const filterBy = (condition: FilterCondition) => {
+    store.set('filterPicker', undefined);
+    void store.setFilterCondition(choices.rect, at.col, condition);
+  };
+  const period = (p: DatePeriod) => (
+    <li key={p}>
+      <button className="wbe-btn wbe-ghost" onClick={() => filterBy({ kind: 'period', period: p })}>
+        {p.startsWith('Q') ? t('filter.period.quarter', { n: p.slice(1) }) : p.startsWith('M') ? t.date(new Date(2000, Number(p.slice(1)) - 1, 1), { month: 'long' }) : t(`filter.period.${p as 'today'}`)}
+      </button>
+    </li>
+  );
+  // Excel's Filter by Color: the column's fills, text colours and icons, when it has more than one of a kind.
+  const { fill, font, icons } = choices.colors;
+  const byColor = fill.length > 1 || font.length > 1 || icons.length > 0;
+  const byColorNow = choices.condition?.kind === 'color' || choices.condition?.kind === 'icon';
+  const swatches = (font: boolean, list: (string | undefined)[]) => (
+    <li>
+      <span className="wbe-filter-swatch-heading">{t(font ? 'filter.fontColor' : 'filter.cellColor')}</span>
+      <span className="wbe-filter-swatches">
+        {list.map((color) => (
+          <button
+            key={color ?? ''}
+            className="wbe-btn wbe-ghost wbe-filter-swatch"
+            aria-label={color ? t('filter.colorSwatch', { color }) : t(font ? 'filter.automatic' : 'filter.noFill')}
+            title={color ? t('filter.colorSwatch', { color }) : t(font ? 'filter.automatic' : 'filter.noFill')}
+            onClick={() => filterBy({ kind: 'color', font, ...(color && { color }) })}
+          >
+            <span className={color ? undefined : 'wbe-filter-swatch-none'} style={color ? { background: color } : undefined} />
+          </button>
+        ))}
+      </span>
+    </li>
+  );
   const apply = () => {
     const everything = choices.values.every((v) => checked.has(v.text));
     void store.setFilter(choices.rect, at.col, everything ? undefined : checked);
@@ -115,7 +170,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
       <div className="wbe-filter-conditions">
         <button className="wbe-btn wbe-ghost" aria-expanded={conditions} onClick={() => setConditions(!conditions)}>
           <span>{t(choices.kind === 'number' ? 'filter.numberFilters' : choices.kind === 'date' ? 'filter.dateFilters' : 'filter.textFilters')}</span>
-          {choices.condition && <Icon name="check" size={14} />}
+          {choices.condition && !byColorNow && <Icon name="check" size={14} />}
           <Icon name={conditions ? 'chevronUp' : 'chevronDown'} size={14} />
         </button>
         {conditions && (
@@ -127,9 +182,56 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
                 </button>
               </li>
             ))}
+            {choices.kind === 'date' && DATE_PERIODS.map(period)}
+            {choices.kind === 'date' && (
+              <li>
+                <button className="wbe-btn wbe-ghost" aria-expanded={anyYear} onClick={() => setAnyYear(!anyYear)}>
+                  <span>{t('filter.period.any')}</span>
+                  <Icon name={anyYear ? 'chevronUp' : 'chevronDown'} size={14} />
+                </button>
+                {anyYear && <ul>{ANY_YEAR_PERIODS.map(period)}</ul>}
+              </li>
+            )}
+            {choices.kind === 'date' && (
+              <li>
+                <button className="wbe-btn wbe-ghost" onClick={() => pick('custom')}>
+                  {t('filter.item.custom')}
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </div>
+      {byColor && (
+        <div className="wbe-filter-conditions">
+          <button className="wbe-btn wbe-ghost" aria-expanded={colors} onClick={() => setColors(!colors)}>
+            <span>{t('filter.byColor')}</span>
+            {byColorNow && <Icon name="check" size={14} />}
+            <Icon name={colors ? 'chevronUp' : 'chevronDown'} size={14} />
+          </button>
+          {colors && (
+            <ul>
+              {fill.length > 1 && swatches(false, fill)}
+              {font.length > 1 && swatches(true, font)}
+              {icons.length > 0 && (
+                <li>
+                  <span className="wbe-filter-swatch-heading">{t('filter.cellIcon')}</span>
+                  <span className="wbe-filter-swatches">
+                    {icons.map((icon) => {
+                      const label = icon.index === undefined ? t('filter.noIcon') : t('filter.iconSwatch', { n: icon.index + 1 });
+                      return (
+                        <button key={icon.index ?? -1} className="wbe-btn wbe-ghost wbe-filter-swatch" aria-label={label} title={label} onClick={() => filterBy({ kind: 'icon', ...icon })}>
+                          {icon.index === undefined ? <span className="wbe-filter-swatch-none" /> : <CfIcon set={icon.set} index={icon.index} />}
+                        </button>
+                      );
+                    })}
+                  </span>
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
       <input className="wbe-filter-search" placeholder={t('filter.search')} aria-label={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
       <label className="wbe-filter-all">
         <input

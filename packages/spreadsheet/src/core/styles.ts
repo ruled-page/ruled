@@ -557,10 +557,10 @@ export class StyleBook {
   /** Differential formats added for new conditional formatting rules, to be written after the file's. */
   readonly addedDxfs: string[] = [];
 
-  /** The id of a differential format for a new conditional formatting rule, added after the file's. */
-  addDxf(style: DiffStyle): number {
+  /** The id of a differential format for a new conditional formatting rule or colour filter, added after the file's; `xml` where it isn't `style`'s own. */
+  addDxf(style: DiffStyle, xml = dxfXml(style)): number {
     this.dxfs.push(style);
-    this.addedDxfs.push(dxfXml(style));
+    this.addedDxfs.push(xml);
     return this.dxfs.length - 1;
   }
 
