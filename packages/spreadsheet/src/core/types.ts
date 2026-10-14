@@ -201,6 +201,45 @@ export interface CfResult {
   cells: CfCell[];
   /** Rules too large to evaluate here. */
   skipped: number;
+  /** What the sheet's sparklines draw, for the current values. */
+  sparklines?: SparkCell[];
+}
+
+/** One of Excel's sparkline groups: sparklines drawn alike, each in its cell from a range of values. */
+export interface SparklineGroup {
+  /** `stacked` is Excel's win/loss. */
+  type: 'line' | 'column' | 'stacked';
+  colors: Record<'series' | 'negative' | 'axis' | 'markers' | 'first' | 'last' | 'high' | 'low', string>;
+  /** Points marked in their own colour, and the axis at zero. */
+  show: Record<'markers' | 'high' | 'low' | 'first' | 'last' | 'negative' | 'axis', boolean>;
+  /** In points. */
+  lineWeight: number;
+  /** Empty cells as a gap in the line, as zero, or with the line carried across them. */
+  empty: 'gap' | 'zero' | 'span';
+  /** The range drawn against: each sparkline's own, the group's, or set. */
+  minAxis: 'individual' | 'group' | 'custom';
+  maxAxis: 'individual' | 'group' | 'custom';
+  manualMin?: number;
+  manualMax?: number;
+  /** Values in hidden rows and columns are drawn too. */
+  displayHidden: boolean;
+  /** Points run from right to left. */
+  rightToLeft: boolean;
+  /** Each sparkline's cell and the range (a formula, as the file has it) its values come from. */
+  lines: { row: number; col: number; source: string }[];
+}
+
+/** What a sparkline draws in its cell. */
+export interface SparkCell {
+  row: number;
+  col: number;
+  /** Index into the sheet's sparkline groups. */
+  group: number;
+  /** Null for an empty cell, or one that isn't a number. */
+  values: (number | null)[];
+  /** The range its values are drawn against. */
+  min: number;
+  max: number;
 }
 
 export interface DisplayStyle {
@@ -470,6 +509,8 @@ export interface SheetInfo {
   notes: CellNote[];
   tables: TableInfo[];
   conditionalFormats: CfRule[];
+  /** Excel 2010's sparkline groups. */
+  sparklines?: SparklineGroup[];
   links: Hyperlink[];
   /** How its rows and columns are grouped, when they are or the file says where groups' summaries go. */
   outline?: Record<'rows' | 'cols', OutlineAxis>;

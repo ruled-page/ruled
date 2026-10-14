@@ -6,6 +6,7 @@ import { currentEngine, describeValue, toRaw, unsupportedExplanation, unsupporte
 import { renameInFormula, sameDefinition } from './definedNames';
 import type { EngineValue } from '@ruled/formula/engine';
 import { evaluateConditionalFormats } from './conditionalFormat';
+import { evaluateSparklines, sparklineSource } from './sparklines';
 import { applyCommentChange, describeCommentChange, newGuid, noteText, sameNote } from './commentEdits';
 import type { Person } from './comments';
 import { checkRule, evaluateListFormula, type Evaluator } from './dataValidation';
@@ -1966,12 +1967,36 @@ export class WorkbookSession {
       maxCol = Math.max(maxCol, key % MAX_COLS);
     }
     const ev = this.evaluator;
-    return evaluateConditionalFormats(info.conditionalFormats, sheet, {
+    const result = evaluateConditionalFormats(info.conditionalFormats, sheet, {
       value: (row, col) => this.cellValue(sheet, row, col),
       calculate: (formula) => ev.calculate(formula, sheet),
       maxRow,
       maxCol,
     });
+    if (info.sparklines) result.sparklines = evaluateSparklines(info.sparklines, (source, displayHidden) => this.sparklinePoints(sheet, source, displayHidden));
+    return result;
+  }
+
+  /** A sparkline's values, from its source range: a row or a column, or a block read across its rows. */
+  private sparklinePoints(sheet: number, source: string, displayHidden: boolean): (number | null)[] | undefined {
+    const at = sparklineSource(source);
+    const s = at?.sheet === undefined ? sheet : this.sheetIndex.get(at.sheet.toLowerCase());
+    if (!at || s === undefined || this.sheet(s).info.kind !== 'worksheet') return undefined;
+    const { rect } = at;
+    if ((rect.r2 - rect.r1 + 1) * (rect.c2 - rect.c1 + 1) > 10_000) return undefined;
+    const info = this.sheet(s).info;
+    const hiddenRows = displayHidden ? undefined : new Set(info.hiddenRows);
+    const hiddenCols = displayHidden ? undefined : new Set(info.hiddenCols);
+    const out: (number | null)[] = [];
+    for (let r = rect.r1; r <= rect.r2; r++) {
+      if (hiddenRows?.has(r)) continue;
+      for (let c = rect.c1; c <= rect.c2; c++) {
+        if (hiddenCols?.has(c)) continue;
+        const v = this.cellValue(s, r, c);
+        out.push(typeof v === 'number' ? v : null);
+      }
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------------------

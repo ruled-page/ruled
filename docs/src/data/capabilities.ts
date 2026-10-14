@@ -83,7 +83,7 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
       { what: 'Surface, waterfall, treemap, histogram, funnel and other newer charts', support: 'keep', note: 'Shown as a placeholder with the chart’s title.' },
       { what: 'Data labels, trendlines, error bars and gradient fills on charts', support: 'keep' },
       { what: 'Pictures and shapes', support: 'show', note: 'Shown as placeholders where they sit, and moved, resized and deleted.' },
-      { what: 'Sparklines', support: 'keep' },
+      { what: 'Sparklines', support: 'show', note: 'Line, column and win/loss, drawn from the current cells and moved with them; not changed here.' },
     ],
   },
   {

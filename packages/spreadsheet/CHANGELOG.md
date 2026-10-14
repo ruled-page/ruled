@@ -8,6 +8,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
+- Sparklines are drawn: line, column and win/loss, with their markers, high,
+  low, first, last and negative points and axis, from the cells as they are now.
 - On a sheet that reads right to left, the outline bars are mirrored with the
   grid: the row bar is at the right, beside the row numbers.
 - LET and LAMBDA formulas that other tools wrote without Excel's `_xlpm.` prefix

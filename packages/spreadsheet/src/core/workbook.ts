@@ -3,6 +3,7 @@ import { parseChart, type ChartContext, type ChartSpec } from './charts';
 import { parseRange, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
+import { parseSparklines } from './sparklines';
 import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
 import { builtinTableLook } from './tableStyles';
@@ -576,6 +577,8 @@ export function readWorkbook(pkg: OoxmlPackage, locale: string, cells?: CellBudg
         sheet: name,
       });
     }
+    const sparklines = parseSparklines(meta, (c) => styles.color(c));
+    if (sparklines.length) info.sparklines = sparklines;
     const sparkCount = countMatches(xml.slice(scan.sheetDataEnd), /<x14:sparklineGroup\b/g);
     if (sparkCount) {
       findings.push({

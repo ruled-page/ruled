@@ -868,13 +868,13 @@ export class WorkbookStore {
   private readonly cfRuns = new Map<number, { version: number; running: boolean; warned?: boolean }>();
 
   /**
-   * Re-evaluates a sheet's conditional formatting in the worker if cell values
+   * Re-evaluates a sheet's conditional formatting and sparklines in the worker if cell values
    * have changed since it last was. Runs one at a time per sheet; a change
    * made while one runs triggers another when it finishes.
    */
   refreshConditionalFormats(sheet: number): void {
     const view = this.sheets[sheet];
-    if (!view?.info.conditionalFormats.length) return;
+    if (!view?.info.conditionalFormats.length && !view?.info.sparklines) return;
     let run = this.cfRuns.get(sheet);
     if (!run) this.cfRuns.set(sheet, (run = { version: -1, running: false }));
     if (run.running || run.version === this.dataVersion) return;

@@ -13,6 +13,7 @@ import { withAlpha } from './color';
 import type { Box } from './contract';
 import type { Mark } from './marks';
 import type { Layout, Run } from './layout';
+import { drawSparkline } from './sparkline';
 import { standIn } from './standInFonts';
 
 /** Space above and below text in a cell, and between wrapped lines, as a share of the font's height. */
@@ -256,7 +257,7 @@ export class Painter {
       }
     }
 
-    // Behind the text: conditional formats' data bars and icons, and checkboxes.
+    // Behind the text: conditional formats' data bars and icons, sparklines, and checkboxes.
     this.eachCell(input, rows, cols, merges, (box, row, col, look) => this.drawBehind(input, box, row, col, look));
 
     // Text: each cell's in its own box, a merge's across it, and text running into neighbours once, across them.
@@ -325,7 +326,7 @@ export class Painter {
     this.ctx.restore();
   }
 
-  /** What sits behind a cell's text: a schema label's hatch, a conditional format's data bar or icon, and a checkbox in place of TRUE or FALSE. */
+  /** What sits behind a cell's text: a schema label's hatch, a conditional format's data bar or icon, a sparkline, and a checkbox in place of TRUE or FALSE. */
   private drawBehind(input: PaintInput, box: Box, row: number, col: number, look: Look): void {
     // Inside the grid lines at its left and top.
     if (look.label) drawHatch(this.ctx, { x: box.x + 1, y: box.y + 1, width: box.width - 1, height: box.height - 1 }, input.palette.labelMark);
@@ -334,6 +335,9 @@ export class Painter {
       if (cf?.bar) drawDataBar(this.ctx, box, cf.bar);
       if (cf?.icon) drawIcon(this.ctx, cf.icon.set, cf.icon.index, box.x + 3, box.y + (box.height - 14) / 2);
     });
+    const spark = input.view.sparklineAt(row, col);
+    const group = spark && input.view.info.sparklines?.[spark.group];
+    if (group) drawSparkline(this.ctx, { x: box.x + 1, y: box.y + 1, width: box.width - 1, height: box.height - 1 }, spark, group);
     const rec = input.view.get(row, col);
     const ticked = look.style.checkbox ? checkboxState(rec, look.style) : undefined;
     if (ticked !== undefined) drawCheckbox(this.ctx, checkboxBox(box, look.style), ticked, look.color, look.fill ?? input.palette.bg);

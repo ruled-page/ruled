@@ -13,6 +13,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 - **Charts**, drawn from the current cells: column, bar, line, area, pie, doughnut, scatter, radar, bubble and stock charts, and 3-D charts drawn flat. People insert, move, resize, restyle and delete them as in Excel.
 - **Pivot tables**, worked out again as their source changes, with Excel's PivotTable Fields pane, filters, subtotals, grand totals, compact, outline and tabular forms, and Show Values As. People insert their own.
 - **Conditional formatting**: cell rules, top and bottom, averages, duplicates, colour scales, data bars and icon sets.
+- **Sparklines**: line, column and win/loss, with their markers, high, low, first, last and negative points, and axis.
 
 ## Shown and edited
 
@@ -43,6 +44,7 @@ What the file holds is kept in each case; these are limits on how the editor sho
 - A font the device lacks is drawn with a free font of the same widths for Calibri, Cambria, Arial, Times New Roman, Courier New and Georgia (see [Fonts](/start/install/#fonts)), and otherwise in the device's own font, a little wider or narrower than in Excel. Aptos, Excel's newest default, is one of those.
 - Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Excel's newer chart kinds (waterfall, treemap, histogram, funnel) and surface charts show as placeholders.
 - Excel's built-in table styles are drawn from each style's pattern in the theme's colours: close to Excel, not exact. A file's own table styles are drawn as it defines them.
+- Sparklines are drawn with their points evenly spaced, even on a date axis, and can't be changed here; they move with their cells.
 - Conditional formatting's data bars start from zero, without a separate axis for negative values, and its icons are simpler drawings of Excel's. On a sheet with very many formula rules, rules past 200,000 cells' worth of formulas aren't applied.
 
 ### Calculating

@@ -3,7 +3,7 @@ import { applyLinkChange } from '../core/links';
 import { cellKey, inRect, MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
 import { findCell } from '../core/sheetScanner';
 import { conditionPasses, type FilterCell } from './filterConditions';
-import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, DiffStyle, FilterCondition, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
+import type { BlockedRegion, CellNote, CellUpdate, CfCell, CfResult, SparkCell, DiffStyle, FilterCondition, FilterState, Hyperlink, LayoutOp, MergeRange, Rect, SheetGrid, SheetInfo, TableInfo } from '../core/types';
 import { CellFlag, VT } from '../core/types';
 import type { CellRecord } from './format';
 
@@ -33,6 +33,7 @@ export class SheetView {
   private tallLinks: Hyperlink[] = [];
   private readonly notes = new Map<number, CellNote>();
   private readonly cf = new Map<number, CfCell>();
+  private readonly sparks = new Map<number, SparkCell>();
   /** Formats referred to by conditional formatting results. */
   cfStyles: DiffStyle[] = [];
   /** Extra read-only rules, e.g. from a schema. */
@@ -343,16 +344,22 @@ export class SheetView {
     return this.info.colStyles.find((c) => col >= c.min && col <= c.max)?.style ?? 0;
   }
 
-  /** Takes the worker's latest conditional formatting results for this sheet. */
+  /** Takes the worker's latest conditional formatting and sparkline results for this sheet. */
   setConditionalFormats(r: CfResult): void {
     this.cf.clear();
     for (const c of r.cells) this.cf.set(cellKey(c.row, c.col), c);
+    this.sparks.clear();
+    for (const c of r.sparklines ?? []) this.sparks.set(cellKey(c.row, c.col), c);
     this.cfStyles = r.styles;
     this.version++;
   }
 
   cfAt(row: number, col: number): CfCell | undefined {
     return this.cf.get(cellKey(row, col));
+  }
+
+  sparklineAt(row: number, col: number): SparkCell | undefined {
+    return this.sparks.size ? this.sparks.get(cellKey(row, col)) : undefined;
   }
 
   tableAt(row: number, col: number): TableInfo | undefined {

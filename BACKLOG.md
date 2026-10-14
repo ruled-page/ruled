@@ -37,7 +37,6 @@ needs no server, and nothing here should add one.
   treemap, funnel and the rest). Kept in the file and shown as placeholders;
   the other kinds are drawn, and a host can turn drawing off
   (`features.charts`).
-- **Sparklines.** Kept in the file and moved with their cells; not drawn.
 - **.xls, .xlsb and .ods files.** Refused with a message. A converter such
   as SheetJS could open them as .xlsx, losing charts and pivot tables.
 - **Printing and PDF.** Print settings are kept in the file; nothing prints.

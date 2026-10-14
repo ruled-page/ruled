@@ -63,8 +63,8 @@ export const core = {
   'core.finding.dataValidation.other_one': '{{count, number}} other rule are kept in the file but not enforced here',
   'core.finding.dataValidation.other_other': '{{count, number}} other rules are kept in the file but not enforced here',
   'core.finding.sparklines.title': 'Sparklines',
-  'core.finding.sparklines.detail_one': '{{count, number}} sparkline group. Kept in the file and redrawn by Excel; not shown here.',
-  'core.finding.sparklines.detail_other': '{{count, number}} sparkline groups. Kept in the file and redrawn by Excel; not shown here.',
+  'core.finding.sparklines.detail_one': "{{count, number}} sparkline group. Drawn here from the current cells, and kept in the file as it is; it can't be changed here.",
+  'core.finding.sparklines.detail_other': "{{count, number}} sparkline groups. Drawn here from the current cells, and kept in the file as they are; they can't be changed here.",
   'core.finding.filter.title': 'Filter',
   'core.finding.filter.detail':
     'Kept in the file and open to change here: rows it hides stay hidden, and changes to it are saved as Excel saves them.',

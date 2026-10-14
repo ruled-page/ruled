@@ -69,9 +69,9 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.dataValidation.other_other': '{{count, number}} weitere Regeln bleiben in der Datei erhalten, werden hier aber nicht angewendet',
   'core.finding.sparklines.title': 'Sparklines',
   'core.finding.sparklines.detail_one':
-    '{{count, number}} Sparklinegruppe. Bleibt in der Datei erhalten und wird von Excel neu gezeichnet; wird hier nicht angezeigt.',
+    '{{count, number}} Sparklinegruppe. Wird hier aus den aktuellen Zellen gezeichnet und bleibt in der Datei unverändert; sie kann hier nicht geändert werden.',
   'core.finding.sparklines.detail_other':
-    '{{count, number}} Sparklinegruppen. Bleiben in der Datei erhalten und werden von Excel neu gezeichnet; werden hier nicht angezeigt.',
+    '{{count, number}} Sparklinegruppen. Werden hier aus den aktuellen Zellen gezeichnet und bleiben in der Datei unverändert; sie können hier nicht geändert werden.',
   'core.finding.filter.title': 'Filter',
   'core.finding.filter.detail':
     'Bleibt in der Datei erhalten und kann hier geändert werden: Zeilen, die er ausblendet, bleiben ausgeblendet, und Änderungen am Filter werden wie in Excel gespeichert.',
