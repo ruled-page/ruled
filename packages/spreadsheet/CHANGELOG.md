@@ -6,6 +6,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 ## Unreleased
 
 - Both packages have a README on npm, and keywords to find them by.
+- Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
+  workbook opened, it could go into the selected cell, as the box was still loading.
 
 ## 0.1.0 (2026-10-14)
 

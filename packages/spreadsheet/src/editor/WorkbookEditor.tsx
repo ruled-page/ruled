@@ -3,6 +3,7 @@ import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
 import { Banner, RecalcBanner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
+import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
@@ -43,7 +44,6 @@ const pivotDialog = lazyModule(() => import('../ui/PivotDialog'));
 const gridMenu = lazyModule(() => import('../ui/GridMenu'));
 const filterPicker = lazyModule(() => import('../ui/FilterPicker'));
 const conditionDialog = lazyModule(() => import('../ui/FilterConditionDialog'));
-const findPanel = lazyModule(() => import('../ui/FindPanel'));
 const keyDialogs = lazyModule(() => import('../ui/KeyboardDialogs'));
 
 /** The editor's parts, in the order F6 visits them. */
@@ -269,7 +269,6 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Menu = gridMenu.useModule(!!store.menu);
   const Filter = filterPicker.useModule(!!store.filterPicker);
   const Condition = conditionDialog.useModule(!!store.conditionDialog);
-  const Find = findPanel.useModule(store.findOpen);
   const Keys = keyDialogs.useModule(store.shortcutsOpen || store.columnWidthFor !== undefined || store.rowHeightFor !== undefined || !!store.cellsDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
@@ -281,7 +280,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
     if (!opened) return;
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 1000));
     idle(() => {
-      for (const m of [gridMenu, filterPicker, conditionDialog, findPanel, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog, validationDialog, cfDialogs, numberFormatDialog, chartDialog, pivotDialog]) m.preload();
+      for (const m of [gridMenu, filterPicker, conditionDialog, keyDialogs, designer, comments, nameDialogs, linkDialog, fillDialogs, sortDialog, validationDialog, cfDialogs, numberFormatDialog, chartDialog, pivotDialog]) m.preload();
     });
   }, [opened]);
 
@@ -367,7 +366,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
             />
           )}
           {ready && view.info.kind !== 'worksheet' && <ChartSheet store={store} view={view} />}
-          {ready && store.findOpen && Find && <Find.FindPanel store={store} />}
+          {ready && store.findOpen && <FindPanel store={store} />}
         </section>
         {ready && <SidePanel store={store} />}
       </div>
