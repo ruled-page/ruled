@@ -5,6 +5,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Both packages have a README on npm, and keywords to find them by.
+
 ## 0.1.0 (2026-10-14)
 
 The first release: a spreadsheet editor for web apps that opens Excel
@@ -83,7 +85,7 @@ what it doesn't change. Released with its calculation engine,
 
 ### Formulas
 
-- Live recalculation by Ruled's own engine (`@ruled/formula`), with 475 of
+- Live recalculation by Ruled's own engine (`@ruled/formula`), with 477 of
   Excel's functions, 3-D references (Jan:Mar!B2), unions, LET, LAMBDA and
   its helpers, dynamic arrays that spill as Excel's do, and Ctrl+Shift+Enter
   arrays, its answers checked against Excel's. Formulas it can't calculate

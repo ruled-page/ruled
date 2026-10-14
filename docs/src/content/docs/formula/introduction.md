@@ -27,7 +27,7 @@ book.evaluate('=XLOOKUP("Cake",Prices!A1:A2,Prices!B1:B2)'); // 3
 
 ## What it calculates
 
-The same as the editor: 475 of Excel's functions (the [functions reference](/reference/functions/) lists them), with Excel's rules for numbers, text, dates, errors and empty cells. That includes:
+The same as the editor: more than 470 of Excel's functions (the [functions reference](/reference/functions/) lists them), with Excel's rules for numbers, text, dates, errors and empty cells. That includes:
 
 - dynamic arrays that spill into the cells beside them, as in Excel today;
 - LET, LAMBDA and its helpers (MAP, REDUCE, SCAN, BYROW and the rest);

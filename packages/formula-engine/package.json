@@ -2,6 +2,17 @@
   "name": "@ruled/formula",
   "version": "0.1.0",
   "description": "Excel's formulas worked out in the browser or Node, cell by cell as a workbook changes, with Excel's rules throughout",
+  "keywords": [
+    "excel",
+    "formula",
+    "formulas",
+    "spreadsheet",
+    "calculation",
+    "engine",
+    "xlsx",
+    "lambda",
+    "dynamic-arrays"
+  ],
   "type": "module",
   "license": "MIT",
   "author": "Anthony Gubler",
