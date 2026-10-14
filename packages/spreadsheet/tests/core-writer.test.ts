@@ -187,6 +187,24 @@ describe('formulas Excel stores in its own forms', () => {
     expect(cell(edited([['B1', '=LET(x,Total,x)']]).xml, 'B1')).toContain('_xlfn.LET(_xlpm.x,Total,_xlpm.x)');
   });
 
+  it('add the prefix to LET and LAMBDA parameters other tools wrote without it, once anything is saved', () => {
+    const file = patch(bytes, {
+      'xl/worksheets/sheet1.xml': (xml) =>
+        xml.replace(
+          '<row r="15"',
+          '<row r="12"><c r="B12"><f>_xlfn.LET(x,A1&gt;0,IF(x,1,2))</f><v>1</v></c>' +
+            '<c r="C12"><f t="shared" ref="C12:D12" si="5">_xlfn.LAMBDA(v,v*2)(A1)</f><v>2</v></c><c r="D12"><f t="shared" si="5"/><v>2</v></c>' +
+            '<c r="E12"><f>_xlfn.LET(_xlpm.y,1,_xlpm.y)</f><v>1</v></c></row><row r="15"',
+        ),
+    });
+    expect(WorkbookSession.open(file, 'w.xlsx').save()).toBe(file);
+    const { xml } = edited([['J1', 'z']], {}, file);
+    expect(cell(xml, 'B12')).toBe('<c r="B12"><f>_xlfn.LET(_xlpm.x,A1&gt;0,IF(_xlpm.x,1,2))</f><v>1</v></c>');
+    expect(cell(xml, 'C12')).toContain('<f t="shared" ref="C12:D12" si="5">_xlfn.LAMBDA(_xlpm.v,_xlpm.v*2)(A1)</f>');
+    expect(cell(xml, 'D12')).toBe('<c r="D12"><f t="shared" si="5"/><v>2</v></c>');
+    expect(cell(xml, 'E12')).toBe('<c r="E12"><f>_xlfn.LET(_xlpm.y,1,_xlpm.y)</f><v>1</v></c>');
+  });
+
   it('save formulas that return arrays as dynamic array formulas, with the metadata that marks them', () => {
     const { xml } = edited([
       ['B1', '=SORT(A1:A3)'],

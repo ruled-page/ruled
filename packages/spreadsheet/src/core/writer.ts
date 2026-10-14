@@ -2,7 +2,7 @@ import { addPivotTable, type NewPivotParts } from './pivotWriter';
 import type { EngineValue } from '@ruled/formula/engine';
 import { parseA1Ref } from '@borgar/fx';
 import { writeDefinedNames } from './definedNames';
-import { isDynamicArrayFormula } from '@ruled/formula/formula';
+import { addParameterPrefixes, isDynamicArrayFormula } from '@ruled/formula/formula';
 import { writeHyperlinks, type SheetLinks } from './hyperlinks';
 import { writeValidations } from './validations';
 import { writeConditionalFormats } from './conditionalFormat';
@@ -16,7 +16,7 @@ import type { Person } from './comments';
 import { BAGS_CONTENT_TYPE, BAGS_PART, BAGS_REL } from './checkboxes';
 import { addRel, setOverride, writeComments } from './commentWriter';
 import type { SheetModel, WorkbookModel } from './workbook';
-import { countElements, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, setAttributes } from './xml';
+import { countElements, decodeEntities, encodeOoxmlText, escapeXml, findTagEnd, firstElement, parseAttrs, replaceElements, setAttributes } from './xml';
 import { setCustomProperties } from './properties';
 import { relsPathFor, type OoxmlPackage } from './zip';
 
@@ -73,7 +73,9 @@ type Patch =
   | { kind: 'value'; value: EngineValue; ref?: Rect }
   | { kind: 'expand'; formula: string; value: EngineValue | undefined }
   /** A value spilled from a formula in another cell, written without a formula as Excel writes it; null where a spill no longer reaches. */
-  | { kind: 'spilled'; value: EngineValue; style: number };
+  | { kind: 'spilled'; value: EngineValue; style: number }
+  /** A cell kept as it was but for `_xlpm.` added to its LET or LAMBDA parameters. */
+  | { kind: 'mend' };
 
 /** Writes the edited workbook, changing only the parts that must change. */
 export function writeWorkbook(input: SaveInput): Uint8Array {
@@ -209,8 +211,17 @@ function sheetPatches(m: SheetModel, s: number, input: SaveInput): Map<number, P
       if (formula === undefined) continue;
       const value =
         existing?.kind === 'value' ? existing.value : grid.flags[idx] & CellFlag.NoCache ? undefined : gridValueOf(grid, idx);
-      patches.set(key, { kind: 'expand', formula, value });
+      patches.set(key, { kind: 'expand', formula: addParameterPrefixes(formula), value });
     }
+  }
+  // LET and LAMBDA parameters other tools wrote without Excel's prefix, which
+  // Excel shows as #NAME? and Excel for the web refuses to open.
+  for (const [idx, formula] of grid.formulas) {
+    if (!/(?:LET|LAMBDA)\s*\(/i.test(formula)) continue;
+    const key = keyOf(grid, idx);
+    if (patches.has(key)) continue;
+    const f = rawFormulaElement(m.xml!.slice(m.scan!.cellStart[idx], m.scan!.cellEnd[idx]), m.scan!.prefix);
+    if (f !== mendFormula(f)) patches.set(key, { kind: 'mend' });
   }
   if (input.spills && input.spilled) spillPatches(m, s, input, patches);
   return patches;
@@ -394,14 +405,29 @@ function rawFormulaElement(raw: string, p: string): string {
   return f && f.qname === `${p}f` ? raw.slice(f.start, f.end) : '';
 }
 
+/** A formula element with `_xlpm.` added to the LET and LAMBDA parameters its text lacks it on. */
+function mendFormula(f: string): string {
+  if (!f || f.endsWith('/>')) return f;
+  const open = findTagEnd(f, 0) + 1;
+  const close = f.lastIndexOf('</');
+  const text = decodeEntities(f.slice(open, close));
+  const mended = addParameterPrefixes(text);
+  return mended === text ? f : f.slice(0, open) + escapeXml(mended) + f.slice(close);
+}
+
 function patchCell(p: string, row: number, col: number, raw: string | undefined, patch: Patch, cm: () => number): string | null {
   const r = toA1(row, col);
+  if (patch.kind === 'mend') {
+    const f = rawFormulaElement(raw!, p);
+    const at = raw!.indexOf(f);
+    return raw!.slice(0, at) + mendFormula(f) + raw!.slice(at + f.length);
+  }
   if (patch.kind === 'value') {
     if (!raw) return null;
     // vm points at the rich value (such as a #CALC! error) the old value was.
     const attrs = keptAttrs(raw, ['r', 't', 'vm']);
     const { t, v } = valueXml(p, patch.value);
-    const f = rawFormulaElement(raw, p);
+    const f = mendFormula(rawFormulaElement(raw, p));
     return `<${p}c r="${r}"${attrs}${t}>${patch.ref ? withRef(f, rangeToA1(patch.ref)) : f}${v}</${p}c>`;
   }
   if (patch.kind === 'spilled') {

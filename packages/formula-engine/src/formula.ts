@@ -188,6 +188,24 @@ export function toFileFormula(userFormula: string): string {
 }
 
 /**
+ * The file formula with `_xlpm.` added to LET and LAMBDA parameters that
+ * lack it, as other tools sometimes write them; the same formula when none do.
+ */
+export function addParameterPrefixes(fileFormula: string): string {
+  if (!/(?:LET|LAMBDA)\s*\(/i.test(fileFormula)) return fileFormula;
+  let list: Token[];
+  try {
+    list = tokens(fileFormula);
+  } catch {
+    return fileFormula;
+  }
+  const params = [...lambdaParameters(list)].filter((i) => !/^_xlpm\./i.test(list[i].value));
+  if (!params.length) return fileFormula;
+  for (const i of params) list[i] = { ...list[i], value: `_xlpm.${list[i].value}` };
+  return stringifyTokens(list);
+}
+
+/**
  * Tokens that name a LET or LAMBDA parameter, where it is declared or used.
  * Excel stores these names with an `_xlpm.` prefix, without which it reads
  * them as defined names and shows #NAME?. LET(x, 1, y, 2, x + y) declares x

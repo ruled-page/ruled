@@ -79,9 +79,3 @@ Small gaps found along the way.
   hold; the engine's limit (`MAX_ARRAY_CELLS` in
   `packages/formula-engine/src/sizeLimits.ts`) keeps a stray formula from
   taking the page's memory.
-- **LET formulas written by other tools without Excel's `_xlpm.` prefix**
-  on their names show #NAME? in Excel, and Excel for the web refuses the
-  file; the editor works them out as intended. Saving keeps formulas no one
-  edited as the file has them, so such a file stays as it was; formulas
-  typed or edited here get the prefix. Adding it on saving would mend such
-  files, at the cost of rewriting cells no one changed.
