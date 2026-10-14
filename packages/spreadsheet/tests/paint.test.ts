@@ -316,7 +316,7 @@ describe('the grid palette', () => {
     const read = stylesheet({});
     readGridPalette(el);
     expect(read).toHaveLength(Object.keys(DEFAULT_PALETTE).length);
-    expect(read).toEqual(expect.arrayContaining(['--wbe-grid-header-selected-text', '--wbe-grid-text-on-fill', '--wbe-grid-bg-alt', '--wbe-grid-header-font-weight', '--wbe-on-accent']));
+    expect(read).toEqual(expect.arrayContaining(['--wbe-grid-header-selected-text', '--wbe-grid-text-on-fill', '--wbe-grid-cut-fill', '--wbe-grid-header-font-weight', '--wbe-on-accent']));
   });
 
   it('uses the defaults with no element, or outside a browser', () => {

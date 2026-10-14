@@ -61,11 +61,11 @@ needs no server, and nothing here should add one.
 ## Could be smaller
 
 - **The standalone build carries its calculation worker inside it**: 184 kB
-  of its 441 kB gzipped (`packages/spreadsheet/src/editor/standalone.ts`
+  of its 372 kB gzipped (`packages/spreadsheet/src/editor/standalone.ts`
   imports it with `?worker&inline`), so the one script works when served
   from another domain, as browsers start workers only from the page's own.
   Loading the worker from a file beside the script, as the React build does,
-  would bring the script to about 260 kB, with the worker downloading
+  would bring the script to about 190 kB, with the worker downloading
   alongside it; the total stays the same. Hosts would then serve both from
   their own domain, or the editor would start the worker from a script
   fetched across domains.

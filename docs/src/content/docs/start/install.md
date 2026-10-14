@@ -24,7 +24,7 @@ Import the stylesheet once, next to the component:
 import '@ruled/sheet/style.css';
 ```
 
-The component starts its worker with `new Worker(new URL('./assets/workbook.worker.js', import.meta.url))`. Vite, webpack 5 and Parcel recognise that and bundle the worker with your app, so there is nothing more to set up. With a bundler that doesn't, serve `@ruled/sheet/worker` yourself and pass where it is:
+The component starts its worker with `new Worker(new URL('./assets/workbook.worker.js', import.meta.url))`. Vite, webpack 5, Parcel and Next.js recognise that and bundle the worker with your app, so there is nothing more to set up. With a bundler that doesn't, serve `@ruled/sheet/worker` yourself and pass where it is:
 
 ```ts
 createWorkbookEditor({

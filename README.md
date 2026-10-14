@@ -48,9 +48,9 @@ change to the engine shows in the editor and the examples straight away.
 
 | Folder | What it is |
 | --- | --- |
-| `packages/spreadsheet` | `@ruled/sheet`: the React component, the `<workbook-editor>` element and the worker |
+| `packages/spreadsheet` | `@ruled/sheet`: the React components, the `<workbook-editor>` element and the worker |
 | `packages/formula-engine` | `@ruled/formula`: the calculation engine, and Excel's references and formula text |
-| `packages/e2e` | The browser tests, and a React app that installs the packed library as a host would |
+| `packages/e2e` | The browser tests, and a React app and a Next.js app that install the packed library as a host would |
 | `examples/demo` | The demo, with the sample workbooks |
 | `examples/react-portal` | The editor in a React supplier portal |
 | `examples/angular-portal` | The editor in an Angular app (its own install) |
@@ -103,16 +103,20 @@ workbook.
 | `npm run validate:saves` | After `npm run build:verify`: saved copies of the samples and the test corpus are as valid as their originals, by Microsoft's Open XML SDK |
 
 The browser tests run against production builds, on servers they start on
-ports 4173 to 4177 (`E2E_PORT` moves them). They cover editing, saving,
+ports 4173 to 4178 (`E2E_PORT` moves them). They cover editing, saving,
 schemas, the hosts, keyboard-only use, phones (an emulated Pixel 7), and an
 axe scan of every screen, menu and dialog in each theme.
 `E2E_BROWSERS=all` adds Firefox and WebKit, after
-`npx playwright install firefox webkit`.
+`npx playwright install firefox webkit`. After `npm run build:lib`,
+`E2E_ANGULAR=1` adds the Angular app (after `npm ci` in
+`examples/angular-portal`), and `E2E_HOST_APP=1` and `E2E_NEXT_APP=1` the
+React and Next.js apps that install the packed library, the Next.js one
+rendering the editor from a Server Component.
 
 [CI](.github/workflows/ci.yml) runs all of these on Linux, the browser tests
-in Chromium, Firefox and WebKit, and also builds the Angular app and a React
-app from the packed library. To reproduce a Linux failure, run the tests in
-Playwright's image (`mcr.microsoft.com/playwright:v1.63.0-noble`) with two
+in Chromium, Firefox and WebKit, and also builds the Angular app, and a React
+app and a Next.js app from the packed library. To reproduce a Linux failure, run the tests in
+Playwright's image (`mcr.microsoft.com/playwright:v1.64.0-noble`) with two
 workers, as CI does.
 
 ### Calculations against Excel

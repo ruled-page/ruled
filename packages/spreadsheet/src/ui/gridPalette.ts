@@ -6,18 +6,15 @@
  */
 export interface GridPalette {
   bg: string;
-  bgAlt: string;
   text: string;
   textOnFill: string;
   textMuted: string;
-  textLight: string;
   line: string;
   borderAuto: string;
   freezeLine: string;
   headerBg: string;
   headerText: string;
   headerLine: string;
-  headerHoverBg: string;
   headerSelectedBg: string;
   headerSelectedText: string;
   rowHeaderText: string;
@@ -47,18 +44,15 @@ export interface GridPalette {
 /** The defaults, the same as editor.css declares, for when no stylesheet has loaded. */
 export const DEFAULT_PALETTE: GridPalette = {
   bg: '#ffffff',
-  bgAlt: '#f7f7f7',
   text: '#1f1f1f',
   textOnFill: '#1f1f1f',
   textMuted: '#5f6368',
-  textLight: '#9aa0a6',
   line: '#e1e3e3',
   borderAuto: '#000000',
   freezeLine: '#b7bcc2',
   headerBg: '#f4f5f5',
   headerText: '#4a4a4a',
   headerLine: '#d3d6d6',
-  headerHoverBg: '#eaebeb',
   headerSelectedBg: '#e3efe8',
   headerSelectedText: '#ffffff',
   rowHeaderText: '#5f6368',

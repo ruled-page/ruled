@@ -74,7 +74,6 @@ export const THEME_TOKENS = [
   'gridRowHeaderText',
   'gridTextMuted',
   'gridTextLight',
-  'gridBgAlt',
   'gridCutFill',
   'gridSelection',
   'gridSelectionFill',

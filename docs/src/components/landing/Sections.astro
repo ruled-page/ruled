@@ -48,6 +48,16 @@ export function Review() {
   return editor && <WorkbookEditor editor={editor} />;
 }`;
 
+const nextjs = `// A Server Component: the bytes and a Server Action go straight to the editor.
+import { Workbook } from '@ruled/sheet';
+import { readPriceList } from './storage';
+import { savePriceList } from './actions';
+
+export default async function Review() {
+  const bytes = await readPriceList();
+  return <Workbook file={{ name: 'prices.xlsx', bytes }} onSave={savePriceList} />;
+}`;
+
 const element = `<workbook-editor src="/files/prices.xlsx" save-handler="event"></workbook-editor>
 
 <script type="module">
@@ -126,6 +136,7 @@ const fidelity = [
     <p class="wb-lede">A React component, or a <code>&lt;workbook-editor&gt;</code> element for everything else. The workbook lives in a web worker, so the page stays quick with tens of thousands of formulas.</p>
     <Tabs syncKey="host">
       <TabItem label="React"><Code code={react} lang="tsx" /></TabItem>
+      <TabItem label="Next.js"><Code code={nextjs} lang="tsx" /></TabItem>
       <TabItem label="Web component"><Code code={element} lang="html" /></TabItem>
       <TabItem label="Angular"><Code code={angular} lang="ts" /></TabItem>
     </Tabs>

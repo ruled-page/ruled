@@ -56,7 +56,6 @@ export const ledgerDark: EditorTheme = {
   border: '#26352d',
   borderStrong: '#33453b',
   gridBg: '#121a16',
-  gridBgAlt: '#16201b',
   gridLine: '#24302a',
   gridHeaderBg: '#18221d',
   gridHeaderLine: '#2b3a32',
