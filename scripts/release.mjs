@@ -60,11 +60,13 @@ function prepare(asked) {
   const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
   if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
 
-  // Both packages at the version, the editor's own record of the engine it was built with too.
-  run(`npm version ${next} --no-git-tag-version --allow-same-version -w @ruled/formula -w @ruled/sheet`);
-  const manifestPath = join(sheet, 'package.json');
-  const manifest = readFileSync(manifestPath, 'utf8');
-  writeFileSync(manifestPath, manifest.replace(/("@ruled\/formula": ")[^"]*"/, `$1${next}"`));
+  // Both packages at the version, and every workspace that names one of them, so each still takes the workspace's copy.
+  for (const workspace of JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces) {
+    const path = join(root, workspace, 'package.json');
+    const manifest = readFileSync(path, 'utf8');
+    const named = /"name": "(@ruled\/(?:formula|sheet))"/.exec(manifest);
+    writeFileSync(path, manifest.replace(/("@ruled\/(?:formula|sheet)": ")[^"]*"/g, `$1${next}"`).replace(/^(  "version": ")[^"]*"/m, (line, start) => (named ? `${start}${next}"` : line)));
+  }
   run('npm install --package-lock-only --ignore-scripts --no-audit --no-fund');
 
   const date = new Date().toISOString().slice(0, 10);
