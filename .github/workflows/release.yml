@@ -15,7 +15,8 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: [packages/spreadsheet/package.json]
+    # The version, or its notes for a version the packages are already at.
+    paths: [packages/spreadsheet/package.json, packages/spreadsheet/CHANGELOG.md]
   workflow_dispatch:
     inputs:
       dry-run:
