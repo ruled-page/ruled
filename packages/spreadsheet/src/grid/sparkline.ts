@@ -70,7 +70,8 @@ export function drawSparkline(ctx: CanvasRenderingContext2D, box: Box, spark: Sp
       pen = true;
     });
     ctx.stroke();
-    const r = Math.max(2, weight);
+    // Small dots, as Excel's: a little wider than the line.
+    const r = Math.max(1.25, weight * 0.9);
     values.forEach((v, i) => {
       if (v === null) return;
       const color = special(v, i) ?? (g.show.markers ? g.colors.markers : undefined);

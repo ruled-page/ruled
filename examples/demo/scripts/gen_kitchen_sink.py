@@ -262,7 +262,7 @@ lookups.write_formula("B21", "=IF(SUM(D4:D6)<0,\"Negative\",\"OK\")", red, "OK")
 notes.set_column("A:F", 14)
 notes.write("A1", "Notes", bold)
 notes.merge_range("A2:F4", "This sheet holds a picture, a text box, hidden rows and sparklines. "
-                  "The editor keeps all of them when it saves, even though it only shows placeholders.", wrap)
+                  "The editor draws them all, and keeps them as they are when it saves.", wrap)
 notes.write_row("A6", ["Hidden", "row", "one"])
 notes.write_row("A7", ["Hidden", "row", "two"])
 notes.set_row(5, None, None, {"hidden": True})
