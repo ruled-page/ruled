@@ -68,6 +68,10 @@ what it doesn't change.
   number formats, with Excel's Custom list for format codes.
 - Wrapped text is drawn as Excel draws it, and rows fit their contents as
   Excel's do. Double-clicking a column's or row's edge, or AutoFit, fits it.
+- On a device without Calibri, Cambria, Arial, Times New Roman, Courier New
+  or Georgia, text is drawn in a free font of the same widths (Carlito,
+  Caladea, Arimo, Tinos, Cousine or Gelasio), fetched only then, so it fits
+  its columns as in Excel.
 - Column widths, row heights, hiding, frozen panes, merged cells and outline
   groups.
 - Conditional formatting as Excel applies it, with its rules added, changed

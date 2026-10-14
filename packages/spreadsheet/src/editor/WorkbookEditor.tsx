@@ -7,6 +7,7 @@ import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
 import { PORTAL_ID } from '../grid/contract';
+import { standIn } from '../grid/standInFonts';
 import { Icon, IconContext } from '../ui/icons';
 import { APPLE, commandKey, shortcutKey, shortcutsKey } from '../ui/keys';
 import { firstFocusable } from '../ui/useDialog';
@@ -133,6 +134,8 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(ensurePortal, []);
+  // Excel's usual font, on a device without it: its stand-in arrives while the workbook opens, before the grid draws.
+  useEffect(() => void standIn('Calibri'), []);
 
   // Phone-sized layout follows the editor's own width, which in a host's layout can be less than the window's.
   useEffect(() => {

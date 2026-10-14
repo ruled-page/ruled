@@ -13,6 +13,7 @@ import { withAlpha } from './color';
 import type { Box } from './contract';
 import type { Mark } from './marks';
 import type { Layout, Run } from './layout';
+import { standIn } from './standInFonts';
 
 /** Space above and below text in a cell, and between wrapped lines, as a share of the font's height. */
 const V_PAD = 2;
@@ -90,7 +91,8 @@ export class Painter {
 
   /** The CSS font a cell's text is drawn in. */
   font(style: DisplayStyle): string {
-    return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${this.palette?.font ?? 'sans-serif'}`;
+    const stand = standIn(style.fontFamily);
+    return `${style.italic ? 'italic ' : ''}${style.bold ? 'bold ' : ''}${style.fontSizePx}px "${style.fontFamily}", ${stand ? `"${stand}", ` : ''}${this.palette?.font ?? 'sans-serif'}`;
   }
 
   /** How wide text is in a cell's font, as drawn here. */

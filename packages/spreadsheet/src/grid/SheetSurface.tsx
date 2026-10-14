@@ -20,6 +20,7 @@ import { CellEditorBox, type Edit } from './CellEditing';
 import { colAxis, rowAxis } from './axis';
 import { Painter, type PaintInput } from './draw';
 import { contentScroll, Layout, scrollerPosition, scrollLength } from './layout';
+import { onStandInLoaded } from './standInFonts';
 
 /** The height of the column letters. */
 const LETTERS = 24;
@@ -204,6 +205,15 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       });
     }
   }, []);
+  // Text measured in the device's own font is measured and drawn again once a stand-in for its font arrives.
+  useEffect(
+    () =>
+      onStandInLoaded(() => {
+        painter.current?.reset();
+        redraw();
+      }),
+    [redraw],
+  );
   useEffect(
     () => () => {
       cancelAnimationFrame(frame.current);
