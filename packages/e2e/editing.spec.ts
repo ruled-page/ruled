@@ -144,7 +144,7 @@ test('switching theme restyles the editor and keeps the workbook open', async ({
 });
 
 test('a protected form takes input in its unlocked cells only, and hides its protected formulas', async ({ page }) => {
-  await openFile(page, 'templates.xlsx', new Uint8Array(await readFile('packages/spreadsheet/tests/corpus/templates.xlsx')));
+  await openFile(page, 'templates.xlsx', new Uint8Array(await readFile(new URL('../spreadsheet/tests/corpus/templates.xlsx', import.meta.url))));
   await expect(page.getByRole('tab', { name: 'Request' })).toHaveAttribute('aria-selected', 'true');
   await setCell(page, 'B3', 'Ana');
   await expect(shown(page, 'B3')).toHaveText('Ana');
