@@ -9,6 +9,7 @@ A spreadsheet editor embedded in web apps. It opens real Excel files (.xlsx, .xl
 - Anything else: `import '@ruled/sheet/standalone'` (defines `<workbook-editor>`, styles and worker included). Set `element.options = {...}`, use `src="/file.xlsx"`, and `save-handler="event"` to get a `save` event whose `detail.waitUntil(promise)` keeps the save pending.
 - Or `mountWorkbookEditor(element, options)` from the standalone build, which returns the handle.
 - The editor fills its container: give the container (or the element) a height.
+- With a Content Security Policy, allow `font-src data:` (the grid's fonts) and the worker: `worker-src 'self'` for the React build, `worker-src blob: data:` and `style-src 'unsafe-inline'` for the standalone one.
 - Open a file with `await editor.open(arrayBuffer, 'name.xlsx')`. When the app chooses files, set `features: { open: false }`.
 - Receive saves with `onSave: async (saved) => {...}`: `saved.bytes` (the .xlsx), `saved.values` (schema-shaped: `values[sheet].tables[tableKey]` is an array of records keyed by field key, `values[sheet].cells[key]`), `saved.changes`, `saved.schema` ({ id, errors, warnings }). Throw (or answer `{ error }`) to show an error and keep the changes; throw `SaveConflictError` (or answer `{ conflict: true }`) when the stored file changed.
 - Change at runtime without closing the workbook: `setTheme`, `setLanguage`, `setUser`, `registerSchema`, `removeSchema`, `setCustomLists`. Other options need a new editor.

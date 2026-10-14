@@ -34,7 +34,7 @@ createWorkbookEditor({
 
 ## The standalone build
 
-Importing it defines `<workbook-editor>`. It injects its own styles, and its worker is inlined, so it needs nothing else. It's larger than the React build, so load it when the editor is needed:
+Importing it defines `<workbook-editor>`. It injects its own styles and carries its worker inside it. What not every page needs (the dialogs, charts and fonts) is in chunks beside it, which it loads when they're needed. A bundler copies them with it; serving the build yourself, serve the whole `dist/standalone` folder, and from another domain with CORS headers, as browsers fetch modules that way. It's larger than the React build, so load it when the editor is needed:
 
 ```ts
 await import('@ruled/sheet/standalone');
@@ -46,7 +46,7 @@ Current Chrome, Edge, Firefox and Safari. The editor needs module workers, which
 
 ## Fonts
 
-Workbooks are mostly set in Microsoft's fonts, which many devices lack: a Mac, a phone or Linux usually has no Calibri or Cambria. Where the device lacks one, the grid draws its text in a free font drawn to the same widths, so text fits its columns as it does in Excel. Each is fetched only then, from a chunk of the package, Calibri's as soon as the editor starts:
+Workbooks are mostly set in Microsoft's fonts, which many devices lack: a Mac, a phone or Linux usually has no Calibri or Cambria. Where the device lacks one, the grid draws its text in a free font drawn to the same widths, so text fits its columns as it does in Excel. Each is fetched only then, from a chunk of the package served with the rest of your app, never from a font service; Calibri's as soon as the editor starts:
 
 | Excel's font | Drawn with |
 | --- | --- |
@@ -66,6 +66,7 @@ On a site with a Content Security Policy, allow what the editor loads:
 - `font-src data:`, for the fonts above, which the builds carry as `data:` URLs.
 - For the React build, its worker, a file beside the script: `worker-src 'self'` when you serve it from your own site.
 - For the standalone build, its worker, carried inside the script and started from a `blob:` URL (or a `data:` URL where that's refused): `worker-src blob: data:`. It also adds its styles to the page in a `<style>` element, which needs `style-src 'unsafe-inline'`.
+- `connect-src` for the workbooks the element fetches from its `src`, when they're on another site.
 
 ## Styles stay inside
 

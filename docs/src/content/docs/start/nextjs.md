@@ -7,6 +7,8 @@ sidebar:
 
 The editor runs in the browser: it draws the sheet on a canvas, keeps the workbook in a Web Worker and answers keys and pointers. In an app with React Server Components, such as Next.js's App Router, it's a client component. The package says so (`'use client'`), so a Server Component can import it and render it without a wrapper of your own.
 
+Server Components need React 19, which the App Router uses; elsewhere the package works with React 18 too. The package is tested in a Next.js 16 app.
+
 `<Workbook>` is the editor in one component for a Server Component to render. Its props are plain data: the file's name and bytes, the theme, features, language and the other options that aren't functions. Its `onSave` can be a Server Action.
 
 ```tsx
