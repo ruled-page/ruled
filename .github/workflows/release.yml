@@ -50,8 +50,8 @@ jobs:
 
   release:
     needs: check
-    # A push releases a prepared version once; running it by hand goes over what's left.
-    if: needs.check.outputs.prepared == 'true' && (needs.check.outputs.released != 'true' || github.event_name == 'workflow_dispatch')
+    # A push releases a prepared version once; running it by hand goes over what's left. A dry run builds whatever is there.
+    if: (github.event_name == 'workflow_dispatch' && inputs.dry-run) || (needs.check.outputs.prepared == 'true' && (needs.check.outputs.released != 'true' || github.event_name == 'workflow_dispatch'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
