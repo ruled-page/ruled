@@ -18,12 +18,9 @@ needs no server, and nothing here should add one.
   that a saved checkbox shows as one; how Top 10 by percent rounds (down
   here, keeping at least one); the width of an indent level (9 pixels
   here); that a range moved with Shift+drag keeps its size when it only
-  changes the order of its cells; that Excel reads a colour filter for no
-  fill or the automatic text colour as saved here (a format with a fill of
-  no pattern, or a font of the automatic colour); that This Week and the
-  other week filters start on Sunday; and that Excel opens a
-  password-protected workbook saved here (another tool, msoffcrypto-tool,
-  does, checking its integrity code).
+  changes the order of its cells; and that This Week and the other week
+  filters start on Sunday (Data › Reapply in Excel, on a workbook whose
+  This Week filter was saved here, should leave the same rows).
 - **Typing with a real input method** (Japanese, Chinese, Korean) into a
   selected cell. The end-to-end tests compose text through Chromium's
   DevTools protocol; nobody has tried a real input method, or one in
