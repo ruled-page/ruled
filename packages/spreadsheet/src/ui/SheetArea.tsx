@@ -47,7 +47,7 @@ export function SheetArea(props: Props) {
 
   return (
     <div className="wbe-outline-frame">
-      <div className="wbe-outline-body" ref={body} style={{ left: barWidth, top: barHeight }}>
+      <div className="wbe-outline-body" ref={body} style={view.info.rightToLeft ? { left: 0, right: barWidth, top: barHeight } : { left: barWidth, top: barHeight }}>
         <SheetSurface {...props} onHandle={setHandle} />
         {handle && Array.from({ length: panes }, (_, i) => <ObjectsOverlay key={i} store={store} view={view} handle={handle} pane={i} colVersion={store.colVersion} />)}
         {handle && store.touchMode && Touch && <Touch.default store={store} host={body} handle={handle} />}

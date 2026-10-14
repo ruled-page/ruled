@@ -1224,7 +1224,7 @@
   overflow: visible;
 }
 
-/* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grid fills the rest. */
+/* Outline bars beside the row numbers and above the column letters, on a sheet with groups; the grid fills the rest. Mirrored on a sheet that reads right to left. */
 .wbe .wbe-outline-frame,
 .wbe .wbe-outline-bars {
   position: absolute;
@@ -1243,7 +1243,7 @@
 
 .wbe .wbe-outline {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   overflow: hidden;
   background: var(--wbe-grid-header-bg);
@@ -1252,11 +1252,11 @@
 
 .wbe .wbe-outline-rows {
   bottom: 0;
-  border-right: 1px solid var(--wbe-grid-header-line);
+  border-inline-end: 1px solid var(--wbe-grid-header-line);
 }
 
 .wbe .wbe-outline-cols {
-  right: 0;
+  inset-inline-end: 0;
   border-bottom: 1px solid var(--wbe-grid-header-line);
 }
 
@@ -1282,7 +1282,7 @@
 
 .wbe .wbe-outline-rows .wbe-outline-line {
   width: 6px;
-  border-left-width: 2px;
+  border-inline-start-width: 2px;
 }
 
 .wbe .wbe-outline-cols .wbe-outline-line {
@@ -1299,11 +1299,11 @@
 }
 
 .wbe .wbe-outline-cols .wbe-outline-cap-start {
-  border-left-width: 2px;
+  border-inline-start-width: 2px;
 }
 
 .wbe .wbe-outline-cols .wbe-outline-cap-end {
-  border-right-width: 2px;
+  border-inline-end-width: 2px;
 }
 
 .wbe .wbe-outline-button {

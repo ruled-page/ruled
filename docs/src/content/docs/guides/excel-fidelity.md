@@ -41,7 +41,6 @@ What the file holds is kept in each case; these are limits on how the editor sho
 
 - Text in one cell with several fonts is drawn in one font.
 - A font the device lacks is drawn with a free font of the same widths for Calibri, Cambria, Arial, Times New Roman, Courier New and Georgia (see [Fonts](/start/install/#fonts)), and otherwise in the device's own font, a little wider or narrower than in Excel. Aptos, Excel's newest default, is one of those.
-- A sheet that reads right to left is drawn from right to left, but its outline bars stay at the left.
 - Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Excel's newer chart kinds (waterfall, treemap, histogram, funnel) and surface charts show as placeholders.
 - Excel's built-in table styles are drawn from each style's pattern in the theme's colours: close to Excel, not exact. A file's own table styles are drawn as it defines them.
 - Conditional formatting's data bars start from zero, without a separate axis for negative values, and its icons are simpler drawings of Excel's. On a sheet with very many formula rules, rules past 200,000 cells' worth of formulas aren't applied.

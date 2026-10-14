@@ -48,9 +48,6 @@ needs no server, and nothing here should add one.
   Month, Q1 and the rest), and **sorting by colour or icon.** A file's
   filters of these kinds are kept as they are; the editor doesn't offer
   them.
-- **Outline bars on right-to-left sheets.** A sheet that reads right to
-  left is drawn from right to left, but its group bars stay at the left,
-  away from its row numbers at the right.
 - **Several people editing at once.** Live editing needs a server. A host
   can still turn down a save that conflicts (`SaveConflictError`).
 - **Password-protected and sensitivity-labelled files.** Refused with a

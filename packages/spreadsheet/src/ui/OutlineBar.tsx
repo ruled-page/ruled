@@ -36,6 +36,8 @@ interface Geometry {
   /** The middle of the column letters' row, where the row level buttons go, and of the row numbers' column, for the column level buttons. */
   rowLevelsAt?: number;
   colLevelsAt?: number;
+  /** The sheet reads right to left, so the bars are mirrored. */
+  rtl?: boolean;
 }
 
 /** The lines and buttons of the groups with lines in view, from where each line is (along the bar). */
@@ -69,15 +71,22 @@ function lay(view: SheetView, axis: Axis, o: OutlineAxis | undefined, boxes: Map
   return { lines, toggles };
 }
 
-/** Where everything in the bars goes, measured from the grid as it now is. */
+/**
+ * Where everything in the bars goes, measured from the grid as it now is.
+ * Across the sheet, from the side the row numbers are on: the right on a
+ * sheet that reads right to left.
+ */
 function measure(el: HTMLElement, view: SheetView, handle: GridHandle, rows: boolean, cols: boolean): Geometry {
   const origin = el.getBoundingClientRect();
   const out: Geometry = { rows: [] };
   const at = handle.view();
   const corner = at.corner;
   if (!corner) return out;
+  /** A point across the screen, from that side. */
+  const x = (px: number) => (at.rtl ? origin.right - px : px - origin.left);
+  out.rtl = at.rtl;
   out.rowLevelsAt = corner.y - origin.top + corner.height / 2;
-  out.colLevelsAt = corner.x - origin.left + corner.width / 2;
+  out.colLevelsAt = x(corner.x + corner.width / 2);
   /** Lines `from` to `to` of the view's visible lines, a line further each way for those partly in view. */
   const around = (visible: Int32Array, lines: number[], lo: number, hi: number) => {
     if (!lines.length) return [];
@@ -99,16 +108,17 @@ function measure(el: HTMLElement, view: SheetView, handle: GridHandle, rows: boo
   }
   if (cols) {
     // Columns that scroll slide under the frozen ones, and the row numbers.
-    const left = corner.x + corner.width - 1 - origin.left;
-    const freezeX = at.frozenCols ? at.freezeX - origin.left : left;
+    const left = x(at.rtl ? corner.x : corner.x + corner.width) - 1;
+    const freezeX = at.frozenCols ? x(at.freezeX) : left;
     const frozen = new Set(at.cols.slice(0, at.frozenCols));
     const shown = [...frozen, ...around(view.visibleCols, at.cols.slice(at.frozenCols), at.frozenCols, view.colCount - 1)];
     const boxes = new Map<number, [number, number]>();
     for (const col of shown) {
       const b = handle.headingBox('cols', col);
       if (!b) continue;
-      const a = frozen.has(col) ? b.x - origin.left : Math.max(b.x - origin.left, freezeX);
-      const e = b.x + b.width - 1 - origin.left;
+      const near = x(at.rtl ? b.x + b.width : b.x);
+      const a = frozen.has(col) ? near : Math.max(near, freezeX);
+      const e = near + b.width - 1;
       if (e > a) boxes.set(col, [a - left, e - left]);
     }
     out.cols = { offset: left, size: origin.width - left, ...lay(view, 'cols', view.info.outline?.cols, boxes) };
@@ -134,7 +144,8 @@ function search(arr: Int32Array, v: number): number {
  * column letters for grouped columns. Each group has a line along it and a
  * button on its summary row (or column) that collapses or expands it; the
  * numbered buttons show the outline to that level. They keep in line with
- * the grid as it scrolls, frozen panes included.
+ * the grid as it scrolls, frozen panes included. On a sheet that reads
+ * right to left they are mirrored, as the grid is.
  */
 export function OutlineBars({
   store,
@@ -184,8 +195,8 @@ export function OutlineBars({
     const strips = rows ? geo.rows : geo.cols ? [geo.cols] : [];
     const levelsAt = rows ? geo.rowLevelsAt : geo.colLevelsAt;
     const lane = (level: number, extra: number) => (level - 1) * OUTLINE_LANE + extra;
-    const along = (a: number) => (rows ? { top: a } : { left: a });
-    const across = (level: number, extra: number) => (rows ? { left: lane(level, extra) } : { top: lane(level, extra) });
+    const along = (a: number) => (rows ? { top: a } : { insetInlineStart: a });
+    const across = (level: number, extra: number) => (rows ? { insetInlineStart: lane(level, extra) } : { top: lane(level, extra) });
     const name = (g: OutlineGroup) =>
       rows
         ? g.start === g.end
@@ -216,12 +227,16 @@ export function OutlineBars({
             );
           })}
         {strips.map((strip, i) => (
-          <div key={i} className="wbe-outline-strip" style={rows ? { top: strip.offset, height: strip.size } : { left: strip.offset, width: strip.size }}>
+          <div key={i} className="wbe-outline-strip" style={rows ? { top: strip.offset, height: strip.size } : { insetInlineStart: strip.offset, width: strip.size }}>
             {strip.lines.map((l) => (
               <div
                 key={`${l.level}:${l.a}`}
                 className={`wbe-outline-line ${l.cap ? `wbe-outline-cap-${l.cap}` : ''}`}
-                style={rows ? { left: lane(l.level, 7), top: l.a + 2, height: Math.max(0, l.b - l.a - 4) } : { top: lane(l.level, 7), left: l.a + 2, width: Math.max(0, l.b - l.a - 4) }}
+                style={
+                  rows
+                    ? { insetInlineStart: lane(l.level, 7), top: l.a + 2, height: Math.max(0, l.b - l.a - 4) }
+                    : { top: lane(l.level, 7), insetInlineStart: l.a + 2, width: Math.max(0, l.b - l.a - 4) }
+                }
               />
             ))}
             {strip.toggles.map(({ group: g, at, open }) => {
@@ -250,7 +265,7 @@ export function OutlineBars({
   };
 
   return (
-    <div className="wbe-outline-bars" ref={host}>
+    <div className="wbe-outline-bars" ref={host} dir={geo.rtl ? 'rtl' : undefined}>
       {width > 0 && bar('rows')}
       {height > 0 && bar('cols')}
     </div>
