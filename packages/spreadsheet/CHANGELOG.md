@@ -8,6 +8,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
+- Charts' data labels are drawn: values in their number format, category
+  and series names and a pie's percentages, at the end, middle or base of a
+  bar, beside a point or inside a slice, as the file places them.
 - Excel 2016's waterfall and funnel charts are drawn from the cells, in place
   of placeholders: a waterfall's steps and totals in Excel's increase,
   decrease and total colours, a funnel's centred bars. They can be moved,

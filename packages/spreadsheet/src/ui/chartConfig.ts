@@ -1,4 +1,4 @@
-import type { ChartConfiguration, ChartDataset, LegendItem, ScaleOptions } from 'chart.js';
+import type { Chart, ChartConfiguration, ChartDataset, Element, LegendItem, Plugin, ScaleOptions } from 'chart.js';
 import { msg, type Text } from '../i18n/message';
 import { formatValue, type ChartPlot, type PlotAxis, type PlotGroup, type PlotSeries } from '../state/charts';
 
@@ -68,11 +68,22 @@ function shares(group: PlotGroup): (number | null)[][] {
   return group.series.map((s) => s.values.map((v, i) => (v === null ? null : totals[i] ? v / totals[i] : 0)));
 }
 
-/** Builds the Chart.js configuration for a chart's data, in the editor's look. */
+/** Builds the Chart.js configuration for a chart's data, in the editor's look, with its data labels. */
 export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) => string, date1904 = false): ChartConfiguration {
+  const config = baseConfig(plot, look, text, date1904);
+  const labelled = config.data.datasets.some((d) => (d as Labelled).wbeLabels);
+  return labelled ? { ...config, plugins: [dataLabels(look)] } : config;
+}
+
+function baseConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) => string, date1904: boolean): ChartConfiguration {
   const palette = look.palette.length ? look.palette : plot.accents.length ? plot.accents : OFFICE;
   const font = { family: look.font, size: 12 };
   const color = (s: PlotSeries) => s.style.color ?? paletteColor(palette, s.index);
+  /** A dataset's data labels, where its series has them, placed by default as Excel places them on this kind of chart. */
+  const labelsOf = (s: PlotSeries, position: string): Labelled => {
+    const texts = labelTexts(s, plot.categories, text, date1904);
+    return texts ? { wbeLabels: { texts, position: s.style.labels?.position ?? position } } : {};
+  };
   const titleOf = (title: string | undefined) => ({ display: !!title, text: title ?? '', color: look.text, font: { ...font, size: 13 } });
   const ticks = (format: string) => ({ color: look.muted, font, callback: (v: number | string) => formatValue(Number(v), format, date1904) });
   const deleted = new Set(plot.legend?.deleted ?? []);
@@ -143,6 +154,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
           label: text(s.name),
           // Excel draws a negative value's slice at its size.
           data: s.values.map((v) => Math.abs(v ?? 0)),
+          ...labelsOf(s, 'bestFit'),
           backgroundColor: s.values.map((_, i) => s.style.pointColors?.[i] ?? (g.varyColors ? paletteColor(palette, i) : color(s))),
           borderColor: look.background,
           borderWidth: 1,
@@ -194,6 +206,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
           label: text(s.name),
           data: s.values.map((v) => (v === null && plot.blanks === 'zero' ? 0 : v)),
           ...lineStyle(s),
+          ...labelsOf(s, 't'),
           // A filled radar's series are solid areas, later ones over earlier ones.
           ...(g.filled ? { fill: true, showLine: true, borderWidth: 0, pointRadius: 0, pointStyle: 'rect' } : { fill: false, showLine: s.style.line, borderWidth: s.style.line ? (s.style.lineWidth ?? 2) : 0 }),
         })) as ChartDataset[],
@@ -317,6 +330,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
             label: text(s.name),
             data: s.values.map((v, i) => ({ x: s.x?.[i] ?? i + 1, y: v === null && plot.blanks === 'zero' ? 0 : v })),
             ...lineStyle(s),
+            ...labelsOf(s, 'r'),
           })),
         ) as ChartDataset[],
       },
@@ -330,7 +344,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
     };
   }
 
-  if (kind === 'waterfall' || kind === 'funnel') return stepsConfig(plot, groups[0], palette, look, options, text, valueScale);
+  if (kind === 'waterfall' || kind === 'funnel') return stepsConfig(plot, groups[0], palette, look, options, text, valueScale, labelsOf);
 
   // Bars, lines and areas, alone or combined; Excel's bar chart runs sideways.
   const sideways = groups.some((g) => g.kind === 'bar' && g.horizontal);
@@ -362,6 +376,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
           // Excel's gap width is the space between clusters as a share of one bar.
           categoryPercentage: slots / (slots + g.gapWidth / 100),
           barPercentage: 1,
+          ...labelsOf(s, stacked ? 'ctr' : 'outEnd'),
           ...axes,
         };
       }
@@ -372,6 +387,7 @@ export function chartConfig(plot: ChartPlot, look: ChartLook, text: (t: Text) =>
         data,
         ...lineStyle(s),
         ...(area ? { borderWidth: 0, showLine: true, pointRadius: 0, pointStyle: 'rect', tension: 0, fill: stacked && si > 0 ? '-1' : 'origin' } : { fill: false }),
+        ...labelsOf(s, area ? 'ctr' : 'r'),
         stack,
         // Lines go over bars, and later areas over earlier ones; stacked series keep their order.
         order: stacked ? 0 : area ? -si : -1,
@@ -424,6 +440,7 @@ function stepsConfig(
   options: ChartConfiguration['options'],
   text: (t: Text) => string,
   valueScale: (axis: PlotAxis | undefined, position: 'left' | 'bottom', values: (number | null)[], percentStacked: boolean, format: string) => ScaleOptions,
+  labelsOf: (s: PlotSeries, position: string) => Labelled,
 ): ChartConfiguration {
   const s = g.series[0];
   const font = { family: look.font, size: 12 };
@@ -451,6 +468,7 @@ function stepsConfig(
         ...bar,
         label: text(s.name),
         data: widths.map((w) => (w === null ? null : [-w / 2, w / 2])),
+        ...labelsOf(s, 'ctr'),
         backgroundColor: widths.map((_, i) => s.style.pointColors?.[i] ?? color),
       } as ChartDataset,
     ];
@@ -474,6 +492,7 @@ function stepsConfig(
         ...bar,
         label: text(name),
         data: steps.map((p) => (p && p.kind === k ? [p.from, p.to] : null)),
+        ...labelsOf(s, 'outEnd'),
         backgroundColor: steps.map((_, i) => s.style.pointColors?.[i] ?? palette[k % palette.length]),
       }))
       .filter((d) => d.data.some((v) => v !== null)) as ChartDataset[];
@@ -489,4 +508,120 @@ function stepsConfig(
       scales: funnel ? { y: categoryScale, x: value } : { x: categoryScale, y: value },
     } as ChartConfiguration['options'],
   };
+}
+
+/** A dataset with data labels: each point's text, and where it goes. */
+interface Labelled {
+  wbeLabels?: { texts: (string | undefined)[]; position: string };
+}
+
+/** Each point's data label, as Excel writes it: the parts its series shows, joined by commas; undefined where it has none. */
+function labelTexts(s: PlotSeries, categories: string[], text: (t: Text) => string, date1904: boolean): (string | undefined)[] | undefined {
+  const l = s.style.labels;
+  if (!l) return undefined;
+  const hidden = new Set(l.hidden ?? []);
+  const total = l.percent ? s.values.reduce<number>((sum, v) => sum + Math.abs(v ?? 0), 0) : 0;
+  const name = text(s.name);
+  return s.values.map((v, i) => {
+    if (v === null || hidden.has(i)) return undefined;
+    const parts = [
+      l.series ? name : '',
+      l.category ? (categories[i] ?? '') : '',
+      l.value ? formatValue(v, l.format ?? s.format, date1904) : '',
+      l.percent && total ? formatValue(Math.abs(v) / total, '0%') : '',
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : undefined;
+  });
+}
+
+/** Black or white, whichever reads better on a colour; undefined for one that isn't "#RRGGBB". */
+function onColor(color: unknown): string | undefined {
+  const m = typeof color === 'string' && /^#([0-9a-f]{6})$/i.exec(color);
+  if (!m) return undefined;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#000000' : '#FFFFFF';
+}
+
+/**
+ * Draws data labels after the data: on a bar at its end (outside or
+ * inside), centre or base; on a slice inside it or beyond its edge; beside,
+ * above or below a point. Labels inside a bar or slice are in black or
+ * white, whichever reads better on it.
+ */
+function dataLabels(look: ChartLook): Plugin {
+  return {
+    id: 'wbeDataLabels',
+    afterDatasetsDraw(chart: Chart) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = `11px ${look.font}`;
+      chart.data.datasets.forEach((d, di) => {
+        const labels = (d as Labelled).wbeLabels;
+        const meta = chart.getDatasetMeta(di);
+        if (!labels || meta.hidden) return;
+        meta.data.forEach((el, i) => {
+          const t = labels.texts[i];
+          if (t && d.data[i] !== null) place(ctx, el, t, labels.position, look);
+        });
+      });
+      ctx.restore();
+    },
+  };
+}
+
+type Loose = Record<string, number | boolean | undefined>;
+
+function place(ctx: CanvasRenderingContext2D, el: Element, text: string, position: string, look: ChartLook): void {
+  const p = el.getProps(['x', 'y', 'base', 'horizontal', 'startAngle', 'endAngle', 'innerRadius', 'outerRadius'], true) as unknown as Loose;
+  const x = Number(p.x);
+  const y = Number(p.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const fill = (el as unknown as { options?: { backgroundColor?: unknown } }).options?.backgroundColor;
+  const inside = onColor(fill) ?? look.text;
+  let at: [number, number] = [x, y];
+  let align: CanvasTextAlign = 'center';
+  let baseline: CanvasTextBaseline = 'middle';
+  let color = look.text;
+  if (p.startAngle !== undefined) {
+    // A slice: inside it, or beyond its edge.
+    const mid = (Number(p.startAngle) + Number(p.endAngle)) / 2;
+    const out = position === 'outEnd';
+    const r = out ? Number(p.outerRadius) + 6 : (Number(p.innerRadius) + Number(p.outerRadius)) / 2;
+    at = [x + Math.cos(mid) * r, y + Math.sin(mid) * r];
+    if (out) align = Math.cos(mid) >= 0 ? 'left' : 'right';
+    else color = inside;
+  } else if (p.base !== undefined) {
+    // A bar, from its base to its end, either way along its axis.
+    const base = Number(p.base);
+    const sideways = !!p.horizontal;
+    const end = sideways ? x : y;
+    // Which way the bar grows on screen: up (or right) is +1.
+    const dir = sideways ? (end >= base ? 1 : -1) : end <= base ? 1 : -1;
+    const along = (v: number) => (sideways ? ([v, y] as [number, number]) : ([x, v] as [number, number]));
+    const step = sideways ? 4 : -4;
+    if (position === 'ctr') {
+      at = along((end + base) / 2);
+      color = inside;
+    } else if (position === 'inEnd' || position === 'inBase') {
+      const from = position === 'inEnd' ? end : base;
+      at = along(from - step * dir * (position === 'inEnd' ? 1 : -1));
+      color = inside;
+      if (sideways) align = (dir > 0) === (position === 'inEnd') ? 'right' : 'left';
+      else baseline = (dir > 0) === (position === 'inEnd') ? 'top' : 'bottom';
+    } else {
+      at = along(end + step * dir);
+      if (sideways) align = dir > 0 ? 'left' : 'right';
+      else baseline = dir > 0 ? 'bottom' : 'top';
+    }
+  } else {
+    // A point: beside, above or below it.
+    if (position === 't') [at, baseline] = [[x, y - 6], 'bottom'];
+    else if (position === 'b') [at, baseline] = [[x, y + 6], 'top'];
+    else if (position === 'l') [at, align] = [[x - 6, y], 'right'];
+    else if (position !== 'ctr') [at, align] = [[x + 6, y], 'left'];
+  }
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  ctx.fillText(text, at[0], at[1]);
 }

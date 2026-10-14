@@ -45,6 +45,23 @@ export interface ChartSeries {
   dashed: boolean;
   /** Line width in pixels, when the file sets one. */
   lineWidth?: number;
+  /** The labels on its points, when it has them. */
+  labels?: DataLabels;
+}
+
+/** Data labels: what each says, joined as Excel joins them, where they go, and how numbers are written. */
+export interface DataLabels {
+  value: boolean;
+  category: boolean;
+  series: boolean;
+  /** A pie slice's share of the whole. */
+  percent: boolean;
+  /** Excel's place for them (outEnd, inEnd, ctr, inBase, t, b, l, r, bestFit); missing for the kind of chart's default. */
+  position?: string;
+  /** Their number format, when it isn't the values'. */
+  format?: string;
+  /** Points whose label was deleted. */
+  hidden?: number[];
 }
 
 /** One kind of chart in the plot area; a combination chart has several. */
@@ -336,6 +353,25 @@ function readAxis(node: XmlNode | undefined, ctx: ChartContext): ChartAxis | und
   };
 }
 
+/** Data labels as a <c:dLbls> element sets them; undefined for none. */
+function readLabels(node: XmlNode | undefined): DataLabels | undefined {
+  if (!node || flag(child(node, 'delete'), false)) return undefined;
+  const on = (name: string) => flag(child(node, name), false);
+  const labels: DataLabels = { value: on('showVal'), category: on('showCatName'), series: on('showSerName'), percent: on('showPercent') };
+  if (!labels.value && !labels.category && !labels.series && !labels.percent) return undefined;
+  const position = val(child(node, 'dLblPos'));
+  const fmt = child(node, 'numFmt');
+  const hidden = children(node, 'dLbl')
+    .filter((d) => flag(child(d, 'delete'), false))
+    .map((d) => num(child(d, 'idx')) ?? -1);
+  return {
+    ...labels,
+    ...(position && { position }),
+    ...(fmt && attr(fmt, 'sourceLinked') !== '1' && attr(fmt, 'formatCode') && { format: attr(fmt, 'formatCode') }),
+    ...(hidden.length && { hidden }),
+  };
+}
+
 function readSeries(ser: XmlNode, kind: ChartKind, group: XmlNode, ctx: ChartContext): ChartSeries {
   const spPr = child(ser, 'spPr');
   const ln = child(spPr, 'ln');
@@ -352,6 +388,8 @@ function readSeries(ser: XmlNode, kind: ChartKind, group: XmlNode, ctx: ChartCon
   }
   const width = Number(attr(ln, 'w'));
   const dash = val(child(ln, 'prstDash'));
+  // A series' own labels setting wins over its chart's.
+  const labels = child(ser, 'dLbls') ? readLabels(child(ser, 'dLbls')) : readLabels(child(group, 'dLbls'));
   return {
     name: readData(child(ser, 'tx'), ctx),
     categories: readData(child(ser, xy ? 'xVal' : 'cat'), ctx),
@@ -366,6 +404,7 @@ function readSeries(ser: XmlNode, kind: ChartKind, group: XmlNode, ctx: ChartCon
       symbol !== 'none' &&
       (kind === 'scatter' || (kind === 'radar' ? val(child(group, 'radarStyle')) === 'marker' || !!symbol : kind === 'stock' ? !!symbol : flag(child(group, 'marker'), true))),
     smooth: lined && flag(child(ser, 'smooth'), false),
+    ...(labels && { labels }),
     dashed: dash !== undefined && dash !== 'solid',
     lineWidth: width > 0 ? Math.max(1, Math.round((width / EMU_PER_PX) * 10) / 10) : undefined,
   };
@@ -537,7 +576,22 @@ export function parseChartEx(root: XmlNode, ctx: ChartContext): ChartSpec {
       const color = solidFill(child(p, 'spPr'), ctx.theme);
       if (color) pointColors[Number(attr(p, 'idx'))] = color;
     }
+    const dl = child(s, 'dataLabels');
+    const seen = child(dl, 'visibility');
+    const shows = (name: string, dflt: boolean) => (seen && attr(seen, name) !== undefined ? attr(seen, name) === '1' : dflt);
+    const exFormat = child(dl, 'numFmt');
+    const labels: DataLabels | undefined = dl
+      ? {
+          value: shows('value', true),
+          category: shows('categoryName', false),
+          series: shows('seriesName', false),
+          percent: false,
+          ...(attr(dl, 'pos') && { position: attr(dl, 'pos') }),
+          ...(exFormat && attr(exFormat, 'sourceLinked') !== '1' && attr(exFormat, 'formatCode') && { format: attr(exFormat, 'formatCode') }),
+        }
+      : undefined;
     series.push({
+      ...(labels && (labels.value || labels.category || labels.series) && { labels }),
       name: exText(child(s, 'tx'), ctx),
       categories: exDimension(dims.find((c) => attr(c, 'type') === 'cat'), ctx),
       values: exDimension(dims.find((c) => attr(c, 'type') === 'val'), ctx) ?? { cache: [] },
