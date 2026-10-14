@@ -20,7 +20,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 
 - Number formats, fonts, fills, borders, alignment, wrapping and indents; merged cells; column widths and row heights.
 - Hidden, grouped and frozen rows and columns, with outlines.
-- Sorting, filters (by value, by condition, by colour or icon, and by dates in a period), data validation, names, hyperlinks, notes and threaded comments.
+- Sorting (by value, custom list, colour or icon), filters (by value, by condition, by colour or icon, and by dates in a period), data validation, names, hyperlinks, notes and threaded comments.
 - Excel 365's checkboxes.
 - Tables, with their styles and structured references.
 - Sheets: added, renamed, moved, hidden and deleted, with references following them.

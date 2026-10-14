@@ -700,7 +700,12 @@ export interface CellSnapshot {
  * or A first unless `descending`, or the order of a custom list such as the
  * months, values not in the list coming after the ones that are.
  */
-export type SortKey = ({ col: number } | { row: number }) & { descending: boolean; list?: readonly string[] };
+/**
+ * A level of a sort: by a column's (or a row's) values, in a custom list's
+ * order where `list` is given; or, with `marked`, the lines whose cell has a
+ * colour or icon first, or last when descending, the rest keeping their order.
+ */
+export type SortKey = ({ col: number } | { row: number }) & { descending: boolean; list?: readonly string[]; marked?: readonly number[] };
 
 export type EditOp =
   /** Text typed into a cell, parsed the way Excel parses input. */

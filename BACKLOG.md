@@ -48,8 +48,6 @@ needs no server, and nothing here should add one.
   A print view could use the browser's own printing.
 - **What-if data tables** (`{=TABLE(…)}`). Their cells keep Excel's saved
   values.
-- **Sorting by colour or icon.** A file's sort settings are kept as they
-  are; the editor doesn't offer it.
 - **Filtering by groups of dates** (years, months or days ticked in Excel's
   list). A file's filters of this kind are kept as they are.
 - **Several people editing at once.** Live editing needs a server. A host

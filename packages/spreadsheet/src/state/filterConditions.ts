@@ -43,6 +43,19 @@ function meets(operator: FilterOperator, value: string, cell: FilterCell): boole
   return operator === 'greaterThan' ? d > 0 : operator === 'greaterThanOrEqual' ? d >= 0 : operator === 'lessThan' ? d < 0 : d <= 0;
 }
 
+/** The fills and text colours among some cells (undefined: none, or the automatic colour), and conditional formatting's icons (no index: no icon). */
+export interface ColorChoices {
+  fill: (string | undefined)[];
+  font: (string | undefined)[];
+  icons: { set: string; index?: number }[];
+}
+
+/** Whether cells have colours or icons to filter or sort by: more than one fill or text colour, or icons. */
+export const hasColors = (c: ColorChoices) => c.fill.length > 1 || c.font.length > 1 || c.icons.length > 0;
+
+/** A colour or icon to filter or sort by. */
+export type ColorPick = { kind: 'fill' | 'font'; color?: string } | { kind: 'icon'; set: string; index?: number };
+
 /** The numbers among a column's cells. */
 const numbersOf = (cells: readonly FilterCell[]) => cells.flatMap((c) => (c.n === undefined ? [] : [c.n]));
 

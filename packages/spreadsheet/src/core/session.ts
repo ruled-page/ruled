@@ -2207,12 +2207,16 @@ export class WorkbookSession {
         const spill = this.spillIn(op.sheet, across ? rect : { ...rect, r1: first });
         if (spill) return this.emptyResult(msg('core.edit.sortSpill', { range: rangeToA1(spill) }));
         const lists = op.keys.map((k) => k.list && new Map(k.list.map((item, i) => [item.toLowerCase(), i] as const)));
+        const marked = op.keys.map((k) => k.marked && new Set(k.marked));
         const valueAt = (line: number, k: SortKey) => ('row' in k ? this.cellValue(op.sheet, k.row, line) : this.cellValue(op.sheet, line, k.col));
         const order = Array.from({ length: Math.max(0, last - first + 1) }, (_, i) => first + i)
           .map((line, i) => ({ line, i, keys: op.keys.map((k) => valueAt(line, k)) }))
           .sort((a, b) => {
             for (let k = 0; k < op.keys.length; k++) {
-              const d = compareForSort(a.keys[k], b.keys[k], op.keys[k].descending, { list: lists[k], caseSensitive: op.caseSensitive });
+              const by = marked[k];
+              const d = by
+                ? ((by.has(b.line) ? 1 : 0) - (by.has(a.line) ? 1 : 0)) * (op.keys[k].descending ? -1 : 1)
+                : compareForSort(a.keys[k], b.keys[k], op.keys[k].descending, { list: lists[k], caseSensitive: op.caseSensitive });
               if (d) return d;
             }
             return a.i - b.i;

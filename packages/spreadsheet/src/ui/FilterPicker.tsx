@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { colToLetters } from '@ruled/formula/refs';
 import type { DatePeriod, FilterCondition } from '../core/types';
-import { ANY_YEAR_PERIODS, DATE_PERIODS } from '../state/filterConditions';
+import { ANY_YEAR_PERIODS, DATE_PERIODS, hasColors, type ColorChoices, type ColorPick } from '../state/filterConditions';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { drawIcon } from './paint';
@@ -33,6 +33,47 @@ function CfIcon({ set, index }: { set: string; index: number }) {
   return <canvas ref={ref} className="wbe-filter-icon" aria-hidden="true" />;
 }
 
+/** The colours and icons cells have, as swatches to pick one from: their fills, text colours and icons. */
+function ColorList({ choices, onPick }: { choices: ColorChoices; onPick: (on: ColorPick) => void }) {
+  const t = useT();
+  const swatches = (kind: 'fill' | 'font', list: (string | undefined)[]) => (
+    <li>
+      <span className="wbe-filter-swatch-heading">{t(kind === 'font' ? 'filter.fontColor' : 'filter.cellColor')}</span>
+      <span className="wbe-filter-swatches">
+        {list.map((color) => {
+          const label = color ? t('filter.colorSwatch', { color }) : t(kind === 'font' ? 'filter.automatic' : 'filter.noFill');
+          return (
+            <button key={color ?? ''} className="wbe-btn wbe-ghost wbe-filter-swatch" aria-label={label} title={label} onClick={() => onPick({ kind, ...(color && { color }) })}>
+              <span className={color ? undefined : 'wbe-filter-swatch-none'} style={color ? { background: color } : undefined} />
+            </button>
+          );
+        })}
+      </span>
+    </li>
+  );
+  return (
+    <ul>
+      {choices.fill.length > 1 && swatches('fill', choices.fill)}
+      {choices.font.length > 1 && swatches('font', choices.font)}
+      {choices.icons.length > 0 && (
+        <li>
+          <span className="wbe-filter-swatch-heading">{t('filter.cellIcon')}</span>
+          <span className="wbe-filter-swatches">
+            {choices.icons.map((icon) => {
+              const label = icon.index === undefined ? t('filter.noIcon') : t('filter.iconSwatch', { n: icon.index + 1 });
+              return (
+                <button key={icon.index ?? -1} className="wbe-btn wbe-ghost wbe-filter-swatch" aria-label={label} title={label} onClick={() => onPick({ kind: 'icon', ...icon })}>
+                  {icon.index === undefined ? <span className="wbe-filter-swatch-none" /> : <CfIcon set={icon.set} index={icon.index} />}
+                </button>
+              );
+            })}
+          </span>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /**
  * Excel's filter menu for a column: sort the filter's range by it, filter
  * it by a condition (Text, Number or Date Filters) or by a colour or icon,
@@ -48,6 +89,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
   const [conditions, setConditions] = useState(false);
   const [anyYear, setAnyYear] = useState(false);
   const [colors, setColors] = useState(false);
+  const [sortColors, setSortColors] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -57,6 +99,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
     setConditions(false);
     setAnyYear(false);
     setColors(false);
+    setSortColors(false);
   }, [choices]);
 
   useLayoutEffect(() => {
@@ -126,28 +169,14 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
       </button>
     </li>
   );
-  // Excel's Filter by Color: the column's fills, text colours and icons, when it has more than one of a kind.
-  const { fill, font, icons } = choices.colors;
-  const byColor = fill.length > 1 || font.length > 1 || icons.length > 0;
+  // Excel's Filter by Color and Sort by Color: the column's fills, text colours and icons, when it has more than one of a kind.
+  const byColor = hasColors(choices.colors);
   const byColorNow = choices.condition?.kind === 'color' || choices.condition?.kind === 'icon';
-  const swatches = (font: boolean, list: (string | undefined)[]) => (
-    <li>
-      <span className="wbe-filter-swatch-heading">{t(font ? 'filter.fontColor' : 'filter.cellColor')}</span>
-      <span className="wbe-filter-swatches">
-        {list.map((color) => (
-          <button
-            key={color ?? ''}
-            className="wbe-btn wbe-ghost wbe-filter-swatch"
-            aria-label={color ? t('filter.colorSwatch', { color }) : t(font ? 'filter.automatic' : 'filter.noFill')}
-            title={color ? t('filter.colorSwatch', { color }) : t(font ? 'filter.automatic' : 'filter.noFill')}
-            onClick={() => filterBy({ kind: 'color', font, ...(color && { color }) })}
-          >
-            <span className={color ? undefined : 'wbe-filter-swatch-none'} style={color ? { background: color } : undefined} />
-          </button>
-        ))}
-      </span>
-    </li>
-  );
+  const filterByColor = (on: ColorPick) => filterBy(on.kind === 'icon' ? on : { kind: 'color', font: on.kind === 'font', ...(on.color && { color: on.color }) });
+  const sortByColor = (on: ColorPick) => {
+    void store.sortBy({ rect: choices.rect, keys: [store.colorSortKey(choices.rect, at.col, true, false, on, false)], header: true, caseSensitive: false, across: false });
+    store.set('filterPicker', undefined);
+  };
   const apply = () => {
     const everything = choices.values.every((v) => checked.has(v.text));
     void store.setFilter(choices.rect, at.col, everything ? undefined : checked);
@@ -167,6 +196,15 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
           {t(kind === 'number' ? 'sort.descNumber' : kind === 'date' ? 'sort.descDate' : 'sort.descText')}
         </button>
       </div>
+      {byColor && (
+        <div className="wbe-filter-conditions">
+          <button className="wbe-btn wbe-ghost" aria-expanded={sortColors} onClick={() => setSortColors(!sortColors)}>
+            <span>{t('filter.sortByColor')}</span>
+            <Icon name={sortColors ? 'chevronUp' : 'chevronDown'} size={14} />
+          </button>
+          {sortColors && <ColorList choices={choices.colors} onPick={sortByColor} />}
+        </div>
+      )}
       <div className="wbe-filter-conditions">
         <button className="wbe-btn wbe-ghost" aria-expanded={conditions} onClick={() => setConditions(!conditions)}>
           <span>{t(choices.kind === 'number' ? 'filter.numberFilters' : choices.kind === 'date' ? 'filter.dateFilters' : 'filter.textFilters')}</span>
@@ -209,27 +247,7 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
             {byColorNow && <Icon name="check" size={14} />}
             <Icon name={colors ? 'chevronUp' : 'chevronDown'} size={14} />
           </button>
-          {colors && (
-            <ul>
-              {fill.length > 1 && swatches(false, fill)}
-              {font.length > 1 && swatches(true, font)}
-              {icons.length > 0 && (
-                <li>
-                  <span className="wbe-filter-swatch-heading">{t('filter.cellIcon')}</span>
-                  <span className="wbe-filter-swatches">
-                    {icons.map((icon) => {
-                      const label = icon.index === undefined ? t('filter.noIcon') : t('filter.iconSwatch', { n: icon.index + 1 });
-                      return (
-                        <button key={icon.index ?? -1} className="wbe-btn wbe-ghost wbe-filter-swatch" aria-label={label} title={label} onClick={() => filterBy({ kind: 'icon', ...icon })}>
-                          {icon.index === undefined ? <span className="wbe-filter-swatch-none" /> : <CfIcon set={icon.set} index={icon.index} />}
-                        </button>
-                      );
-                    })}
-                  </span>
-                </li>
-              )}
-            </ul>
-          )}
+          {colors && <ColorList choices={choices.colors} onPick={filterByColor} />}
         </div>
       )}
       <input className="wbe-filter-search" placeholder={t('filter.search')} aria-label={t('filter.search')} value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />

@@ -451,6 +451,20 @@ describe('filtering', () => {
     expect(store.view!.filteredCount).toBe(1);
   });
 
+  it('sorts the rows with a fill colour on top, or at the bottom, the rest keeping their order', async () => {
+    await open();
+    const before = column(0, 1, 4);
+    select(rect(3, 0));
+    await store.formatCells({ fill: '#FF0000' });
+    const all = rect(0, 0, 4, 3);
+    expect(store.sortColors(all, 0, true, false).fill).toEqual([undefined, '#FF0000']);
+    await store.sortBy({ rect: all, keys: [store.colorSortKey(all, 0, true, false, { kind: 'fill', color: '#FF0000' }, false)], header: true, caseSensitive: false, across: false });
+    expect(column(0, 1, 4)).toEqual([before[2], before[0], before[1], before[3]]);
+    expect(store.view!.get(1, 0)!.style).not.toBe(store.view!.get(2, 0)!.style);
+    await store.sortBy({ rect: all, keys: [store.colorSortKey(all, 0, true, false, { kind: 'fill', color: '#FF0000' }, true)], header: true, caseSensitive: false, across: false });
+    expect(column(0, 1, 4)).toEqual([before[0], before[1], before[3], before[2]]);
+  });
+
   it("names a column's filters by what it mostly holds", async () => {
     await open();
     expect(store.filterChoices(0, rect(0, 0, 4, 3))?.kind).toBe('text');

@@ -70,7 +70,7 @@ import { seriesLine } from '../core/fill';
 import { outOfDateCells, workbookReaders, type WorkbookReaders } from './readers';
 import { stampedFirst, stampFor, versionNote } from '../schema/stamp';
 import { DEFAULT_LIST_ERROR, listAllows, listOptions, listValidationAt } from './validation';
-import { averageOf, periodRange, top10Threshold, type FilterCell, type RuleOp } from './filterConditions';
+import { averageOf, conditionPasses, periodRange, top10Threshold, type ColorChoices, type ColorPick, type FilterCell, type RuleOp } from './filterConditions';
 import type { DraftPlace } from './validationDraft';
 import type { CfQuick } from './cfRules';
 import { withoutRects, type ListContext } from '../core/validationRules';
@@ -2571,6 +2571,45 @@ export class WorkbookStore {
     };
   }
 
+  /** The fills and text colours (undefined: none, or automatic) and icons among cells, for filtering and sorting by them. */
+  private colorsOf(cells: FilterCell[]): ColorChoices {
+    const fills = new Set<string | undefined>();
+    const fonts = new Set<string | undefined>();
+    const icons = new Map<string, { set: string; index?: number }>();
+    for (const cell of cells) {
+      fills.add(cell.fill?.toUpperCase());
+      fonts.add(cell.font?.toUpperCase());
+      icons.set(cell.icon ? `${cell.icon.set}:${cell.icon.index}` : '', cell.icon ?? { set: '' });
+    }
+    // No icon is a choice once some cells have one, of the set they have.
+    const set = [...icons.values()].find((i) => i.set)?.set;
+    const iconList = set ? [...icons.values()].map((i) => (i.set ? i : { set })).sort((a, b) => (b.index ?? -1) - (a.index ?? -1)) : [];
+    return { fill: [...fills], font: [...fonts], icons: iconList };
+  }
+
+  /** The cells of a line a sort orders by: a column's below any headings, or a row's across. */
+  private sortCells(rect: Rect, index: number, header: boolean, across: boolean): { line: number; cell: FilterCell }[] {
+    const view = this.view;
+    if (!view) return [];
+    const [first, last] = across ? [rect.c1, rect.c2] : [header ? rect.r1 + 1 : rect.r1, rect.r2];
+    return Array.from({ length: Math.max(0, last - first + 1) }, (_, i) => first + i).map((line) => ({
+      line,
+      cell: across ? this.filterCell(view, index, line) : this.filterCell(view, line, index),
+    }));
+  }
+
+  /** The colours and icons a column (or, across, a row) of a sort has, which it can be sorted by. */
+  sortColors(rect: Rect, index: number, header: boolean, across: boolean): ColorChoices {
+    return this.colorsOf(this.sortCells(rect, index, header, across).map((c) => c.cell));
+  }
+
+  /** A sort level that puts the lines whose cell has a colour or icon on top, or at the bottom. */
+  colorSortKey(rect: Rect, index: number, header: boolean, across: boolean, on: ColorPick, bottom: boolean): SortKey {
+    const has = (c: FilterCell) => conditionPasses(on.kind === 'icon' ? on : { kind: 'color', font: on.kind === 'font', ...(on.color && { color: on.color }) }, [c])[0];
+    const marked = this.sortCells(rect, index, header, across).flatMap(({ line, cell }) => (has(cell) ? [line] : []));
+    return across ? { row: index, descending: bottom, marked } : { col: index, descending: bottom, marked };
+  }
+
   /**
    * The values in a column of a filter's range, with how many rows hold each,
    * for picking what to show: `range` when a heading's button gives it, else
@@ -2589,8 +2628,8 @@ export class WorkbookStore {
         condition?: FilterCondition;
         kind: 'text' | 'number' | 'date';
         style: number;
-        /** The column's fill and text colours (undefined: none, or automatic) and conditional formatting's icons, for filtering and sorting by them. */
-        colors: { fill: (string | undefined)[]; font: (string | undefined)[]; icons: { set: string; index?: number }[] };
+        /** The column's fill and text colours and conditional formatting's icons, for filtering and sorting by them. */
+        colors: ColorChoices;
       }
     | undefined {
     const view = this.view;
@@ -2600,15 +2639,8 @@ export class WorkbookStore {
     const counts = new Map<string, number>();
     const kinds = { text: 0, number: 0, date: 0 };
     let style = 0;
-    const fills = new Set<string | undefined>();
-    const fonts = new Set<string | undefined>();
-    const icons = new Map<string, { set: string; index?: number }>();
     for (let row = rect.r1 + 1; row <= rect.r2; row++) {
-      const cell = this.filterCell(view, row, col);
-      fills.add(cell.fill?.toUpperCase());
-      fonts.add(cell.font?.toUpperCase());
-      icons.set(cell.icon ? `${cell.icon.set}:${cell.icon.index}` : '', cell.icon ?? { set: '' });
-      const text = cell.text;
+      const text = this.shownText(view, row, col);
       counts.set(text, (counts.get(text) ?? 0) + 1);
       const rec = view.get(row, col);
       if (!rec || rec.t === VT.None) continue;
@@ -2621,10 +2653,7 @@ export class WorkbookStore {
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
     // As Excel chooses, the kind most of the column's values are.
     const kind = kinds.date >= kinds.number && kinds.date > kinds.text ? 'date' : kinds.number > kinds.text ? 'number' : 'text';
-    // No icon is a choice once some cells have one, of the set they have.
-    const set = [...icons.values()].find((i) => i.set)?.set;
-    const iconList = set ? [...icons.values()].map((i) => (i.set ? i : { set })).sort((a, b) => (b.index ?? -1) - (a.index ?? -1)) : [];
-    const colors = { fill: [...fills], font: [...fonts], icons: iconList };
+    const colors = this.colorsOf(Array.from({ length: rect.r2 - rect.r1 }, (_, i) => this.filterCell(view, rect.r1 + 1 + i, col)));
     return { rect, values, allowed: current?.columns.get(col), condition: current?.conditions.get(col), kind, style, colors };
   }
 

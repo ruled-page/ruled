@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import type { SortKey } from '../core/types';
 import { useT } from '../i18n/react';
+import { hasColors, type ColorPick } from '../state/filterConditions';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { Select } from './Select';
@@ -9,7 +10,11 @@ import { useDialog } from './useDialog';
 /** One level of the sort: the column (or row) it orders by, and how. */
 interface Level {
   index: number;
-  /** "asc" or "desc", or a custom list by its place among the store's lists, forwards ("list:2") or backwards ("rlist:2"). */
+  /**
+   * "asc" or "desc"; a custom list by its place among the store's lists,
+   * forwards ("list:2") or backwards ("rlist:2"); or a colour or icon by its
+   * place among the line's, on top ("color:1:top") or at the bottom.
+   */
   order: string;
 }
 
@@ -28,9 +33,10 @@ const preview = (list: readonly string[]) => (list.length > 3 ? `${list.slice(0,
 /**
  * Excel's Sort dialog (Data › Sort, or Custom sort… in the cell menu) for the
  * block around the selection: levels, each a column to sort by and its order
- * (A to Z, Smallest to Largest, Oldest to Newest, the reverse, or a custom
- * list such as the months), whether the block has headings, a case-sensitive
- * sort, and sorting left to right.
+ * (A to Z, Smallest to Largest, Oldest to Newest, the reverse, a custom
+ * list such as the months, or a cell colour, font colour or icon on top or
+ * at the bottom), whether the block has headings, a case-sensitive sort, and
+ * sorting left to right.
  */
 export function SortDialog({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -68,8 +74,27 @@ export function SortDialog({ store }: { store: WorkbookStore }) {
   const lines = store.sortLines(setup.rect, header, across);
   const lists = store.fillLists;
   const lineOf = (index: number) => lines.find((l) => l.index === index) ?? lines[0];
+  // A line can be sorted by several colours, one level each, but by its values once.
   const seen = new Set<number>();
-  const duplicate = levels.find((l) => (seen.has(l.index) ? true : (seen.add(l.index), false)));
+  const duplicate = levels.find((l) => !l.order.startsWith('color:') && (seen.has(l.index) ? true : (seen.add(l.index), false)));
+  /** The colours and icons a line has, to sort by, when it has more than one of a kind. */
+  const colorPicks = (index: number): ColorPick[] => {
+    const c = store.sortColors(setup.rect, index, header, across);
+    if (!hasColors(c)) return [];
+    return [
+      ...(c.fill.length > 1 ? c.fill.map((color) => ({ kind: 'fill' as const, ...(color && { color }) })) : []),
+      ...(c.font.length > 1 ? c.font.map((color) => ({ kind: 'font' as const, ...(color && { color }) })) : []),
+      ...c.icons.map((icon) => ({ kind: 'icon' as const, ...icon })),
+    ];
+  };
+  const named = (on: ColorPick) =>
+    on.kind === 'icon'
+      ? on.index === undefined
+        ? t('sort.what.noIcon')
+        : t('sort.what.icon', { n: on.index + 1 })
+      : on.color
+        ? t(on.kind === 'fill' ? 'sort.what.fill' : 'sort.what.font', { color: on.color })
+        : t(on.kind === 'fill' ? 'sort.what.noFill' : 'sort.what.automatic');
   const error = duplicate && t('sort.duplicate', { line: t.text(lineOf(duplicate.index).label) });
 
   const update = (i: number, patch: Partial<Level>) => setLevels(levels.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -80,7 +105,9 @@ export function SortDialog({ store }: { store: WorkbookStore }) {
   };
   const unused = lines.find((l) => !levels.some((v) => v.index === l.index));
   const keyOf = (l: Level): SortKey => {
-    const [kind, n] = l.order.split(':');
+    const [kind, n, end] = l.order.split(':');
+    const pick = kind === 'color' ? colorPicks(l.index)[Number(n)] : undefined;
+    if (pick) return store.colorSortKey(setup.rect, l.index, header, across, pick, end === 'bottom');
     const list = n === undefined ? undefined : lists[Number(n)];
     const descending = kind === 'desc' || kind === 'rlist';
     const order = { descending, ...(list && { list }) };
@@ -126,7 +153,7 @@ export function SortDialog({ store }: { store: WorkbookStore }) {
                     ref={i === 0 ? initial : undefined}
                     aria-label={`${name}: ${t(across ? 'sort.rowHeading' : 'sort.columnHeading')}`}
                     value={level.index}
-                    onChange={(e) => update(i, { index: Number(e.target.value) })}
+                    onChange={(e) => update(i, { index: Number(e.target.value), ...(level.order.startsWith('color:') && { order: 'asc' }) })}
                     aria-invalid={tried && level === duplicate}
                   >
                     {lines.map((l) => (
@@ -146,6 +173,13 @@ export function SortDialog({ store }: { store: WorkbookStore }) {
                         {t('sort.list', { list: preview([...list].reverse()) })}
                       </option>,
                     ])}
+                    {colorPicks(level.index).flatMap((on, n) =>
+                      (['top', 'bottom'] as const).map((end) => (
+                        <option key={`color:${n}:${end}`} value={`color:${n}:${end}`}>
+                          {t(end === 'top' ? 'sort.colorOnTop' : 'sort.colorOnBottom', { what: named(on) })}
+                        </option>
+                      )),
+                    )}
                   </Select>
                   <span className="wbe-sort-tools">
                     <button type="button" className="wbe-btn wbe-icon wbe-ghost" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('sort.moveUp', { level: i + 1 })}>
