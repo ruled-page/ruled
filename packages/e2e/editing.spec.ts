@@ -99,7 +99,8 @@ test.describe('editing a workbook', () => {
     const there = await scrolled();
     expect(there).toBeGreaterThan(4000);
     await page.mouse.move(600, 400);
-    await page.mouse.wheel(0, -4000);
+    // A wheel turns in steps, and Firefox scrolls at most a screen for each.
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, -400);
     await expect.poll(scrolled).toBeLessThan(there - 2000);
     await goTo(page, 'Z300');
     await expect.poll(scrolled).toBeGreaterThan(there - 100);
