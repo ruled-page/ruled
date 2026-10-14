@@ -25,7 +25,7 @@ export const PORTAL_THEME: EditorTheme = {
   gridCutFill: 'rgba(15, 118, 110, 0.06)',
   gridHeaderSelectedBg: '#e6f4f2',
   gridHeaderSelectedText: '#0f766e',
-  gridLabelFill: '#e9f5f3',
+  gridLabelMark: 'rgba(15, 118, 110, 0.3)',
   radius: '8px',
 };
 

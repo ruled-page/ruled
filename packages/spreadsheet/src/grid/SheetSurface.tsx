@@ -128,7 +128,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
 
   // What the painter worked out about cells goes once they, their styles or the columns change:
   // before this render, so the screen readers' table, which reads the same, is current too.
-  const cellsKey = [view, dataVersion, schemaVersion, layoutVersion, store.colVersion, store.highlightEdits, store.numbers];
+  const cellsKey = [view, dataVersion, schemaVersion, layoutVersion, store.colVersion, store.highlightEdits, store.showLabels, store.numbers];
   const lastKey = useRef<unknown[]>([]);
   if (painter.current && cellsKey.some((k, i) => k !== lastKey.current[i])) painter.current.reset();
   lastKey.current = cellsKey;
@@ -149,7 +149,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       locale: store.locale,
       fullNumbers: store.numbers.display === 'full',
       highlightEdits: store.highlightEdits,
-      isLabel: schema ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
+      isLabel: schema && store.showLabels ? (row, col) => schema.isLabel(sheet, row, col) : undefined,
       selection: store.selection,
       marks,
       fillHandle: !store.touchMode && !store.selection.lines && store.selection.rects.length === 1 && editable,

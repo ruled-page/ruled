@@ -108,6 +108,9 @@ what it doesn't change.
 
 - Schemas describe what a workbook should hold, with field types, checks
   and code hooks. A designer generates and edits them.
+- The cells a schema reads its headings and labels from can't be changed,
+  and are hatched while "Mark schema labels" is ticked, over the file's own
+  formatting. The theme token `gridLabelMark` colours the hatch.
 
 ### Embedding
 

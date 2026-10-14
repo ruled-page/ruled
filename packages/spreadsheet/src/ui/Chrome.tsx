@@ -234,6 +234,15 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             {t('toolbar.highlightShort')}
           </span>
         </label>
+        {store.schema && (
+          <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.labelsTitle')}>
+            <input type="checkbox" checked={store.showLabels} disabled={!ready} onChange={(e) => store.set('showLabels', e.target.checked)} />
+            <span className="wbe-toggle-long">{t('toolbar.labels')}</span>
+            <span className="wbe-toggle-short" aria-hidden="true">
+              {t('toolbar.labelsShort')}
+            </span>
+          </label>
+        )}
         {ready && store.features.format && (
           <label className="wbe-toggle wbe-phone-only">
             <input type="checkbox" checked={store.formatBarShown} onChange={(e) => store.set('formatBarShown', e.target.checked)} />

@@ -40,6 +40,9 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.highlight': 'Änderungen hervorheben',
   'toolbar.highlightTitle': 'In dieser Sitzung geänderte Zellen einfärben',
   'toolbar.highlightShort': 'Änderungen',
+  'toolbar.labels': 'Schema-Beschriftungen markieren',
+  'toolbar.labelsTitle': 'Die Zellen schraffieren, aus denen das Schema seine Beschriftungen liest. Nur hier gezeigt, nie in der Datei gespeichert.',
+  'toolbar.labelsShort': 'Beschriftungen',
   'toolbar.schemas': 'Schemas',
   'toolbar.schemasTitle': 'Schemas erstellen, importieren und exportieren',
   'toolbar.report': 'Was diese Datei enthält',
@@ -164,7 +167,7 @@ export const ui: Record<keyof typeof en, string> = {
   'checks.markerError': 'Verstößt gegen eine Schemaregel.',
   'checks.markerWarning': 'Warnung aus einer Schemaregel.',
   'checks.markerPending': 'Eine Prüfung läuft noch.',
-  'checks.markerLabel': 'Vom Schema festgelegte Beschriftungen.',
+  'checks.markerLabel': 'Vom Schema festgelegte Beschriftungen (anzeigen mit „{{toggle}}“).',
 
   'changes.none': 'Seit dem Öffnen der Datei wurde nichts geändert.',
   'changes.summaryCells_one': '{{count, number}} Zelle weicht von der Datei beim Öffnen ab.',

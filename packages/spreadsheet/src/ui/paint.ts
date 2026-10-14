@@ -47,6 +47,29 @@ function paintEdge(ctx: CanvasRenderingContext2D, side: 'left' | 'top', x: numbe
   }
 }
 
+/**
+ * A light diagonal hatch over a box, behind its text: how the editor marks a
+ * cell without it looking like a fill of the cell's own, which shows through.
+ * The lines are placed by the canvas rather than the box, so a row of marked
+ * cells reads as one band.
+ */
+export function drawHatch(ctx: CanvasRenderingContext2D, box: { x: number; y: number; width: number; height: number }, color: string, gap = 6): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(box.x, box.y, box.width, box.height);
+  ctx.clip();
+  ctx.beginPath();
+  const bottom = box.y + box.height;
+  for (let c = Math.ceil((box.x + box.y) / gap) * gap; c < box.x + box.width + bottom; c += gap) {
+    ctx.moveTo(c - bottom, bottom);
+    ctx.lineTo(c - box.y, box.y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** A conditional-format data bar, behind the cell's text. */
 export function drawDataBar(
   ctx: CanvasRenderingContext2D,

@@ -86,7 +86,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
             <span className="wbe-swatch wbe-dot-blue" /> {t('checks.markerPending')}
           </li>
           <li>
-            <span className="wbe-swatch wbe-label-cell" /> {t('checks.markerLabel')}
+            <span className="wbe-swatch wbe-label-cell" /> {t('checks.markerLabel', { toggle: t('toolbar.labels') })}
           </li>
         </ul>
       </section>

@@ -115,7 +115,7 @@
   /* Marks a changed cell whose own fill shows instead of the one above. */
   --wbe-grid-edited-mark: #b8860b;
   --wbe-grid-locked-fill: #f2f4f7;
-  --wbe-grid-label-fill: #eaf2ec;
+  --wbe-grid-label-mark: rgba(30, 113, 69, 0.3);
   --wbe-grid-error-mark: #d92d20;
   --wbe-grid-warning-mark: #f79009;
   --wbe-grid-pending-mark: #2e90fa;
@@ -3218,7 +3218,7 @@
 }
 
 .wbe .wbe-swatch.wbe-label-cell {
-  background: var(--wbe-grid-label-fill);
+  background: repeating-linear-gradient(-45deg, var(--wbe-grid-label-mark) 0 1px, transparent 1px 6px);
 }
 
 .wbe .wbe-small {

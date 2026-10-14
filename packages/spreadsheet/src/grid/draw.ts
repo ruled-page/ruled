@@ -8,7 +8,7 @@ import { CELL_PADDING, excelTextWidth, fitNumber, indentPx, overflowTextX, rowOv
 import type { SheetView } from '../state/sheetView';
 import type { Selection } from '../state/store';
 import type { GridPalette } from '../ui/gridPalette';
-import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon } from '../ui/paint';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawHatch, drawIcon } from '../ui/paint';
 import { withAlpha } from './color';
 import type { Box } from './contract';
 import type { Mark } from './marks';
@@ -38,7 +38,7 @@ export interface PaintInput {
   fullNumbers: boolean;
   /** Changed cells are shown in a fill of their own. */
   highlightEdits: boolean;
-  /** A schema's label cells, filled to set them apart. */
+  /** A schema's label cells, hatched to set them apart, when the user asks to see them. */
   isLabel?: (row: number, col: number) => boolean;
   selection?: Selection;
   /** Ranges marked besides the selection (see sheetMarks). */
@@ -61,6 +61,8 @@ interface Look {
   text: string;
   color: string;
   align: 'left' | 'right' | 'center';
+  /** A schema's label, hatched over its fill. */
+  label: boolean;
   /** How wide its text is on one line, once measured. */
   width?: number;
 }
@@ -150,7 +152,7 @@ export class Painter {
     const label = !!input.isLabel?.(row, col);
     if (!rec) {
       const style = effectiveStyle(view, styles, row, col, view.styleAt(row, col, null));
-      look = { style, font: style, fill: style.fill ?? (locked ? palette.lockedFill : label ? palette.labelFill : undefined), text: '', color: palette.text, align: 'left' };
+      look = { style, font: style, fill: style.fill ?? (locked ? palette.lockedFill : undefined), text: '', color: palette.text, align: 'left', label };
     } else {
       const style = effectiveStyle(view, styles, row, col, rec.style, palette.link);
       let { text, color } = displayText(rec, style, input.date1904, input.fullNumbers, input.locale);
@@ -170,9 +172,9 @@ export class Painter {
         }
       }
       // A changed cell shows its own fill, if it has one; text with no colour of its own on a fill from the file is drawn as Excel draws it.
-      const edited = !label && input.highlightEdits && !!(rec.flags & CellFlag.Edited);
-      const fill = label && !style.fill ? palette.labelFill : edited && !style.fill ? palette.editedFill : (style.fill ?? (locked ? palette.lockedFill : undefined));
-      look = { style, font, fill, text, color: color ?? style.color ?? (style.fill && !edited ? palette.textOnFill : palette.text), align: alignment(rec, style) };
+      const edited = input.highlightEdits && !!(rec.flags & CellFlag.Edited);
+      const fill = edited && !style.fill ? palette.editedFill : (style.fill ?? (locked ? palette.lockedFill : undefined));
+      look = { style, font, fill, text, color: color ?? style.color ?? (style.fill && !edited ? palette.textOnFill : palette.text), align: alignment(rec, style), label };
     }
     this.looks.set(key, look);
     return look;
@@ -321,8 +323,10 @@ export class Painter {
     this.ctx.restore();
   }
 
-  /** What sits behind a cell's text: a conditional format's data bar or icon, and a checkbox in place of TRUE or FALSE. */
+  /** What sits behind a cell's text: a schema label's hatch, a conditional format's data bar or icon, and a checkbox in place of TRUE or FALSE. */
   private drawBehind(input: PaintInput, box: Box, row: number, col: number, look: Look): void {
+    // Inside the grid lines at its left and top.
+    if (look.label) drawHatch(this.ctx, { x: box.x + 1, y: box.y + 1, width: box.width - 1, height: box.height - 1 }, input.palette.labelMark);
     const cf = input.view.cfAt(row, col);
     this.mirrored(input, box, () => {
       if (cf?.bar) drawDataBar(this.ctx, box, cf.bar);

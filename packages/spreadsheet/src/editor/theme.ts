@@ -80,7 +80,7 @@ export const THEME_TOKENS = [
   'gridEditedFill',
   'gridEditedMark',
   'gridLockedFill',
-  'gridLabelFill',
+  'gridLabelMark',
   'gridErrorMark',
   'gridWarningMark',
   'gridPendingMark',

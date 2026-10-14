@@ -9,6 +9,8 @@ sidebar:
 
 A table is a block of records with a heading for each field. `at` is its top-left cell, headings included.
 
+People can't change the headings, or a single cell's label, as the schema finds the table by them. Ticking **Labels** in the toolbar hatches those cells, over whatever formatting the file gives them; the hatch is the editor's own, never saved.
+
 ```ts
 {
   key: 'prices',

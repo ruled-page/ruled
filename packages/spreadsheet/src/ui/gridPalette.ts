@@ -25,7 +25,7 @@ export interface GridPalette {
   editedFill: string;
   editedMark: string;
   lockedFill: string;
-  labelFill: string;
+  labelMark: string;
   errorMark: string;
   warningMark: string;
   pendingMark: string;
@@ -63,7 +63,7 @@ export const DEFAULT_PALETTE: GridPalette = {
   editedFill: '#fff4ce',
   editedMark: '#b8860b',
   lockedFill: '#f2f4f7',
-  labelFill: '#eaf2ec',
+  labelMark: 'rgba(30, 113, 69, 0.3)',
   errorMark: '#d92d20',
   warningMark: '#f79009',
   pendingMark: '#2e90fa',

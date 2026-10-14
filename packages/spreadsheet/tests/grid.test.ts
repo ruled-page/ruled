@@ -235,7 +235,7 @@ describe('drawing a sheet', () => {
     expect(lineAt(2, 1)).toBe(true);
   });
 
-  it('fills changed cells and schema labels, and draws again from scratch after reset or a new palette', async () => {
+  it('fills changed cells, hatches schema labels over their own fill, and draws again from scratch after reset or a new palette', async () => {
     const s = await open();
     await s.input(9, 4, 'changed');
     const r = new Recorder();
@@ -243,7 +243,7 @@ describe('drawing a sheet', () => {
     p.draw(input(s, {}, { isLabel: (row, col) => row === 9 && col === 5 }));
     const fills = r.rects().map((x) => x[4]);
     expect(fills).toContain(DEFAULT_PALETTE.editedFill);
-    expect(fills).toContain(DEFAULT_PALETTE.labelFill);
+    expect(r.paints()).toContain(`stroke ${DEFAULT_PALETTE.labelMark}`);
     p.reset();
     const palette = { ...DEFAULT_PALETTE, bg: '#101010' };
     p.draw(input(s, {}, { palette, highlightEdits: false }));

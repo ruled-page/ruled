@@ -617,6 +617,8 @@ export class WorkbookStore {
   /** The banner saying live recalculation is off, until the next file. */
   recalcBannerDismissed = false;
   highlightEdits = true;
+  /** Hatch the cells a schema reads its labels from: drawn in the editor only, so off until asked for. */
+  showLabels = false;
   /** The user's override for exact numbers; undefined follows the schema or defaults. */
   exactNumbers?: boolean;
   schemas: WorkbookSchema[];
@@ -4226,6 +4228,7 @@ export class WorkbookStore {
       | 'schemaBannerDismissed'
       | 'recalcBannerDismissed'
       | 'highlightEdits'
+      | 'showLabels'
       | 'exactNumbers'
       | 'designerOpen'
       | 'menu'

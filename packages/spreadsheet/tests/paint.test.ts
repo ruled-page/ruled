@@ -5,7 +5,7 @@ import type { BorderEdge } from '../src/core/types';
 import { REF_COLORS } from '../src/core/formulaAssist';
 import { DEFAULT_PALETTE, DEFAULT_REF_COLORS, readGridPalette, readRefColors } from '../src/ui/gridPalette';
 import { Recorder, type Gradient } from './canvasRecorder';
-import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawIcon, filterButtonBox } from '../src/ui/paint';
+import { checkboxBox, drawCheckbox, drawDataBar, drawEdge, drawFilterButton, drawHatch, drawIcon, filterButtonBox } from '../src/ui/paint';
 
 const RED = '#E0301E';
 const AMBER = '#F5B800';
@@ -113,6 +113,22 @@ describe('cell borders', () => {
     r.failFill = true;
     expect(() => drawEdge(r.ctx, 'top', 0, 0, 10, edge('solid', 1, '#C00000'), '#000000')).toThrow('canvas lost');
     expect(r.fillStyle).toBe('#123456');
+    expect(r.stack).toHaveLength(0);
+  });
+});
+
+describe('hatching', () => {
+  it('strokes diagonals inside the box only, lined up from box to box, and leaves the context as it found it', () => {
+    const r = new Recorder();
+    r.strokeStyle = '#123456';
+    drawHatch(r.ctx, { x: 10, y: 20, width: 12, height: 6 }, 'green');
+    expect(r.args('rect')).toEqual([[10, 20, 12, 6]]);
+    expect(r.args('clip')).toHaveLength(1);
+    // Each line where x + y is a multiple of 6, from bottom left to top right.
+    expect(r.args('moveTo')).toEqual([[4, 26], [10, 26], [16, 26]]);
+    expect(r.args('lineTo')).toEqual([[10, 20], [16, 20], [22, 20]]);
+    expect(r.paints()).toEqual(['stroke green']);
+    expect(r.strokeStyle).toBe('#123456');
     expect(r.stack).toHaveLength(0);
   });
 });

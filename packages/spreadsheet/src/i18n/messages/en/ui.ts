@@ -42,6 +42,9 @@ export const ui = {
   'toolbar.highlight': 'Highlight changes',
   'toolbar.highlightTitle': 'Tint cells changed in this session',
   'toolbar.highlightShort': 'Changes',
+  'toolbar.labels': 'Mark schema labels',
+  'toolbar.labelsTitle': 'Hatch the cells the schema reads its labels from. Shown here only, never saved in the file.',
+  'toolbar.labelsShort': 'Labels',
   'toolbar.schemas': 'Schemas',
   'toolbar.schemasTitle': 'Create, import and export schemas',
   'toolbar.report': "What's in this file",
@@ -166,7 +169,7 @@ export const ui = {
   'checks.markerError': 'Breaks a schema rule.',
   'checks.markerWarning': 'Warning from a schema rule.',
   'checks.markerPending': 'A check is still running.',
-  'checks.markerLabel': 'Labels fixed by the schema.',
+  'checks.markerLabel': 'Labels fixed by the schema (shown with “{{toggle}}”).',
 
   'changes.none': 'Nothing has changed since the file was opened.',
   'changes.summaryCells_one': '{{count, number}} cell differs from the file as it was opened.',
