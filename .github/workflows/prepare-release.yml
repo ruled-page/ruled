@@ -5,8 +5,8 @@ name: Prepare release
 # again, on a release/vX.Y.Z branch, and opens a pull request with the notes.
 # Merging it releases the version (release.yml).
 #
-# The branch and pull request are made with the RELEASE_TOKEN secret, as
-# GitHub runs no workflows, CI among them, for what its own token makes.
+# GitHub starts no workflows for what the workflow's own token pushes or
+# opens, so this starts CI on the release branch itself.
 
 on:
   workflow_dispatch:
@@ -16,7 +16,12 @@ on:
         required: true
 
 permissions:
-  contents: read
+  # The release branch.
+  contents: write
+  # Its pull request.
+  pull-requests: write
+  # Starting CI on it.
+  actions: write
 
 jobs:
   prepare:
@@ -27,7 +32,6 @@ jobs:
         with:
           # The tags say what was last released.
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN }}
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
@@ -48,6 +52,7 @@ jobs:
           git push origin "release/v$VERSION"
           node scripts/release.mjs notes "$VERSION" > "$RUNNER_TEMP/notes.md"
           gh pr create --base main --head "release/v$VERSION" --title "Release $VERSION" --body-file "$RUNNER_TEMP/notes.md"
+          gh workflow run ci.yml --ref "release/v$VERSION"
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}

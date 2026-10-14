@@ -247,10 +247,10 @@ Run *Release* from the Actions tab to finish a release that stopped part way
   workflow `release.yml`), and run *Release* again. After that, setting each
   package to "Require two-factor authentication and disallow tokens" leaves
   the workflow as the only way to publish without you.
-- **Repository secrets.** `RELEASE_TOKEN`: a fine-grained personal access
-  token with contents and pull requests write access to this repository, so
-  CI runs on the release branch. `CLOUDFLARE_API_TOKEN` (with Cloudflare
-  Pages edit access) and `CLOUDFLARE_ACCOUNT_ID`, for the deploys.
+- **GitHub.** Under Settings → Actions → General, "Allow GitHub Actions to
+  create and approve pull requests", for *Prepare release*'s pull request.
+- **Repository secrets.** `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages edit
+  access) and `CLOUDFLARE_ACCOUNT_ID`, for the deploys.
 
 ## Licence
 

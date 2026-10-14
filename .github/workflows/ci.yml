@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  # Started by prepare-release.yml on a release branch, which its own pushes don't start.
+  workflow_dispatch:
 
 permissions:
   contents: read
