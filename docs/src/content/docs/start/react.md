@@ -30,9 +30,11 @@ export function PriceListReview({ file }: { file: WorkbookFile }) {
 
 The editor fills its container, so give the container a height. It's `null` on the first render, before it's made.
 
+`<Workbook>` is the two in one: it takes the hook's options as props, `file` included, and shows the editor's empty box until the editor is made. It's the one to use from a React Server Component: see [Next.js and Server Components](/start/nextjs/).
+
 ## Opening a workbook
 
-`file` (its `name` and `bytes`) is opened once the editor is ready, and again whenever it's a different file: another name or other bytes. A new object holding the same name and bytes isn't a new file, so it can be written inline. If the user has unsaved changes they're asked first, and if they keep their workbook it stays open. A file that can't be opened says why in the editor.
+`file` (its `name` and `bytes`) is opened once the editor is ready, and again whenever it's a different file: another name or other bytes. A new object holding the same name and bytes isn't a new file, nor is a new copy of the same bytes, so it can be written inline. If the user has unsaved changes they're asked first, and if they keep their workbook it stays open. A file that can't be opened says why in the editor.
 
 To open files at moments of your own choosing, leave `file` out and call `editor.open(bytes, name)`, which resolves once the workbook is open.
 

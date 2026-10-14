@@ -2,18 +2,22 @@
  * Public API of the workbook editor.
  *
  * React hosts render <WorkbookEditor editor={useWorkbookEditor(options)} />, or
- * manage one from createWorkbookEditor(options) themselves.
+ * manage one from createWorkbookEditor(options) themselves. <Workbook>, the
+ * two in one, takes props a React Server Component can give it.
  * Other hosts call mountWorkbookEditor(element, options), or use the
  * <workbook-editor> custom element from the standalone build. Each gives an
  * EditorHandle to control the editor with.
  */
 export { WorkbookEditor, type WorkbookEditorProps } from './WorkbookEditor';
+export { Workbook, type WorkbookProps } from './Workbook';
+export type { SavedWorkbookData } from './plainData';
 export { createWorkbookEditor, type EditorHandle } from './handle';
 export { useEditorState, useWorkbookEditor, type EditorState, type WorkbookEditorHookOptions, type WorkbookFile } from './hooks';
 export { mountWorkbookEditor } from './mount';
 export {
   SaveConflictError,
   type EditorFeatures,
+  type SaveAnswer,
   type SaveResult,
   type HistoryEntry,
   type SavedWorkbook,

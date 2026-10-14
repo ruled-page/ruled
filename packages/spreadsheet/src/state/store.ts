@@ -178,6 +178,15 @@ export interface SavedWorkbook extends WorkbookReaders {
   outOfDate: { sheet: string; ref: string }[];
 }
 
+/**
+ * What onSave may answer instead of throwing: `{ error }` shows the message
+ * and keeps the changes, and `{ conflict }` is a save conflict, as
+ * SaveConflictError is, in the host's words or (with `true`) the editor's.
+ * For a handler on a server, such as a React Server Action, whose thrown
+ * errors don't reach the page as written.
+ */
+export type SaveAnswer = void | { error: string } | { conflict: true | string };
+
 /** What opening a workbook came to: open, declined by the user, or refused with the reason. */
 export type OpenResult = { opened: true } | { opened: false; cancelled: true } | { opened: false; error: Text };
 
@@ -236,10 +245,11 @@ export interface StoreOptions {
   /** Creates the worker that holds the workbook; defaults to the bundled worker file. */
   createWorker?: () => Worker;
   /**
-   * Receives the workbook when the user saves, e.g. to upload it. Throwing
-   * shows the error and keeps the changes. Without it, saving downloads the file.
+   * Receives the workbook when the user saves, e.g. to upload it. Throwing,
+   * or answering `{ error }`, shows the error and keeps the changes (see
+   * SaveAnswer). Without it, saving downloads the file.
    */
-  onSave?: (file: SavedWorkbook) => void | Promise<void>;
+  onSave?: (file: SavedWorkbook) => SaveAnswer | Promise<SaveAnswer>;
   /** The Save button's label when the host handles saving, e.g. "Submit price list". Default "Save". */
   saveLabel?: Localized;
   /** Overrides for the theme tokens (colours, fonts, sizes, corners, shadows); see EditorTheme. */
@@ -1278,7 +1288,9 @@ export class WorkbookStore {
       this.busy = true;
       this.notify();
       try {
-        await this.options.onSave(saved);
+        const answer = await this.options.onSave(saved);
+        if (answer && 'conflict' in answer) throw new SaveConflictError(answer.conflict === true ? undefined : answer.conflict);
+        if (answer && 'error' in answer) throw new Error(answer.error);
         this.afterSave();
         this.toast('info', msg('store.save.saved', { fileName: saved.fileName }));
         return 'saved';

@@ -9,7 +9,7 @@ The editor is one package, `@ruled/sheet`, with two builds:
 
 | Import | What it is | Use it from |
 | --- | --- | --- |
-| `@ruled/sheet` | The React component, the `useWorkbookEditor` hook, `createWorkbookEditor` and the types. React 18 or 19 is a peer dependency. | React apps |
+| `@ruled/sheet` | The React components, the `useWorkbookEditor` hook, `createWorkbookEditor` and the types. React 18 or 19 is a peer dependency. It's client code, which a React Server Component can render. | React apps, Next.js |
 | `@ruled/sheet/standalone` | Everything bundled, React, the worker and the styles included, defining the `<workbook-editor>` element. | Plain HTML, Angular, Vue, Svelte, server-rendered pages |
 
 ```sh

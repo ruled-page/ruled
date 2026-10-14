@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import type { StoreOptions } from '../state/store';
 import { createWorkbookEditor, type EditorHandle } from './handle';
 import { applyLiveOptions } from './liveOptions';
+import { sameBytes } from './plainData';
 
 /** A workbook for `useWorkbookEditor` to open: its name, which says what kind of file it is, and its bytes. */
 export interface WorkbookFile {
@@ -16,8 +17,8 @@ export interface WorkbookFile {
 export interface WorkbookEditorHookOptions extends StoreOptions {
   /**
    * The workbook to open, once the editor is made and again whenever it's a
-   * different file (another name or other bytes; a new object for the same
-   * file isn't). Over unsaved changes the user is asked first, and the
+   * different file (another name or other bytes; a new object, or a new copy
+   * of the same bytes, isn't). Over unsaved changes the user is asked first, and the
    * workbook they keep stays open. A file that can't be opened says why in
    * the editor. Leave it out to open files yourself with `open()`.
    */
@@ -73,14 +74,15 @@ export function useWorkbookEditor(options: WorkbookEditorHookOptions = {}): Edit
     applied.current = options;
   });
 
-  // The file, once per editor and file: not again for a new object holding the same one, or when StrictMode runs effects twice.
+  // The file, once per editor and file: not again for a new object or copy holding the same one, or when StrictMode runs effects twice.
   const opened = useRef<{ editor: EditorHandle; file: WorkbookFile } | null>(null);
   const { file } = options;
   useEffect(() => {
     if (!editor || !file) return;
     const was = opened.current;
-    if (was && was.editor === editor && was.file.name === file.name && was.file.bytes === file.bytes) return;
     opened.current = { editor, file };
+    // A copy is compared once; from then on it's known by its identity.
+    if (was && was.editor === editor && was.file.name === file.name && sameBytes(was.file.bytes, file.bytes)) return;
     // The editor shows why a file can't be opened.
     editor.open(file.bytes, file.name).catch(() => undefined);
   }, [editor, file]);

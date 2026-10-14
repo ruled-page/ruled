@@ -108,7 +108,7 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
 
 /** What the editor gives the app it's in. */
 export const FOR_APPS: { what: string; note: string; href: string }[] = [
-  { what: 'React, web component, Angular and plain HTML', note: 'A component and hook, a custom element, or a mount function.', href: '/start/install/' },
+  { what: 'React, Next.js, web component, Angular and plain HTML', note: 'A component and hook, one a Server Component can render, a custom element, or a mount function.', href: '/start/install/' },
   { what: 'Schemas', note: 'Sheets, tables and cells described as data: types, bounds, patterns, lists, uniqueness and rules across records.', href: '/schemas/overview/' },
   { what: 'Async checks', note: 'Checks that call your services as people type, with cancellation, timeouts and saving that waits for them.', href: '/schemas/async-hooks/' },
   { what: 'Business logic', note: 'onChange fills cells from your systems in the same undo step; beforeSave has the last word.', href: '/schemas/business-logic/' },

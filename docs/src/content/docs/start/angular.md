@@ -2,7 +2,7 @@
 title: Angular
 description: Use the editor's element in an Angular app, loaded only when it's needed.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 In Angular the editor is a custom element like any other. Allow it with `CUSTOM_ELEMENTS_SCHEMA`, bind its `options`, and listen to its events. Loading the standalone build with a dynamic `import()` keeps it out of your initial bundle; the element keeps any options Angular sets before it has loaded.

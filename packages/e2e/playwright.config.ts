@@ -9,15 +9,17 @@ const CI = !!process.env.CI;
 const ANGULAR = !!process.env.E2E_ANGULAR;
 /** The packed library installed into a fresh React app; its test runs when asked for. */
 const HOST_APP = !!process.env.E2E_HOST_APP;
+/** The packed library installed into a Next.js App Router app, rendered by a Server Component; its test runs when asked for. */
+const NEXT_APP = !!process.env.E2E_NEXT_APP;
 /** With E2E_BROWSERS=all, the suite runs in Firefox and WebKit (Safari's engine) as well as Chromium. */
 const ALL_BROWSERS = process.env.E2E_BROWSERS === 'all';
 /**
- * The demo's port, with the library's, the Angular portal's, the host app's
- * and the React portal's after it. E2E_PORT moves them all, so checkouts can run side by side.
+ * The demo's port, with the library's, the Angular portal's, the host app's,
+ * the React portal's and the Next.js app's after it. E2E_PORT moves them all, so checkouts can run side by side.
  */
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 process.env.E2E_PORT = String(PORT);
-const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts'])];
+const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [] : ['**/package.spec.ts']), ...(NEXT_APP ? [] : ['**/next.spec.ts'])];
 
 /**
  * End-to-end tests in a real browser. The demo and the React portal are
@@ -25,9 +27,10 @@ const testIgnore = [...(ANGULAR ? [] : ['**/angular.spec.ts']), ...(HOST_APP ? [
  * the standalone library build, so a dev server serves it from the
  * workspace's root. With E2E_ANGULAR=1, the Angular portal
  * (examples/angular-portal, installed with `npm ci` there) is built and
- * served too, and with E2E_HOST_APP=1 the React app in host-app, with the
- * library installed from its npm package. Both use the library as already
- * built (`npm run build:lib`), which is then not rebuilt underneath them.
+ * served too; with E2E_HOST_APP=1, the React app in host-app; and with
+ * E2E_NEXT_APP=1, the Next.js app in next-app, the last two with the library
+ * installed from its npm package. These use the library as already built
+ * (`npm run build:lib`), which is then not rebuilt underneath them.
  */
 export default defineConfig({
   testDir: '.',
@@ -52,7 +55,7 @@ export default defineConfig({
       timeout: 180_000,
     },
     {
-      command: `${ANGULAR || HOST_APP ? '' : 'npm run build:lib && '}npx vite --port ${PORT + 1} --strictPort`,
+      command: `${ANGULAR || HOST_APP || NEXT_APP ? '' : 'npm run build:lib && '}npx vite --port ${PORT + 1} --strictPort`,
       cwd: root,
       url: `http://localhost:${PORT + 1}/examples/html/`,
       reuseExistingServer: false,
@@ -84,6 +87,17 @@ export default defineConfig({
             url: `http://localhost:${PORT + 3}/app/`,
             reuseExistingServer: false,
             timeout: 180_000,
+          },
+        ]
+      : []),
+    ...(NEXT_APP
+      ? [
+          {
+            command: `node packages/e2e/scripts/next-app.mjs && cd packages/e2e/next-app && npx next start --port ${PORT + 5}`,
+            cwd: root,
+            url: `http://localhost:${PORT + 5}`,
+            reuseExistingServer: false,
+            timeout: 300_000,
           },
         ]
       : []),

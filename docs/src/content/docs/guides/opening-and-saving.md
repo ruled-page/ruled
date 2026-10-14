@@ -61,7 +61,7 @@ createWorkbookEditor({
 });
 ```
 
-Throwing from `onSave` shows the error and keeps the changes, so people can try again. While the promise is pending, the editor shows the save as under way.
+Throwing from `onSave` shows the error and keeps the changes, so people can try again. So does answering `{ error: 'message' }` instead, which a [Server Action](/start/nextjs/#saving-with-a-server-action) has to do, as frameworks hide the errors it throws. While the promise is pending, the editor shows the save as under way.
 
 What you receive:
 
@@ -98,6 +98,8 @@ onSave: async (saved) => {
   if (response.status === 412) throw new SaveConflictError();
 },
 ```
+
+Answering `{ conflict: true }` does the same, and `{ conflict: 'Ana saved it at 10:02.' }` says why in your words.
 
 ## What's kept in the file
 

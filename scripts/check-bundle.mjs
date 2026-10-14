@@ -44,6 +44,11 @@ for (const [dir, pattern, kB] of BUDGETS) {
     if (size > kB) problems.push(line);
   }
 }
+// React Server Components take the React build as client code only when its entry says so first.
+const reactEntry = join(root, 'packages/spreadsheet/dist/react/workbook-editor.js');
+if (existsSync(reactEntry) && !/^['"]use client['"]/.test(readFileSync(reactEntry, 'utf8'))) {
+  problems.push("packages/spreadsheet/dist/react/workbook-editor.js: doesn't start with 'use client', which React Server Components need");
+}
 // The type declarations import nothing a host would have to install but React (the editor's) or nothing at all (the engine's).
 for (const [dir, allowed] of [['packages/spreadsheet/dist/types', /^react(-dom)?(\/|$)/], ['packages/formula-engine/dist', /^$/]]) {
   const path = join(root, dir);

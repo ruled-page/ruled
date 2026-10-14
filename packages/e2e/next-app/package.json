@@ -1,0 +1,10 @@
+{
+  "name": "workbook-editor-next-app",
+  "private": true,
+  "description": "A Next.js App Router app that installs the packed library, as a host would, for e2e/next.spec.ts",
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

@@ -18,6 +18,12 @@ coverage
 packages/e2e/host-app/node_modules
 packages/e2e/host-app/dist
 
+# Installed, built and written by packages/e2e/scripts/next-app.mjs and next.spec.ts.
+packages/e2e/next-app/node_modules
+packages/e2e/next-app/.next
+packages/e2e/next-app/next-env.d.ts
+packages/e2e/next-app/workbooks
+
 # Built by npm run validate:saves.
 packages/spreadsheet/tools/ooxml-validate/bin
 packages/spreadsheet/tools/ooxml-validate/obj

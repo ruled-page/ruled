@@ -34,7 +34,7 @@ function Review() {
 
 Where to go next:
 
-- [Install](https://ruled.page/start/install/), then [React](https://ruled.page/start/react/), [plain HTML and other frameworks](https://ruled.page/start/web-component/) or [Angular](https://ruled.page/start/angular/)
+- [Install](https://ruled.page/start/install/), then [React](https://ruled.page/start/react/), [Next.js and Server Components](https://ruled.page/start/nextjs/), [plain HTML and other frameworks](https://ruled.page/start/web-component/) or [Angular](https://ruled.page/start/angular/)
 - [Schemas](https://ruled.page/schemas/overview/): fields, tables, async checks and business logic
 - [Capabilities](https://ruled.page/start/capabilities/), and [what Excel files keep](https://ruled.page/guides/excel-fidelity/) when the editor saves them
 - [The formula engine on its own](https://ruled.page/formula/introduction/)

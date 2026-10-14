@@ -2,7 +2,7 @@
 title: Web component and plain HTML
 description: Use the <workbook-editor> element on any page, or mount the editor into an element you choose.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 The standalone build defines a `<workbook-editor>` element. Set its `options`, give it a workbook, and listen to its events.

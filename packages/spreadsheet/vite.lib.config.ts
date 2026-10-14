@@ -63,6 +63,9 @@ export default defineConfig(({ mode }) => {
       },
       rollupOptions: {
         external: standalone ? [] : ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
+        // React Server Components take the React build as client code, which a Server Component can render,
+        // only when its entry says so first. Bundling drops the directive from source, so it's written here.
+        ...(!standalone && { output: { banner: (chunk: { isEntry: boolean }) => (chunk.isEntry ? "'use client';" : '') } }),
       },
     },
   };

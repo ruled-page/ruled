@@ -3,8 +3,8 @@ import ExcelJS from 'exceljs';
 import { parseA1, toA1 } from '@ruled/formula/refs';
 
 /** Where the test servers are: the app's port, then the library's, the Angular example's and the host app's (see playwright.config.ts). */
-export const serverUrl = (which: 'app' | 'lib' | 'angular' | 'hostApp' | 'portal') =>
-  `http://localhost:${Number(process.env.E2E_PORT ?? 4173) + { app: 0, lib: 1, angular: 2, hostApp: 3, portal: 4 }[which]}`;
+export const serverUrl = (which: 'app' | 'lib' | 'angular' | 'hostApp' | 'portal' | 'nextApp') =>
+  `http://localhost:${Number(process.env.E2E_PORT ?? 4173) + { app: 0, lib: 1, angular: 2, hostApp: 3, portal: 4, nextApp: 5 }[which]}`;
 
 export const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 

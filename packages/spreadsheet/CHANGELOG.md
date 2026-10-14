@@ -116,6 +116,13 @@ what it doesn't change.
   editor handle and events.
 - Themes through CSS tokens, English and German and any language the host
   adds, right-to-left layouts, and phone-sized screens.
+- React Server Components, as in Next.js's App Router: the React build is
+  client code (`'use client'`), and `<Workbook>`, the editor in one
+  component, takes props a Server Component can give it: the file's bytes,
+  the options that are data, and a Server Action as `onSave`, which gets
+  the saved workbook as plain data. `onSave` can answer `{ error }` or
+  `{ conflict }` rather than throwing, as a server's errors don't reach the
+  page as written.
 
 ### In Node
 

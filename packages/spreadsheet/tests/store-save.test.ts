@@ -234,6 +234,31 @@ describe('saving to the host', () => {
     expect(files).toHaveLength(0);
   });
 
+  it('takes an error or a conflict answered rather than thrown, as a server’s handler gives them', async () => {
+    const files = downloads();
+    await open({ onSave: async () => ({ error: 'The price list is closed.' }) });
+    await store.input(1, 1, '5');
+    await store.save();
+    expect(toasts()).toEqual(['Not saved: The price list is closed.']);
+    expect(store.unsaved).toBe(true);
+    store.dispose();
+
+    await open({ onSave: () => ({ conflict: 'Ana saved it at 10:02.' }) });
+    await store.input(1, 1, '5');
+    const saving = store.save();
+    const asked = await answer('cancel');
+    await saving;
+    expect(english.text(asked.body)).toMatch(/^Ana saved it at 10:02\. Your changes/);
+    store.dispose();
+
+    await open({ onSave: () => ({ conflict: true }) });
+    await store.input(1, 1, '5');
+    const again = store.save();
+    expect(english.text((await answer('cancel')).body)).toMatch(/^Someone else saved a newer version/);
+    await again;
+    expect(files).toHaveLength(0);
+  });
+
   it('labels the button as the host asks, in the editor’s language', async () => {
     await open({ onSave: () => undefined, saveLabel: { en: 'Send to ITAS', de: 'An ITAS senden' }, language: 'de' });
     expect(store.saveLabel).toBe('An ITAS senden');
