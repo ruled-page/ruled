@@ -12,6 +12,8 @@ export type WorkerRequest =
   | { id: number; type: 'validate'; sheet: number; row: number; col: number; text: string; rule: number }
   | { id: number; type: 'listSource'; sheet: number; formula: string }
   | { id: number; type: 'conditionalFormats'; sheet: number }
+  /** The image one of the workbook's pictures shows. */
+  | { id: number; type: 'picture'; part: string }
   /** Insert or delete rows or columns, move cells, or add, rename, delete, move, hide or unhide a sheet, rewriting references. */
   | { id: number; type: 'structure'; op: WorkbookOp }
   /** Go back to, or forward to, the workbook as it was around a structural change. */
@@ -29,6 +31,7 @@ export type WorkerResponse =
   | { id: number; type: 'validated'; ok: boolean }
   | { id: number; type: 'listSource'; source: ListSource | null }
   | { id: number; type: 'conditionalFormats'; result: CfResult }
+  | { id: number; type: 'picture'; image: { bytes: Uint8Array; type: string } | null }
   | { id: number; type: 'recalcOn'; report: CalcReport }
   /**
    * After a structural change, or undoing one, the whole workbook as it now

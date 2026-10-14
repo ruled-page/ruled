@@ -360,6 +360,9 @@ function formulaReads(formula: string, ownSheet: number, sheetIndex: Map<string,
  * scanned sheets untouched, tracks edits as an overlay, keeps the
  * calculation engine in step, and on save rewrites only what changed.
  */
+/** Image types a browser shows, by file extension; Windows metafiles and TIFFs aren't among them. */
+const PICTURE_TYPES: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml' };
+
 export class WorkbookSession {
   readonly fileName: string;
   readonly model: WorkbookModel;
@@ -2042,6 +2045,14 @@ export class WorkbookSession {
     const parsed = parseInput(text, this.model.styles.get(cur.style).numFmt, this.locale, this.model.date1904);
     if (parsed.error) return false;
     return checkRule(rule, sheet, row, col, parsed.content, text, this.evaluator);
+  }
+
+  /** A picture's image, for showing it: the bytes of an image part one of the workbook's pictures uses, and its type. */
+  picture(part: string): { bytes: Uint8Array; type: string } | undefined {
+    const type = PICTURE_TYPES[part.slice(part.lastIndexOf('.') + 1).toLowerCase()];
+    if (!type || !this.model.sheets.some((m) => m.info.objects.some((o) => o.picture?.part === part))) return undefined;
+    const bytes = this.pkg.bytes(part);
+    return bytes && { bytes, type };
   }
 
   /** The values (or range) a formula-based list rule offers at a cell. */

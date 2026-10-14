@@ -100,8 +100,8 @@ export const core = {
   'core.finding.chart.detailTyped':
     '{{type}} chart. Kept in the file and redrawn by Excel from the edited data when the file is opened.',
   'core.finding.pictures.title': 'Pictures',
-  'core.finding.pictures.detail_one': '{{count, number}} picture. Kept in the file; shown here as placeholders.',
-  'core.finding.pictures.detail_other': '{{count, number}} pictures. Kept in the file; shown here as placeholders.',
+  'core.finding.pictures.detail_one': '{{count, number}} picture. Shown here, and kept in the file; a picture in a format browsers don’t show (such as a Windows metafile) is shown as a placeholder.',
+  'core.finding.pictures.detail_other': '{{count, number}} pictures. Shown here, and kept in the file; a picture in a format browsers don’t show (such as a Windows metafile) is shown as a placeholder.',
   'core.finding.shapes.title': 'Shapes and text boxes',
   'core.finding.shapes.detail_one': '{{count, number}} shape. Kept in the file; shown here as placeholders.',
   'core.finding.shapes.detail_other': '{{count, number}} shapes. Kept in the file; shown here as placeholders.',

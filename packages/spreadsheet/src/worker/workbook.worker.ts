@@ -138,6 +138,13 @@ function handle(req: WorkerRequest): Promise<void> | undefined {
         post({ id: req.id, type: 'conditionalFormats', result: session.conditionalFormats(req.sheet) });
         break;
       }
+      case 'picture': {
+        if (!session) throw new Error('No workbook is open.');
+        // A copy: the package keeps its own for saving.
+        const image = session.picture(req.part);
+        post({ id: req.id, type: 'picture', image: image ? { bytes: image.bytes.slice(), type: image.type } : null });
+        break;
+      }
       case 'structure': {
         if (!session) throw new Error('No workbook is open.');
         const next = session.restructure(req.op);

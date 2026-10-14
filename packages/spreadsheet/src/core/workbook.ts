@@ -185,6 +185,23 @@ function readChart(pkg: OoxmlPackage, path: string, ctx: ChartContext): { title?
   return { title: title || undefined, type, chart: plot ? parseChart(root, ctx) : undefined };
 }
 
+/** A picture's image part, and its cropping, turn and flips. */
+function pictureOf(pic: XmlNode, rels: Map<string, { target: string; external?: boolean }>): SheetObject['picture'] {
+  const blip = descendants(pic, 'blip')[0];
+  const rel = rels.get(attr(blip, 'embed') ?? '');
+  if (!rel || rel.external) return undefined;
+  const out: NonNullable<SheetObject['picture']> = { part: rel.target };
+  const src = descendants(pic, 'srcRect')[0];
+  const cut = (side: string) => Number(attr(src, side) ?? 0) / 100_000;
+  if (src && (cut('l') || cut('t') || cut('r') || cut('b'))) out.crop = { l: cut('l'), t: cut('t'), r: cut('r'), b: cut('b') };
+  const xfrm = child(child(pic, 'spPr'), 'xfrm');
+  const rot = Number(attr(xfrm, 'rot') ?? 0) / 60_000;
+  if (rot) out.rotate = rot;
+  if (attr(xfrm, 'flipH') === '1') out.flipH = true;
+  if (attr(xfrm, 'flipV') === '1') out.flipV = true;
+  return out;
+}
+
 function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetObject[] {
   const xml = pkg.text(path);
   if (!xml) return [];
@@ -207,7 +224,8 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
       // Excel's newer kinds of chart (chartEx: waterfall, treemap…) aren't read.
       out.push({ kind: 'chart', name, title, chartType: type, chart: rel.type === 'chart' ? chart : undefined, from, to, sizePx, source, chartPart: rel.target });
     } else if (descendants(anchor, 'pic').length) {
-      out.push({ kind: 'image', name, from, to, sizePx, source });
+      const picture = pictureOf(descendants(anchor, 'pic')[0], rels);
+      out.push({ kind: 'image', name, from, to, sizePx, source, ...(picture && { picture }) });
     } else if (descendants(anchor, 'sp').length || descendants(anchor, 'grpSp').length || descendants(anchor, 'cxnSp').length) {
       out.push({ kind: 'shape', name, from, to, sizePx, source });
     } else if (descendants(anchor, 'graphicFrame').length) {

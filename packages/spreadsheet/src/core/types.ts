@@ -293,6 +293,8 @@ export interface SheetObject {
   chartPart?: string;
   /** A chart added or changed in the editor: its chart part, as it is saved. */
   chartXml?: string;
+  /** A picture: its image part, and how it is cropped (fractions of the image cut from each edge), turned (degrees clockwise) and flipped. */
+  picture?: { part: string; crop?: { l: number; t: number; r: number; b: number }; rotate?: number; flipH?: boolean; flipV?: boolean };
 }
 
 export interface BlockedRegion extends Rect {

@@ -867,6 +867,21 @@ export class WorkbookStore {
 
   private readonly cfRuns = new Map<number, { version: number; running: boolean; warned?: boolean }>();
 
+  /** The workbook's pictures' images, as URLs, by image part. */
+  private pictures = new Map<string, Promise<string | undefined>>();
+
+  /** A picture's image as a URL to show it from; undefined where it can't be shown. */
+  picture(part: string): Promise<string | undefined> {
+    let url = this.pictures.get(part);
+    if (!url) {
+      url = this.request({ type: 'picture', part } as Omit<WorkerRequest, 'id'>)
+        .then((res) => (res.type === 'picture' && res.image ? URL.createObjectURL(new Blob([res.image.bytes as BlobPart], { type: res.image.type })) : undefined))
+        .catch(() => undefined);
+      this.pictures.set(part, url);
+    }
+    return url;
+  }
+
   /**
    * Re-evaluates a sheet's conditional formatting and sparklines in the worker if cell values
    * have changed since it last was. Runs one at a time per sheet; a change
@@ -1085,6 +1100,8 @@ export class WorkbookStore {
       this.openMs = Math.round(performance.now() - started);
       this.calcStats = this.editStats = undefined;
       const r = res.result;
+      for (const url of this.pictures.values()) void url.then((u) => u && URL.revokeObjectURL(u));
+      this.pictures = new Map();
       this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
       for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
       this.names = r.names;

@@ -1512,6 +1512,18 @@
 .wbe .wbe-handle-sw { left: 0; top: 100%; cursor: nesw-resize; }
 .wbe .wbe-handle-w { left: 0; top: 50%; cursor: ew-resize; }
 
+/* A picture shows the part of its image its box holds, cropped as Excel crops it. */
+.wbe .wbe-object-picture {
+  position: absolute;
+  overflow: hidden;
+}
+
+.wbe .wbe-object-picture img {
+  position: absolute;
+  max-width: none;
+  user-select: none;
+}
+
 /* Charts are drawn on a canvas sized to their box; Chart.js needs the box to hold nothing else. */
 .wbe .wbe-object-box.wbe-drawn,
 .wbe .wbe-chart-sheet {

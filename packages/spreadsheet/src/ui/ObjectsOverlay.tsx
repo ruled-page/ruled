@@ -59,6 +59,34 @@ function Placeholder({ box, style }: { box: Box; style: CSSProperties }) {
   );
 }
 
+/**
+ * A picture, drawn in its box cropped, turned and flipped as Excel draws it;
+ * its placeholder while its image loads, and where the browser can't show it.
+ */
+function Picture({ store, box, style }: { store: WorkbookStore; box: Box; style: CSSProperties }) {
+  const pic = box.obj.picture!;
+  // Undefined while loading, null where it can't be shown.
+  const [url, setUrl] = useState<string | null>();
+  useEffect(() => {
+    let live = true;
+    void store.picture(pic.part).then((u) => live && setUrl(u ?? null));
+    return () => {
+      live = false;
+    };
+  }, [store, pic.part]);
+  if (!url) return <Placeholder box={box} style={style} />;
+  const c = pic.crop ?? { l: 0, t: 0, r: 0, b: 0 };
+  // The whole image, of which the box shows the part left after cropping.
+  const width = Number(style.width) / Math.max(0.01, 1 - c.l - c.r);
+  const height = Number(style.height) / Math.max(0.01, 1 - c.t - c.b);
+  const transform = [pic.rotate && `rotate(${pic.rotate}deg)`, pic.flipH && 'scaleX(-1)', pic.flipV && 'scaleY(-1)'].filter(Boolean).join(' ');
+  return (
+    <div className="wbe-object-picture" style={{ ...style, transform: transform || undefined }} aria-hidden="true">
+      <img src={url} alt="" draggable={false} onError={() => setUrl(null)} style={{ left: -c.l * width, top: -c.t * height, width, height }} />
+    </div>
+  );
+}
+
 /** A handle on a selected object's frame: the edges it moves, and where it sits. */
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 const HANDLES: Edge[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -90,7 +118,8 @@ function edgesFor(mode: Drag['mode'], dx: number, dy: number, width: number, hei
 /**
  * The workbook's charts, pictures and shapes where they sit over the grid:
  * charts drawn from the cells as they are now (when the editor draws
- * charts), and placeholders for the rest, which are kept but not drawn.
+ * charts), pictures, and placeholders for the rest, which are kept but not
+ * drawn.
  * Clicking one selects it, as in Excel: its frame then moves it, its handles
  * resize it, and Delete removes it.
  */
@@ -268,6 +297,8 @@ export function ObjectsOverlay({
           const placeholder = <Placeholder box={b} style={style} />;
           return b.obj.kind === 'chart' ? (
             <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
+          ) : b.obj.picture ? (
+            <Picture key={b.key} store={store} box={b} style={style} />
           ) : (
             <Placeholder key={b.key} box={b} style={style} />
           );

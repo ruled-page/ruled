@@ -66,6 +66,7 @@ On a site with a Content Security Policy, allow what the editor loads:
 - `font-src data:`, for the fonts above, which the builds carry as `data:` URLs.
 - For the React build, its worker, a file beside the script: `worker-src 'self'` when you serve it from your own site.
 - For the standalone build, its worker, carried inside the script and started from a `blob:` URL (or a `data:` URL where that's refused): `worker-src blob: data:`. It also adds its styles to the page in a `<style>` element, which needs `style-src 'unsafe-inline'`.
+- `img-src blob:`, for the pictures in workbooks, which the editor shows from `blob:` URLs. Where that's refused, they show as placeholders.
 - `connect-src` for the workbooks the element fetches from its `src`, when they're on another site.
 
 ## Styles stay inside

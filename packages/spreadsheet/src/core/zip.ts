@@ -110,6 +110,11 @@ export class OoxmlPackage {
     return this.files.has(path);
   }
 
+  /** A part's bytes as stored, such as a picture's. */
+  bytes(path: string): Uint8Array | undefined {
+    return this.files.get(path);
+  }
+
   list(): string[] {
     return [...this.order];
   }

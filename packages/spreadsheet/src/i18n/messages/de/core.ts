@@ -104,8 +104,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.chart.detailTyped':
     'Diagramm vom Typ „{{type}}“. Bleibt in der Datei erhalten und wird beim Öffnen der Datei von Excel aus den bearbeiteten Daten neu gezeichnet.',
   'core.finding.pictures.title': 'Bilder',
-  'core.finding.pictures.detail_one': '{{count, number}} Bild. Bleibt in der Datei erhalten; wird hier als Platzhalter angezeigt.',
-  'core.finding.pictures.detail_other': '{{count, number}} Bilder. Bleiben in der Datei erhalten; werden hier als Platzhalter angezeigt.',
+  'core.finding.pictures.detail_one': '{{count, number}} Bild. Wird hier angezeigt und bleibt in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
+  'core.finding.pictures.detail_other': '{{count, number}} Bilder. Werden hier angezeigt und bleiben in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
   'core.finding.shapes.title': 'Formen und Textfelder',
   'core.finding.shapes.detail_one': '{{count, number}} Form. Bleibt in der Datei erhalten; wird hier als Platzhalter angezeigt.',
   'core.finding.shapes.detail_other': '{{count, number}} Formen. Bleiben in der Datei erhalten; werden hier als Platzhalter angezeigt.',
