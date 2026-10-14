@@ -20,6 +20,12 @@ The element can fetch the file itself: `<workbook-editor src="/api/files/42">`.
 
 `.xlsx` and `.xlsm` open as workbooks, and `.csv`, `.tsv` and `.txt` as a workbook of one sheet. People can also open files themselves, with the Open button or by dropping one on the editor, unless you set `features: { open: false }`.
 
+## Password-protected workbooks
+
+A workbook Excel saved with a password (File › Info › Protect Workbook › Encrypt with Password) opens once the person types its password, which the editor asks for, as Excel does; a wrong one, it asks for again. It's decrypted in the browser: neither the file nor the password leaves it. Saved, the workbook is encrypted again with the same password, so your app receives it protected, as it sent it. The editor keeps no drafts of it (see [Drafts](#drafts)), so its contents never sit in the browser unencrypted.
+
+Workbooks protected by a sensitivity label or rights management can only be decrypted through Microsoft's service, and are refused, saying so. Opening a protected workbook takes about a second longer than another of its size, and so does saving it, as Excel's own encryption makes a password slow to guess.
+
 ## Large workbooks
 
 The workbook is read, and its formulas worked out, in a worker. Before anything is unzipped, and then as the cells are read, the file is checked against `limits`, and refused, saying why, when it goes over one:
@@ -113,4 +119,4 @@ The editor writes back only what changed. Everything it doesn't show (grouped sh
 
 ## Drafts
 
-Unsaved edits are kept in the browser, and offered back when the same file is opened again, so a closed tab or a crash doesn't lose work. Turn it off with `drafts: false`. `warnOnUnload` (on by default) asks before people leave the page with unsaved changes.
+Unsaved edits are kept in the browser, and offered back when the same file is opened again, so a closed tab or a crash doesn't lose work; not for a password-protected workbook. Turn it off with `drafts: false`. `warnOnUnload` (on by default) asks before people leave the page with unsaved changes.

@@ -35,6 +35,7 @@ const nameDialogs = lazyModule(() => import('../ui/NameDialogs'));
 const linkDialog = lazyModule(() => import('../ui/LinkDialog'));
 const fillDialogs = lazyModule(() => import('../ui/FillDialogs'));
 const sortDialog = lazyModule(() => import('../ui/SortDialog'));
+const passwordDialog = lazyModule(() => import('../ui/PasswordDialog'));
 const validationDialog = lazyModule(() => import('../ui/ValidationDialog'));
 const cfDialogs = lazyModule(() => import('../ui/CfDialogs'));
 const numberFormatDialog = lazyModule(() => import('../ui/NumberFormatDialog'));
@@ -261,6 +262,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Links = linkDialog.useModule(store.linkDialog);
   const Fill = fillDialogs.useModule(store.seriesDialog || store.customListsOpen);
   const Sort = sortDialog.useModule(!!store.sortDialog);
+  const Password = passwordDialog.useModule(!!store.passwordRequest);
   const Validation = validationDialog.useModule(!!store.validationDialog);
   const NumberFormat = numberFormatDialog.useModule(store.numberFormatOpen);
   const ChartEditor = chartDialog.useModule(!!store.chartDialog);
@@ -392,6 +394,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.seriesDialog && Fill && <Fill.SeriesDialog store={store} />}
       {ready && store.customListsOpen && Fill && <Fill.CustomListsDialog store={store} />}
       {ready && store.sortDialog && Sort && <Sort.SortDialog store={store} />}
+      {store.passwordRequest && Password && <Password.PasswordDialog store={store} />}
       {ready && store.validationDialog && Validation && <Validation.ValidationDialog store={store} />}
       {ready && store.numberFormatOpen && NumberFormat && <NumberFormat.NumberFormatDialog store={store} />}
       {ready && store.chartDialog && ChartEditor && <ChartEditor.ChartDialog store={store} />}

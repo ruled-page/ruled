@@ -54,7 +54,7 @@ describe('limits on untrusted files', () => {
 
   it('refuses files that are not workbooks', () => {
     expect(thrown(() => WorkbookSession.open(strToU8('hello'), 'x.xlsx'))).toMatch(/not an Excel workbook/);
-    expect(thrown(() => WorkbookSession.open(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0]), 'x.xls'))).toMatch(/password-protected or in the old .xls format/);
+    expect(thrown(() => WorkbookSession.open(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0]), 'x.xls'))).toMatch(/in the old .xls format/);
   });
 });
 

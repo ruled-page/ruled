@@ -21,6 +21,8 @@ export interface RecalculateOptions {
    * own are kept by default.
    */
   ignoreSavedValues?: boolean;
+  /** A password-protected workbook's password; the workbook comes back encrypted with it. */
+  password?: string;
 }
 
 export interface Recalculated {
@@ -51,7 +53,7 @@ export interface Recalculated {
 export async function recalculate(xlsx: Uint8Array | ArrayBuffer, options: RecalculateOptions = {}): Promise<Recalculated> {
   // In a browser the worker chooses the engine; here there's only the one.
   if (!chosenEngine()) chooseEngine(nativeEngine);
-  const session = WorkbookSession.open(new Uint8Array(xlsx), 'workbook.xlsx', 'en-US', { recalc: 'on', savedValues: options.ignoreSavedValues ? 'ignore' : 'compare' });
+  const session = WorkbookSession.open(new Uint8Array(xlsx), 'workbook.xlsx', 'en-US', { recalc: 'on', savedValues: options.ignoreSavedValues ? 'ignore' : 'compare', password: options.password });
   session.ensureEngine();
   const sheets = session.loadResult().sheets.map((s) => s.name);
 

@@ -8,6 +8,11 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
+- Password-protected workbooks open: the editor asks for the password, as
+  Excel does, and saves the workbook encrypted with it again. They're
+  decrypted in the browser, and no drafts of them are kept there. Node's
+  `recalculate` takes a `password` too. Workbooks protected by a sensitivity
+  label are still refused, now saying why.
 - Shapes and text boxes are drawn, in place of placeholders: rectangles,
   ellipses, arrows, stars, lines and the other common kinds, with their
   fill, outline and text, as the file or its theme sets them. Groups and the

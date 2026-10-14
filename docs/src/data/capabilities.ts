@@ -29,7 +29,8 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
       { what: 'ActiveX controls and embedded objects', support: 'keep', note: 'Or refused, with the `activeContent` option.' },
       { what: 'Links to other workbooks', support: 'keep', note: 'Their last values are shown and kept.' },
       { what: '.xls, .xlsb and .ods files', support: 'no', note: 'Refused, saying so.' },
-      { what: 'Password-protected and sensitivity-labelled files', support: 'no', note: 'Refused, saying so.' },
+      { what: 'Password-protected workbooks', support: 'edit', note: 'Opened with their password, asked for as Excel asks, and saved encrypted with it again.', href: '/guides/opening-and-saving/#password-protected-workbooks' },
+      { what: 'Sensitivity-labelled and rights-managed files', support: 'no', note: 'Refused, saying so: only Microsoft’s service can decrypt them.' },
     ],
   },
   {

@@ -20,7 +20,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const out = mkdtempSync(join(tmpdir(), 'workbook-saves-'));
 const sources = [join(workspace, 'examples', 'demo', 'public', 'samples'), join(root, 'tests', 'corpus')];
-const originals = sources.flatMap((dir) => readdirSync(dir).filter((f) => /\.xls[xm]$/.test(f) && f !== 'big.xlsx' && f !== 'lookups.xlsx').map((f) => join(dir, f)));
+// An encrypted workbook's parts can't be validated as they are; core-encryption.test.ts checks it opens and saves.
+const originals = sources.flatMap((dir) => readdirSync(dir).filter((f) => /\.xls[xm]$/.test(f) && f !== 'big.xlsx' && f !== 'lookups.xlsx' && f !== 'outline-password.xlsx').map((f) => join(dir, f)));
 
 // The safety tests add a workbook whose macros were removed.
 execFileSync('npx', ['vitest', 'run', 'packages/spreadsheet/tests/roundtrip-out.test.ts', 'packages/spreadsheet/tests/safety.test.ts'], { cwd: workspace, stdio: 'inherit', env: { ...process.env, ROUNDTRIP_OUT: out } });

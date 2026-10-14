@@ -2,7 +2,11 @@
 export const core = {
   // Files the editor refuses to open.
   'core.open.tooBig': 'This file is {{size, number}} MB; the most this editor accepts is {{max, number}} MB.',
-  'core.open.oldFormat': 'This file is password-protected or in the old .xls format. Only .xlsx and .xlsm files are supported.',
+  'core.open.oldFormat': 'This file is in the old .xls format. Only .xlsx and .xlsm files are supported.',
+  'core.open.passwordNeeded': 'This workbook is password-protected. Enter its password to open it.',
+  'core.open.passwordWrong': "That password isn't right. Passwords are case-sensitive.",
+  'core.open.rightsProtected': "This workbook is protected by a sensitivity label or rights management, which only Microsoft's apps can open.",
+  'core.open.encryptionUnsupported': "This workbook is encrypted in a way the editor can't open. Save it from a recent Excel and try again.",
   'core.open.notWorkbook': 'This file is not an Excel workbook (.xlsx or .xlsm).',
   'core.open.tooManyParts': 'This file has more than {{max, number}} parts, which is more than a workbook should.',
   'core.open.unpacksTooBig': 'This file unpacks to more than {{max, number}} MB, which is more than this editor can hold.',
@@ -102,6 +106,8 @@ export const core = {
   'core.finding.pictures.title': 'Pictures',
   'core.finding.pictures.detail_one': '{{count, number}} picture. Shown here, and kept in the file; a picture in a format browsers don’t show (such as a Windows metafile) is shown as a placeholder.',
   'core.finding.pictures.detail_other': '{{count, number}} pictures. Shown here, and kept in the file; a picture in a format browsers don’t show (such as a Windows metafile) is shown as a placeholder.',
+  'core.finding.encrypted.title': 'Password-protected',
+  'core.finding.encrypted.detail': "Opened with its password, and saved encrypted with it again, as Excel saves it. Unsaved changes to it aren't kept in the browser.",
   'core.finding.shapes.title': 'Shapes and text boxes',
   'core.finding.shapes.detail_one': '{{count, number}} shape. Shown here, and kept in the file; groups, freeform shapes and the rarer kinds of shape are shown as placeholders.',
   'core.finding.shapes.detail_other': '{{count, number}} shapes. Shown here, and kept in the file; groups, freeform shapes and the rarer kinds of shape are shown as placeholders.',

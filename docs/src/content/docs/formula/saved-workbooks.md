@@ -48,4 +48,6 @@ A reference to a sheet that isn't there, or to no cell, throws an `Error`, and s
 
 When the engine's value for a formula differs from the one the file saved, the formula keeps the saved value, and is listed in `differs`: a workbook saved by Excel holds Excel's own answers. A file saved by a program that doesn't calculate may hold values that are out of date instead; `ignoreSavedValues: true` gives every formula the engine's value.
 
+A password-protected workbook needs its `password`, and comes back in `bytes` encrypted with it again.
+
 A formula the engine can't calculate, such as one linking to another workbook, keeps its saved value either way. The editor's [known limits](/guides/excel-fidelity/#known-limits) say what the engine leaves out.

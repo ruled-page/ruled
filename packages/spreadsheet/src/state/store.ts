@@ -83,6 +83,7 @@ import {
   createI18n,
   english,
   errorText,
+  isMessage,
   msg,
   TextError,
   translator,
@@ -644,7 +645,10 @@ export class WorkbookStore {
   /** The draft being written, which reopening waits for. */
   private draftWrite?: Promise<unknown>;
   /** The file as opened, to open again if the worker fails. */
-  private source?: { fileName: string; bytes: ArrayBuffer };
+  private source?: { fileName: string; bytes: ArrayBuffer; password?: string };
+
+  /** A password-protected workbook waiting for its password: whether the last one tried was wrong, and where the answer goes (undefined: cancelled). */
+  passwordRequest?: { fileName: string; wrong: boolean; resolve: (password: string | undefined) => void };
   /** Reopen with live recalculation off: building the engine is what failed. */
   private reopenWithoutRecalc = false;
   /** Waits for the engine's report after opening, in case building it hangs. */
@@ -1018,7 +1022,7 @@ export class WorkbookStore {
   async reopen(): Promise<void> {
     if (!this.canReopen || !this.source) return;
     await this.draftWrite;
-    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined);
+    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined, this.source.password);
   }
 
   // ---------------------------------------------------------------------------
@@ -1048,8 +1052,8 @@ export class WorkbookStore {
     return this.load(fileName, bytes);
   }
 
-  /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed. */
-  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc']): Promise<OpenResult> {
+  /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed; `password` opens a protected workbook. */
+  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc'], password?: string): Promise<OpenResult> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
     const started = performance.now();
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
@@ -1057,7 +1061,7 @@ export class WorkbookStore {
     // A fresh worker per file releases the previous workbook's memory.
     this.worker = this.startWorker();
     // The worker gets a copy, leaving the caller's buffer intact and one to reopen from.
-    this.source = { fileName, bytes };
+    this.source = { fileName, bytes, password };
     this.reopenWithoutRecalc = false;
     Object.assign(this, {
       status: 'loading',
@@ -1092,7 +1096,7 @@ export class WorkbookStore {
     try {
       const copy = bytes.slice(0);
       const res = await this.request(
-        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc } } as Omit<WorkerRequest, 'id'>,
+        { type: 'open', bytes: copy, fileName, locale: this.locale || 'en-US', options: { limits: this.options.limits, macros: this.options.macros, activeContent: this.options.activeContent, recalc: recalc ?? this.options.recalc, password } } as Omit<WorkerRequest, 'id'>,
         [copy],
       );
       if (res.type !== 'opened') throw new Error('Unexpected response');
@@ -1113,6 +1117,8 @@ export class WorkbookStore {
       this.names = r.names ?? [];
       this.trustedLinks.clear();
       this.timings = r.timings;
+      // A protected workbook's contents aren't kept in the browser, unencrypted, as drafts.
+      if (r.encrypted) this.draftKey = undefined;
       this.active = Math.max(0, r.sheets.findIndex((s) => s.state === 'visible'));
       this.status = 'ready';
       this.stage = '';
@@ -1122,6 +1128,12 @@ export class WorkbookStore {
       this.announce(msg('store.announce.opened', { fileName: this.fileName, count: this.sheets.length }));
     } catch (err) {
       if ((err as Error).message === 'Superseded') return { opened: false, cancelled: true };
+      // A protected workbook asks for its password, and again while it's wrong.
+      const reason = errorText(err);
+      if (isMessage(reason) && (reason.key === 'core.open.passwordNeeded' || reason.key === 'core.open.passwordWrong')) {
+        const next = await this.askPassword(fileName, reason.key === 'core.open.passwordWrong');
+        if (next !== undefined) return this.load(fileName, bytes, recalc, next);
+      }
       // A failed worker has already said so.
       if (this.status !== 'error') {
         this.status = 'error';
@@ -1135,7 +1147,7 @@ export class WorkbookStore {
       return { opened: false, error };
     }
     this.emit({ type: 'opened', fileName, ms: Math.round(performance.now() - started), sheets: this.sheets.length });
-    if (key) await this.offerDraft(key);
+    if (key && this.draftKey === key) await this.offerDraft(key);
     return { opened: true };
   }
 
@@ -4230,6 +4242,23 @@ export class WorkbookStore {
 
   // ---------------------------------------------------------------------------
   // Dialogs and messages
+
+  /** Asks for a protected workbook's password; undefined when the user cancels. */
+  private askPassword(fileName: string, wrong: boolean): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      this.passwordRequest?.resolve(undefined);
+      this.passwordRequest = {
+        fileName,
+        wrong,
+        resolve: (password) => {
+          this.passwordRequest = undefined;
+          this.notify();
+          resolve(password);
+        },
+      };
+      this.notify();
+    });
+  }
 
   /** Shows a dialog and resolves with the button chosen. */
   ask(req: Omit<ConfirmRequest, 'resolve'>): Promise<Answer> {

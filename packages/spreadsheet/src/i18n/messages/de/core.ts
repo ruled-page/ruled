@@ -3,7 +3,11 @@ import type { core as en } from '../en/core';
 /** German messages; every English key needs one (the type checks it). */
 export const core: Record<keyof typeof en, string> = {
   'core.open.tooBig': 'Diese Datei ist {{size, number}} MB groß; dieser Editor akzeptiert höchstens {{max, number}} MB.',
-  'core.open.oldFormat': 'Diese Datei ist kennwortgeschützt oder im alten .xls-Format. Nur .xlsx- und .xlsm-Dateien werden unterstützt.',
+  'core.open.oldFormat': 'Diese Datei ist im alten .xls-Format. Nur .xlsx- und .xlsm-Dateien werden unterstützt.',
+  'core.open.passwordNeeded': 'Diese Arbeitsmappe ist kennwortgeschützt. Geben Sie ihr Kennwort ein, um sie zu öffnen.',
+  'core.open.passwordWrong': 'Das Kennwort ist nicht richtig. Bei Kennwörtern wird die Groß- und Kleinschreibung beachtet.',
+  'core.open.rightsProtected': 'Diese Arbeitsmappe ist durch eine Vertraulichkeitsbezeichnung oder Rechteverwaltung geschützt, die nur Microsofts Apps öffnen können.',
+  'core.open.encryptionUnsupported': 'Diese Arbeitsmappe ist auf eine Weise verschlüsselt, die der Editor nicht öffnen kann. Speichern Sie sie in einer aktuellen Excel-Version und versuchen Sie es erneut.',
   'core.open.notWorkbook': 'Diese Datei ist keine Excel-Arbeitsmappe (.xlsx oder .xlsm).',
   'core.open.tooManyParts': 'Diese Datei hat mehr als {{max, number}} Teile, mehr als eine Arbeitsmappe haben sollte.',
   'core.open.unpacksTooBig': 'Diese Datei ist entpackt größer als {{max, number}} MB, mehr als dieser Editor aufnehmen kann.',
@@ -106,6 +110,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.pictures.title': 'Bilder',
   'core.finding.pictures.detail_one': '{{count, number}} Bild. Wird hier angezeigt und bleibt in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
   'core.finding.pictures.detail_other': '{{count, number}} Bilder. Werden hier angezeigt und bleiben in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
+  'core.finding.encrypted.title': 'Kennwortgeschützt',
+  'core.finding.encrypted.detail': 'Mit ihrem Kennwort geöffnet und wie in Excel wieder damit verschlüsselt gespeichert. Ungespeicherte Änderungen daran werden nicht im Browser aufbewahrt.',
   'core.finding.shapes.title': 'Formen und Textfelder',
   'core.finding.shapes.detail_one': '{{count, number}} Form. Wird hier angezeigt und bleibt in der Datei erhalten; Gruppen, Freihandformen und seltenere Formarten erscheinen als Platzhalter.',
   'core.finding.shapes.detail_other': '{{count, number}} Formen. Werden hier angezeigt und bleiben in der Datei erhalten; Gruppen, Freihandformen und seltenere Formarten erscheinen als Platzhalter.',

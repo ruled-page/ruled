@@ -20,8 +20,10 @@ needs no server, and nothing here should add one.
   here); that a range moved with Shift+drag keeps its size when it only
   changes the order of its cells; that Excel reads a colour filter for no
   fill or the automatic text colour as saved here (a format with a fill of
-  no pattern, or a font of the automatic colour); and that This Week and
-  the other week filters start on Sunday.
+  no pattern, or a font of the automatic colour); that This Week and the
+  other week filters start on Sunday; and that Excel opens a
+  password-protected workbook saved here (another tool, msoffcrypto-tool,
+  does, checking its integrity code).
 - **Typing with a real input method** (Japanese, Chinese, Korean) into a
   selected cell. The end-to-end tests compose text through Chromium's
   DevTools protocol; nobody has tried a real input method, or one in
@@ -53,15 +55,14 @@ needs no server, and nothing here should add one.
   list). A file's filters of this kind are kept as they are.
 - **Several people editing at once.** Live editing needs a server. A host
   can still turn down a save that conflicts (`SaveConflictError`).
-- **Password-protected and sensitivity-labelled files.** Refused with a
-  message. Password-protected files could be decrypted in the browser;
-  sensitivity-labelled ones can only be decrypted through Microsoft's
-  service.
+- **Sensitivity-labelled and rights-managed files.** Refused with a
+  message: only Microsoft's service can decrypt them. Password-protected
+  files open and are saved encrypted again.
 
 ## Could be smaller
 
-- **The standalone build carries its calculation worker inside it**: 184 kB
-  of its 372 kB gzipped (`packages/spreadsheet/src/editor/standalone.ts`
+- **The standalone build carries its calculation worker inside it**: 194 kB
+  of its 384 kB gzipped (`packages/spreadsheet/src/editor/standalone.ts`
   imports it with `?worker&inline`), so the one script works when served
   from another domain, as browsers start workers only from the page's own.
   Loading the worker from a file beside the script, as the React build does,

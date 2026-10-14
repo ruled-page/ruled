@@ -586,6 +586,7 @@ export type FindingKind =
   | 'sparkline'
   | 'hyperlink'
   | 'protection'
+  | 'encryption'
   | 'hiddenSheet'
   | 'arrayFormula'
   | 'mergedCells'
@@ -644,6 +645,8 @@ export interface LoadResult {
   properties: Record<string, string>;
   /** The workbook's structure is protected, so its sheets can't be added, deleted, renamed, moved, hidden or unhidden. */
   structureLocked?: boolean;
+  /** The workbook was opened with a password, and is saved encrypted with it. */
+  encrypted?: boolean;
 }
 
 export interface CalcSample {

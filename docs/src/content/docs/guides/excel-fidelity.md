@@ -33,6 +33,8 @@ Macros (or removed, if you set `macros: 'remove'`), grouped and freeform shapes 
 
 The editor writes back only what changed: the cells and parts edits touched. Everything else is carried over from the original file, and a workbook nobody changed is saved byte for byte. Saved files are checked against Microsoft's Open XML SDK validator in the editor's own test suite.
 
+A password-protected workbook is saved encrypted with its password again, with AES-256 and SHA-512 as Excel 2010 and later encrypt; one encrypted the older way, by Excel 2007, is saved the newer way. See [Password-protected workbooks](/guides/opening-and-saving/#password-protected-workbooks).
+
 Excel recalculates a saved workbook when it opens it. Formulas the editor can't calculate keep Excel's last result until then, and a save lists them as `outOfDate` so your app doesn't rely on them.
 
 ## Known limits

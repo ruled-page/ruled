@@ -26,7 +26,7 @@ const GROUPS: { id: GroupId; title: MessageKey; blurb: MessageKey; kinds: Findin
     id: 'limits',
     title: 'report.limitsTitle',
     blurb: 'report.limitsBlurb',
-    kinds: ['table', 'protection', 'arrayFormula', 'mergedCells', 'autoFilter', 'richText'],
+    kinds: ['encryption', 'table', 'protection', 'arrayFormula', 'mergedCells', 'autoFilter', 'richText'],
   },
 ];
 

@@ -73,6 +73,7 @@ import { restructure } from './restructure';
 import { refMapFor, type LineOp, type RefMap } from './refTransform';
 import { applySheetOp } from './sheetOps';
 import { isSheetOp, sheetIndexMap, type SheetOp, type WorkbookOp } from './sheetRules';
+import { decryptWorkbook, encryptWorkbook, EncryptionError, protectionOf } from './encryption';
 import { OoxmlPackage, type PackageLimits } from './zip';
 
 export interface OpenOptions {
@@ -99,6 +100,35 @@ export interface OpenOptions {
    * don't calculate.
    */
   savedValues?: 'compare' | 'ignore';
+  /**
+   * The password of a password-protected workbook. Without it, or with a
+   * wrong one, opening fails with core.open.passwordNeeded or
+   * core.open.passwordWrong. The workbook is saved encrypted with it again.
+   */
+  password?: string;
+}
+
+/**
+ * A password-protected workbook's package, decrypted, and the password it
+ * opened with; undefined for a workbook that isn't protected. Refuses one
+ * that needs a password it wasn't given, or protection the editor can't open.
+ */
+function unlock(bytes: Uint8Array, password: string | undefined): { zip: Uint8Array; password: string } | undefined {
+  switch (protectionOf(bytes)) {
+    case 'none':
+      return undefined;
+    case 'rights':
+      throw new TextError(msg('core.open.rightsProtected'));
+    case 'other':
+      throw new TextError(msg('core.open.oldFormat'));
+  }
+  if (password === undefined) throw new TextError(msg('core.open.passwordNeeded'));
+  try {
+    return { zip: decryptWorkbook(bytes, password), password };
+  } catch (e) {
+    if (e instanceof EncryptionError) throw new TextError(msg(e.reason === 'password' ? 'core.open.passwordWrong' : 'core.open.encryptionUnsupported'));
+    throw e;
+  }
 }
 
 const DEFAULT_MAX_CELLS = 2_000_000;
@@ -369,6 +399,8 @@ export class WorkbookSession {
   private readonly pkg: OoxmlPackage;
   /** The file as opened; null after a structural change, when the session is built from a package. */
   private readonly originalBytes: Uint8Array | null;
+  /** A password-protected workbook's password, which it is saved encrypted with again. */
+  private password?: string;
   private readonly timings: Record<string, number>;
   private engine?: FormulaEngine;
   /** The kind of engine this workbook is calculated with, chosen before it was opened. */
@@ -728,7 +760,8 @@ export class WorkbookSession {
     const maxCells = options.limits?.maxCells ?? DEFAULT_MAX_CELLS;
     // A CSV file becomes a workbook package of one sheet, so it is edited and saved like any other.
     const csv = isCsvFile(fileName);
-    const pkg = csv ? csvPackage(bytes, fileName, locale, maxCells, options.limits) : OoxmlPackage.open(bytes, options.limits);
+    const unlocked = csv ? undefined : unlock(bytes, options.password);
+    const pkg = csv ? csvPackage(bytes, fileName, locale, maxCells, options.limits) : OoxmlPackage.open(unlocked?.zip ?? bytes, options.limits);
     const t1 = performance.now();
     const model = readWorkbook(pkg, locale, { left: maxCells, max: maxCells });
     const t2 = performance.now();
@@ -757,6 +790,8 @@ export class WorkbookSession {
       locale,
     );
     session.stripMacros = model.hasMacros && macros === 'remove';
+    session.password = unlocked?.password;
+    if (unlocked) model.findings.unshift({ kind: 'encryption', severity: 'info', title: msg('core.finding.encrypted.title'), detail: msg('core.finding.encrypted.detail') });
     const formulas = model.sheets.reduce((n, m) => n + (m.scan?.grid.formulas.size ?? 0), 0);
     session.ignoreSaved = options.savedValues === 'ignore';
     const recalc = options.recalc ?? 'auto';
@@ -777,6 +812,7 @@ export class WorkbookSession {
       timings: this.timings,
       properties: this.model.properties,
       structureLocked: this.model.structureLocked,
+      ...(this.password && { encrypted: true }),
     };
   }
 
@@ -3026,9 +3062,19 @@ export class WorkbookSession {
       if (!this.stripMacros && this.originalBytes) return this.originalBytes;
       const pkg = this.pkg.clone();
       if (this.stripMacros) removeMacros(pkg, this.model.workbookPath);
-      return pkg.toBytes();
+      return this.sealed(pkg.toBytes());
     }
-    return writeWorkbook({ ...this.saveInput(), properties });
+    return this.sealed(writeWorkbook({ ...this.saveInput(), properties }));
+  }
+
+  /** Saved bytes as the file is kept: encrypted again with its password, when it had one. */
+  private sealed(bytes: Uint8Array): Uint8Array {
+    return this.password ? encryptWorkbook(bytes, this.password) : bytes;
+  }
+
+  /** Whether the workbook was opened with a password, and is saved with it. */
+  get encrypted(): boolean {
+    return !!this.password;
   }
 
   /**
@@ -3037,7 +3083,7 @@ export class WorkbookSession {
    * where save() would give back the bytes it was opened from.
    */
   saveRecalculated(): Uint8Array {
-    return writeWorkbook(this.saveInput());
+    return this.sealed(writeWorkbook(this.saveInput()));
   }
 
   /** The workbook with every edit written in, as a package. */
@@ -3171,6 +3217,7 @@ export class WorkbookSession {
     const next = new WorkbookSession(pkg, null, this.fileName, readWorkbook(pkg, this.locale), {}, this.locale);
     next.stripMacros = this.stripMacros;
     next.recalcOff = this.recalcOff;
+    next.password = this.password;
     if (broken) {
       next.structureWarnings.push(msg('core.structure.brokenRefs', { count: broken, error: '#REF!' }));
     }
