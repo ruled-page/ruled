@@ -34,10 +34,11 @@ needs no server, and nothing here should add one.
 
 - **Slicers and timelines.** Kept in the file; not shown, and pivot tables
   and tables aren't filtered by them here.
-- **Shapes and text boxes.** Kept in the file and shown as placeholder
-  boxes where they sit, which can be selected, moved, resized and deleted.
-  Excel has about 180 kinds of shape, each its own outline, with text and
-  effects; rectangles and text boxes would be the place to start.
+- **Grouped, freeform and the rarer kinds of shape** (clouds, callouts,
+  banners, block arcs and the rest of Excel's 180 or so). Kept in the file
+  and shown as placeholders; the common kinds, text boxes among them, are
+  drawn. Gradients are drawn in their first colour, and shadows and other
+  effects are left out. A shape's text can't be edited here.
 - **Surface charts and Excel 2016's newer kinds** (waterfall, histogram,
   treemap, funnel and the rest). Kept in the file and shown as placeholders;
   the other kinds are drawn, and a host can turn drawing off

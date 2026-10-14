@@ -13,7 +13,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 - **Charts**, drawn from the current cells: column, bar, line, area, pie, doughnut, scatter, radar, bubble and stock charts, and 3-D charts drawn flat. People insert, move, resize, restyle and delete them as in Excel.
 - **Pivot tables**, worked out again as their source changes, with Excel's PivotTable Fields pane, filters, subtotals, grand totals, compact, outline and tabular forms, and Show Values As. People insert their own.
 - **Conditional formatting**: cell rules, top and bottom, averages, duplicates, colour scales, data bars and icon sets.
-- **Pictures**, drawn where they sit; people move, resize and delete them as in Excel.
+- **Pictures, shapes and text boxes**, drawn where they sit; people move, resize and delete them as in Excel.
 - **Sparklines**: line, column and win/loss, with their markers, high, low, first, last and negative points, and axis.
 
 ## Shown and edited
@@ -27,7 +27,7 @@ Ruled opens the workbooks people already have and gives them back as Excel files
 
 ## Kept as it was
 
-Macros (or removed, if you set `macros: 'remove'`), shapes and text boxes (shown as placeholders), slicers and timelines, external links, embedded objects, custom XML and anything else in the file the editor doesn't draw. The editor's "What's in this file" report lists what a workbook holds that it keeps without showing.
+Macros (or removed, if you set `macros: 'remove'`), grouped and freeform shapes (shown as placeholders), slicers and timelines, external links, embedded objects, custom XML and anything else in the file the editor doesn't draw. The editor's "What's in this file" report lists what a workbook holds that it keeps without showing.
 
 ## The saved file
 
@@ -46,6 +46,7 @@ What the file holds is kept in each case; these are limits on how the editor sho
 - Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Excel's newer chart kinds (waterfall, treemap, histogram, funnel) and surface charts show as placeholders.
 - Excel's built-in table styles are drawn from each style's pattern in the theme's colours: close to Excel, not exact. A file's own table styles are drawn as it defines them.
 - Pictures are drawn cropped, turned and flipped as the file sets them, but without their borders, shadows and other effects. Pictures in formats browsers don't show, such as Windows metafiles (.emf, .wmf) and TIFFs, show as placeholders.
+- Shapes are drawn in their fill, outline and text, as the file or its theme's styles set them: rectangles, rounded rectangles, ellipses, triangles, diamonds, parallelograms, trapezoids, pentagons, hexagons, octagons, chevrons, arrows, stars, crosses, the flowchart's basic boxes, lines and connectors. Gradients are drawn in their first colour, and shadows, glows and 3-D effects are left out. Grouped shapes, freeform shapes and the rarer kinds show as placeholders. A shape's text can't be changed here.
 - Sparklines are drawn with their points evenly spaced, even on a date axis, and can't be changed here; they move with their cells.
 - Conditional formatting's data bars start from zero, without a separate axis for negative values, and its icons are simpler drawings of Excel's. On a sheet with very many formula rules, rules past 200,000 cells' worth of formulas aren't applied.
 

@@ -295,6 +295,40 @@ export interface SheetObject {
   chartXml?: string;
   /** A picture: its image part, and how it is cropped (fractions of the image cut from each edge), turned (degrees clockwise) and flipped. */
   picture?: { part: string; crop?: { l: number; t: number; r: number; b: number }; rotate?: number; flipH?: boolean; flipV?: boolean };
+  /** A shape or text box of a kind the editor draws, as it is drawn. */
+  shape?: ShapeSpec;
+}
+
+/** A shape as drawn: one of Excel's preset outlines, its fill, its line and its text. Colours are resolved, sizes in pixels. */
+export interface ShapeSpec {
+  /** The preset, by the name Excel's files use (rect, roundRect, rightArrow…). */
+  geometry: string;
+  /** The preset's adjustments (a rounded corner's radius, an arrow's head), by name, in 100,000ths. */
+  adjust?: Record<string, number>;
+  /** None when missing. */
+  fill?: string;
+  /** None when missing; `dash` is Excel's preset name (dash, sysDot…), and a line's ends may have arrowheads. */
+  line?: { color: string; width: number; dash?: string; head?: 'arrow' | 'oval'; tail?: 'arrow' | 'oval' };
+  /** Degrees clockwise. */
+  rotate?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  text?: ShapeText;
+}
+
+/** The text in a shape: its paragraphs of runs, where it sits, and how far in from the box's edges (left, top, right, bottom). */
+export interface ShapeText {
+  paragraphs: {
+    align: 'left' | 'center' | 'right' | 'justify';
+    /** A run's size in pixels; its font missing for the workbook's own. A run of "\n" is a line break. */
+    runs: { text: string; size?: number; bold?: boolean; italic?: boolean; underline?: boolean; color?: string; font?: string }[];
+    /** An empty paragraph's size. */
+    size?: number;
+  }[];
+  anchor: 'top' | 'middle' | 'bottom';
+  insets: [number, number, number, number];
+  nowrap?: boolean;
+  vertical?: boolean;
 }
 
 export interface BlockedRegion extends Rect {

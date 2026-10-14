@@ -159,7 +159,8 @@ describe('reading chart parts', () => {
     expect(color('<a:schemeClr val="accent1"><a:lumMod val="75000"/></a:schemeClr>')).toBe('#2F5597');
     expect(color('<a:schemeClr val="bg1"><a:lumMod val="85000"/></a:schemeClr>')).toBe('#D9D9D9');
     expect(color('<a:srgbClr val="808080"><a:tint val="50000"/></a:srgbClr>')).toMatch(/^#[0-9A-F]{6}$/);
-    expect(color('<a:srgbClr val="808080"><a:shade val="50000"/></a:srgbClr>')).toBe('#404040');
+    // A shade darkens in linear light, as Excel does: half of mid-grey's light is #5C5C5C, not #404040.
+    expect(color('<a:srgbClr val="808080"><a:shade val="50000"/></a:srgbClr>')).toBe('#5C5C5C');
     expect(color('<a:srgbClr val="FF0000"><a:alpha val="50000"/></a:srgbClr>')).toBe('rgba(255, 0, 0, 0.5)');
     expect(color('<a:sysClr val="windowText" lastClr="000000"/>')).toBe('#000000');
     expect(color('<a:sysClr val="window"/>')).toBe('#FFFFFF');

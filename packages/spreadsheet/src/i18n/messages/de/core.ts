@@ -107,8 +107,8 @@ export const core: Record<keyof typeof en, string> = {
   'core.finding.pictures.detail_one': '{{count, number}} Bild. Wird hier angezeigt und bleibt in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
   'core.finding.pictures.detail_other': '{{count, number}} Bilder. Werden hier angezeigt und bleiben in der Datei erhalten; ein Bild in einem Format, das Browser nicht anzeigen (etwa eine Windows-Metadatei), erscheint als Platzhalter.',
   'core.finding.shapes.title': 'Formen und Textfelder',
-  'core.finding.shapes.detail_one': '{{count, number}} Form. Bleibt in der Datei erhalten; wird hier als Platzhalter angezeigt.',
-  'core.finding.shapes.detail_other': '{{count, number}} Formen. Bleiben in der Datei erhalten; werden hier als Platzhalter angezeigt.',
+  'core.finding.shapes.detail_one': '{{count, number}} Form. Wird hier angezeigt und bleibt in der Datei erhalten; Gruppen, Freihandformen und seltenere Formarten erscheinen als Platzhalter.',
+  'core.finding.shapes.detail_other': '{{count, number}} Formen. Werden hier angezeigt und bleiben in der Datei erhalten; Gruppen, Freihandformen und seltenere Formarten erscheinen als Platzhalter.',
   'core.finding.controls.title': 'Formularsteuerelemente',
   'core.finding.controls.detail_one':
     '{{count, number}} Schaltfläche oder Formularsteuerelement. Bleibt in der Datei erhalten; wird hier weder angezeigt noch kann es verwendet werden.',

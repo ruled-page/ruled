@@ -8,7 +8,6 @@
  */
 import { parseA1Ref } from '@borgar/fx';
 import { MAX_COLS, MAX_ROWS } from '@ruled/formula/refs';
-import { tintColor } from './styles';
 import type { Rect } from './types';
 import { attr, child, children, descendants, type XmlNode } from './xml';
 
@@ -174,6 +173,18 @@ function luminance(hex: string, mod: number, off: number): string {
   return hex2((r1 + m) * 255) + hex2((g1 + m) * 255) + hex2((b1 + m) * 255);
 }
 
+/** A colour with `fn` applied to each channel in linear light, as DrawingML's tint and shade are. */
+function linearly(hex: string, fn: (c: number) => number): string {
+  return [0, 2, 4]
+    .map((i) => {
+      const s = parseInt(hex.slice(i, i + 2), 16) / 255;
+      const lin = fn(s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
+      const out = lin <= 0.0031308 ? lin * 12.92 : 1.055 * lin ** (1 / 2.4) - 0.055;
+      return hex2(out * 255);
+    })
+    .join('');
+}
+
 /** The colour a DrawingML colour element (srgbClr, schemeClr…) stands for, as "#RRGGBB" or rgba(). */
 export function drawingColor(node: XmlNode | undefined, theme: string[]): string | undefined {
   if (!node) return undefined;
@@ -188,11 +199,11 @@ export function drawingColor(node: XmlNode | undefined, theme: string[]): string
   const lumMod = mod('lumMod');
   const lumOff = mod('lumOff');
   if (lumMod !== undefined || lumOff !== undefined) hex = luminance(hex, (lumMod ?? 100_000) / 100_000, (lumOff ?? 0) / 100_000);
-  // A tint keeps that much of the colour and adds white; a shade keeps that much and adds black.
+  // A tint keeps that much of the colour and adds white; a shade keeps that much and adds black; both in linear light.
   const tint = mod('tint');
-  if (tint !== undefined) hex = tintColor(hex, 1 - tint / 100_000).slice(1);
+  if (tint !== undefined) hex = linearly(hex, (c) => c * (tint / 100_000) + 1 - tint / 100_000);
   const shade = mod('shade');
-  if (shade !== undefined) hex = tintColor(hex, shade / 100_000 - 1).slice(1);
+  if (shade !== undefined) hex = linearly(hex, (c) => c * (shade / 100_000));
   const alpha = mod('alpha');
   if (alpha !== undefined && alpha < 100_000) {
     const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex!.slice(i, i + 2), 16));

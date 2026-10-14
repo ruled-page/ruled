@@ -3,6 +3,7 @@ import { parseChart, type ChartContext, type ChartSpec } from './charts';
 import { parseRange, rangeToA1, toA1 } from '@ruled/formula/refs';
 import { parseSharedStrings, scanSheet, type CellBudget, type ScanResult } from './sheetScanner';
 import { parseConditionalFormats } from './conditionalFormat';
+import { parseShape } from './shapes';
 import { parseSparklines } from './sparklines';
 import { readCustomProperties } from './properties';
 import { StyleBook } from './styles';
@@ -241,7 +242,10 @@ function readDrawing(pkg: OoxmlPackage, path: string, ctx: ChartContext): SheetO
       const picture = pictureOf(descendants(anchor, 'pic')[0], rels);
       out.push({ kind: 'image', name, from, to, sizePx, source, ...(picture && { picture }) });
     } else if (descendants(anchor, 'sp').length || descendants(anchor, 'grpSp').length || descendants(anchor, 'cxnSp').length) {
-      out.push({ kind: 'shape', name, from, to, sizePx, source });
+      // One shape or connector of a kind the editor draws; groups and the rest show as placeholders.
+      const own = anchor.children.find((c) => c.name === 'sp' || c.name === 'cxnSp');
+      const shape = own && parseShape(own, ctx.theme);
+      out.push({ kind: 'shape', name, from, to, sizePx, source, ...(shape && { shape }) });
     } else if (descendants(anchor, 'graphicFrame').length) {
       out.push({ kind: 'shape', name, from, to, sizePx, source });
     }

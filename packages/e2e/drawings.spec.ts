@@ -53,7 +53,7 @@ test('draws a sparkline from its cells, and again as they change', async ({ page
   await expect.poll(() => gridPixels(page, magenta)).toBeGreaterThan(40);
 });
 
-test('draws a picture where it sits, in place of a placeholder', async ({ page }) => {
+test('draws a picture and a text box where they sit, in place of placeholders', async ({ page }) => {
   // The demo's kitchen sink: a 48 pixel picture on its Notes sheet.
   const bytes = new Uint8Array(readFileSync(new URL('../../examples/demo/public/samples/kitchen-sink.xlsx', import.meta.url)));
   await openFile(page, 'kitchen-sink.xlsx', bytes);
@@ -62,6 +62,10 @@ test('draws a picture where it sits, in place of a placeholder', async ({ page }
   await expect(picture).toBeVisible();
   expect(await picture.evaluate((img: HTMLImageElement) => [img.complete, img.naturalWidth])).toEqual([true, 48]);
   await expect(page.locator('.wbe-object-image')).toHaveCount(0);
-  // A shape on the same sheet is still a placeholder.
-  await expect(page.locator('.wbe-object-shape')).toHaveCount(1);
+  // The text box beside it, with its text, in the editor's stand-in for Calibri where the device lacks it.
+  const box = page.getByRole('img', { name: 'TextBox 2: Text boxes are kept too.' });
+  await expect(box).toBeVisible();
+  await expect(box.locator('.wbe-shape-text')).toHaveText('Text boxes are kept too.');
+  expect(await box.locator('path').getAttribute('stroke')).toBe('#BCBCBC');
+  await expect(page.locator('.wbe-object-shape')).toHaveCount(0);
 });

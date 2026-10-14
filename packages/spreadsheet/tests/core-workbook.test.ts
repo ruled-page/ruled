@@ -127,7 +127,7 @@ describe('reading a workbook', () => {
   });
 
   it('counts diagrams as shapes and lists form controls, slicers and timelines', () => {
-    expect(of('shape').map((f) => f.detail)).toEqual(['1 shape. Kept in the file; shown here as placeholders.']);
+    expect(of('shape').map((f) => f.detail)).toEqual(['1 shape. Shown here, and kept in the file; groups, freeform shapes and the rarer kinds of shape are shown as placeholders.']);
     expect(of('control').map((f) => f.detail)).toEqual(['1 button or form control. Kept in the file; not shown or usable here.']);
     expect(of('slicer').map((f) => f.title)).toEqual(['Slicers', 'Timelines']);
   });

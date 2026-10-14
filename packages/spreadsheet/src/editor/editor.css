@@ -1524,6 +1524,31 @@
   user-select: none;
 }
 
+/* A shape is its outline drawn in SVG, with its text over it, in the file's own colours whatever the editor's theme. */
+.wbe .wbe-object-drawn-shape {
+  position: absolute;
+}
+
+.wbe .wbe-object-drawn-shape svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.wbe .wbe-shape-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 14.6667px;
+  line-height: 1.2;
+}
+
+.wbe .wbe-shape-text p {
+  margin: 0;
+}
+
 /* Charts are drawn on a canvas sized to their box; Chart.js needs the box to hold nothing else. */
 .wbe .wbe-object-box.wbe-drawn,
 .wbe .wbe-chart-sheet {

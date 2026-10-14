@@ -8,6 +8,12 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
+- Shapes and text boxes are drawn, in place of placeholders: rectangles,
+  ellipses, arrows, stars, lines and the other common kinds, with their
+  fill, outline and text, as the file or its theme sets them. Groups and the
+  rarer kinds stay placeholders.
+- Charts' theme colours made lighter or darker (tint and shade) come out as
+  Excel draws them.
 - Sorting by cell colour, font colour or conditional formatting's icon, on
   top or at the bottom, from the Sort dialog or a column's filter menu.
 - Filters by colour and by icon, and Excel's date filters by period (Today,

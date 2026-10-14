@@ -103,7 +103,7 @@ Answering `{ conflict: true }` does the same, and `{ conflict: 'Ana saved it at 
 
 ## What's kept in the file
 
-The editor writes back only what changed. Everything it doesn't show (shapes, slicers, macros, styles it doesn't use, and parts it doesn't understand) is kept as it was, and a workbook nobody changed is saved byte for byte. See [Excel fidelity](/guides/excel-fidelity/).
+The editor writes back only what changed. Everything it doesn't show (grouped shapes, slicers, macros, styles it doesn't use, and parts it doesn't understand) is kept as it was, and a workbook nobody changed is saved byte for byte. See [Excel fidelity](/guides/excel-fidelity/).
 
 ## Without saving
 

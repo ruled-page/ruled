@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
+import { lazy, Suspense, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import type { SheetObject } from '../core/types';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
+import { standIn } from '../grid/standInFonts';
 import { ChartSlot } from './ChartSlot';
 import { ContextMenu } from './ContextMenu';
 import type { GridHandle } from '../grid/contract';
@@ -56,6 +57,28 @@ function Placeholder({ box, style }: { box: Box; style: CSSProperties }) {
         </span>
       </div>
     </div>
+  );
+}
+
+// Shapes are drawn by a module of their own, loaded when a sheet has one to draw.
+const ShapeView = lazy(() => import('./ShapeView'));
+
+/** A font as CSS, with the free stand-in the grid draws it with where the device lacks it. */
+const fontStack = (family: string) => {
+  const stand = standIn(family);
+  return `"${family}", ${stand ? `"${stand}", ` : ''}sans-serif`;
+};
+
+/** A shape or text box of a kind the editor draws; its placeholder while the drawing loads. */
+function Shape({ store, box, style }: { store: WorkbookStore; box: Box; style: CSSProperties }) {
+  const t = useT();
+  const { shape } = box.obj;
+  const words = shape!.text?.paragraphs.map((p) => p.runs.map((r) => r.text).join('')).join(' ').trim();
+  const label = [box.obj.name || t('objects.shape'), words].filter(Boolean).join(': ');
+  return (
+    <Suspense fallback={<Placeholder box={box} style={style} />}>
+      <ShapeView shape={shape!} style={style} className="wbe-object-drawn-shape" label={label} font={store.styles[0]?.fontFamily ?? 'Calibri'} fontStack={fontStack} />
+    </Suspense>
   );
 }
 
@@ -118,8 +141,8 @@ function edgesFor(mode: Drag['mode'], dx: number, dy: number, width: number, hei
 /**
  * The workbook's charts, pictures and shapes where they sit over the grid:
  * charts drawn from the cells as they are now (when the editor draws
- * charts), pictures, and placeholders for the rest, which are kept but not
- * drawn.
+ * charts), pictures, shapes and text boxes of the kinds the editor draws,
+ * and placeholders for the rest, which are kept but not drawn.
  * Clicking one selects it, as in Excel: its frame then moves it, its handles
  * resize it, and Delete removes it.
  */
@@ -299,6 +322,8 @@ export function ObjectsOverlay({
             <ChartSlot key={b.key} store={store} obj={b.obj} placeholder={placeholder} className="wbe-object-box wbe-object-chart wbe-drawn" style={style} copy={b.continued} />
           ) : b.obj.picture ? (
             <Picture key={b.key} store={store} box={b} style={style} />
+          ) : b.obj.shape ? (
+            <Shape key={b.key} store={store} box={b} style={style} />
           ) : (
             <Placeholder key={b.key} box={b} style={style} />
           );
