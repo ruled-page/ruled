@@ -61,7 +61,8 @@ describe('data labels', () => {
       );
     const waterfall = ex('waterfall', '<cx:dataLabels pos="outEnd"><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabels>');
     expect(waterfall.groups[0].series[0].labels).toEqual({ value: true, category: false, series: false, percent: false, position: 'outEnd' });
-    expect(datasets(waterfall).sets.map((d) => d.wbeLabels.texts)).toEqual([['100', '-25'], ['100', '-25']]);
+    // Increase, Decrease and Total, each labelling its own points.
+    expect(datasets(waterfall).sets.map((d) => d.wbeLabels.texts)).toEqual([['100', '-25'], ['100', '-25'], ['100', '-25']]);
     const funnel = ex('funnel', '<cx:dataLabels/>');
     expect(datasets(funnel).sets[0].wbeLabels).toEqual({ texts: ['100', '-25'], position: 'ctr' });
     expect(ex('funnel', '').groups[0].series[0].labels).toBeUndefined();

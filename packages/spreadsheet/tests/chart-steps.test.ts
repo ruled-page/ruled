@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { parseChartEx } from '../src/core/charts';
+import { WorkbookSession } from '../src/core/session';
+import { SheetView } from '../src/state/sheetView';
 import { parseXml } from '../src/core/xml';
 import { english } from '../src/i18n';
 import { plotChart } from '../src/state/charts';
@@ -59,5 +62,33 @@ describe("Excel 2016's waterfall and funnel charts", () => {
   it('leave the other newer kinds as placeholders', () => {
     expect(parseChartEx(chartEx('treemap', ['A'], [1]), ctx).unsupported).toBe('treemap');
     expect(parseChartEx(chartEx('clusteredColumn', ['A'], [1]), ctx).unsupported).toBe('clusteredColumn');
+  });
+});
+
+describe('a waterfall and a funnel made in Excel for the web', () => {
+  // tests/corpus/waterfall-funnel.xlsx: Step/Amount in A1:B6 (Start 100, Sales 60, Refunds -25, Costs -40, End 95, no totals) and Stage/People in D1:E5.
+  const s = WorkbookSession.open(new Uint8Array(readFileSync(new URL('./corpus/waterfall-funnel.xlsx', import.meta.url))), 'w.xlsx');
+  const r = s.loadResult();
+  const src = { sheets: r.sheets.map((info, i) => new SheetView(info, r.grids[i])), styles: r.styles, date1904: r.date1904 };
+  const [waterfall, funnel] = r.sheets[0].objects.map((o) => o.chart!);
+
+  it('are read through the hidden names Excel refers to its data by, with no saved points', () => {
+    expect(waterfall.groups[0]).toMatchObject({ kind: 'waterfall', gapWidth: 50 });
+    expect(waterfall.groups[0].subtotals).toBeUndefined();
+    expect(waterfall.groups[0].series[0].values).toMatchObject({ formula: '_xlchart.v1.2', ref: { sheet: 0, rect: { r1: 1, c1: 1, r2: 5, c2: 1 } }, cache: [] });
+    expect(funnel.groups[0]).toMatchObject({ kind: 'funnel' });
+    expect(funnel.groups[0].gapWidth).toBeCloseTo(6);
+    expect(funnel.axes.value).toBeUndefined();
+  });
+
+  it('are drawn from the cells, with the labels and legend the file asks for', () => {
+    const w = plotChart(waterfall, src);
+    expect([w.categories, w.groups[0].series[0].values, w.groups[0].series[0].name]).toEqual([['Start', 'Sales', 'Refunds', 'Costs', 'End'], [100, 60, -25, -40, 95], 'Amount']);
+    const sets = chartConfig(w, LOOK, english.text).data.datasets as Loose[];
+    expect(sets.map((d) => d.label)).toEqual(['Increase', 'Decrease', 'Total']);
+    expect(sets[0].wbeLabels.texts[0]).toBe('Amount, Start, 100');
+    const f = chartConfig(plotChart(funnel, src), LOOK, english.text).data.datasets as Loose[];
+    expect(f[0].data).toEqual([[-250, 250], [-110, 110], [-45, 45], [-17.5, 17.5]]);
+    expect(f[0].wbeLabels).toEqual({ texts: ['500', '220', '90', '35'], position: 'ctr' });
   });
 });

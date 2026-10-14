@@ -487,15 +487,14 @@ function stepsConfig(
     });
     values = [0, ...steps.flatMap((p) => (p ? [p.from, p.to] : []))];
     const names = [msg('charts.waterfall.increase'), msg('charts.waterfall.decrease'), msg('charts.waterfall.total')];
-    datasets = names
-      .map((name, k) => ({
+    // All three, as Excel's legend lists them, though no point may be a total.
+    datasets = names.map((name, k) => ({
         ...bar,
         label: text(name),
         data: steps.map((p) => (p && p.kind === k ? [p.from, p.to] : null)),
         ...labelsOf(s, 'outEnd'),
         backgroundColor: steps.map((_, i) => s.style.pointColors?.[i] ?? palette[k % palette.length]),
-      }))
-      .filter((d) => d.data.some((v) => v !== null)) as ChartDataset[];
+      })) as ChartDataset[];
   }
   const value = funnel ? ({ type: 'linear', display: false, grid: { display: false } } as ScaleOptions) : valueScale(plot.axes.value, 'left', values, false, plot.axes.value?.format ?? s.format);
   return {
