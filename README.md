@@ -218,21 +218,42 @@ deploying, and `npm run pages:dev` serves the demo as Pages would.
 
 ## Releases
 
+`@ruled/formula` and `@ruled/sheet` are released together, at one version.
 Versions follow semantic versioning; before 1.0.0, a minor version may change
 the API. `packages/spreadsheet/CHANGELOG.md` says what changed: add notes
-under "Unreleased" as you go. Then, from a clean working tree:
+under "Unreleased" as you go.
 
-```bash
-npm run release -- minor
-```
+1. **Prepare.** Run the *Prepare release* workflow from the Actions tab with
+   `patch`, `minor`, `major` or a version (`1.2.0`, or `1.2.0-beta.1` for a
+   prerelease). It sets both packages to the version, moves the Unreleased
+   notes under it, writes `THIRD-PARTY-NOTICES.md` again, and opens a pull
+   request from `release/vX.Y.Z` with the notes. CI runs on it.
+2. **Merge it.** The *Release* workflow then publishes both packages to npm,
+   tags the merge `vX.Y.Z` with a GitHub release holding the notes and the
+   packages, and deploys the docs and the example sites. A prerelease goes to
+   npm under the `next` tag and deploys nothing.
 
-(or `patch`, `major`, or a version). It runs the checks CI runs short of the
-browser tests, sets the version, moves the notes under it, writes
-`THIRD-PARTY-NOTICES.md` again, commits, tags and packs the package into
-`releases/`. Nothing is pushed or published.
+Run *Release* from the Actions tab to finish a release that stopped part way
+(what's done is skipped), or as a dry run, which builds and packs only.
+
+### Setting up
+
+- **npm.** The workflow publishes through npm's trusted publishing, with no
+  token. npm only trusts a publisher for a package that exists, so the first
+  time, *Release* stops at npm: publish each package once by hand from the
+  packages attached to that run (`npm publish ruled-formula-X.Y.Z.tgz
+  --access public`, then `@ruled/sheet`'s), then on npmjs.com add a trusted
+  publisher to each (GitHub Actions; owner `ruled-page`, repository `ruled`,
+  workflow `release.yml`), and run *Release* again. After that, setting each
+  package to "Require two-factor authentication and disallow tokens" leaves
+  the workflow as the only way to publish without you.
+- **Repository secrets.** `RELEASE_TOKEN`: a fine-grained personal access
+  token with contents and pull requests write access to this repository, so
+  CI runs on the release branch. `CLOUDFLARE_API_TOKEN` (with Cloudflare
+  Pages edit access) and `CLOUDFLARE_ACCOUNT_ID`, for the deploys.
 
 ## Licence
 
-Proprietary; see `LICENSE`. The builds include open-source packages, listed
+MIT; see `LICENSE`. The builds include open-source packages, listed
 with their licence texts in `packages/spreadsheet/THIRD-PARTY-NOTICES.md`,
 which `npm run notices` writes and the package ships.

@@ -4,7 +4,7 @@
   "description": "The editor's demo site, with the sample workbooks",
   "type": "module",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

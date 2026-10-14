@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Ruled: the spreadsheet editor and its calculation engine, with example apps",
   "author": "Anthony Gubler",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "workspaces": [
     "packages/formula-engine",
     "packages/spreadsheet",

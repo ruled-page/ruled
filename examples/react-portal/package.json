@@ -4,7 +4,7 @@
   "description": "The editor embedded in a React supplier portal",
   "type": "module",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

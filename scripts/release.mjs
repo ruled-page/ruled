@@ -1,23 +1,27 @@
 /**
- * Makes a release of the package:
+ * The steps of a release that change the repository, for the release
+ * workflows in .github/workflows (see README "Releases"):
  *
- *   npm run release -- 0.2.0          a version
- *   npm run release -- patch          or the next patch, minor or major
- *                                     version after the last release
+ *   node scripts/release.mjs prepare <version | patch | minor | major>
+ *       Sets both packages, @ruled/formula and @ruled/sheet, to the version
+ *       (or the next patch, minor or major one after the last release),
+ *       moves the changelog's Unreleased notes under it and writes the
+ *       third-party notices again, which needs `npm run build:lib` first.
+ *       Commits nothing. Prints the version, and with GITHUB_OUTPUT set
+ *       writes it there as `version`, and whether it's a prerelease.
  *
- * From a clean working tree, it runs the checks CI runs short of the
- * browser tests, sets the version, moves the changelog's Unreleased notes
- * under it, writes the third-party notices again, commits, tags vX.Y.Z and
- * packs the package into releases/. Nothing is pushed or published.
+ *   node scripts/release.mjs notes [version]
+ *       Prints a version's notes from the changelog: by default the version
+ *       the packages are at.
  */
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-/** The package released: the editor, @ruled/sheet. */
-const pkg = join(root, 'packages', 'spreadsheet');
+const sheet = join(root, 'packages', 'spreadsheet');
+const changelogPath = join(sheet, 'CHANGELOG.md');
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const run = (command) => execSync(command, { cwd: root, stdio: 'inherit' });
 const fail = (message) => {
@@ -26,42 +30,52 @@ const fail = (message) => {
 };
 
 const SEMVER = /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/;
-const asked = process.argv[2];
-if (!asked) fail('Say which version: npm run release -- <version | patch | minor | major>');
-
-// Released versions are the v-tags; before the first, the last is 0.0.0.
-const last = git('tag', '--list', 'v*', '--sort=-v:refname').split('\n')[0]?.replace(/^v/, '') || '0.0.0';
-const [major, minor, patch] = SEMVER.exec(last).slice(1, 4).map(Number);
-const next = { major: `${major + 1}.0.0`, minor: `${major}.${minor + 1}.0`, patch: `${major}.${minor}.${patch + 1}` }[asked] ?? asked;
-if (!SEMVER.test(next)) fail(`"${asked}" isn't a version (such as 1.2.3) or patch, minor or major.`);
 const order = (v) => SEMVER.exec(v).slice(1, 4).map(Number);
+/** Whether version `a` comes after `b`: a higher number, or the release of the prerelease `b`. */
 const later = (a, b) => {
   const [x, y] = [order(a), order(b)];
   const i = x.findIndex((n, k) => n !== y[k]);
   return i < 0 ? a !== b && !a.includes('-') && b.includes('-') : x[i] > y[i];
 };
-if (last !== '0.0.0' && !later(next, last)) fail(`${next} doesn't come after the last release, ${last}.`);
 
-// Untracked files can't reach the package, which ships only what package.json lists.
-if (git('status', '--porcelain', '--untracked-files=no')) fail('Commit or put aside your changes first: a release is made from a clean working tree.');
+/** A version's notes: what the changelog has under its heading, up to the next. */
+function notes(version) {
+  const changelog = readFileSync(changelogPath, 'utf8');
+  const escaped = version.replace(/[.+-]/g, '\\$&');
+  const found = new RegExp(`^## ${escaped} \\(.*\\)\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm').exec(changelog);
+  if (!found) fail(`CHANGELOG.md has no notes under "## ${version}".`);
+  return found[1].trim();
+}
 
-const changelogPath = join(pkg, 'CHANGELOG.md');
-const changelog = readFileSync(changelogPath, 'utf8');
-const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
-if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
+function prepare(asked) {
+  if (!asked) fail('Say which version: node scripts/release.mjs prepare <version | patch | minor | major>');
+  // Released versions are the v-tags; before the first, the last is 0.0.0.
+  const last = git('tag', '--list', 'v*', '--sort=-v:refname').split('\n')[0]?.replace(/^v/, '') || '0.0.0';
+  const [major, minor, patch] = order(last);
+  const next = { major: `${major + 1}.0.0`, minor: `${major}.${minor + 1}.0`, patch: `${major}.${minor}.${patch + 1}` }[asked] ?? asked;
+  if (!SEMVER.test(next)) fail(`"${asked}" isn't a version (such as 1.2.3 or 1.2.3-beta.1) or patch, minor or major.`);
+  if (last !== '0.0.0' && !later(next, last)) fail(`${next} doesn't come after the last release, ${last}.`);
 
-for (const script of ['typecheck', 'lint', 'test', 'build', 'build:lib', 'check:bundle', 'validate:saves']) run(`npm run ${script}`);
+  const changelog = readFileSync(changelogPath, 'utf8');
+  const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
+  if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
 
-run(`npm version ${next} --no-git-tag-version --allow-same-version -w @ruled/sheet`);
-const date = new Date().toISOString().slice(0, 10);
-writeFileSync(changelogPath, changelog.replace(unreleased[0], () => `## Unreleased\n\n## ${next} (${date})\n${unreleased[1]}`));
-run('npm run notices');
+  // Both packages at the version, the editor's own record of the engine it was built with too.
+  run(`npm version ${next} --no-git-tag-version --allow-same-version -w @ruled/formula -w @ruled/sheet`);
+  const manifestPath = join(sheet, 'package.json');
+  const manifest = readFileSync(manifestPath, 'utf8');
+  writeFileSync(manifestPath, manifest.replace(/("@ruled\/formula": ")[^"]*"/, `$1${next}"`));
+  run('npm install --package-lock-only --ignore-scripts --no-audit --no-fund');
 
-git('add', 'packages/spreadsheet/package.json', 'package-lock.json', 'packages/spreadsheet/CHANGELOG.md', 'packages/spreadsheet/THIRD-PARTY-NOTICES.md');
-git('commit', '-m', `Release ${next}`);
-git('tag', '-a', `v${next}`, '-m', `@ruled/sheet ${next}`);
+  const date = new Date().toISOString().slice(0, 10);
+  writeFileSync(changelogPath, changelog.replace(unreleased[0], () => `## Unreleased\n\n## ${next} (${date})\n${unreleased[1]}`));
+  run('npm run notices');
 
-const releases = join(root, 'releases');
-mkdirSync(releases, { recursive: true });
-const [{ filename }] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', releases], { cwd: pkg, encoding: 'utf8' }));
-console.log(`\nReleased ${next}: tagged v${next}, packed releases/${filename}. Push the tag and share or publish the tarball when ready.`);
+  console.log(next);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `version=${next}\nprerelease=${next.includes('-')}\n`);
+}
+
+const [command, arg] = process.argv.slice(2);
+if (command === 'prepare') prepare(arg);
+else if (command === 'notes') console.log(notes(arg ?? JSON.parse(readFileSync(join(sheet, 'package.json'), 'utf8')).version));
+else fail('Usage: node scripts/release.mjs prepare <version | patch | minor | major>, or notes [version]');

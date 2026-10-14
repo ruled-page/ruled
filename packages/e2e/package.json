@@ -4,7 +4,7 @@
   "description": "End-to-end tests of the editor, its examples and its packed library, in real browsers",
   "type": "module",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "test": "NODE_OPTIONS=--conditions=source playwright test"
   },

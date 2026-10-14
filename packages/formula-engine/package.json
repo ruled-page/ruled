@@ -3,8 +3,18 @@
   "version": "0.1.0",
   "description": "Excel's formulas worked out in the browser or Node, cell by cell as a workbook changes, with Excel's rules throughout",
   "type": "module",
-  "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "author": "Anthony Gubler",
+  "homepage": "https://ruled.page",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruled-page/ruled.git",
+    "directory": "packages/formula-engine"
+  },
+  "bugs": "https://github.com/ruled-page/ruled/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "scripts": {
     "build": "rolldown -c rolldown.config.ts"

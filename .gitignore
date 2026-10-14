@@ -28,7 +28,5 @@ packages/e2e/next-app/workbooks
 packages/spreadsheet/tools/ooxml-validate/bin
 packages/spreadsheet/tools/ooxml-validate/obj
 
-# Packed by npm run release.
-releases
 packages/spreadsheet/tests/excel-checks/*.xlsx
 packages/spreadsheet/tests/excel-checks/*.pending.json

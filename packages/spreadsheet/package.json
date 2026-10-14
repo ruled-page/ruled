@@ -3,9 +3,18 @@
   "version": "0.1.0",
   "description": "Ruled: edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas: a React component, and a <workbook-editor> web component",
   "type": "module",
-  "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "Anthony Gubler",
+  "homepage": "https://ruled.page",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruled-page/ruled.git",
+    "directory": "packages/spreadsheet"
+  },
+  "bugs": "https://github.com/ruled-page/ruled/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build -c vite.lib.config.ts --mode react && vite build -c vite.lib.config.ts --mode standalone && vite build -c vite.node.config.ts && tsc -p tsconfig.lib.json && rolldown -c rolldown.types.config.ts",
     "build:verify": "vite build -c vite.verify.config.ts",

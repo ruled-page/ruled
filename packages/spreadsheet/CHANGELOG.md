@@ -7,7 +7,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 The first release: a spreadsheet editor for web apps that opens Excel
 workbooks, checks them against a schema, and saves them back without losing
-what it doesn't change.
+what it doesn't change. Released with its calculation engine,
+`@ruled/formula`, which also works on its own, both under the MIT licence.
 
 ### Opening and saving
 

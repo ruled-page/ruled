@@ -1,0 +1,53 @@
+name: Prepare release
+
+# Run from the Actions tab. Sets both packages to the version, moves the
+# changelog's Unreleased notes under it and writes the third-party notices
+# again, on a release/vX.Y.Z branch, and opens a pull request with the notes.
+# Merging it releases the version (release.yml).
+#
+# The branch and pull request are made with the RELEASE_TOKEN secret, as
+# GitHub runs no workflows, CI among them, for what its own token makes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'patch, minor or major, or a version such as 1.2.0 or 1.2.0-beta.1'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tags say what was last released.
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The third-party notices are read from the builds.
+      - run: npm run build:lib
+      - id: prepare
+        run: node scripts/release.mjs prepare "$VERSION"
+        env:
+          VERSION: ${{ inputs.version }}
+      - name: Open the release pull request
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "release/v$VERSION"
+          git commit -am "Release $VERSION"
+          git push origin "release/v$VERSION"
+          node scripts/release.mjs notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh pr create --base main --head "release/v$VERSION" --title "Release $VERSION" --body-file "$RUNNER_TEMP/notes.md"
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}

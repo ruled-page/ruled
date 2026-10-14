@@ -1,0 +1,125 @@
+name: Release
+
+# Releases the version the packages are at, once its release pull request is
+# merged (prepare-release.yml): publishes @ruled/formula and @ruled/sheet to
+# npm, tags the commit and makes a GitHub release with the packages attached,
+# then deploys the docs and example sites. A prerelease (1.2.0-beta.1) goes
+# to npm under the `next` tag and deploys nothing.
+#
+# npm takes the packages through trusted publishing: no token, but each
+# package must exist on npm and name this repository and workflow file as its
+# trusted publisher. Run it from the Actions tab to finish a release that
+# stopped part way (what's done is skipped), or as a dry run, which builds and
+# packs but publishes, tags and deploys nothing.
+
+on:
+  push:
+    branches: [main]
+    paths: [packages/spreadsheet/package.json]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build and pack only
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      prepared: ${{ steps.version.outputs.prepared }}
+      released: ${{ steps.version.outputs.released }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: version
+        run: |
+          version=$(node -p "require('./packages/spreadsheet/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([[ $version == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # A version is prepared once the changelog has its notes, which only prepare-release.yml writes.
+          echo "prepared=$(node scripts/release.mjs notes "$version" > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "released=$(git rev-parse -q --verify "refs/tags/v$version" > /dev/null && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: check
+    # A push releases a prepared version once; running it by hand goes over what's left.
+    if: needs.check.outputs.prepared == 'true' && (needs.check.outputs.released != 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      # The tag and the GitHub release.
+      contents: write
+      # npm's trusted publishing, and its provenance for each package.
+      id-token: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      DIST_TAG: ${{ needs.check.outputs.prerelease == 'true' && 'next' || 'latest' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - run: npm ci
+      - run: npm run build:lib
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/packages"
+          npm pack -w @ruled/formula -w @ruled/sheet --pack-destination "$RUNNER_TEMP/packages"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ env.VERSION }}
+          path: ${{ runner.temp }}/packages/*.tgz
+      - name: Publish to npm
+        run: |
+          # The engine first: the editor is built with it.
+          for pkg in @ruled/formula @ruled/sheet; do
+            if npm view "$pkg@$VERSION" version > /dev/null 2>&1; then
+              echo "$pkg $VERSION is on npm already."
+            elif [[ $DRY_RUN == true ]]; then
+              npm publish -w "$pkg" --tag "$DIST_TAG" --dry-run
+            elif ! npm view "$pkg" name > /dev/null 2>&1; then
+              echo "::error::$pkg isn't on npm yet. Publish it once by hand from the packages attached to this run, add this workflow as its trusted publisher, and run this workflow again (see README, Releases)."
+              exit 1
+            else
+              npm publish -w "$pkg" --tag "$DIST_TAG"
+            fi
+          done
+      - name: Tag and make the GitHub release
+        if: env.DRY_RUN != 'true'
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "v$VERSION is released on GitHub already."
+            exit 0
+          fi
+          node scripts/release.mjs notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" "$RUNNER_TEMP"/packages/*.tgz --target "$GITHUB_SHA" --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md" \
+            $([[ $DIST_TAG == next ]] && echo --prerelease)
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # The docs and examples follow released versions only, so they never show a package npm doesn't have yet.
+      - name: Deploy the docs and example sites
+        if: env.DRY_RUN != 'true' && env.DIST_TAG == 'latest'
+        run: |
+          npm run deploy:docs
+          npm run deploy:demo
+          npm run deploy:portal
+          npm run deploy:angular
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Build the docs and example sites
+        if: env.DRY_RUN == 'true'
+        run: npm run build:docs && npm run build:sites

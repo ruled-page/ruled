@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "The workbook editor's documentation site: Astro and Starlight, with the editor live in its pages",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "Anthony Gubler",
   "scripts": {
     "dev": "node scripts/prepare.mjs && astro dev",
