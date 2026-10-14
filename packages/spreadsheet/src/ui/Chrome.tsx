@@ -134,8 +134,18 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
       const target = e.target as Node;
       if (!morePanel.current?.contains(target) && !moreButton.current?.contains(target)) setMore(false);
     };
+    // Safari doesn't focus a checkbox that is tapped, so the focus can fall from the panel to the page; Escape still closes it.
+    const escape = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.activeElement !== document.body) return;
+      setMore(false);
+      moreButton.current?.focus();
+    };
     document.addEventListener('pointerdown', away, true);
-    return () => document.removeEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away, true);
+      document.removeEventListener('keydown', escape);
+    };
   }, [more]);
   return (
     // Not a <header>: a page that embeds the editor has its own banner landmark.

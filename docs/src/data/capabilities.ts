@@ -42,6 +42,7 @@ export const CAPABILITIES: { group: string; rows: Capability[] }[] = [
       { what: 'Merged cells', support: 'edit' },
       { what: 'Column widths, row heights and AutoFit', support: 'edit' },
       { what: 'Hidden, grouped and frozen rows and columns', support: 'edit' },
+      { what: 'Sheets that read right to left', support: 'show', note: 'Drawn from right to left, as the file sets them.' },
       { what: 'Conditional formatting', support: 'edit', note: 'Cell rules, top and bottom, averages, duplicates, colour scales, data bars and icon sets.' },
       { what: 'Data validation', support: 'edit', note: 'Lists and rules, as Excel’s Data Validation dialog sets them.' },
       { what: 'Excel 365 checkboxes', support: 'edit' },

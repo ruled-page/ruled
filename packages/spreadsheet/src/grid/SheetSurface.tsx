@@ -608,6 +608,11 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
       startEdit();
       return;
     }
+    // A second tap with a finger edits the cell.
+    if (!drags && store.touchMode && !command && !e.shiftKey && only && sel.row === row && sel.col === col) {
+      startEdit();
+      return;
+    }
     // Ctrl+click (⌘-click on a Mac) follows a cell's link; a plain click only selects it.
     if (command && !e.shiftKey && cellLink(view, row, col)) {
       store.setSelection({ row, col, rects: [span({ row, col }, { row, col })] });

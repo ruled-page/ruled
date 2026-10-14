@@ -16,6 +16,10 @@ export function shortcuts(t: Translator, apple = APPLE): { group: string; keys: 
         [t('keys.arrows'), t('shortcuts.moveCells')],
         [t('keys.tab'), t('shortcuts.moveRightLeft')],
         [t('keys.shiftArrows'), t('shortcuts.extend')],
+        [apple ? '⌘↑, ⌘↓, ⌘←, ⌘→' : t('keys.ctrlArrows'), t('shortcuts.dataEdge')],
+        [apple ? 'fn←, ⌘fn←, ⌘fn→' : t('keys.home'), t('shortcuts.home')],
+        [apple ? 'fn↑, fn↓, ⌥fn↑, ⌥fn↓' : t('keys.pages'), t('shortcuts.pages')],
+        [apple ? '⇧⌫, ⌘⌫' : t('keys.backspaces'), t('shortcuts.backspaces')],
         [t('keys.f6'), t('shortcuts.regions')],
       ],
     },
@@ -24,6 +28,7 @@ export function shortcuts(t: Translator, apple = APPLE): { group: string; keys: 
       keys: [
         [t('keys.typing'), t('shortcuts.typing')],
         [t('keys.enter'), t('shortcuts.enter')],
+        [t('keys.f2'), t('shortcuts.f2')],
         [t('keys.escape'), t('shortcuts.escape')],
         [t('keys.delete'), t('shortcuts.clear')],
         [`${m('Z')}, ${redoKey(t, apple)}`, t('shortcuts.undoRedo')],

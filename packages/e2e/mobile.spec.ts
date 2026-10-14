@@ -67,6 +67,21 @@ test('a tap selects a cell, and the formula bar edits it', async ({ page }) => {
   await expect(input).toHaveValue('Bracket, edited on a phone');
 });
 
+test('a second tap on a cell edits it', async ({ page }) => {
+  await openSample(page, 'Price list');
+  const grid = (await gridSurface(page).first().boundingBox())!;
+  const nameBox = page.getByRole('combobox', { name: 'Go to cell' });
+  await page.touchscreen.tap(grid.x + 120, grid.y + 24 + 34 * 2 + 10);
+  await expect(nameBox).not.toHaveValue('A1');
+  const name = await nameBox.inputValue();
+  // The cell's middle, between the selection's handles at its corners.
+  const handles = page.locator('.wbe-touch-handle');
+  await expect(handles).toHaveCount(2);
+  const [a, b] = [(await handles.first().boundingBox())!, (await handles.last().boundingBox())!];
+  await page.touchscreen.tap((a.x + a.width / 2 + b.x + b.width / 2) / 2, (a.y + a.height / 2 + b.y + b.height / 2) / 2);
+  await expect(page.getByRole('textbox', { name: `Contents of ${name}` })).toBeFocused();
+});
+
 /** A finger dragged from one point to another: Playwright taps but doesn't drag, so the touches go through Chromium's DevTools protocol. */
 async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
@@ -166,7 +181,8 @@ test('meets the accessibility checks on a phone', async ({ page }) => {
   expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
 });
 
-test('holding a finger on a cell opens the cell menu', async ({ page }) => {
+test('holding a finger on a cell opens the cell menu', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'The finger is held through the DevTools protocol');
   await openFile(page, 'orders.xlsx', await ordersWorkbook());
   const box = (await gridSurface(page).first().boundingBox())!;
   // B3: 40 pixel row numbers, then 64 pixel columns, under a 24 pixel heading.

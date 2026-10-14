@@ -40,7 +40,7 @@ What the file holds is kept in each case; these are limits on how the editor sho
 ### Drawing
 
 - Text in one cell with several fonts is drawn in one font.
-- A merged cell spanning several rows shows its text in its top row.
+- A sheet that reads right to left is drawn from right to left, but its outline bars stay at the left.
 - Charts don't draw data labels, trendlines, error bars, or gradient and picture fills, and take their fonts and backgrounds from the editor's theme rather than the file. Excel's newer chart kinds (waterfall, treemap, histogram, funnel) and surface charts show as placeholders.
 - Excel's built-in table styles are drawn from each style's pattern in the theme's colours: close to Excel, not exact. A file's own table styles are drawn as it defines them.
 - Conditional formatting's data bars start from zero, without a separate axis for negative values, and its icons are simpler drawings of Excel's. On a sheet with very many formula rules, rules past 200,000 cells' worth of formulas aren't applied.
@@ -55,7 +55,7 @@ What the file holds is kept in each case; these are limits on how the editor sho
 
 ### Editing
 
-- With frozen rows, a selection made by dragging or with Shift and the arrow keys stays on its side of the freeze.
+- Excel's Point mode isn't offered: while a formula is typed in a cell, the arrow keys move the caret, and clicking another cell enters the formula. Type the references instead.
 - A changed note keeps its text but not its formatting (bold, colours), and a changed threaded comment loses its @mentions.
 - Only a formula that is a `HYPERLINK` call is a link; one with `HYPERLINK` inside a larger formula isn't.
 - Cells holding merged cells or tables can't be moved to another sheet. Pictures and charts move with inserted and deleted rows and columns, but not with inserted or deleted cells. Up to 20 inserts, deletes and moves can be undone, fewer in very large workbooks.
