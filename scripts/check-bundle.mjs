@@ -16,15 +16,15 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 /** [directory, file name pattern, gzipped kB]. */
 const BUDGETS = [
   // The demo page, before a workbook is opened.
-  ['examples/demo/dist/assets', /^index-.*\.js$/, 275],
+  ['examples/demo/dist/assets', /^index-.*\.js$/, 185],
   // The worker, the calculation engine included.
   ['examples/demo/dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // Loaded only for workbooks with charts.
   ['examples/demo/dist/assets', /^ChartView-.*\.js$/, 75],
-  ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 175],
+  ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 110],
   ['packages/spreadsheet/dist/react/assets', /^workbook\.worker\.js$/, 300],
   // React and the worker included.
-  ['packages/spreadsheet/dist/standalone', /^workbook-editor\.js$/, 565],
+  ['packages/spreadsheet/dist/standalone', /^workbook-editor\.js$/, 380],
   // The engine on its own, its parser and number formatter apart.
   ['packages/formula-engine/dist', /^index\.js$/, 85],
 ];
