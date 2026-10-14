@@ -89,7 +89,7 @@ jobs:
           retention-days: 7
 
   examples:
-    name: Angular example and a React app using the package
+    name: Angular example, and React and Next.js apps using the package
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -107,10 +107,11 @@ jobs:
         working-directory: examples/angular-portal
       - run: npm run build:lib
       - run: npx playwright install --with-deps chromium
-      - run: npm run e2e -- angular.spec.ts package.spec.ts
+      - run: npm run e2e -- angular.spec.ts package.spec.ts next.spec.ts
         env:
           E2E_ANGULAR: '1'
           E2E_HOST_APP: '1'
+          E2E_NEXT_APP: '1'
       # The three example sites, built as Cloudflare Pages would serve them (not deployed).
       - run: npm run build:sites
       - uses: actions/upload-artifact@v4
