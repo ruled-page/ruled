@@ -51,7 +51,7 @@
     "@azure/msal-browser": "^5.25.1"
   },
   "peerDependencies": {
-    "@ruled/sheet": ">=0.1.0"
+    "@ruled/sheet": "^0.1.0"
   },
   "devDependencies": {
     "@ruled/sheet": "0.1.0",

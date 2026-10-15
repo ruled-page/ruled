@@ -1,8 +1,8 @@
 name: Release
 
 # Releases the version the packages are at, once its release pull request is
-# merged (prepare-release.yml): publishes @ruled/formula and @ruled/sheet to
-# npm, tags the commit and makes a GitHub release with the packages attached,
+# merged (prepare-release.yml): publishes @ruled/formula, @ruled/sheet and
+# @ruled/plugin to npm, tags the commit and makes a GitHub release with the packages attached,
 # then deploys the docs and example sites. A prerelease (1.2.0-beta.1) goes
 # to npm under the `next` tag and deploys nothing.
 #
@@ -78,15 +78,15 @@ jobs:
       - name: Pack
         run: |
           mkdir -p "$RUNNER_TEMP/packages"
-          npm pack -w @ruled/formula -w @ruled/sheet --pack-destination "$RUNNER_TEMP/packages"
+          npm pack -w @ruled/formula -w @ruled/sheet -w @ruled/plugin --pack-destination "$RUNNER_TEMP/packages"
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ env.VERSION }}
           path: ${{ runner.temp }}/packages/*.tgz
       - name: Publish to npm
         run: |
-          # The engine first: the editor is built with it.
-          for pkg in @ruled/formula @ruled/sheet; do
+          # The engine first: the editor is built with it. The plugins last: they name the editor as a peer.
+          for pkg in @ruled/formula @ruled/sheet @ruled/plugin; do
             if npm view "$pkg@$VERSION" version > /dev/null 2>&1; then
               echo "$pkg $VERSION is on npm already."
             elif [[ $DRY_RUN == true ]]; then

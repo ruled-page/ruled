@@ -3,10 +3,10 @@
  * workflows in .github/workflows (see README "Releases"):
  *
  *   node scripts/release.mjs prepare <version | patch | minor | major>
- *       Sets both packages, @ruled/formula and @ruled/sheet, to the version
- *       (or the next patch, minor or major one after the last release),
- *       moves the changelog's Unreleased notes under it and writes the
- *       third-party notices again, which needs `npm run build:lib` first.
+ *       Sets the packages, @ruled/formula, @ruled/sheet and @ruled/plugin, to
+ *       the version (or the next patch, minor or major one after the last
+ *       release), moves the changelog's Unreleased notes under it and writes
+ *       the third-party notices again, which needs `npm run build:lib` first.
  *       Commits nothing. Prints the version, and with GITHUB_OUTPUT set
  *       writes it there as `version`, and whether it's a prerelease.
  *
@@ -60,12 +60,13 @@ function prepare(asked) {
   const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
   if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
 
-  // Both packages at the version, and every workspace that names one of them, so each still takes the workspace's copy.
+  // The packages at the version, and every workspace that names one of them, so each still takes the workspace's copy.
+  // A range keeps its operator: @ruled/plugin's peer range for @ruled/sheet moves to ^version.
   for (const workspace of JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).workspaces) {
     const path = join(root, workspace, 'package.json');
     const manifest = readFileSync(path, 'utf8');
-    const named = /"name": "(@ruled\/(?:formula|sheet))"/.exec(manifest);
-    writeFileSync(path, manifest.replace(/("@ruled\/(?:formula|sheet)": ")[^"]*"/g, `$1${next}"`).replace(/^(  "version": ")[^"]*"/m, (line, start) => (named ? `${start}${next}"` : line)));
+    const named = /"name": "(@ruled\/(?:formula|sheet|plugin))"/.exec(manifest);
+    writeFileSync(path, manifest.replace(/("@ruled\/(?:formula|sheet|plugin)": "(?:[~^]|>=)?)[^"]*"/g, `$1${next}"`).replace(/^(  "version": ")[^"]*"/m, (line, start) => (named ? `${start}${next}"` : line)));
   }
   run('npm install --package-lock-only --ignore-scripts --no-audit --no-fund');
 

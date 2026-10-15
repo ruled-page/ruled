@@ -227,17 +227,18 @@ deploying, and `npm run pages:dev` serves the demo as Pages would.
 
 ## Releases
 
-`@ruled/formula` and `@ruled/sheet` are released together, at one version.
-Versions follow semantic versioning; before 1.0.0, a minor version may change
-the API. `packages/spreadsheet/CHANGELOG.md` says what changed: add notes
-under "Unreleased" as you go.
+`@ruled/formula`, `@ruled/sheet` and `@ruled/plugin` are released together,
+at one version, and `@ruled/plugin` asks for `@ruled/sheet` at that version or
+a compatible one. Versions follow semantic versioning; before 1.0.0, a minor
+version may change the API. `packages/spreadsheet/CHANGELOG.md` says what
+changed in all three: add notes under "Unreleased" as you go.
 
 1. **Prepare.** Run the *Prepare release* workflow from the Actions tab with
    `patch`, `minor`, `major` or a version (`1.2.0`, or `1.2.0-beta.1` for a
-   prerelease). It sets both packages to the version, moves the Unreleased
+   prerelease). It sets the packages to the version, moves the Unreleased
    notes under it, writes `THIRD-PARTY-NOTICES.md` again, and opens a pull
    request from `release/vX.Y.Z` with the notes. CI runs on it.
-2. **Merge it.** The *Release* workflow then publishes both packages to npm,
+2. **Merge it.** The *Release* workflow then publishes the packages to npm,
    tags the merge `vX.Y.Z` with a GitHub release holding the notes and the
    packages, and deploys the docs and the example sites. A prerelease goes to
    npm under the `next` tag and deploys nothing.
@@ -251,7 +252,7 @@ Run *Release* from the Actions tab to finish a release that stopped part way
   token. npm only trusts a publisher for a package that exists, so the first
   time, *Release* stops at npm: publish each package once by hand from the
   packages attached to that run (`npm publish ruled-formula-X.Y.Z.tgz
-  --access public`, then `@ruled/sheet`'s), then on npmjs.com add a trusted
+  --access public`, then `@ruled/sheet`'s and `@ruled/plugin`'s), then on npmjs.com add a trusted
   publisher to each (GitHub Actions; owner `ruled-page`, repository `ruled`,
   workflow `release.yml`), and run *Release* again. After that, setting each
   package to "Require two-factor authentication and disallow tokens" leaves

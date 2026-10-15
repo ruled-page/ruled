@@ -1,6 +1,6 @@
 name: Prepare release
 
-# Run from the Actions tab. Sets both packages to the version, moves the
+# Run from the Actions tab. Sets the packages to the version, moves the
 # changelog's Unreleased notes under it and writes the third-party notices
 # again, on a release/vX.Y.Z branch, and opens a pull request with the notes.
 # Merging it releases the version (release.yml).

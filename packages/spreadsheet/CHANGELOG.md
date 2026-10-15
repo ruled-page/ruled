@@ -1,10 +1,14 @@
 # Changelog
 
-Notable changes to Ruled (`@ruled/sheet`), newest first. Version numbers follow
-semantic versioning; before 1.0.0, a minor version may change the API.
+Notable changes to Ruled (`@ruled/sheet`, and `@ruled/plugin`, which is
+released with it), newest first. Version numbers follow semantic versioning;
+before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- A new package, `@ruled/plugin`, holds Ruled's own plugins. The first,
+  `@ruled/plugin/onedrive`, opens workbooks from OneDrive and SharePoint,
+  saves them back unless they changed there, and saves copies to them.
 - Plugins: `plugins` in the options (and the element's `options`) takes
   objects written against `@ruled/sheet/plugin`, which add commands to the
   toolbar, More and the cell menu, side panels, dialogs, and file sources.
