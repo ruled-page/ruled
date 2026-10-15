@@ -50,6 +50,7 @@ import {
   type PivotInfo,
 } from '../core/types';
 import type { OpenOptions } from '../core/session';
+import { DEFAULT_LIMITS } from '../core/limits';
 import { CSV_FILE, type CsvOptions } from '../core/csv';
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type DraftOp } from './drafts';
@@ -823,6 +824,11 @@ export class WorkbookStore {
   get saveLabel(): string {
     if (!this.hasSaveHandler) return this.t('toolbar.saveAsExcel');
     return this.options.saveLabel ? this.t.localized(this.options.saveLabel) : this.t('toolbar.save');
+  }
+
+  /** The largest file the editor opens, as `limits` sets it. */
+  get maxFileBytes(): number {
+    return this.options.limits?.maxFileBytes ?? DEFAULT_LIMITS.maxFileBytes;
   }
 
   /** Whether the host handles saving instead of the browser downloading the file. */

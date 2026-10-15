@@ -64,6 +64,13 @@ function fakeDrive(options: { writable?: boolean } = {}) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('plugin registries', () => {
+  it('tells plugins the largest file the editor opens', async () => {
+    const seen: number[] = [];
+    await editor({ plugins: [plugin((ctx) => void seen.push(ctx.limits.maxFileBytes))] });
+    await editor({ limits: { maxFileBytes: 1024 }, plugins: [plugin((ctx) => void seen.push(ctx.limits.maxFileBytes))] });
+    expect(seen).toEqual([50 * 1024 * 1024, 1024]);
+  });
+
   it('keeps what plugins register under their id, and drops it when they remove it', async () => {
     const removers: (() => void)[] = [];
     const { store } = await editor({

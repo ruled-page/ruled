@@ -15,7 +15,9 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   stops the editor. The code that runs plugins loads only for an editor that
   has some. `EditorHandle.origin` and `SavedWorkbook.origin` say where a
   workbook came from, `features.sourceSave` turns writing to sources off,
-  and `savedToSource` events report writes.
+  and `savedToSource` events report writes. A plugin's context gives the
+  editor's `limits.maxFileBytes`, so a source can refuse a file before
+  downloading it.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.

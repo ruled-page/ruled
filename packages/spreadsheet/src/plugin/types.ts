@@ -35,6 +35,8 @@ export interface PluginContext {
   editor: EditorHandle;
   /** Aborted when the editor is destroyed, or the plugin is stopped after failing; pass it to fetches and listeners. */
   signal: AbortSignal;
+  /** The editor's limits, so a source can refuse a file it won't open before downloading it. */
+  limits: { maxFileBytes: number };
   commands: PluginCommands;
   files: PluginFiles;
   ui: PluginUI;
@@ -108,7 +110,12 @@ export interface FileSource {
   icon?: IconSource;
   /** Called when a menu holding the source opens: load an SDK here, so `pick` can open a popup inside the click. */
   preload?(): void;
-  /** Lets the person choose a file, and fetches it. Resolves null when they cancel. */
+  /**
+   * Lets the person choose a file, and fetches it. Resolves null when they
+   * cancel. An error thrown here, or from `save` or `saveAs`, is shown with
+   * its `text` when it has one (any PluginText, so it can be translated),
+   * otherwise its message.
+   */
   pick(): Promise<RemoteFile | null>;
   /**
    * Writes the workbook back over the file it was opened from, resolving

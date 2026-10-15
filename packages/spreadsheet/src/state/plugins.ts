@@ -317,6 +317,7 @@ export class PluginHost {
     return {
       editor,
       signal,
+      limits: { maxFileBytes: store.maxFileBytes },
       commands: { register: (command) => add('commands', { ...command, plugin, key: own('commands', command.id) }) },
       files: {
         registerSource: (source) => add('sources', { ...source, plugin, key: own('sources', source.id) }),
