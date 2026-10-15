@@ -208,7 +208,8 @@ export class PluginHost {
       return false;
     }
     const bytes = file.bytes instanceof ArrayBuffer ? file.bytes.slice(0) : (new Uint8Array(file.bytes.buffer, file.bytes.byteOffset, file.bytes.byteLength).slice().buffer as ArrayBuffer);
-    return (await store.open(origin.name, bytes, { csv: store.features.csv, origin: { ...origin } })).opened;
+    const notice = file.notice?.text ? file.notice : undefined;
+    return (await store.open(origin.name, bytes, { csv: store.features.csv, origin: { ...origin }, notice })).opened;
   }
 
   /**

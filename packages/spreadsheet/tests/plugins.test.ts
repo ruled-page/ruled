@@ -508,6 +508,21 @@ describe('saving to a plugin’s source', () => {
     store.dispose();
   });
 
+  it('shows what a source said about its file in the banner, until it is closed or another file opens', async () => {
+    let ctx: PluginContext | undefined;
+    const drive = fakeDrive();
+    const { store } = await editor({ plugins: [plugin((c) => void ((ctx = c), c.files.registerSource(drive.source)))] });
+    const origin = { source: 'fake.drive', name: 'sheet.xlsx', ref: 2, writable: false };
+    const notice = { kind: 'warn' as const, text: 'Opened as a copy.', items: ['QUERY'] };
+    expect(await ctx!.files.open({ bytes: FORECAST.slice().buffer as ArrayBuffer, origin, notice })).toBe(true);
+    expect(store.sourceNotice).toEqual(notice);
+    store.set('sourceNoticeDismissed', true);
+    expect(await ctx!.files.open({ bytes: FORECAST.slice().buffer as ArrayBuffer, origin: { ...origin, name: 'other.xlsx' } })).toBe(true);
+    expect(store.sourceNotice).toBeUndefined();
+    expect(store.sourceNoticeDismissed).toBe(false);
+    store.dispose();
+  });
+
   it('tells plugins what is open, as opened, and where from', async () => {
     let ctx: PluginContext | undefined;
     const drive = fakeDrive();

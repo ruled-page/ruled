@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import type { SheetView } from '../state/sheetView';
 import type { WorkbookStore } from '../state/store';
-import { Banner, RecalcBanner, SchemaBanner, SheetTabs, StatusBar, Toolbar } from '../ui/Chrome';
+import { Banner, RecalcBanner, SchemaBanner, SheetTabs, SourceNoticeBanner, StatusBar, Toolbar } from '../ui/Chrome';
 import { ChartSlot } from '../ui/ChartSlot';
 import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
@@ -320,6 +320,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
           }}
         />
       )}
+      {ready && <SourceNoticeBanner store={store} />}
       {ready && <SchemaBanner store={store} />}
       {ready && <RecalcBanner store={store} />}
       {ready && <Banner store={store} />}

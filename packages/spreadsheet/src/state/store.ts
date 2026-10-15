@@ -97,7 +97,7 @@ import {
 import { isNarrow } from './viewport';
 import type { PluginHost, RegisteredSource } from './plugins';
 import type { EditorHandle } from '../editor/handle';
-import type { CommandSelection, FileOrigin, OpenedFile, PluginDialog, RuledPlugin } from '../plugin/types';
+import type { CommandSelection, FileNotice, FileOrigin, OpenedFile, PluginDialog, RuledPlugin } from '../plugin/types';
 
 export interface Toast {
   id: number;
@@ -686,11 +686,15 @@ export class WorkbookStore {
   /** The draft being written, which reopening waits for. */
   private draftWrite?: Promise<unknown>;
   /** The file as opened, to open again if the worker fails. */
-  private source?: { fileName: string; bytes: ArrayBuffer; password?: string; origin?: FileOrigin };
+  private source?: { fileName: string; bytes: ArrayBuffer; password?: string; origin?: FileOrigin; notice?: FileNotice };
   /** Who opened the file: the person, from this device, or the host's code; a source's file has an origin. */
   private openedFrom: 'device' | 'host' = 'host';
   /** Where the open workbook came from, when a plugin's file source opened it. */
   origin?: FileOrigin;
+  /** What the source that opened the file said about it, shown in the banner. */
+  sourceNotice?: FileNotice;
+  /** The source's notice, until the next file. */
+  sourceNoticeDismissed = false;
   /** A plugin's dialog, while open. */
   pluginDialog?: PluginDialog & { plugin: string; resolve: (action: string | null) => void };
 
@@ -1094,7 +1098,7 @@ export class WorkbookStore {
   async reopen(): Promise<void> {
     if (!this.canReopen || !this.source) return;
     await this.draftWrite;
-    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined, this.source.password, this.source.origin);
+    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined, this.source.password, this.source.origin, this.source.notice);
   }
 
   // ---------------------------------------------------------------------------
@@ -1106,9 +1110,14 @@ export class WorkbookStore {
    * already open; a file that can't be read leaves the editor showing why.
    * `csv: false` refuses CSV files (the editor's own Open button and drop
    * pass the `csv` feature); `origin` is where a plugin's source fetched it from,
-   * and `from: 'device'` says the person opened it from this device.
+   * with the `notice` it gave, and `from: 'device'` says the person opened it
+   * from this device.
    */
-  async open(fileName: string, bytes: ArrayBuffer, { csv = true, origin, from = 'host' }: { csv?: boolean; origin?: FileOrigin; from?: 'device' | 'host' } = {}): Promise<OpenResult> {
+  async open(
+    fileName: string,
+    bytes: ArrayBuffer,
+    { csv = true, origin, notice, from = 'host' }: { csv?: boolean; origin?: FileOrigin; notice?: FileNotice; from?: 'device' | 'host' } = {},
+  ): Promise<OpenResult> {
     if (this.editedCount > 0 && !(await this.confirm({
       title: msg('store.open.discardTitle'),
       body: msg('store.open.discardBody', { fileName: this.fileName }),
@@ -1123,7 +1132,7 @@ export class WorkbookStore {
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
     this.openedFrom = from;
-    return this.load(fileName, bytes, undefined, undefined, origin);
+    return this.load(fileName, bytes, undefined, undefined, origin, notice);
   }
 
   /** The workbook open now, as it was opened, for plugins. */
@@ -1136,7 +1145,7 @@ export class WorkbookStore {
   }
 
   /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed; `password` opens a protected workbook. */
-  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc'], password?: string, origin?: FileOrigin): Promise<OpenResult> {
+  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc'], password?: string, origin?: FileOrigin, notice?: FileNotice): Promise<OpenResult> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
     const started = performance.now();
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
@@ -1144,7 +1153,7 @@ export class WorkbookStore {
     // A fresh worker per file releases the previous workbook's memory.
     this.worker = this.startWorker();
     // The worker gets a copy, leaving the caller's buffer intact and one to reopen from.
-    this.source = { fileName, bytes, password, origin };
+    this.source = { fileName, bytes, password, origin, notice };
     this.origin = origin;
     this.sourceSavedSeq = this.changeSeq;
     this.reopenWithoutRecalc = false;
@@ -1160,6 +1169,8 @@ export class WorkbookStore {
       bannerDismissed: false,
       schemaBannerDismissed: false,
       recalcBannerDismissed: false,
+      sourceNotice: notice,
+      sourceNoticeDismissed: false,
       panel: null,
       clip: undefined,
       schema: undefined,
@@ -1217,7 +1228,7 @@ export class WorkbookStore {
       const reason = errorText(err);
       if (isMessage(reason) && (reason.key === 'core.open.passwordNeeded' || reason.key === 'core.open.passwordWrong')) {
         const next = await this.askPassword(fileName, reason.key === 'core.open.passwordWrong');
-        if (next !== undefined) return this.load(fileName, bytes, recalc, next, origin);
+        if (next !== undefined) return this.load(fileName, bytes, recalc, next, origin, notice);
       }
       // A failed worker has already said so.
       if (this.status !== 'error') {
@@ -4518,6 +4529,7 @@ export class WorkbookStore {
       | 'bannerDismissed'
       | 'schemaBannerDismissed'
       | 'recalcBannerDismissed'
+      | 'sourceNoticeDismissed'
       | 'highlightEdits'
       | 'showLabels'
       | 'exactNumbers'

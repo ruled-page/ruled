@@ -10,6 +10,7 @@ import { RenameSheetDialog, SheetMenu, sheetNamed, sheetSteps, UnhideSheetDialog
 import { mod, shortcutsKey } from './keys';
 import { pluginParts } from './lazyPlugins';
 import { useT } from '../i18n/react';
+import type { Text } from '../i18n/message';
 
 function SchemaChip({ store }: { store: WorkbookStore }) {
   const t = useT();
@@ -411,6 +412,39 @@ export function SchemaBanner({ store }: { store: WorkbookStore }) {
         </button>
       )}
       {dismiss}
+    </div>
+  );
+}
+
+/** What a plugin's source said about the file it opened, such as that it was converted. */
+export function SourceNoticeBanner({ store }: { store: WorkbookStore }) {
+  const t = useT();
+  const notice = store.sourceNotice;
+  if (!notice || store.sourceNoticeDismissed) return null;
+  const warn = notice.kind === 'warn';
+  return (
+    <div className={warn ? 'wbe-banner wbe-banner-warn' : 'wbe-banner'} role="status">
+      <Icon name={warn ? 'warn' : 'info'} />
+      <div className="wbe-banner-text">
+        <p>{t.text(notice.text as Text)}</p>
+        {!!notice.items?.length && (
+          <ul>
+            {notice.items.map((item, i) => (
+              <li key={i}>{t.text(item as Text)}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <button
+        className="wbe-btn wbe-icon wbe-ghost"
+        onClick={() => {
+          store.set('sourceNoticeDismissed', true);
+          store.focusGrid();
+        }}
+        aria-label={t('banner.dismiss')}
+      >
+        <Icon name="close" />
+      </button>
     </div>
   );
 }

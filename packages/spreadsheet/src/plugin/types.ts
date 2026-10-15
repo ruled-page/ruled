@@ -103,6 +103,21 @@ export interface FileOrigin {
 export interface RemoteFile {
   bytes: ArrayBuffer | Uint8Array;
   origin: FileOrigin;
+  /**
+   * Shown in the editor's banner once the file opens, until the person
+   * closes it or opens another file: what they should know about this file
+   * before editing it, such as that it was converted to open here.
+   */
+  notice?: FileNotice;
+}
+
+/** A source's message about a file it opened, shown in the editor's banner. */
+export interface FileNotice {
+  text: PluginText;
+  /** Listed under the text, such as what a conversion lost. */
+  items?: PluginText[];
+  /** 'warn' when something may be lost or wrong; 'info' by default. */
+  kind?: 'info' | 'warn';
 }
 
 /** Somewhere files are opened from and saved to, such as a cloud drive. */
