@@ -37,7 +37,7 @@ rmSync(new URL('../public/agents/', import.meta.url), { recursive: true, force: 
 const site = (process.env.DOCS_URL ?? 'https://ruled.page').replace(/\/$/, '');
 const skill = readFileSync(new URL('../agents/ruled.md', import.meta.url), 'utf8').replaceAll('{{SITE}}', site);
 const description =
-  'Embed Ruled (@ruled/sheet), the spreadsheet editor, in a web app: write its schemas with sync and async validation hooks and business logic, and handle opening and saving. Use when adding an Excel or spreadsheet editor to an app, or writing defineSchema code.';
+  'Embed Ruled (@ruled/sheet), the spreadsheet editor, in a web app: write its schemas with sync and async validation hooks and business logic, and handle opening and saving; use and write its plugins. Use when adding an Excel or spreadsheet editor to an app, writing defineSchema code, or writing a Ruled plugin.';
 writeFileSync(out('agents/ruled/SKILL.md'), `---\nname: ruled\ndescription: ${description}\n---\n\n${skill}`);
 writeFileSync(out('agents/ruled.mdc'), `---\ndescription: ${description}\nglobs:\nalwaysApply: false\n---\n\n${skill}`);
 console.log('Copied the editor and the sample workbooks into public/, and wrote the agent skill.');

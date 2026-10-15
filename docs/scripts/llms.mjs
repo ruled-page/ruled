@@ -100,12 +100,12 @@ for (const page of pages()) {
 const groups = sidebar();
 const listed = new Set();
 let index = `# Ruled\n\n> ${siteDescription}\n\n`;
-index += 'Ruled (`@ruled/sheet`) is a spreadsheet editor for web apps: a React component and a `<workbook-editor>` element. Schemas describe the workbooks an app expects, with sync and async hooks for checks and business logic. Its calculation engine, `@ruled/formula`, also works on its own, with no editor. Each link is a page as Markdown; llms-full.txt has them all.\n';
+index += 'Ruled (`@ruled/sheet`) is a spreadsheet editor for web apps: a React component and a `<workbook-editor>` element. Schemas describe the workbooks an app expects, with sync and async hooks for checks and business logic. Plugins (`@ruled/sheet/plugin`) add file sources such as OneDrive, commands, panels and dialogs. Its calculation engine, `@ruled/formula`, also works on its own, with no editor. Each link is a page as Markdown; llms-full.txt has them all.\n';
 let full = `# Ruled\n\n> ${siteDescription}\n`;
 for (const group of groups) {
   const api = /api/i.test(group.label);
   index += `\n## ${api ? 'Optional' : group.label}\n\n`;
-  if (api) index += `- [API reference](${site}/reference/api/readme.md): every export of @ruled/sheet and @ruled/formula, their types and their members\n`;
+  if (api) index += `- [API reference](${site}/reference/api/readme.md): every export of @ruled/sheet, its plugin contract (@ruled/sheet/plugin), @ruled/plugin/onedrive and @ruled/formula, their types and their members\n`;
   for (const href of group.links) {
     const page = all.get(href);
     if (!page || listed.has(href)) continue;

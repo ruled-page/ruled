@@ -1,6 +1,6 @@
 ---
 title: Coding agents and llms.txt
-description: Give Claude Code, Cursor or any other coding agent what it needs to embed the editor and write schemas and hooks.
+description: Give Claude Code, Cursor or any other coding agent what it needs to embed the editor, write schemas and hooks, and write plugins.
 sidebar:
   order: 1
 ---
@@ -15,11 +15,11 @@ These docs come in forms coding agents read well, and with a skill that teaches 
 | [`/llms-full.txt`](/llms-full.txt) | Every page in one Markdown file, the API reference included. |
 | Any page with `.md` | That page as Markdown: [`/schemas/async-hooks.md`](/schemas/async-hooks.md). |
 
-Point an agent at `llms-full.txt` when it needs the whole picture, or at single pages to keep its context small.
+Point an agent at `llms-full.txt` when it needs the whole picture, or at single pages to keep its context small. For a plugin, [`/plugins/writing.md`](/plugins/writing.md) has the whole contract and a complete plugin to start from.
 
 ## The skill
 
-The skill is a short, dense guide to embedding the editor and writing schemas, hooks and save handlers, with the details agents most often get wrong: hooks aren't called for empty cells, percentages are fractions, the editor needs a height, and hooks don't survive JSON.
+The skill is a short, dense guide to embedding the editor and writing schemas, hooks, save handlers and plugins, with the details agents most often get wrong: hooks aren't called for empty cells, percentages are fractions, the editor needs a height, hooks don't survive JSON, and a plugin must open its popups inside the click and import only types from `@ruled/sheet/plugin`.
 
 ### Claude Code
 
@@ -45,6 +45,6 @@ Most agents read an `AGENTS.md` at the project's root. Add:
 
 ```md
 ## Ruled
-This project embeds Ruled (@ruled/sheet), a spreadsheet editor. Before changing its schemas, hooks or options,
+This project embeds Ruled (@ruled/sheet), a spreadsheet editor. Before changing its schemas, hooks, options or plugins,
 read https://ruled.page/agents/ruled/SKILL.md, and https://ruled.page/llms-full.txt for detail.
 ```

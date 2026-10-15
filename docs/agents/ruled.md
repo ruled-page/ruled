@@ -41,4 +41,20 @@ Write with `defineSchema({...})` for types. Shape: `{ id, name, version?, sheets
 
 - `theme: { accent, surface, font, gridHeaderBg, ... }` (tokens are CSS custom properties `--wbe-*` on `.wbe`); `colorScheme: 'dark'` for dark themes.
 - `language` ('en', 'de' built in; others via `translations`), `locale` for dates and numbers.
-- `features`: `open`, `save`, `download`, `schemas`, `report`, `charts`, `format`, `csv`, `autoComplete`, each on unless `false`.
+- `features`: `open`, `save`, `download`, `schemas`, `report`, `charts`, `format`, `csv`, `autoComplete`, `sourceSave`, each on unless `false`.
+
+## Plugins
+
+Using: `plugins: [oneDrive({ clientId })]` in the options (the element's `options` property; read once, so a new editor to change them). Plugins are trusted code on the page. A source turns Open into a menu and adds "Save to <source>" and "Save a copy" entries beside the host's Save; `features.sourceSave: false` stops all writes to sources. `editor.origin` and `SavedWorkbook.origin` say where a workbook came from; `onEvent` hears `savedToSource` and `pluginError`. Docs: {{SITE}}/plugins/writing.md
+
+Writing: a plain object, types only from `@ruled/sheet/plugin` (never a runtime import of `@ruled/sheet`; `@ruled/sheet` is a peer dependency).
+
+- `{ id: 'com.example.thing' (reverse-DNS), apiVersion: 1, translations?: { en: {...}, de: {...} }, setup(ctx) { ...; return cleanup } }`. `setup` runs a moment after the editor is made.
+- `ctx`: `editor` (the handle), `signal` (aborted on destroy), `on(event => …)`, `commands`, `files`, `ui`, `text(pluginText)`, `limits.maxFileBytes`, `storage`.
+- Text (`PluginText`): a string, `{ en, de }`, or `{ key: 'plugin.<id>.<key>', params }` for a message from `translations` (placeholders `{{name}}`). Use `ctx.text()` for DOM you draw. Hosts reword `plugin.<id>.<key>` in their `translations`.
+- `commands.register({ id, label, icon?, where: 'toolbar' | 'more' | 'cellMenu', run(ctx), enabled?(ctx), visible?(ctx), preload?() })`; `cellMenu` gets `{ selection: { sheet, active, ranges } }`. `run` is inside the click: open popups before any `await`, load SDKs in `preload`. `commands.refresh()` after plugin state that `enabled`/`visible` read changes.
+- `files.registerSource({ id, label, icon?, preload?, pick(): Promise<RemoteFile | null>, save?(file, origin): Promise<FileOrigin>, saveAs?(file): Promise<FileOrigin | null>, fetch?(origin): Promise<RemoteFile | null> })`. `RemoteFile = { bytes, origin }`; `FileOrigin = { source (the source id), name, ref (JSON), version?, writable?, location? }`. `save` resolves with the new origin (new `version`); throw an error with `name: 'SaveConflictError'` when the file changed since. `null` means cancelled.
+- `files.open(remoteFile)`, `files.fetch(origin)` (through whichever source the origin names), `files.current()` (`{ name, from: 'device' | 'host' | 'source', origin?, size, bytes() }`; read it on the `opened` event).
+- `ui.toast(kind, text)`, `ui.confirm({ title, body, confirmLabel })`, `ui.dialog({ title, render(body, close), actions? })` (resolves the action id or null), `ui.registerPanel({ id, title, icon?, render(body) })`. `render` fills plain DOM, may return a cleanup, and runs again when the language changes. Style with `wbe-btn`, `wbe-input` and `--wbe-*` tokens only.
+- Errors thrown from any of these are caught, shown naming the plugin and reported as `pluginError`; a throw in `setup` removes the plugin. Give errors a `text` (PluginText) to translate them. Your own DOM listeners aren't caught.
+- `storage.get<T>(key)`, `set(key, json)`, `delete(key)`: `localStorage` under `ruled-plugin:<id>`, ~5 MB for the whole page, may silently keep nothing. No tokens, no large files.
