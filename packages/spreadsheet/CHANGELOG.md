@@ -6,6 +6,14 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Pressing another cell, a row number, a column letter or the corner while
+  a cell is being edited enters what was typed and closes the editor, then
+  selects what was pressed. The editor used to stay open, out of focus,
+  over a selection that had moved on.
+- Opening a toolbar button's menu no longer moves the buttons beside it.
+- `@ruled/plugin/google-drive` shows Sign out only while the editor holds a
+  token, updating as it signs in, signs out or the token expires.
+
 ## 0.2.0 (2026-10-15)
 
 - A new package, `@ruled/plugin`, holds Ruled's own plugins. The first,
