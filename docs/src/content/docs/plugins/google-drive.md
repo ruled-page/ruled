@@ -99,7 +99,7 @@ googleDrive({
 
 ## What it does
 
-**Signing in.** The first time someone opens a file from Google Drive, Google's sign-in popup opens and asks them to let your app see the files they choose. The access lasts about an hour and is kept only in the page's memory: never in storage, and never with the workbook or its drafts. After an hour, or after a reload, the next action asks again in a popup, which usually closes by itself. **Sign out of Google Drive**, in the More menu, revokes the access the editor was given.
+**Signing in.** The first time someone opens a file from Google Drive, Google's sign-in popup opens and asks them to let your app see the files they choose. The access lasts about an hour and is kept only in the page's memory: never in storage, and never with the workbook or its drafts. After an hour, or after a reload, the next action asks again in a popup, which usually closes by itself. **Sign out of Google Drive**, in the More menu while the editor holds that access, revokes it.
 
 Browsers allow a popup only straight after a click. When the editor couldn't open Google's popup inside it, because Google's scripts were still loading, it asks once more and opens the popup on that click.
 

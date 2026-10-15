@@ -34,7 +34,8 @@ export function workbookName(file: Pick<DriveFile, 'name' | 'mimeType'>): string
 }
 
 /** The connector's workings, which its entry loads when they are first needed. */
-export function connect(ctx: PluginContext, o: GoogleDriveOptions, label: PluginText) {
+/** `onSignIn` hears whether the editor holds a token for Drive, as it changes. */
+export function connect(ctx: PluginContext, o: GoogleDriveOptions, label: PluginText, onSignIn: (signedIn: boolean) => void) {
   const named = { source: label };
 
   let google: { globals: GoogleGlobals; auth: Auth } | undefined;
@@ -42,7 +43,7 @@ export function connect(ctx: PluginContext, o: GoogleDriveOptions, label: Plugin
   let signedInOnce = false;
   const load = () =>
     (loading ??= loadGoogle().then(
-      (globals) => (google = { globals, auth: createAuth(globals, o.clientId) }),
+      (globals) => (google = { globals, auth: createAuth(globals, o.clientId, onSignIn) }),
       (err: unknown) => {
         loading = undefined;
         throw err;

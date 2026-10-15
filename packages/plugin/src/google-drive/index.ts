@@ -51,10 +51,15 @@ export function googleDrive(options: GoogleDriveOptions): RuledPlugin {
  */
 function setup(ctx: Parameters<RuledPlugin['setup']>[0], o: GoogleDriveOptions): void {
   const label = o.label ?? msg('googleDrive');
+  let signedIn = false;
+  const onSignIn = (now: boolean) => {
+    signedIn = now;
+    ctx.commands.refresh();
+  };
   let loading: Promise<Connector> | undefined;
   const connector = () =>
     (loading ??= import('./connector').then(
-      (m) => m.connect(ctx, o, label),
+      (m) => m.connect(ctx, o, label, onSignIn),
       (err: unknown) => {
         loading = undefined;
         throw err;
@@ -76,6 +81,8 @@ function setup(ctx: Parameters<RuledPlugin['setup']>[0], o: GoogleDriveOptions):
     id: 'signOut',
     label: msg('signOut', { source: label }),
     where: 'more',
+    // Only while the editor holds a token for Drive: there is nothing to sign out of otherwise.
+    visible: () => signedIn,
     preload,
     run: () => connector().then((c) => c.signOut()),
   });

@@ -121,7 +121,7 @@ function connector(options: Partial<GoogleDriveOptions> = {}, limits = { maxFile
     limits,
     text: (text: PluginText) => (typeof text === 'string' ? text : 'key' in text ? text.key : (text as { en: string }).en),
     files: { registerSource: (s: FileSource) => ((source = s), () => undefined), open: vi.fn() },
-    commands: { register: (c: Command) => (commands.push(c), () => undefined) },
+    commands: { register: (c: Command) => (commands.push(c), () => undefined), refresh: vi.fn() },
     ui: { toast: (kind: string, text: PluginText) => void toasts.push({ kind, text }), confirm, dialog: vi.fn(), registerPanel: vi.fn() },
     on: () => () => undefined,
     storage: { get: vi.fn(), set: vi.fn(), delete: vi.fn() },
@@ -365,6 +365,26 @@ describe('the rest', () => {
     await commands[0].run({});
     expect(gis.revoked).toEqual([]);
     expect(key(toasts.at(-1)!.text)).toBe('signedOut');
+  });
+
+  it('offers signing out only while signed in, until the token expires', async () => {
+    stubFetch({ [`GET ${fileUrl('f1')}`]: () => json(driveFile()), [`GET ${MEDIA}`]: () => new Response(BYTES) });
+    const { source, commands } = connector();
+    const visible = () => commands[0].visible!({});
+    expect(visible()).toBe(false);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      await source.pick!();
+      expect(visible()).toBe(true);
+      await commands[0].run({});
+      expect(visible()).toBe(false);
+      await source.pick!();
+      expect(visible()).toBe(true);
+      vi.advanceTimersByTime(3599 * 1000);
+      expect(visible()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('revokes access and forgets the token on signing out, asking again next time', async () => {

@@ -93,8 +93,16 @@ export interface Auth {
   signOut(): Promise<void>;
 }
 
-export function createAuth(google: GoogleGlobals, clientId: string): Auth {
+/** `onChange` hears whether there is a token now: on signing in, signing out, and the token expiring. */
+export function createAuth(google: GoogleGlobals, clientId: string, onChange: (signedIn: boolean) => void = () => undefined): Auth {
   let token: { value: string; expires: number } | undefined;
+  let expiry: ReturnType<typeof setTimeout> | undefined;
+  const drop = () => {
+    clearTimeout(expiry);
+    if (!token) return;
+    token = undefined;
+    onChange(false);
+  };
   let granted = false;
   let pending: { resolve: (token: string | null) => void; reject: (err: Error) => void } | undefined;
   const settle = (fn: (p: NonNullable<typeof pending>) => void) => {
@@ -111,7 +119,11 @@ export function createAuth(google: GoogleGlobals, clientId: string): Auth {
       const allowed = !!response.access_token && !response.error && (google.accounts.oauth2.hasGrantedAllScopes?.(response, DRIVE_FILE_SCOPE) ?? true);
       if (!allowed) return settle((p) => p.reject(Object.assign(new Error('Access to Google Drive wasn’t allowed.'), { name: 'NotAllowed' })));
       granted = true;
-      token = { value: response.access_token!, expires: Date.now() + Number(response.expires_in ?? 3600) * 1000 };
+      const ms = Number(response.expires_in ?? 3600) * 1000;
+      clearTimeout(expiry);
+      token = { value: response.access_token!, expires: Date.now() + ms };
+      expiry = setTimeout(drop, ms);
+      onChange(true);
       settle((p) => p.resolve(token!.value));
     },
     error_callback(error) {
@@ -136,12 +148,10 @@ export function createAuth(google: GoogleGlobals, clientId: string): Auth {
         client.requestAccessToken(granted ? { prompt: '' } : {});
       });
     },
-    forget() {
-      token = undefined;
-    },
+    forget: drop,
     async signOut() {
       const value = token?.value;
-      token = undefined;
+      drop();
       granted = false;
       if (value) await new Promise<void>((resolve) => google.accounts.oauth2.revoke(value, resolve));
     },
