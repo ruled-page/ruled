@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { WorkbookEditor } from '@ruled/sheet';
+import { googleDrive } from '@ruled/plugin/google-drive';
 import { oneDrive } from '@ruled/plugin/onedrive';
 import { recentFiles } from '../../recent-files/src/recentFiles';
 import { handleFor } from '@ruled/sheet/internal/editor/handle.ts';
@@ -30,11 +31,16 @@ function rememberSample(fileName: string | undefined): void {
 }
 
 // Plugins are tried locally: set VITE_ONEDRIVE_CLIENT_ID (your own app
-// registration) or VITE_RECENT_FILES=1 in examples/demo/.env.local
-// (git-ignored). Never in a build, so a deployed demo has none.
-const oneDriveClientId = import.meta.env.DEV ? (import.meta.env.VITE_ONEDRIVE_CLIENT_ID as string | undefined) : undefined;
+// registration), VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY and
+// VITE_GOOGLE_APP_ID (your own Google Cloud project), or VITE_RECENT_FILES=1
+// in examples/demo/.env.local (git-ignored). Never in a build, so a deployed
+// demo has none.
+const env = (name: string) => (import.meta.env.DEV ? (import.meta.env[name] as string | undefined) : undefined);
+const oneDriveClientId = env('VITE_ONEDRIVE_CLIENT_ID');
+const google = { clientId: env('VITE_GOOGLE_CLIENT_ID'), apiKey: env('VITE_GOOGLE_API_KEY'), appId: env('VITE_GOOGLE_APP_ID') };
 const plugins = [
-  ...(oneDriveClientId ? [oneDrive({ clientId: oneDriveClientId, authority: import.meta.env.VITE_ONEDRIVE_AUTHORITY as string | undefined })] : []),
+  ...(oneDriveClientId ? [oneDrive({ clientId: oneDriveClientId, authority: env('VITE_ONEDRIVE_AUTHORITY') })] : []),
+  ...(google.clientId && google.apiKey && google.appId ? [googleDrive({ clientId: google.clientId, apiKey: google.apiKey, appId: google.appId })] : []),
   ...(import.meta.env.DEV && import.meta.env.VITE_RECENT_FILES ? [recentFiles()] : []),
 ];
 
