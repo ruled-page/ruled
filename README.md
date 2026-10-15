@@ -261,6 +261,12 @@ Run *Release* from the Actions tab to finish a release that stopped part way
   create and approve pull requests", for *Prepare release*'s pull request.
 - **Repository secrets.** `CLOUDFLARE_API_TOKEN` (with Cloudflare Pages edit
   access) and `CLOUDFLARE_ACCOUNT_ID`, for the deploys.
+- **Repository variables.** `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`
+  and `VITE_GOOGLE_APP_ID`, for the demo's Google Drive connector, from the
+  Google Cloud project that lists `https://demo.ruled.page` (see the docs'
+  Google Drive page). They aren't secret: they end up in the demo's code and
+  work only on the sites the project lists. Without them the demo has no
+  Google Drive.
 
 ## Licence
 
