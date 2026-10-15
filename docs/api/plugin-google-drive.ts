@@ -5,4 +5,4 @@
  *
  * @module @ruled/plugin/google-drive
  */
-export { googleDrive, GOOGLE_DRIVE_PLUGIN_ID, GOOGLE_DRIVE_SOURCE_ID, workbookName, type GoogleDriveOptions } from '../../packages/plugin/src/google-drive/index';
+export { googleDrive, GOOGLE_DRIVE_PLUGIN_ID, GOOGLE_DRIVE_SOURCE_ID, type GoogleDriveOptions } from '../../packages/plugin/src/google-drive/index';

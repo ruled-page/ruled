@@ -1,3 +1,11 @@
+import type { PluginText } from '@ruled/sheet/plugin';
+
+/** The plugin's id; its messages are `plugin.page.ruled.google-drive.<key>`. */
+export const GOOGLE_DRIVE_PLUGIN_ID = 'page.ruled.google-drive';
+
+/** The file source's id, which a workbook's `origin.source` names when it came from Google Drive. */
+export const GOOGLE_DRIVE_SOURCE_ID = 'google-drive';
+
 /** The connector's messages, which the editor shows as `plugin.page.ruled.google-drive.<key>`; a host's `translations` can reword them. */
 export const translations = {
   en: {
@@ -45,3 +53,6 @@ export const translations = {
 
 /** A message's key as code uses it: plural forms share one ("droppedCells" for droppedCells_one and droppedCells_other). */
 export type MessageKey = keyof (typeof translations)['en'] extends infer K ? (K extends `${infer Base}_${'one' | 'other'}` ? Base : K) : never;
+
+/** One of the connector's messages, for the editor to show translated. */
+export const msg = (key: MessageKey, params?: Record<string, unknown>): PluginText => ({ key: `plugin.${GOOGLE_DRIVE_PLUGIN_ID}.${key}`, params });

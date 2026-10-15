@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Command, FileOrigin, FileSource, PluginContext, PluginText, SavedWorkbook } from '@ruled/sheet/plugin';
 import { API, SIMPLE_UPLOAD_LIMIT, UPLOAD, XLSX } from '../src/google-drive/drive';
 import { GAPI_SCRIPT, GIS_SCRIPT, loadGoogle } from '../src/google-drive/google';
-import { googleDrive, workbookName, type GoogleDriveOptions } from '../src/google-drive';
+import { googleDrive, type GoogleDriveOptions } from '../src/google-drive';
+import { workbookName } from '../src/google-drive/connector';
 import { droppedFunctions, googleFunctions } from '../src/google-drive/xlsx';
 
 const SHEET = 'application/vnd.google-apps.spreadsheet';
