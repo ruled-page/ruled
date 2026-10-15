@@ -9,6 +9,7 @@
   "workspaces": [
     "packages/formula-engine",
     "packages/spreadsheet",
+    "packages/plugin",
     "packages/e2e",
     "examples/demo",
     "examples/react-portal"

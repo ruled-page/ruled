@@ -1,0 +1,13 @@
+{
+  // The package's type declarations, which rolldown.config.ts bundles beside each module.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "src",
+    // Types come from the published @ruled/sheet, not its source.
+    "customConditions": []
+  },
+  "include": ["src/onedrive/index.ts", "src/onedrive/redirect.ts"]
+}

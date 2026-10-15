@@ -1,0 +1,61 @@
+{
+  "name": "@ruled/plugin",
+  "version": "0.1.0",
+  "description": "Ruled's own plugins: open workbooks from OneDrive and SharePoint, and save them back",
+  "keywords": [
+    "ruled",
+    "plugin",
+    "excel",
+    "xlsx",
+    "onedrive",
+    "sharepoint",
+    "microsoft-graph"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "Anthony Gubler",
+  "homepage": "https://ruled.page",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruled-page/ruled.git",
+    "directory": "packages/plugin"
+  },
+  "bugs": "https://github.com/ruled-page/ruled/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": [
+    "./dist/onedrive/redirect.js",
+    "./src/onedrive/redirect.ts"
+  ],
+  "scripts": {
+    "build": "rolldown -c rolldown.config.ts"
+  },
+  "exports": {
+    "./onedrive": {
+      "source": "./src/onedrive/index.ts",
+      "types": "./dist/onedrive/index.d.ts",
+      "import": "./dist/onedrive/index.js"
+    },
+    "./onedrive/redirect": {
+      "source": "./src/onedrive/redirect.ts",
+      "types": "./dist/onedrive/redirect.d.ts",
+      "import": "./dist/onedrive/redirect.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "@azure/msal-browser": "^5.25.1"
+  },
+  "peerDependencies": {
+    "@ruled/sheet": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@ruled/sheet": "0.1.0",
+    "rolldown": "1.2.12",
+    "rolldown-plugin-dts": "0.28.6"
+  }
+}

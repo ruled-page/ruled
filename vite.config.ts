@@ -31,6 +31,8 @@ export default defineConfig({
         'examples/demo/src/{main.tsx,Welcome.tsx,i18n.ts,sites.ts}',
         'examples/react-portal/src/{*.tsx,i18n.ts,format.ts,sites.ts}',
         'examples/*/src/locales/**',
+        // The sign-in popup's return page, which only hands MSAL's answer back.
+        'packages/plugin/src/onedrive/redirect.ts',
         'packages/spreadsheet/src/i18n/messages/**',
       ],
       reporter: ['text-summary', 'html'],
