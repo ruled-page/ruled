@@ -10,6 +10,11 @@
  *       Commits nothing. Prints the version, and with GITHUB_OUTPUT set
  *       writes it there as `version`, and whether it's a prerelease.
  *
+ *   node scripts/release.mjs check <version | patch | minor | major>
+ *       What prepare checks first, that the version comes after the last
+ *       release and the changelog has notes to release, changing nothing:
+ *       for a workflow to fail before it installs and builds.
+ *
  *   node scripts/release.mjs notes [version]
  *       Prints a version's notes from the changelog: by default the version
  *       the packages are at.
@@ -47,7 +52,8 @@ function notes(version) {
   return found[1].trim();
 }
 
-function prepare(asked) {
+/** The version a release of `asked` makes, and the changelog with its Unreleased notes; fails if either won't do. */
+function checked(asked) {
   if (!asked) fail('Say which version: node scripts/release.mjs prepare <version | patch | minor | major>');
   // Released versions are the v-tags; before the first, the last is 0.0.0.
   const last = git('tag', '--list', 'v*', '--sort=-v:refname').split('\n')[0]?.replace(/^v/, '') || '0.0.0';
@@ -59,6 +65,11 @@ function prepare(asked) {
   const changelog = readFileSync(changelogPath, 'utf8');
   const unreleased = /^## Unreleased\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
   if (!unreleased || !unreleased[1].trim()) fail('CHANGELOG.md has no notes under "## Unreleased" to release.');
+  return { next, changelog, unreleased };
+}
+
+function prepare(asked) {
+  const { next, changelog, unreleased } = checked(asked);
 
   // The packages at the version, and every workspace that names one of them, so each still takes the workspace's copy.
   // A range keeps its operator: @ruled/plugin's peer range for @ruled/sheet moves to ^version.
@@ -80,5 +91,6 @@ function prepare(asked) {
 
 const [command, arg] = process.argv.slice(2);
 if (command === 'prepare') prepare(arg);
+else if (command === 'check') console.log(checked(arg).next);
 else if (command === 'notes') console.log(notes(arg ?? JSON.parse(readFileSync(join(sheet, 'package.json'), 'utf8')).version));
-else fail('Usage: node scripts/release.mjs prepare <version | patch | minor | major>, or notes [version]');
+else fail('Usage: node scripts/release.mjs prepare <version | patch | minor | major>, check <the same>, or notes [version]');

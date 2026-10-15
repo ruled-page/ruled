@@ -36,6 +36,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # The version and the changelog's notes, before the install and build they'd otherwise wait for.
+      - run: node scripts/release.mjs check "$VERSION"
+        env:
+          VERSION: ${{ inputs.version }}
       - run: npm ci
       # The third-party notices are read from the builds.
       - run: npm run build:lib
