@@ -31,7 +31,7 @@ export default defineConfig({
         starlightLinksValidator({ exclude: ['/llms.txt', '/llms-full.txt', '/agents/**', '/**/*.md'] }),
         starlightTypeDoc({
           // Wrappers naming the modules after their import paths.
-          entryPoints: ['./api/spreadsheet.ts', './api/standalone.ts', './api/node.ts', './api/plugin.ts', './api/formula.ts', './api/plugin-onedrive.ts'],
+          entryPoints: ['./api/spreadsheet.ts', './api/standalone.ts', './api/node.ts', './api/plugin.ts', './api/formula.ts', './api/plugin-onedrive.ts', './api/plugin-google-drive.ts'],
           tsconfig: './tsconfig.typedoc.json',
           output: 'reference/api',
           sidebar: { label: 'API reference', collapsed: true },

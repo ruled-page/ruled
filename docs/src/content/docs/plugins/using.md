@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-A plugin adds to the editor: a place to open workbooks from and save them to (OneDrive), buttons on the toolbar or in More, entries in the cell menu, a side panel, or dialogs. Plugins are plain objects, so the same plugin works with the React component and the `<workbook-editor>` element.
+A plugin adds to the editor: a place to open workbooks from and save them to (OneDrive, Google Drive), buttons on the toolbar or in More, entries in the cell menu, a side panel, or dialogs. Plugins are plain objects, so the same plugin works with the React component and the `<workbook-editor>` element.
 
 ## Passing them in
 
@@ -87,7 +87,7 @@ Each plugin's page says which languages it has and what its id is.
 
 The editor's own plugin code loads from the same place as the editor, so it needs nothing beyond what [Install › Content Security Policy](/start/install/#content-security-policy) lists. Each plugin needs what it connects to: a connector's page lists the hosts it talks to, frames it opens and scripts it loads.
 
-Sign-in popups, as OneDrive's, are blocked by `Cross-Origin-Opener-Policy: same-origin`. A page that sends it needs `same-origin-allow-popups`.
+Sign-in popups, as OneDrive's and Google Drive's, are blocked by `Cross-Origin-Opener-Policy: same-origin`. A page that sends it needs `same-origin-allow-popups`.
 
 ## Plugins are trusted code
 
@@ -105,4 +105,5 @@ Plugins may keep small values in the browser's `localStorage`, under `ruled-plug
 ## Plugins
 
 - [OneDrive and SharePoint](/plugins/onedrive/): open workbooks from OneDrive and SharePoint and save them back.
+- [Google Drive](/plugins/google-drive/): open workbooks and Google Sheets from Google Drive, save workbooks back, and save copies there.
 - [Writing a plugin](/plugins/writing/): the contract, built around a complete "Recent files" plugin.
