@@ -212,20 +212,30 @@ function setup(ctx: PluginContext, o: OneDriveOptions): void {
     }
   }
 
+  /** The file as it is now, unless it's larger than the editor opens. */
+  async function downloaded(a: Auth, ref: ItemRef): Promise<RemoteFile | null> {
+    const graphToken = () => token(a, graphScopes);
+    const item = await getItem(graphToken, ref, ctx.signal);
+    const max = ctx.limits.maxFileBytes;
+    if ((item.size ?? 0) > max) {
+      ctx.ui.toast('error', msg('tooBig', { name: item.name, size: mb(item.size!), max: mb(max) }));
+      return null;
+    }
+    const bytes = await download(graphToken, ref, item, ctx.signal);
+    return { bytes, origin: originOf(ref.drive, item) };
+  }
+
   async function pick(): Promise<RemoteFile | null> {
     return unlessCancelled(async () => {
       const { a, picked } = await choose('files');
-      const graphToken = () => token(a, graphScopes);
-      const ref = { drive: picked.parentReference.driveId, item: picked.id };
-      const item = await getItem(graphToken, ref, ctx.signal);
-      const max = ctx.limits.maxFileBytes;
-      if ((item.size ?? 0) > max) {
-        ctx.ui.toast('error', msg('tooBig', { name: item.name, size: mb(item.size!), max: mb(max) }));
-        return null;
-      }
-      const bytes = await download(graphToken, ref, item, ctx.signal);
-      return { bytes, origin: originOf(ref.drive, item) };
+      return downloaded(a, { drive: picked.parentReference.driveId, item: picked.id });
     });
+  }
+
+  /** A file opened before, by its origin: from a list of recent files. */
+  async function fetchAgain(origin: FileOrigin): Promise<RemoteFile | null> {
+    const ref = refOf(origin);
+    return unlessCancelled(async () => downloaded(await signedIn(), ref));
   }
 
   async function save(file: SavedWorkbook, origin: FileOrigin): Promise<FileOrigin> {
@@ -292,7 +302,7 @@ function setup(ctx: PluginContext, o: OneDriveOptions): void {
     });
   }
 
-  const source: FileSource = { id: ONEDRIVE_SOURCE_ID, label, preload, pick };
+  const source: FileSource = { id: ONEDRIVE_SOURCE_ID, label, preload, pick, fetch: fetchAgain };
   if (!o.readOnly) Object.assign(source, { save, saveAs });
   ctx.files.registerSource(source);
 

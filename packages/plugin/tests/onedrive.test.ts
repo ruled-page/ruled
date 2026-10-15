@@ -276,6 +276,29 @@ describe('opening', () => {
   });
 });
 
+describe('opening again by origin', () => {
+  it('fetches the file as it is now, without the picker, taking its current version', async () => {
+    stubFetch({
+      [`GET ${ITEM}`]: () => json(driveItem({ eTag: '"{ABC},5"' })),
+      'GET https://public.dm.files.1drv.com/download?t=x': () => new Response(BYTES),
+    });
+    const file = await connector().source.fetch!(origin());
+    expect(new Uint8Array(file!.bytes as ArrayBuffer)).toEqual(BYTES);
+    expect(file!.origin).toMatchObject({ ref: { drive: 'd1', item: 'i1' }, version: '"{ABC},5"' });
+    expect(picker.runPicker).not.toHaveBeenCalled();
+  });
+
+  it('signs in first, and resolves null when the person won’t', async () => {
+    msal.account = null;
+    msal.loginPopup = vi.fn(async () => Promise.reject(Object.assign(new Error('closed'), { errorCode: 'user_cancelled' })));
+    expect(await connector().source.fetch!(origin())).toBeNull();
+  });
+
+  it('refuses an origin that doesn’t name a OneDrive file', async () => {
+    await expect(connector().source.fetch!(origin({ ref: 'elsewhere' }))).rejects.toThrow(/doesn’t name a OneDrive file/);
+  });
+});
+
 describe('saving back', () => {
   it('writes over the file only if it is still the version opened, and takes the new version', async () => {
     const calls = stubFetch({ [`PUT ${ITEM}/content`]: () => json(driveItem({ eTag: '"{ABC},2"' })) });
