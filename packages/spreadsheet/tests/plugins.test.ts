@@ -106,6 +106,16 @@ describe('plugin registries', () => {
     store.dispose();
   });
 
+  it('reads commands’ state again when a plugin says what they depend on changed', async () => {
+    let ctx: PluginContext | undefined;
+    const { store, handle } = await editor({ plugins: [plugin((c) => void (ctx = c))] });
+    const heard = vi.fn();
+    handle.subscribe(heard);
+    ctx!.commands.refresh();
+    expect(heard).toHaveBeenCalled();
+    store.dispose();
+  });
+
   it('refuses a second command or source with the same id', async () => {
     const { store, events } = await editor({
       plugins: [
@@ -495,6 +505,65 @@ describe('saving to a plugin’s source', () => {
     expect(store.fileName).toBe('recent.xlsx');
     expect(store.origin?.ref).toBe(1);
     expect(store.saveTarget).toBe('source');
+    store.dispose();
+  });
+
+  it('tells plugins what is open, as opened, and where from', async () => {
+    let ctx: PluginContext | undefined;
+    const drive = fakeDrive();
+    const { store, handle } = await editor({
+      plugins: [
+        plugin((c) => {
+          ctx = c;
+          c.files.registerSource(drive.source);
+        }),
+      ],
+    });
+    expect(ctx!.files.current()).toBeUndefined();
+
+    await store.open('forecast.xlsx', FORECAST.slice().buffer as ArrayBuffer, { from: 'device' });
+    const device = ctx!.files.current()!;
+    expect(device).toMatchObject({ name: 'forecast.xlsx', from: 'device', size: FORECAST.byteLength, origin: undefined });
+    // Each call is a copy, unchanged by edits.
+    await store.input(1, 1, '1500');
+    const bytes = device.bytes();
+    expect(new Uint8Array(bytes)).toEqual(FORECAST);
+    expect(device.bytes()).not.toBe(bytes);
+
+    const opening = handle.open(FORECAST, 'from-host.xlsx');
+    await answer(store, 'confirm');
+    await opening;
+    expect(ctx!.files.current()).toMatchObject({ name: 'from-host.xlsx', from: 'host' });
+
+    await store.plugins!.openFrom(store.plugins!.sources[0]);
+    expect(ctx!.files.current()).toMatchObject({ name: 'forecast.xlsx', from: 'source', origin: { source: 'fake.drive', ref: { item: 7 } } });
+    store.dispose();
+  });
+
+  it('fetches a file again through the source its origin names, even another plugin’s', async () => {
+    let ctx: PluginContext | undefined;
+    const drive = fakeDrive();
+    const fetched: FileOrigin[] = [];
+    drive.source.fetch = async (origin) => {
+      fetched.push(origin);
+      if (origin.ref === 'gone') throw new Error('It was deleted.');
+      return { bytes: FORECAST, origin: { ...origin, version: '9' } };
+    };
+    const { store, events } = await editor({ plugins: [drive.plugin, definePlugin({ id: 'test.recent', apiVersion: 1, setup: (c) => void (ctx = c) })] });
+    const origin: FileOrigin = { source: 'fake.drive', name: 'forecast.xlsx', ref: { item: 7 }, version: '1' };
+
+    const file = await ctx!.files.fetch(origin);
+    expect(file?.origin.version).toBe('9');
+    expect(fetched).toEqual([origin]);
+    expect(await ctx!.files.open(file!)).toBe(true);
+    expect(store.origin?.version).toBe('9');
+
+    // A failing source is named; one that isn't here, or can't fetch, is explained.
+    expect(await ctx!.files.fetch({ ...origin, ref: 'gone' })).toBeNull();
+    expect(events.at(-1)).toMatchObject({ type: 'pluginError', plugin: 'test.plugin', message: 'It was deleted.' });
+    expect(await ctx!.files.fetch({ ...origin, source: 'elsewhere' })).toBeNull();
+    expect(english.text(store.toasts.at(-1)!.text)).toMatch(/forecast\.xlsx can't be opened again here/);
+    delete drive.source.fetch;
     store.dispose();
   });
 });

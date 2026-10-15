@@ -9,6 +9,7 @@ export const store = {
   'store.open.notSupported': 'Only Excel workbooks (.xlsx or .xlsm) and CSV files (.csv, .tsv or .txt) can be opened.',
   'store.open.reading': 'Reading {{fileName}}…',
   'store.open.badRemote': "A plugin gave the editor a file it can't open: it needs the file's bytes and where it came from.",
+  'store.open.cannotFetch': "{{fileName}} can't be opened again here: where it came from isn't available in this editor.",
 
   'store.source.saved': 'Saved {{fileName}} to {{source}}.',
   'store.source.copied': 'Saved a copy, {{fileName}}, to {{source}}.',

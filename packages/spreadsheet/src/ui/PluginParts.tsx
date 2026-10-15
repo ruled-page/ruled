@@ -132,17 +132,25 @@ export function PanelButtons({ store }: { store: WorkbookStore }) {
   });
 }
 
-/** An element a plugin fills with its own DOM, emptied (and the plugin told) when it goes. */
-function PluginBody({ store, plugin, render }: { store: WorkbookStore; plugin: string; render: (body: HTMLElement) => void | (() => void) }) {
+const noClose = () => undefined;
+
+/**
+ * An element a plugin fills with its own DOM, emptied (and the plugin told)
+ * when it goes, and filled again in a new language. A dialog's body can
+ * close it.
+ */
+function PluginBody({ store, plugin, render, close = noClose }: { store: WorkbookStore; plugin: string; render: (body: HTMLElement, close: (action: string | null) => void) => void | (() => void); close?: (action: string | null) => void }) {
   const body = useRef<HTMLDivElement>(null);
+  const t = useT();
   useEffect(() => {
     const el = body.current!;
-    const cleanup = store.plugins!.call(plugin, () => render(el), undefined);
+    const cleanup = store.plugins!.call(plugin, () => render(el, close), undefined);
     return () => {
       if (typeof cleanup === 'function') store.plugins!.call(plugin, cleanup, undefined);
       el.replaceChildren();
     };
-  }, [store, plugin, render]);
+    // `t` changes with the language.
+  }, [store, plugin, render, close, t]);
   return <div ref={body} className="wbe-plugin-body" />;
 }
 
@@ -163,7 +171,7 @@ export function PluginDialogView({ store }: { store: WorkbookStore }) {
       <div ref={dialog} className="wbe-modal wbe-modal-wide" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
         <div className="wbe-modal-content">
           <h2 id={`${id}-title`}>{t.text(pluginText(d.title))}</h2>
-          <PluginBody store={store} plugin={d.plugin} render={d.render} />
+          <PluginBody store={store} plugin={d.plugin} render={d.render} close={d.resolve} />
           <div className="wbe-modal-actions">
             {d.actions?.length ? (
               d.actions.map((a) => (

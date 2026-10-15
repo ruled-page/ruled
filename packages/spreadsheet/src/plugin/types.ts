@@ -44,7 +44,7 @@ export interface PluginContext {
   ui: PluginUI;
   /** What the editor does, as `onEvent` hears it. Returns an unsubscribe function. */
   on(listener: (event: EditorEvent) => void): () => void;
-  /** A small key–value store kept in this browser for this plugin (recent files, the last folder). Never workbook contents. */
+  /** A small key–value store kept in this browser for this plugin: recent files, the last folder. */
   storage: PluginStorage;
 }
 
@@ -69,7 +69,7 @@ export interface Command {
   where: 'toolbar' | 'more' | 'cellMenu';
   /** Runs inside the click, so a popup it opens straight away isn't blocked. */
   run(context: CommandContext): void | Promise<void>;
-  /** Read again whenever the editor's state changes. */
+  /** Read again whenever the editor's state changes, or the plugin calls `commands.refresh()`. */
   enabled?(context: CommandContext): boolean;
   visible?(context: CommandContext): boolean;
   /** Called when the menu holding it opens, or the pointer rests on it: load an SDK here. */
@@ -79,6 +79,8 @@ export interface Command {
 export interface PluginCommands {
   /** Adds a command; returns a function that removes it. */
   register(command: Command): () => void;
+  /** Reads every command's `enabled` and `visible` again, after something they depend on changed outside the editor. */
+  refresh(): void;
 }
 
 /** Where the open workbook came from. Kept by the editor, handed back on save, never written to the file. */
@@ -127,13 +129,48 @@ export interface FileSource {
   save?(file: SavedWorkbook, origin: FileOrigin): Promise<FileOrigin>;
   /** Writes the workbook as a new file, letting the person choose where and what to call it. Resolves null when they cancel. */
   saveAs?(file: SavedWorkbook): Promise<FileOrigin | null>;
+  /**
+   * Fetches the file an origin names again, as it is now, for opening it
+   * without `pick`: from a list of recent files, or a link. The origin may
+   * be old, so resolve with the file's current one. Resolves null when the
+   * person cancels (a sign-in they close). Without it, files from this
+   * source can only be opened by picking them.
+   */
+  fetch?(origin: FileOrigin): Promise<RemoteFile | null>;
+}
+
+/** The workbook open in the editor, as it was opened. */
+export interface OpenedFile {
+  /** Its file name, as shown. */
+  name: string;
+  /**
+   * Where it came from: this device (the Open button, or a file dropped on
+   * the editor), the host's code (its `file` option, or `open` on the handle),
+   * or a plugin's source, which `origin` names.
+   */
+  from: 'device' | 'host' | 'source';
+  /** Where it is kept, for a file from a source. */
+  origin?: FileOrigin;
+  /** Its size in bytes, as opened. */
+  size: number;
+  /** A copy of its bytes as opened, before any edits. */
+  bytes(): ArrayBuffer;
 }
 
 export interface PluginFiles {
   /** Adds a source to the Open and "Save a copy" menus; returns a function that removes it. */
   registerSource(source: FileSource): () => void;
-  /** Opens a file as if picked from one of this plugin's sources, for files found some other way (a recent-files list, a link). */
+  /** Opens a file as if picked from a source, for files found some other way (a recent-files list, a link). Resolves whether it opened. */
   open(file: RemoteFile): Promise<boolean>;
+  /**
+   * Fetches a file again through the source its origin names, which may be
+   * another plugin's, so `open` can open it. Resolves null when the person
+   * cancels, or when it can't: the source isn't in this editor, has no
+   * `fetch`, or failed, which the editor has then said.
+   */
+  fetch(origin: FileOrigin): Promise<RemoteFile | null>;
+  /** The workbook open now, as it was opened; undefined while none is. Read it when the `opened` event comes, to know what was opened and from where. */
+  current(): OpenedFile | undefined;
 }
 
 export interface DialogAction {
@@ -145,8 +182,13 @@ export interface DialogAction {
 
 export interface PluginDialog {
   title: PluginText;
-  /** Fills the dialog's body with plain DOM; may return a function to clean up when it closes. */
-  render(body: HTMLElement): void | (() => void);
+  /**
+   * Fills the dialog's body with plain DOM; may return a function to clean
+   * up when it closes. `close` ends the dialog from inside the body, as
+   * choosing an item in a list does, resolving `dialog` with that id. It is
+   * called again, after cleaning up, when the editor's language changes.
+   */
+  render(body: HTMLElement, close: (action: string | null) => void): void | (() => void);
   /** Buttons under the body; without them, the dialog has a Close button. */
   actions?: DialogAction[];
 }
@@ -156,7 +198,11 @@ export interface PluginPanel {
   id: string;
   title: PluginText;
   icon?: IconSource;
-  /** Fills the panel with plain DOM; may return a function to clean up when it closes. */
+  /**
+   * Fills the panel with plain DOM; may return a function to clean up when
+   * it closes. It is called again, after cleaning up, when the editor's
+   * language changes. To show new content meanwhile, change the body's DOM.
+   */
   render(body: HTMLElement): void | (() => void);
 }
 
@@ -174,9 +220,16 @@ export interface PluginUI {
   registerPanel(panel: PluginPanel): () => void;
 }
 
-/** Values kept in this browser for the plugin. Storage may be unavailable (a private window): then nothing is kept, without an error. */
+/**
+ * Values kept in this browser for the plugin, as JSON in `localStorage`,
+ * which a page shares and browsers cap at about 5 MB: keep them small.
+ * Storage may be unavailable or full (a private window): then nothing is
+ * kept, without an error, so read back what you rely on.
+ */
 export interface PluginStorage {
-  get(key: string): Promise<JsonValue | undefined>;
-  set(key: string, value: JsonValue): Promise<void>;
+  /** A value as set; `T` says what you kept there, unchecked. */
+  get<T = JsonValue>(key: string): Promise<T | undefined>;
+  /** Keeps a value JSON can hold: a list of objects, a string. */
+  set<T>(key: string, value: T): Promise<void>;
   delete(key: string): Promise<void>;
 }

@@ -37,8 +37,8 @@ function pluginStorage(id: string): PluginStorage {
     }
   };
   return {
-    get: async (key) => (Object.hasOwn(read(), key) ? read()[key] : undefined),
-    set: async (key, value) => write((d) => void (d[key] = value)),
+    get: async <T>(key: string) => (Object.hasOwn(read(), key) ? (read()[key] as T) : undefined),
+    set: async (key, value) => write((d) => void (d[key] = value as JsonValue)),
     delete: async (key) => write((d) => void delete d[key]),
   };
 }
@@ -228,6 +228,25 @@ export class PluginHost {
   }
 
   /**
+   * Fetches a file again through the source its origin names, for a plugin
+   * that keeps origins (a recent-files list): null when the person cancels,
+   * or when it can't, which the editor says.
+   */
+  async fetch(origin: FileOrigin): Promise<RemoteFile | null> {
+    const source = this.source(origin?.source);
+    if (!source?.fetch) {
+      this.store.toast('error', msg('store.open.cannotFetch', { fileName: String(origin?.name) }));
+      return null;
+    }
+    try {
+      return (await source.fetch({ ...origin })) ?? null;
+    } catch (err) {
+      this.fail(source.plugin, err);
+      return null;
+    }
+  }
+
+  /**
    * "Save to <source>": writes the workbook back over the file it was opened
    * from. A schema's errors don't stop it, as the file is the person's own,
    * but they are asked first. On success the source's new origin replaces
@@ -319,10 +338,12 @@ export class PluginHost {
       signal,
       limits: { maxFileBytes: store.maxFileBytes },
       text: (text) => store.t.text(pluginText(text)),
-      commands: { register: (command) => add('commands', { ...command, plugin, key: own('commands', command.id) }) },
+      commands: { register: (command) => add('commands', { ...command, plugin, key: own('commands', command.id) }), refresh: () => store.notify() },
       files: {
         registerSource: (source) => add('sources', { ...source, plugin, key: own('sources', source.id) }),
         open: (file) => this.openRemote(file),
+        fetch: (origin) => this.fetch(origin),
+        current: () => store.openedFile(),
       },
       ui: {
         toast: (kind, text) => store.toast(kind, pluginText(text)),

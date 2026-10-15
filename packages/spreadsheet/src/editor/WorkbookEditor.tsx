@@ -251,7 +251,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   };
 
   const openFile = async (file: File | undefined) => {
-    if (file) await store.open(file.name, await file.arrayBuffer(), { csv: store.features.csv });
+    if (file) await store.open(file.name, await file.arrayBuffer(), { csv: store.features.csv, from: 'device' });
   };
 
   const view = store.view;

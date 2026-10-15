@@ -97,7 +97,7 @@ import {
 import { isNarrow } from './viewport';
 import type { PluginHost, RegisteredSource } from './plugins';
 import type { EditorHandle } from '../editor/handle';
-import type { CommandSelection, FileOrigin, PluginDialog, RuledPlugin } from '../plugin/types';
+import type { CommandSelection, FileOrigin, OpenedFile, PluginDialog, RuledPlugin } from '../plugin/types';
 
 export interface Toast {
   id: number;
@@ -687,6 +687,8 @@ export class WorkbookStore {
   private draftWrite?: Promise<unknown>;
   /** The file as opened, to open again if the worker fails. */
   private source?: { fileName: string; bytes: ArrayBuffer; password?: string; origin?: FileOrigin };
+  /** Who opened the file: the person, from this device, or the host's code; a source's file has an origin. */
+  private openedFrom: 'device' | 'host' = 'host';
   /** Where the open workbook came from, when a plugin's file source opened it. */
   origin?: FileOrigin;
   /** A plugin's dialog, while open. */
@@ -1103,9 +1105,10 @@ export class WorkbookStore {
    * opened, or why not. The user can decline to discard edits to the workbook
    * already open; a file that can't be read leaves the editor showing why.
    * `csv: false` refuses CSV files (the editor's own Open button and drop
-   * pass the `csv` feature); `origin` is where a plugin's source fetched it from.
+   * pass the `csv` feature); `origin` is where a plugin's source fetched it from,
+   * and `from: 'device'` says the person opened it from this device.
    */
-  async open(fileName: string, bytes: ArrayBuffer, { csv = true, origin }: { csv?: boolean; origin?: FileOrigin } = {}): Promise<OpenResult> {
+  async open(fileName: string, bytes: ArrayBuffer, { csv = true, origin, from = 'host' }: { csv?: boolean; origin?: FileOrigin; from?: 'device' | 'host' } = {}): Promise<OpenResult> {
     if (this.editedCount > 0 && !(await this.confirm({
       title: msg('store.open.discardTitle'),
       body: msg('store.open.discardBody', { fileName: this.fileName }),
@@ -1119,7 +1122,17 @@ export class WorkbookStore {
       return { opened: false, error };
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
+    this.openedFrom = from;
     return this.load(fileName, bytes, undefined, undefined, origin);
+  }
+
+  /** The workbook open now, as it was opened, for plugins. */
+  openedFile(): OpenedFile | undefined {
+    const source = this.source;
+    if (!source || this.status !== 'ready') return undefined;
+    const { bytes } = source;
+    const origin = this.origin;
+    return { name: this.fileName, from: origin ? 'source' : this.openedFrom, origin: origin && { ...origin }, size: bytes.byteLength, bytes: () => bytes.slice(0) };
   }
 
   /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed; `password` opens a protected workbook. */

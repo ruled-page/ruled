@@ -11,6 +11,7 @@ export const store: Record<keyof typeof en, string> = {
   'store.open.notSupported': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) und CSV-Dateien (.csv, .tsv oder .txt) können geöffnet werden.',
   'store.open.reading': '{{fileName}} wird gelesen…',
   'store.open.badRemote': 'Ein Plugin hat dem Editor eine Datei übergeben, die er nicht öffnen kann: Er braucht den Inhalt der Datei und ihre Herkunft.',
+  'store.open.cannotFetch': '{{fileName}} kann hier nicht erneut geöffnet werden: Der Ort, von dem die Datei stammt, ist in diesem Editor nicht verfügbar.',
 
   'store.source.saved': '{{fileName}} in {{source}} gespeichert.',
   'store.source.copied': 'Kopie {{fileName}} in {{source}} gespeichert.',
