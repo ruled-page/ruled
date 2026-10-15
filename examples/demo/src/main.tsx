@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { WorkbookEditor } from '@ruled/sheet';
 import { oneDrive } from '@ruled/plugin/onedrive';
+import { recentFiles } from '../../recent-files/src/recentFiles';
 import { handleFor } from '@ruled/sheet/internal/editor/handle.ts';
 import { WorkbookStore } from '@ruled/sheet/internal/state/store.ts';
 import { DEMO_NS, i18next, LANGUAGE_STORAGE_KEY, LANGUAGES } from './i18n';
@@ -28,14 +29,18 @@ function rememberSample(fileName: string | undefined): void {
   if (url.href !== location.href) history.replaceState(history.state, '', url);
 }
 
-// Connectors are tried locally against your own app registrations: set
-// VITE_ONEDRIVE_CLIENT_ID in examples/demo/.env.local (git-ignored). Never in
-// a build, so a deployed demo has none.
+// Plugins are tried locally: set VITE_ONEDRIVE_CLIENT_ID (your own app
+// registration) or VITE_RECENT_FILES=1 in examples/demo/.env.local
+// (git-ignored). Never in a build, so a deployed demo has none.
 const oneDriveClientId = import.meta.env.DEV ? (import.meta.env.VITE_ONEDRIVE_CLIENT_ID as string | undefined) : undefined;
+const plugins = [
+  ...(oneDriveClientId ? [oneDrive({ clientId: oneDriveClientId, authority: import.meta.env.VITE_ONEDRIVE_AUTHORITY as string | undefined })] : []),
+  ...(import.meta.env.DEV && import.meta.env.VITE_RECENT_FILES ? [recentFiles()] : []),
+];
 
 // The status bar says how long opening, calculating and edits take.
 const store = new WorkbookStore({
-  plugins: oneDriveClientId ? [oneDrive({ clientId: oneDriveClientId, authority: import.meta.env.VITE_ONEDRIVE_AUTHORITY as string | undefined })] : undefined,
+  plugins: plugins.length ? plugins : undefined,
   schemas: DEMO_SCHEMAS,
   language: i18next.language,
   diagnostics: true,
