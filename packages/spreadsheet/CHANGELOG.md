@@ -6,6 +6,8 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+## 0.2.0 (2026-10-15)
+
 - A new package, `@ruled/plugin`, holds Ruled's own plugins. The first,
   `@ruled/plugin/onedrive`, opens workbooks from OneDrive and SharePoint,
   saves them back unless they changed there, and saves copies to them.

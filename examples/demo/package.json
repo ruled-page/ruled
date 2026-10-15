@@ -16,8 +16,8 @@
     "./locales/*": "./src/locales/*.ts"
   },
   "dependencies": {
-    "@ruled/plugin": "0.1.0",
-    "@ruled/sheet": "0.1.0",
+    "@ruled/plugin": "0.2.0",
+    "@ruled/sheet": "0.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   }
