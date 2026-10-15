@@ -540,6 +540,31 @@ describe('saving to a plugin’s source', () => {
     store.dispose();
   });
 
+  it('lets a source offer files by name, opened through the source each names', async () => {
+    const drive = fakeDrive();
+    drive.source.fetch = async (origin) => ({ bytes: FORECAST, origin });
+    const offered: FileOrigin = { source: 'fake.drive', name: 'forecast.xlsx', ref: { item: 7 } };
+    let items: () => unknown = () => [offered, null, { name: 'no source' }];
+    const { store, events } = await editor({
+      plugins: [drive.plugin, definePlugin({ id: 'test.list', apiVersion: 1, setup: (c) => void c.files.registerSource({ id: 'list', label: 'List', items: () => items() as FileOrigin[] }) })],
+    });
+    const list = store.plugins!.sources.find((s) => s.id === 'list')!;
+    // Only origins are offered; a source with nothing to pick picks nothing.
+    expect(store.plugins!.items(list)).toEqual([offered]);
+    expect(await store.plugins!.openFrom(list)).toBe(false);
+    expect(await store.plugins!.openItem(offered)).toBe(true);
+    expect(store.origin).toMatchObject({ source: 'fake.drive', name: 'forecast.xlsx' });
+
+    items = () => {
+      throw new Error('No list.');
+    };
+    expect(store.plugins!.items(list)).toEqual([]);
+    expect(events.at(-1)).toMatchObject({ type: 'pluginError', plugin: 'test.list', message: 'No list.' });
+    items = () => 'not a list';
+    expect(store.plugins!.items(list)).toEqual([]);
+    store.dispose();
+  });
+
   it('fetches a file again through the source its origin names, even another plugin’s', async () => {
     let ctx: PluginContext | undefined;
     const drive = fakeDrive();

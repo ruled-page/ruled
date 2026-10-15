@@ -179,7 +179,7 @@ describe('opening', () => {
       'GET https://public.dm.files.1drv.com/download?t=x': () => new Response(BYTES),
     });
     const { source } = connector();
-    const file = await source.pick();
+    const file = await source.pick!();
 
     expect(new Uint8Array(file!.bytes as ArrayBuffer)).toEqual(BYTES);
     expect(file!.origin).toEqual({
@@ -196,7 +196,7 @@ describe('opening', () => {
 
   it('opens personal OneDrive’s picker for files, with tokens for OneDrive', async () => {
     stubFetch({ [`GET ${ITEM}`]: () => json(driveItem()), 'GET https://public.dm.files.1drv.com/download?t=x': () => new Response(BYTES) });
-    await connector().source.pick();
+    await connector().source.pick!();
     const options = picker.runPicker.mock.calls[0][0] as PickerOptions;
     expect(options).toMatchObject({ win: popup, url: 'https://onedrive.live.com/picker', mode: 'files', locale: 'en-us' });
     expect(await options.token(undefined)).toBe('token:OneDrive.ReadWrite');
@@ -209,7 +209,7 @@ describe('opening', () => {
       [`GET ${ITEM}`]: () => json(driveItem()),
       'GET https://public.dm.files.1drv.com/download?t=x': () => new Response(BYTES),
     });
-    await connector().source.pick();
+    await connector().source.pick!();
     const options = picker.runPicker.mock.calls[0][0] as PickerOptions;
     expect(options.url).toBe('https://contoso-my.sharepoint.com/_layouts/15/FilePicker.aspx');
     expect(await options.token(undefined)).toBe('token:https://contoso-my.sharepoint.com/.default');
@@ -221,14 +221,14 @@ describe('opening', () => {
     stubFetch({ [`GET ${ITEM}`]: () => json(driveItem()), 'GET https://public.dm.files.1drv.com/download?t=x': () => new Response(BYTES) });
     const { source } = connector({ sharePoint: { baseUrl: 'https://contoso.sharepoint.com/sites/finance/' } });
     expect(source.label).toEqual({ key: 'plugin.page.ruled.onedrive.sharePoint' });
-    await source.pick();
+    await source.pick!();
     expect(picker.runPicker.mock.calls[0][0]).toMatchObject({ url: 'https://contoso.sharepoint.com/sites/finance/_layouts/15/FilePicker.aspx', site: 'https://contoso.sharepoint.com/sites/finance' });
   });
 
   it('refuses a file larger than the editor opens, before downloading it', async () => {
     const calls = stubFetch({ [`GET ${ITEM}`]: () => json(driveItem({ size: 3 * 1024 * 1024 })) });
     const { source, toasts } = connector({}, { maxFileBytes: 2 * 1024 * 1024 });
-    expect(await source.pick()).toBeNull();
+    expect(await source.pick!()).toBeNull();
     expect(calls.map((c) => c.url)).toEqual([ITEM]);
     expect(toasts).toEqual([{ kind: 'error', text: { key: 'plugin.page.ruled.onedrive.tooBig', params: { name: 'prices.xlsx', size: 3, max: 2 } } }]);
   });
@@ -236,7 +236,7 @@ describe('opening', () => {
   it('resolves null when the picker is closed', async () => {
     const calls = stubFetch({});
     picker.runPicker.mockResolvedValue(null);
-    expect(await connector().source.pick()).toBeNull();
+    expect(await connector().source.pick!()).toBeNull();
     expect(calls).toEqual([]);
   });
 
@@ -246,7 +246,7 @@ describe('opening', () => {
     const open = vi.fn().mockReturnValueOnce(null).mockReturnValue(popup);
     vi.stubGlobal('window', { open });
     const { source, confirm } = connector();
-    expect(await source.pick()).not.toBeNull();
+    expect(await source.pick!()).not.toBeNull();
     expect(msal.loginPopup).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite.All'], prompt: 'select_account' });
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ body: { key: 'plugin.page.ruled.onedrive.chooseFile', params: { source: source.label } } }));
     expect(open).toHaveBeenCalledTimes(2);
@@ -256,21 +256,21 @@ describe('opening', () => {
     msal.account = null;
     msal.loginPopup = vi.fn(async () => Promise.reject(Object.assign(new Error('closed'), { errorCode: 'user_cancelled' })));
     stubFetch({});
-    expect(await connector().source.pick()).toBeNull();
+    expect(await connector().source.pick!()).toBeNull();
     expect(picker.runPicker).not.toHaveBeenCalled();
   });
 
   it('closes the picker’s window when it can’t find where the picker is', async () => {
     msal.account = WORK;
     stubFetch({ [`GET ${GRAPH}/me/drive?$select=webUrl`]: () => json({ error: { code: 'unauthenticated', message: 'No' } }, 401) });
-    await expect(connector().source.pick()).rejects.toMatchObject({ text: { params: { status: 401 } } });
+    await expect(connector().source.pick!()).rejects.toMatchObject({ text: { params: { status: 401 } } });
     expect(popup!.close).toHaveBeenCalled();
   });
 
   it('says what Graph refused, in the editor’s words', async () => {
     stubFetch({ [`GET ${ITEM}`]: () => json({ error: { code: 'accessDenied', message: 'Access denied' } }, 403) });
     const { source } = connector();
-    await expect(source.pick()).rejects.toMatchObject({
+    await expect(source.pick!()).rejects.toMatchObject({
       text: { key: 'plugin.page.ruled.onedrive.refused', params: { source: source.label, status: 403, reason: 'Access denied' } },
     });
   });
@@ -407,7 +407,7 @@ describe('the rest', () => {
     const { source } = connector({ readOnly: true });
     expect(source.save).toBeUndefined();
     expect(source.saveAs).toBeUndefined();
-    const file = await source.pick();
+    const file = await source.pick!();
     expect(file!.origin.writable).toBe(false);
     expect(msal.acquireTokenSilent).toHaveBeenCalledWith(expect.objectContaining({ scopes: ['Files.Read.All'] }));
     expect(await (picker.runPicker.mock.calls[0][0] as PickerOptions).token(undefined)).toBe('token:OneDrive.ReadOnly');

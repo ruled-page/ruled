@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 import { useT } from '../i18n/react';
 import type { CommandContext, IconSource } from '../plugin/types';
-import { pluginText, type RegisteredPanel } from '../state/plugins';
+import { pluginText, type RegisteredPanel, type RegisteredSource } from '../state/plugins';
 import type { WorkbookStore } from '../state/store';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { Icon } from './icons';
@@ -51,9 +51,29 @@ export function OpenMenu({ store, onOpen }: { store: WorkbookStore; onOpen: () =
       text={t('toolbar.open')}
       icon="open"
       onShow={() => store.plugins!.preload(sources)}
-      items={() => [{ label: t('toolbar.thisDevice'), onSelect: onOpen }, ...sources.map((s) => ({ label: store.sourceLabel(s), onSelect: () => void store.plugins!.openFrom(s) }))]}
+      items={() => [{ label: t('toolbar.thisDevice'), onSelect: onOpen }, ...sources.map((s) => sourceEntry(store, s, t('toolbar.browse')))]}
     />
   );
+}
+
+/**
+ * A source in the Open menu: an entry that picks, or a submenu of the files
+ * it offers by name and then "Browse…" to pick. A source offering no files,
+ * with nothing to pick, is shown disabled.
+ */
+function sourceEntry(store: WorkbookStore, source: RegisteredSource, browseLabel: string): MenuItem {
+  const host = store.plugins!;
+  const label = store.sourceLabel(source);
+  const files = host.items(source);
+  const pick = () => void host.openFrom(source);
+  if (!files.length) return { label, onSelect: pick, disabled: !source.pick };
+  return {
+    label,
+    items: [
+      ...files.map((origin) => ({ label: origin.name, title: origin.location, onSelect: () => void host.openItem(origin) })),
+      ...(source.pick ? [{ separator: true as const }, { label: browseLabel, onSelect: pick }] : []),
+    ],
+  };
 }
 
 /**

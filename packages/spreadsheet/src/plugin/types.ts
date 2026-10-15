@@ -115,12 +115,20 @@ export interface FileSource {
   /** Called when a menu holding the source opens: load an SDK here, so `pick` can open a popup inside the click. */
   preload?(): void;
   /**
+   * Files to offer by name, read each time the Open menu opens: recent ones,
+   * or favourites. With some, the source's entry in the Open menu is a
+   * submenu of them (then "Browse…" for `pick`, if it has one), and choosing
+   * one fetches it through `fetch`, of the source its origin names, inside
+   * the click. A source needs `items` or `pick`.
+   */
+  items?(): FileOrigin[];
+  /**
    * Lets the person choose a file, and fetches it. Resolves null when they
    * cancel. An error thrown here, or from `save` or `saveAs`, is shown with
    * its `text` when it has one (any PluginText, so it can be translated),
    * otherwise its message.
    */
-  pick(): Promise<RemoteFile | null>;
+  pick?(): Promise<RemoteFile | null>;
   /**
    * Writes the workbook back over the file it was opened from, resolving
    * with its origin as now saved. Throw an error named "SaveConflictError"

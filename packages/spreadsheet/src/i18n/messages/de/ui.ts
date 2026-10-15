@@ -62,6 +62,7 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.saveAsExcel': 'Als Excel speichern',
   'toolbar.openMenu': 'Öffnen aus',
   'toolbar.thisDevice': 'Dieses Gerät',
+  'toolbar.browse': 'Durchsuchen…',
   'toolbar.saveTo': 'In {{source}} speichern',
   'toolbar.saveToTitle': 'Ihre Änderungen in {{fileName}} in {{source}} zurückschreiben',
   'toolbar.saveToUnsaved': 'In {{source}} speichern (Änderungen dort noch nicht gespeichert)',

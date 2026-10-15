@@ -64,6 +64,7 @@ export const ui = {
   'toolbar.saveAsExcel': 'Save as Excel',
   'toolbar.openMenu': 'Open from',
   'toolbar.thisDevice': 'This device',
+  'toolbar.browse': 'Browse…',
   'toolbar.saveTo': 'Save to {{source}}',
   'toolbar.saveToTitle': 'Write your changes back to {{fileName}} in {{source}}',
   'toolbar.saveToUnsaved': 'Save to {{source}} (changes not saved there yet)',

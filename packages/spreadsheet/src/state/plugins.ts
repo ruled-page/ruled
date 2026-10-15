@@ -217,6 +217,7 @@ export class PluginHost {
    * unsaved changes are asked about after, once there is a file to open.
    */
   async openFrom(source: RegisteredSource): Promise<boolean> {
+    if (!source.pick) return false;
     let file: RemoteFile | null;
     try {
       file = await source.pick();
@@ -224,6 +225,20 @@ export class PluginHost {
       this.fail(source.plugin, err);
       return false;
     }
+    return file ? this.openRemote(file) : false;
+  }
+
+  /** The files a source offers by name in the Open menu; none when it fails, or gives something else. */
+  items(source: RegisteredSource): FileOrigin[] {
+    if (!source.items) return [];
+    const items: unknown = this.call(source.plugin, () => source.items!(), []);
+    if (!Array.isArray(items)) return [];
+    return items.filter((o: FileOrigin | null) => typeof o?.source === 'string' && typeof o.name === 'string');
+  }
+
+  /** Opens a file a source offered by name: fetched through the source its origin names, inside the click. */
+  async openItem(origin: FileOrigin): Promise<boolean> {
+    const file = await this.fetch(origin);
     return file ? this.openRemote(file) : false;
   }
 

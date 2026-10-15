@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as Rea
 
 export type MenuItem =
   /** An item; `checked` makes it one of a set of choices, with whether it's the one chosen, and `sample` shows what it gives. */
-  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean; checked?: boolean; sample?: ReactNode }
+  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean; checked?: boolean; sample?: ReactNode; title?: string }
   /** A submenu, opened by hovering it, or with the arrow key towards it, Enter or Space. */
   | { label: string; items: MenuItem[]; disabled?: boolean }
   | { separator: true };
@@ -151,6 +151,7 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
           data-index={i}
           className={item.danger ? 'wbe-danger' : undefined}
           disabled={item.disabled}
+          title={item.title}
           onClick={() => choose(item)}
           onMouseEnter={top ? () => setOpen(null) : undefined}
         >
