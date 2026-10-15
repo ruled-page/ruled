@@ -33,16 +33,17 @@ function rememberSample(fileName: string | undefined): void {
 // Plugins are tried locally: set VITE_ONEDRIVE_CLIENT_ID (your own app
 // registration), VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY and
 // VITE_GOOGLE_APP_ID (your own Google Cloud project), or VITE_RECENT_FILES=1
-// in examples/demo/.env.local (git-ignored). Never in a build, so a deployed
-// demo has none.
-const env = (name: string) => (import.meta.env.DEV ? (import.meta.env[name] as string | undefined) : undefined);
-const oneDriveClientId = env('VITE_ONEDRIVE_CLIENT_ID');
+// in examples/demo/.env.local (git-ignored). Never in a build, which drops
+// them, so a deployed demo has none.
+const env = (name: string) => import.meta.env[name] as string | undefined;
 const google = { clientId: env('VITE_GOOGLE_CLIENT_ID'), apiKey: env('VITE_GOOGLE_API_KEY'), appId: env('VITE_GOOGLE_APP_ID') };
-const plugins = [
-  ...(oneDriveClientId ? [oneDrive({ clientId: oneDriveClientId, authority: env('VITE_ONEDRIVE_AUTHORITY') })] : []),
-  ...(google.clientId && google.apiKey && google.appId ? [googleDrive({ clientId: google.clientId, apiKey: google.apiKey, appId: google.appId })] : []),
-  ...(import.meta.env.DEV && import.meta.env.VITE_RECENT_FILES ? [recentFiles()] : []),
-];
+const plugins = import.meta.env.DEV
+  ? [
+      ...(env('VITE_ONEDRIVE_CLIENT_ID') ? [oneDrive({ clientId: env('VITE_ONEDRIVE_CLIENT_ID')!, authority: env('VITE_ONEDRIVE_AUTHORITY') })] : []),
+      ...(google.clientId && google.apiKey && google.appId ? [googleDrive({ clientId: google.clientId, apiKey: google.apiKey, appId: google.appId })] : []),
+      ...(env('VITE_RECENT_FILES') ? [recentFiles()] : []),
+    ]
+  : [];
 
 // The status bar says how long opening, calculating and edits take.
 const store = new WorkbookStore({
