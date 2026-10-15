@@ -93,6 +93,9 @@ export function Welcome({ store, onOpen }: { store: WorkbookStore; onOpen: () =>
         </p>
         <h2>{t('welcome.plainSamples')}</h2>
         <SampleList store={store} samples={SAMPLES} icon="sheet" />
+        <p className="wbe-muted wbe-small">
+          <a href={`${SITES.docs}privacy/`}>{t('welcome.privacy')}</a>
+        </p>
       </div>
     </div>
   );

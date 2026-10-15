@@ -22,7 +22,7 @@ Plugins are [trusted code](/plugins/using/#plugins-are-trusted-code) running on 
 npm install @ruled/sheet @ruled/plugin
 ```
 
-Google's sign-in library and its Picker aren't on npm. The connector loads them from Google the first time someone opens the Google Drive menu, so they add nothing to your bundle.
+Google's sign-in library and its Picker aren't on npm. The connector loads them from Google the first time someone opens the Google Drive menu, along with the rest of its own code, so your bundle carries only a small entry, about 1 kB gzipped.
 
 ## Use it
 
@@ -67,7 +67,7 @@ The connector signs people in as your app, which you set up once in the [Google 
 1. **Create a project**, or choose one. Its **project number**, on the project's dashboard or under **IAM & Admin › Settings**, is `appId`. (It's a number, not the project's id.)
 2. **Turn on the APIs.** Under **APIs & Services › Library**, enable the **Google Drive API** and the **Google Picker API**.
 3. **Describe your app** under **Google Auth Platform** (called **OAuth consent screen** in older consoles):
-   - **Branding:** your app's name, which people see when they sign in, a support email, and your app's home page and privacy policy before you publish it.
+   - **Branding:** your app's name, which people see when they sign in, a support email, and your app's home page and privacy policy before you publish it. The privacy policy must say what your app does with Google data and that it follows Google's Limited Use rules; [Ruled's own](/privacy/) is an example.
    - **Audience:** **External**, so any Google account can sign in, or **Internal** for your Google Workspace organisation only. An external app starts in **Testing**: only the test users you list there can sign in. **Publish** it when your real site is ready.
    - **Data access:** add the scope `https://www.googleapis.com/auth/drive.file` ("See, edit, create and delete only the specific Google Drive files you use with this app").
 4. **Make an OAuth client.** Under **Clients** (or **APIs & Services › Credentials › Create credentials › OAuth client ID**), choose **Web application**. Under **Authorized JavaScript origins**, add each origin the editor runs on, such as `https://app.example.com`, and `http://localhost:5180` for trying it locally. No redirect URIs are needed: sign-in happens in a popup that reports back to the page. Its **client ID** is `clientId`.

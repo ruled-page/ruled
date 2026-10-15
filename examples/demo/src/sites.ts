@@ -9,4 +9,5 @@ export const SITES = {
   demo: (import.meta.env.VITE_DEMO_URL as string | undefined) ?? 'http://localhost:5180/',
   portal: (import.meta.env.VITE_PORTAL_URL as string | undefined) ?? 'http://localhost:5181/',
   angular: import.meta.env.VITE_ANGULAR_URL as string | undefined,
+  docs: (import.meta.env.VITE_DOCS_URL as string | undefined) ?? 'https://ruled.page/',
 };

@@ -17,6 +17,7 @@ export const de: Record<keyof typeof en, string> = {
   'welcome.examples': 'Weitere Beispiele:',
   'welcome.exampleEmbedded': 'ein Lieferantenportal mit eingebettetem Editor',
   'welcome.exampleAngular': 'das Element in einer Angular-App',
+  'welcome.privacy': 'Datenschutz',
   'welcome.lede':
     'Öffnen Sie eine .xlsx-Datei, ändern Sie Zellen, fügen Sie aus Excel ein, füllen Sie durch Ziehen aus und speichern Sie sie wieder als .xlsx. Formeln werden beim Bearbeiten neu berechnet. Diagramme, PivotTables, Makros und Formatierungen bleiben in der gespeicherten Datei erhalten, auch die, die dieser Editor nicht anzeigen kann.',
   'welcome.choose': '<strong>Arbeitsmappe auswählen</strong> oder an einer beliebigen Stelle auf dieser Seite ablegen',
