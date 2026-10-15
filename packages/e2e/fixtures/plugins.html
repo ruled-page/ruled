@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ruled with a plugin</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      workbook-editor { height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <!-- For plugins.spec.ts. Run `npm run build:lib` first; this page loads the standalone build. -->
+    <workbook-editor id="editor"></workbook-editor>
+    <script type="module">
+      import '/packages/spreadsheet/dist/standalone/workbook-editor.js';
+
+      // A drive holding one file in memory, its version moving on each save as an ETag does.
+      // The plugin is a plain object: it imports nothing from the editor at run time.
+      const drive = (window.drive = { version: 1, writes: [], copies: [] });
+      const bytes = await (await fetch('/examples/demo/public/samples/forecast.xlsx')).arrayBuffer();
+      const origin = () => ({ source: 'fixture.drive', name: 'forecast.xlsx', ref: { item: 1 }, version: String(drive.version), location: 'Team/Planning/forecast.xlsx' });
+
+      const fixtureDrive = {
+        id: 'fixture.plugin',
+        apiVersion: 1,
+        translations: { en: { drive: 'Fixture Drive', where: 'Where is this?' } },
+        setup(ctx) {
+          ctx.files.registerSource({
+            id: 'fixture.drive',
+            label: { key: 'plugin.fixture.plugin.drive' },
+            pick: async () => ({ bytes: bytes.slice(0), origin: origin() }),
+            save: async (file, from) => {
+              if (from.version !== String(drive.version)) throw Object.assign(new Error(''), { name: 'SaveConflictError' });
+              drive.writes.push(file.fileName);
+              drive.version++;
+              return origin();
+            },
+            saveAs: async (file) => {
+              drive.copies.push(file.fileName);
+              return { source: 'fixture.drive', name: 'forecast copy.xlsx', ref: { item: 2 } };
+            },
+          });
+          ctx.commands.register({
+            id: 'where',
+            label: { key: 'plugin.fixture.plugin.where' },
+            where: 'cellMenu',
+            run: ({ selection }) => ctx.ui.toast('info', `${selection.sheet}!${selection.active} (${selection.ranges.join(', ')})`),
+          });
+        },
+      };
+
+      document.getElementById('editor').options = { warnOnUnload: false, plugins: [fixtureDrive] };
+    </script>
+  </body>
+</html>
