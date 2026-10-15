@@ -148,6 +148,8 @@ ctx.files.registerSource({
 
 A `RemoteFile` is the file's bytes and its **origin**: where it came from. The editor keeps the origin while the workbook is open, hands it back to `save`, shows its name and location, and never writes it into the file.
 
+A `RemoteFile` may also carry a **notice**, which the editor shows in its banner as the file opens, until the person closes it or opens another file: what they should know before editing, such as that the file was converted to open here. It is `{ text, items?, kind? }`: `text` and each of `items` (listed under it) are `PluginText`, and `kind: 'warn'` marks something lost or wrong, `'info'` otherwise. The [Google Drive](/plugins/google-drive/) connector uses one to say a Google Sheet opened as an Excel copy.
+
 | `FileOrigin` field | What it is |
 | --- | --- |
 | `source` | The source's id. |
