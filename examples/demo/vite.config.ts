@@ -13,6 +13,8 @@ export default defineConfig({
   worker: { format: 'es', rolldownOptions: { output: { codeSplitting: false } } },
   resolve: { conditions: ['source', ...defaultClientConditions] },
   server: { port: 5180 },
+  // Found up front, so the first sign-in with the OneDrive connector isn't interrupted by the dev server reloading the page.
+  optimizeDeps: { include: ['@azure/msal-browser', '@azure/msal-browser/redirect-bridge'] },
   // The editor is one large chunk by design; scripts/check-bundle.mjs holds it to its budget instead.
   build: { chunkSizeWarningLimit: 4096, ...(process.env.SITE ? { outDir: '../../dist-sites/demo', emptyOutDir: true } : {}) },
 });

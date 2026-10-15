@@ -30,3 +30,6 @@ packages/spreadsheet/tools/ooxml-validate/obj
 
 packages/spreadsheet/tests/excel-checks/*.xlsx
 packages/spreadsheet/tests/excel-checks/*.pending.json
+
+# Local settings, such as the client ids the demo's dev server tries connectors with.
+.env.local
