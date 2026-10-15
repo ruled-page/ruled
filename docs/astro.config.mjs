@@ -55,6 +55,7 @@ export default defineConfig({
         { label: 'Start here', items: [{ autogenerate: { directory: 'start' } }] },
         { label: 'Schemas and validation', items: [{ autogenerate: { directory: 'schemas' } }] },
         { label: 'Guides', items: [{ autogenerate: { directory: 'guides' } }] },
+        { label: 'Plugins', items: [{ autogenerate: { directory: 'plugins' } }] },
         { label: 'Live examples', items: [{ autogenerate: { directory: 'examples' } }] },
         { label: 'Formula engine', items: [{ autogenerate: { directory: 'formula' } }] },
         { label: 'AI and agents', items: [{ autogenerate: { directory: 'ai' } }] },
