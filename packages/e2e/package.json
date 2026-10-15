@@ -9,7 +9,7 @@
     "test": "NODE_OPTIONS=--conditions=source playwright test"
   },
   "dependencies": {
-    "@ruled/sheet": "0.1.0",
+    "@ruled/sheet": "0.2.0",
     "@ruled/demo": "0.0.0"
   }
 }

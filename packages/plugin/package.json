@@ -1,6 +1,6 @@
 {
   "name": "@ruled/plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ruled's own plugins: open workbooks from OneDrive, SharePoint and Google Drive, and save them back",
   "keywords": [
     "ruled",
@@ -57,10 +57,10 @@
     "@azure/msal-browser": "^5.25.1"
   },
   "peerDependencies": {
-    "@ruled/sheet": "^0.1.0"
+    "@ruled/sheet": "^0.2.0"
   },
   "devDependencies": {
-    "@ruled/sheet": "0.1.0",
+    "@ruled/sheet": "0.2.0",
     "rolldown": "1.2.12",
     "rolldown-plugin-dts": "0.28.6"
   }
