@@ -1891,7 +1891,9 @@
   margin: 12px 0 4px;
 }
 
-.wbe .wbe-field input {
+/* `wbe-input` is the same field for plugins' own DOM. */
+.wbe .wbe-field input,
+.wbe .wbe-input {
   font: inherit;
   padding: 6px 8px;
   border: 1px solid var(--wbe-border-strong);
