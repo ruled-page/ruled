@@ -12,6 +12,7 @@ const nameBox = (page: Page) => page.getByRole('combobox', { name: 'Go to cell' 
 async function at(page: Page) {
   const box = (await grid(page).first().boundingBox())!;
   return {
+    cell: (row: number, col: number) => ({ x: box.x + 40 + 64 * col + 32, y: box.y + 24 + 20 * (row - 1) + 10 }),
     letter: (col: number) => ({ x: box.x + 40 + 64 * col + 32, y: box.y + 12 }),
     number: (row: number) => ({ x: box.x + 20, y: box.y + 24 + 20 * (row - 1) + 10 }),
     corner: { x: box.x + 20, y: box.y + 12 },
@@ -101,4 +102,66 @@ test('selects the whole sheet from the corner or Ctrl+A, and whole lines with Sh
   // The active cell stays where it was.
   await expect(nameBox(page)).toHaveValue('C3');
   await clearShows(page, { A1: '', D3: '' });
+});
+
+test.describe('a press elsewhere in the grid while a cell is edited', () => {
+  const editor = (page: Page) => page.locator('.wbe-cell-editor');
+
+  /** Clears the selection, agreeing to lose formulas when asked, and checks what the cells then show. */
+  async function deleteShows(page: Page, expected: Record<string, string>): Promise<void> {
+    await page.keyboard.press('Delete');
+    const ask = page.getByRole('alertdialog');
+    if (await ask.isVisible().catch(() => false)) await ask.getByRole('button', { name: /^Replace formula/ }).click();
+    for (const [ref, text] of Object.entries(expected)) await expect(shown(page, ref), ref).toHaveText(text);
+  }
+
+  /** Edits B2 (a quantity of 2) to 7, opening its editor by typing, by Enter or by a double-click. */
+  const opens: Record<string, (page: Page) => Promise<void>> = {
+    typing: async (page) => {
+      await goTo(page, 'B2');
+      await page.keyboard.type('7');
+    },
+    Enter: async (page) => {
+      await goTo(page, 'B2');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('7');
+    },
+    'a double-click': async (page) => {
+      const p = await at(page);
+      await page.mouse.dblclick(p.cell(2, 1).x, p.cell(2, 1).y);
+      await page.keyboard.type('7');
+    },
+  };
+
+  for (const [how, open] of Object.entries(opens)) {
+    test(`enters the cell opened by ${how} and selects the cell pressed`, async ({ page }) => {
+      await open(page);
+      await expect(editor(page)).toBeVisible();
+      await press(page, (await at(page)).cell(3, 3));
+      await expect(editor(page)).toHaveCount(0);
+      await expect(shown(page, 'D2')).toHaveText('21');
+      await expect(nameBox(page)).toHaveValue('D3');
+      // The grid has the keys again: Delete clears the cell pressed, not the one edited.
+      await deleteShows(page, { D3: '', D2: '21' });
+    });
+  }
+
+  const targets: Record<string, [(p: Awaited<ReturnType<typeof at>>) => { x: number; y: number }, string, Record<string, string>]> = {
+    "a row's number": [(p) => p.number(3), 'A3', { A3: '', D3: '', D2: '21' }],
+    "a column's letter": [(p) => p.letter(2), 'C1', { C2: '', D2: '0' }],
+    // Selecting the whole sheet keeps the active cell, as Ctrl+A does.
+    'the corner': [(p) => p.corner, 'B2', { A1: '', B2: '', D2: '' }],
+  };
+
+  for (const [what, [target, active, cleared]] of Object.entries(targets)) {
+    test(`enters the cell and selects ${what}`, async ({ page }) => {
+      await opens.typing(page);
+      await expect(editor(page)).toBeVisible();
+      await press(page, target(await at(page)));
+      await expect(editor(page)).toHaveCount(0);
+      await expect(shown(page, 'D2')).toHaveText('21');
+      await expect(nameBox(page)).toHaveValue(active);
+      await deleteShows(page, cleared);
+    });
+  }
 });

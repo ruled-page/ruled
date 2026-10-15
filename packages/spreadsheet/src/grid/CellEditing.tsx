@@ -54,13 +54,20 @@ export function CellEditorBox({ store, edit, box, palette, rtl, onText, finish, 
   const latest = useRef({ text: edit.text, finish });
   latest.current = { text: edit.text, finish };
   useEffect(() => {
+    // The grid cancels a mouse or pen's pointerdown, so no mousedown follows it; a finger's
+    // mousedown comes only with a tap, so a finger dragging to scroll leaves the editor open.
     const down = (e: MouseEvent) => {
+      if (e instanceof PointerEvent && e.pointerType === 'touch') return;
       const target = e.target as Element;
       if (wrapper.current?.contains(target) || target.closest?.(`.${EDITOR_POPUP}`)) return;
       latest.current.finish(edit.options ? undefined : latest.current.text, [0, 0]);
     };
+    window.addEventListener('pointerdown', down, true);
     window.addEventListener('mousedown', down, true);
-    return () => window.removeEventListener('mousedown', down, true);
+    return () => {
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('mousedown', down, true);
+    };
   }, [edit.options]);
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
