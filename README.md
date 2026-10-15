@@ -158,7 +158,10 @@ store: undo, redo, dialogs          ──►     sheetScanner   cells and their
 - **Reading** (`core/workbook.ts`, `core/sheetScanner.ts`): the package is
   unzipped, and each worksheet's cells are scanned into compact typed arrays
   that record where each sits in the original XML. Every other part is left
-  as it is.
+  as it is. A password-protected workbook (`core/encryption.ts`,
+  `core/cfb.ts`) is decrypted first and encrypted again on saving, Office's
+  way (MS-OFFCRYPTO), with the hashes and AES in plain code so opening
+  stays synchronous in the worker.
 - **Calculating** (`packages/formula-engine`, `core/session.ts`): the engine
   works out the formulas, and on opening each result is compared with the
   value Excel saved; a formula that disagrees keeps Excel's value. Table
@@ -172,9 +175,15 @@ store: undo, redo, dialogs          ──►     sheetScanner   cells and their
   pasted text is read as Excel reads it, in the user's locale and the
   workbook's date system, and references move as Excel moves them.
 - **Charts and pivot tables** (`core/charts.ts`, `core/pivotTable.ts`):
-  charts are drawn with Chart.js from the current cells, loaded only for
-  workbooks that have them; pivot tables are worked out again from their
+  charts, Excel 2016's waterfalls and funnels among them, are drawn with
+  Chart.js from the current cells, loaded only for workbooks that have
+  them, with data labels from a small plugin of the editor's own
+  (`ui/chartConfig.ts`); pivot tables are worked out again from their
   source as it changes.
+- **Drawings** (`ui/ObjectsOverlay.tsx`): pictures are shown from the image
+  parts the worker hands over, shapes and text boxes are drawn as SVG
+  (`core/shapes.ts`, `ui/ShapeView.tsx`), and sparklines are painted in
+  their cells by the grid (`core/sparklines.ts`, `grid/sparkline.ts`).
 - **Saving** (`core/writer.ts`): only changed cells are rewritten, and Excel is
   told to recalculate and refresh pivot tables on opening. Formulas are
   written as Excel writes them, dynamic arrays included. A workbook with no

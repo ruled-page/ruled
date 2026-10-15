@@ -14,7 +14,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `schemas` | [Schemas](/schemas/overview/) to try, in order, against each workbook opened. |
 | `onSave` | Receives the workbook when people save. Without it, saving downloads the file. |
 | `saveLabel` | The Save button's label, such as "Submit price list", in one language or several. |
-| `drafts` | Keep unsaved edits in the browser and offer them back. Default `true`. |
+| `drafts` | Keep unsaved edits in the browser and offer them back; never for a password-protected workbook. Default `true`. |
 | `warnOnUnload` | Ask before leaving the page with unsaved changes. Default `true`. |
 | `numbers` | How numbers are shown, copied and pasted, for every workbook; a schema can override it. |
 | `csvExport` | The delimiter for CSV downloads, and whether formulas are escaped. |

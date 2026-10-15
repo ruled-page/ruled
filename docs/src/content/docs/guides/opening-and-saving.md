@@ -22,7 +22,7 @@ The element can fetch the file itself: `<workbook-editor src="/api/files/42">`.
 
 ## Password-protected workbooks
 
-A workbook Excel saved with a password (File › Info › Protect Workbook › Encrypt with Password) opens once the person types its password, which the editor asks for, as Excel does; a wrong one, it asks for again. It's decrypted in the browser: neither the file nor the password leaves it. Saved, the workbook is encrypted again with the same password, so your app receives it protected, as it sent it. The editor keeps no drafts of it (see [Drafts](#drafts)), so its contents never sit in the browser unencrypted.
+A workbook Excel saved with a password (File › Info › Protect Workbook › Encrypt with Password) opens once the person types its password, which the editor asks for, as Excel does; a wrong one, it asks for again. `open` waits while it asks, and rejects if the person cancels. It's decrypted in the browser: neither the file nor the password leaves it. Saved, the workbook is encrypted again with the same password, so your app receives it protected, as it sent it. The editor keeps no drafts of it (see [Drafts](#drafts)), so its contents never sit in the browser unencrypted.
 
 Workbooks protected by a sensitivity label or rights management can only be decrypted through Microsoft's service, and are refused, saying so. Opening a protected workbook takes about a second longer than another of its size, and so does saving it, as Excel's own encryption makes a password slow to guess.
 

@@ -155,9 +155,12 @@ See [recalculating saved workbooks](https://ruled.page/formula/saved-workbooks/)
   [`@ruled/formula`](https://www.npmjs.com/package/@ruled/formula): more than
   470 of Excel's functions, dynamic arrays and `LAMBDA`.
 - **Charts and pivot tables,** drawn from the current cells and editable as
-  in Excel.
+  in Excel; pictures, shapes, text boxes and sparklines drawn where they sit.
 - **Formatting, sorting, filters, data validation, names, hyperlinks, notes
-  and comments,** with Excel's keys.
+  and comments,** with Excel's keys; sorting and filtering by colour, icon
+  and date period too.
+- **Password-protected workbooks,** opened with their password and saved
+  encrypted with it again.
 - **Saving only what changed:** everything the editor doesn't show stays in
   the file as it was.
 - **Theming** through design tokens, **languages** (English and German built

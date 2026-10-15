@@ -31,7 +31,7 @@ Macros (or removed, if you set `macros: 'remove'`), grouped and freeform shapes 
 
 ## The saved file
 
-The editor writes back only what changed: the cells and parts edits touched. Everything else is carried over from the original file, and a workbook nobody changed is saved byte for byte. Saved files are checked against Microsoft's Open XML SDK validator in the editor's own test suite.
+The editor writes back only what changed: the cells and parts edits touched. Everything else is carried over from the original file, and a workbook nobody changed is saved byte for byte. Saved files are checked against Microsoft's Open XML SDK validator in the editor's own test suite. `LET` and `LAMBDA` formulas that other tools wrote without the prefix Excel needs on their names (`_xlpm.`, without which Excel shows #NAME? and Excel for the web refuses the file) are saved with it.
 
 A password-protected workbook is saved encrypted with its password again, with AES-256 and SHA-512 as Excel 2010 and later encrypt; one encrypted the older way, by Excel 2007, is saved the newer way. See [Password-protected workbooks](/guides/opening-and-saving/#password-protected-workbooks).
 

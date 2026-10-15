@@ -33,8 +33,9 @@ When the workbook is saved, your app receives:
 ## What's in it
 
 - **Formulas**, calculated live by the editor's own engine, including dynamic arrays and `LAMBDA`.
-- **Charts and pivot tables**, drawn from the current cells and editable as in Excel.
-- **Formatting, sorting, filters, data validation, names, hyperlinks, notes and comments.**
+- **Charts and pivot tables**, drawn from the current cells and editable as in Excel; pictures, shapes, text boxes and sparklines drawn where they sit.
+- **Formatting, sorting, filters, data validation, names, hyperlinks, notes and comments**, with sorting and filtering by colour, icon and date period.
+- **Password-protected workbooks**, opened with their password and saved encrypted with it again.
 - **Schemas** with declarative checks, async hooks, business logic and a visual designer.
 - **Theming** through design tokens, **languages** (English and German built in), keyboard use and screen reader support.
 
