@@ -6,6 +6,8 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+## 0.3.0 (2026-10-15)
+
 - Pressing another cell, a row number, a column letter or the corner while
   a cell is being edited enters what was typed and closes the editor, then
   selects what was pressed. The editor used to stay open, out of focus,

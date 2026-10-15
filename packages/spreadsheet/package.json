@@ -1,6 +1,6 @@
 {
   "name": "@ruled/sheet",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Ruled: edit Excel workbooks in the browser and save them back without losing charts, pivot tables or formulas: a React component, and a <workbook-editor> web component",
   "keywords": [
     "spreadsheet",
@@ -94,7 +94,7 @@
     "@fontsource/cousine": "^5.3.0",
     "@fontsource/gelasio": "^5.3.0",
     "@fontsource/tinos": "^5.3.0",
-    "@ruled/formula": "0.2.0",
+    "@ruled/formula": "0.3.0",
     "chart.js": "^4.5.1",
     "fflate": "^0.8.3",
     "i18next": "^26.4.2",
