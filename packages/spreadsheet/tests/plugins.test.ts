@@ -71,6 +71,15 @@ describe('plugin registries', () => {
     expect(seen).toEqual([50 * 1024 * 1024, 1024]);
   });
 
+  it('gives plugins their text in the editor\'s language, for their own DOM', async () => {
+    let ctx!: PluginContext;
+    const { handle } = await editor({ plugins: [plugin((c) => void (ctx = c), { translations: { en: { hi: 'Hello {{name}}' }, de: { hi: 'Hallo {{name}}' } } })] });
+    expect(ctx.text({ key: 'plugin.test.plugin.hi', params: { name: 'Ada' } })).toBe('Hello Ada');
+    handle.setLanguage('de');
+    await vi.waitFor(() => expect(ctx.text({ key: 'plugin.test.plugin.hi', params: { name: 'Ada' } })).toBe('Hallo Ada'));
+    expect(ctx.text({ en: 'Plain', de: 'Schlicht' })).toBe('Schlicht');
+  });
+
   it('keeps what plugins register under their id, and drops it when they remove it', async () => {
     const removers: (() => void)[] = [];
     const { store } = await editor({

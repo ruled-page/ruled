@@ -37,6 +37,8 @@ export interface PluginContext {
   signal: AbortSignal;
   /** The editor's limits, so a source can refuse a file it won't open before downloading it. */
   limits: { maxFileBytes: number };
+  /** Text in the editor's language as it is now, for the plugin's own DOM in dialogs and panels. */
+  text(text: PluginText): string;
   commands: PluginCommands;
   files: PluginFiles;
   ui: PluginUI;

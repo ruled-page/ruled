@@ -17,7 +17,8 @@ semantic versioning; before 1.0.0, a minor version may change the API.
   workbook came from, `features.sourceSave` turns writing to sources off,
   and `savedToSource` events report writes. A plugin's context gives the
   editor's `limits.maxFileBytes`, so a source can refuse a file before
-  downloading it.
+  downloading it, and `text()`, which gives a plugin's text in the editor's
+  language for the DOM it puts in dialogs and panels.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.
