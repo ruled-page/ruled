@@ -3,5 +3,5 @@
   "extends": "../tsconfig.json",
   // Workspace packages from their source, as the rest of the workspace reads them.
   "compilerOptions": { "noUnusedLocals": false, "noUnusedParameters": false, "customConditions": ["source"] },
-  "include": ["api", "../packages/spreadsheet/src", "../packages/formula-engine/src"]
+  "include": ["api", "../packages/spreadsheet/src", "../packages/formula-engine/src", "../packages/plugin/src"]
 }
