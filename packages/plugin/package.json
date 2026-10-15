@@ -1,7 +1,7 @@
 {
   "name": "@ruled/plugin",
   "version": "0.1.0",
-  "description": "Ruled's own plugins: open workbooks from OneDrive and SharePoint, and save them back",
+  "description": "Ruled's own plugins: open workbooks from OneDrive, SharePoint and Google Drive, and save them back",
   "keywords": [
     "ruled",
     "plugin",
@@ -9,7 +9,8 @@
     "xlsx",
     "onedrive",
     "sharepoint",
-    "microsoft-graph"
+    "microsoft-graph",
+    "google-drive"
   ],
   "type": "module",
   "license": "MIT",
@@ -41,6 +42,11 @@
       "source": "./src/onedrive/redirect.ts",
       "types": "./dist/onedrive/redirect.d.ts",
       "import": "./dist/onedrive/redirect.js"
+    },
+    "./google-drive": {
+      "source": "./src/google-drive/index.ts",
+      "types": "./dist/google-drive/index.d.ts",
+      "import": "./dist/google-drive/index.js"
     }
   },
   "files": [

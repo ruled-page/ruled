@@ -9,5 +9,5 @@
     // Types come from the published @ruled/sheet, not its source.
     "customConditions": []
   },
-  "include": ["src/onedrive/index.ts", "src/onedrive/redirect.ts"]
+  "include": ["src/onedrive/index.ts", "src/onedrive/redirect.ts", "src/google-drive/index.ts"]
 }
