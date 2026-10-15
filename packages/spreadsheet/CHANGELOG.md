@@ -9,6 +9,16 @@ before 1.0.0, a minor version may change the API.
 - A new package, `@ruled/plugin`, holds Ruled's own plugins. The first,
   `@ruled/plugin/onedrive`, opens workbooks from OneDrive and SharePoint,
   saves them back unless they changed there, and saves copies to them.
+- `@ruled/plugin/google-drive` opens workbooks from Google Drive, saves them
+  back unless they changed there, and saves copies to it, asking only for
+  access to the files people choose. A Google Sheet opens as an Excel copy,
+  with a notice naming the functions only Google has, whose cells keep their
+  last values; it can be saved only as a new `.xlsx`, never over the Sheet.
+  Its code loads when its menu first opens, so a host's bundle carries only
+  a small entry.
+- A plugin's file source can give a notice with a file, shown in the
+  editor's banner when it opens, and can fetch a file again by its origin,
+  for lists of recent files.
 - Plugins: `plugins` in the options (and the element's `options`) takes
   objects written against `@ruled/sheet/plugin`, which add commands to the
   toolbar, More and the cell menu, side panels, dialogs, and file sources.
