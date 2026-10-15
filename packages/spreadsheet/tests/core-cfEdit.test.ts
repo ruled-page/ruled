@@ -55,6 +55,20 @@ describe('changing conditional formatting', () => {
     expect(s.changes().map((c) => english.text(c.note!))).toEqual(['Conditional formatting changed']);
   });
 
+  it('writes an average rule’s side, whether it counts the average, its deviations, and a text rule’s text', () => {
+    const s = open();
+    const below: CfRule = { rects: [rect(0, 2, 9, 2)], type: 'aboveAverage', priority: 0, stopIfTrue: false, formulas: [], aboveAverage: false, equalAverage: true, stdDev: 2, style: { bold: true } };
+    const text: CfRule = { rects: [rect(0, 3, 9, 3)], type: 'containsText', priority: 0, stopIfTrue: false, formulas: ['NOT(ISERROR(SEARCH("a<b",D1)))'], operator: 'containsText', text: 'a<"b"', percent: true, style: { bold: true } };
+    set(s, [below, text]);
+    const xml = sheetXml(s);
+    expect(xml).toMatch(/<cfRule type="aboveAverage" dxfId="\d+" priority="1" aboveAverage="0" equalAverage="1" stdDev="2"\/?>/);
+    expect(xml).toMatch(/<cfRule type="containsText" dxfId="\d+" priority="2" percent="1" operator="containsText" text="a&lt;&quot;b&quot;"><formula>NOT\(ISERROR\(SEARCH\("a&lt;b",D1\)\)\)<\/formula>/);
+    expect(rulesOf(open(s.save())).map((r) => [r.type, r.aboveAverage, r.equalAverage, r.stdDev, r.text])).toEqual([
+      ['aboveAverage', false, true, 2, undefined],
+      ['containsText', undefined, undefined, undefined, 'a<"b"'],
+    ]);
+  });
+
   it("starts the workbook's formats where it has none, writing every part a rule's format sets", async () => {
     const wb = new ExcelJS.Workbook();
     wb.addWorksheet('Plain').getCell('A1').value = 1;

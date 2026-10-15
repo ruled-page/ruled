@@ -123,6 +123,13 @@ describe('filters by colour, icon and period', () => {
   it('work out the dates of a period counted from today, weeks starting on Sunday', () => {
     const today = new Date(2026, 9, 14); // a Wednesday
     expect(periodRange('today', today, false)).toEqual({ from: 46309, to: 46310 });
+    // Every period counted from today is a span after its start, and the next or last one sits beside this one.
+    for (const [last, now, next] of [['yesterday', 'today', 'tomorrow'], ['lastWeek', 'thisWeek', 'nextWeek'], ['lastMonth', 'thisMonth', 'nextMonth'], ['lastQuarter', 'thisQuarter', 'nextQuarter'], ['lastYear', 'thisYear', 'nextYear']] as const) {
+      const [a, b, c] = [periodRange(last, today, false)!, periodRange(now, today, false)!, periodRange(next, today, false)!];
+      expect([a.to, b.to]).toEqual([b.from, c.from]);
+    }
+    expect(periodRange('yearToDate', today, false)).toEqual({ from: periodRange('thisYear', today, false)!.from, to: 46310 });
+    expect(periodRange('today', today, true)).toEqual({ from: 46309 - 1462, to: 46310 - 1462 });
     expect(periodRange('thisWeek', today, false)).toEqual({ from: 46306, to: 46313 });
     expect(periodRange('lastMonth', today, false)).toEqual({ from: 46266, to: 46296 });
     expect(periodRange('nextQuarter', today, false)).toEqual({ from: 46388, to: 46478 });

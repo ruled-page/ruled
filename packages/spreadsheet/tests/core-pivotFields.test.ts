@@ -248,6 +248,20 @@ describe('Insert PivotTable', () => {
     expect(saved['xl/pivotTables/pivotTable2.xml']).toContain('<location ref="E13:G30"');
   });
 
+  it('refreshes on opening a cache read through a name only when the name’s cells were edited', () => {
+    const p = parts(sample('pivot.xlsx'));
+    p['xl/workbook.xml'] = p['xl/workbook.xml'].replace('</sheets>', '</sheets><definedNames><definedName name="Sales">Data!$A$1:$E$101</definedName></definedNames>');
+    p['xl/pivotCache/pivotCacheDefinition1.xml'] = p['xl/pivotCache/pivotCacheDefinition1.xml'].replace(/ refreshOnLoad="1"/, '').replace(/<worksheetSource [^>]*\/>/, '<worksheetSource name="Sales"/>');
+    const bytes = zipSync(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, strToU8(v)])));
+    const cache = (edit: { sheet: number; row: number; col: number }) => {
+      const s = reopen(bytes);
+      s.apply({ type: 'input', ...edit, text: '7' });
+      return parts(s.save())['xl/pivotCache/pivotCacheDefinition1.xml'];
+    };
+    expect(cache({ sheet: 1, row: 40, col: 12 })).not.toContain('refreshOnLoad');
+    expect(cache({ sheet: 0, row: 5, col: 4 })).toContain('refreshOnLoad="1"');
+  });
+
   it("says why it can't be made: no such data, data without headings or rows, or no room", () => {
     const s = open('pivot.xlsx');
     const why = (r: ReturnType<typeof insert>) => english.text(r.rejected!);

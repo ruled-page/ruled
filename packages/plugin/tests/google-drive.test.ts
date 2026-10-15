@@ -358,6 +358,15 @@ describe('saving a copy', () => {
 });
 
 describe('the rest', () => {
+  it('loads its workings and Google’s scripts as a menu holding it opens, and signs out before ever signing in', async () => {
+    const { source, commands, toasts } = connector();
+    source.preload!();
+    commands[0].preload!();
+    await commands[0].run({});
+    expect(gis.revoked).toEqual([]);
+    expect(key(toasts.at(-1)!.text)).toBe('signedOut');
+  });
+
   it('revokes access and forgets the token on signing out, asking again next time', async () => {
     stubFetch({ [`GET ${fileUrl('f1')}`]: () => json(driveFile()), [`GET ${MEDIA}`]: () => new Response(BYTES) });
     const { source, commands, toasts } = connector();

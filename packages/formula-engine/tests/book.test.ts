@@ -67,6 +67,22 @@ describe('a workbook on its own', () => {
     expect(book.set("'Q1 Sales'!A1", 7)).toContainEqual({ cell: "'Q1 Sales'!A2", value: null });
   });
 
+  it('recalculates what reads a large spill, by a cell, a range or whole columns, when the spill changes', () => {
+    const book = createWorkbook({ sheets: { S: [[5000, '=SEQUENCE(A1)', '=B4500', '=SUM(B4000:B4002)', '=COUNT(B:B)']] } });
+    expect(book.getRange('C1:E1')).toEqual([[4500, 12003, 5000]]);
+    book.set('A1', 6000);
+    expect(book.getRange('C1:E1')).toEqual([[4500, 12003, 6000]]);
+    book.set('B1', '=SEQUENCE(A1,1,2)');
+    expect(book.getRange('C1:E1')).toEqual([[4501, 12006, 6000]]);
+  });
+
+  it('adds and multiplies complex numbers from cells, ranges, unions and arrays', () => {
+    const book = createWorkbook({
+      sheets: { S: [['1+i', '2', '=IMSUM(A1:B2)', '=IMPRODUCT((A1:A2,B1))', '=IMSUM({"1+i","3"})', '=IMPRODUCT(A2)', '=IMSUM(LAMBDA(x,x))']] },
+    });
+    expect(book.getRange('C1:G1')).toEqual([['3+i', '2+2i', '4+i', '0', { error: '#VALUE!' }]]);
+  });
+
   it('sizes stacked arrays as their parts grow and shrink', () => {
     const NA = { error: '#N/A' };
     const book = createWorkbook({ sheets: { S: [[2, 'a', '=VSTACK(SEQUENCE(A1),HSTACK(B1,"b"))', null, '=HSTACK(SEQUENCE(1,A1),VSTACK(B1,"c"))']] } });

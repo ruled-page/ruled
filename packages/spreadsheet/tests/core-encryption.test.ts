@@ -11,6 +11,45 @@ const corpus = (name: string) => new Uint8Array(readFileSync(new URL(`./corpus/$
 /** tests/corpus/outline-password.xlsx: outline.xlsx encrypted by msoffcrypto-tool with this password. */
 const PASSWORD = 'Ruled-2026';
 
+/**
+ * A workbook encrypted as Office 2007 did, written here from Microsoft's
+ * description of Standard encryption with Node's own SHA-1 and AES, so
+ * decrypting it checks the editor's code against another implementation.
+ * `algorithm` 0x6801 is RC4, which the editor refuses.
+ */
+function standardEncrypted(zip: Uint8Array, password: string, algorithm = 0x660e): Uint8Array {
+  const u32 = (...values: number[]) => Buffer.from(new Uint32Array(values).buffer);
+  const sha1 = (...parts: Uint8Array[]) => createHash('sha1').update(Buffer.concat(parts)).digest();
+  const ecb = (key: Buffer, data: Uint8Array) => {
+    const c = createCipheriv('aes-128-ecb', key, null).setAutoPadding(false);
+    return Buffer.concat([c.update(data), c.final()]);
+  };
+  const salt = randomBytes(16);
+  let h = sha1(salt, Buffer.from(password, 'utf16le'));
+  for (let i = 0; i < 50_000; i++) h = sha1(u32(i), h);
+  h = sha1(h, u32(0));
+  const x1 = sha1(Buffer.alloc(64, 0x36).map((b, i) => b ^ (h[i] ?? 0)));
+  const x2 = sha1(Buffer.alloc(64, 0x5c).map((b, i) => b ^ (h[i] ?? 0)));
+  const key = Buffer.concat([x1, x2]).subarray(0, 16);
+  const verifier = randomBytes(16);
+  const csp = Buffer.from('Microsoft Enhanced RSA and AES Cryptographic Provider\0', 'utf16le');
+  // Flags (fCryptoAPI | fAES), SizeExtra, AlgID, AlgIDHash (SHA-1), KeySize, ProviderType, two reserved, then the provider's name.
+  const header = Buffer.concat([u32(0x24, 0, algorithm, 0x8004, 128, 0x18, 0, 0), csp]);
+  const info = Buffer.concat([
+    Buffer.from(new Uint16Array([3, 2]).buffer),
+    u32(0x24, header.length),
+    header,
+    u32(16),
+    salt,
+    ecb(key, verifier),
+    u32(20),
+    ecb(key, Buffer.concat([sha1(verifier), Buffer.alloc(12)])),
+  ]);
+  const padded = Buffer.concat([zip, Buffer.alloc((16 - (zip.length % 16)) % 16)]);
+  const pkg = Buffer.concat([u32(zip.length, 0), ecb(key, padded)]);
+  return writeCompoundFile(new Map([['EncryptionInfo', new Uint8Array(info)], ['EncryptedPackage', new Uint8Array(pkg)]]));
+}
+
 describe('hashes and cipher', () => {
   it('match Node’s for messages of every length around the block sizes', () => {
     for (const n of [0, 1, 55, 56, 63, 64, 65, 111, 112, 127, 128, 129, 1000, 70_000]) {
@@ -67,6 +106,15 @@ describe('password-protected workbooks', () => {
     for (const path of [...theirs.keys()].filter((p) => p.startsWith('\u0006'))) expect(streams.get(path), path).toEqual(theirs.get(path));
     expect(decryptWorkbook(file, 'pässwörd ✓')).toEqual(zip);
     expect(() => decryptWorkbook(file, 'password')).toThrow(new EncryptionError('password'));
+  });
+
+  it('open when encrypted as Office 2007 did (Standard encryption), and refuse a wrong password or RC4', () => {
+    const zip = corpus('outline.xlsx');
+    const file = standardEncrypted(zip, 'secret');
+    expect(protectionOf(file)).toBe('password');
+    expect(decryptWorkbook(file, 'secret')).toEqual(zip);
+    expect(() => decryptWorkbook(file, 'Secret')).toThrow(new EncryptionError('password'));
+    expect(() => decryptWorkbook(standardEncrypted(zip, 'secret', 0x6801), 'secret')).toThrow(new EncryptionError('unsupported'));
   });
 
   it('keep streams of every size in a compound file, small ones in its mini stream', () => {

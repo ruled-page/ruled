@@ -4,6 +4,7 @@ import { parseXml } from '../src/core/xml';
 import { english } from '../src/i18n';
 import { plotChart } from '../src/state/charts';
 import { chartConfig, type ChartLook } from '../src/ui/chartConfig';
+import { Recorder } from './canvasRecorder';
 
 const ctx = { theme: ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47'], sheetIndex: new Map(), names: [] };
 const LOOK: ChartLook = { palette: [], background: '#fff', text: '#111', muted: '#555', gridline: '#ddd', axis: '#ccc', font: 'Calibri' };
@@ -66,5 +67,56 @@ describe('data labels', () => {
     const funnel = ex('funnel', '<cx:dataLabels/>');
     expect(datasets(funnel).sets[0].wbeLabels).toEqual({ texts: ['100', '-25'], position: 'ctr' });
     expect(ex('funnel', '').groups[0].series[0].labels).toBeUndefined();
+  });
+});
+
+describe('drawing data labels', () => {
+  /** Runs the labels plugin over a chart whose dataset has these labels and elements; what it wrote, where and how. */
+  function drawn(position: string, elements: Loose[], texts = elements.map((_, i) => `L${i}`), hidden = false) {
+    const r = new Recorder();
+    const { plugins } = datasets(chart('barChart', '<c:dLbls><c:showVal val="1"/></c:dLbls>'));
+    const data = elements.map((_, i) => (i === 99 ? null : i));
+    const fake = {
+      ctx: r.ctx,
+      data: { datasets: [{ data, wbeLabels: { texts, position } }, { data: [] }] },
+      getDatasetMeta: (i: number) => ({ hidden: i === 0 && hidden, data: i === 0 ? elements.map((p) => ({ getProps: () => p, options: { backgroundColor: p.fill } })) : [] }),
+    };
+    (plugins[0] as unknown as { afterDatasetsDraw(c: unknown): void }).afterDatasetsDraw(fake);
+    return r.texts().map(([t, x, y, style]) => [t, Math.round(x), Math.round(y), style.split(' ')[0]]);
+  }
+
+  it('puts a column’s label above its end, in the chart’s text colour', () => {
+    expect(drawn('outEnd', [{ x: 10, y: 20, base: 100 }])).toEqual([['L0', 10, 16, '#111']]);
+  });
+
+  it('puts labels inside a bar at its end, centre or base, in black or white to read on its fill', () => {
+    expect(drawn('inEnd', [{ x: 10, y: 20, base: 100, fill: '#000080' }])).toEqual([['L0', 10, 24, '#FFFFFF']]);
+    expect(drawn('ctr', [{ x: 10, y: 20, base: 100, fill: '#FFFF00' }])).toEqual([['L0', 10, 60, '#000000']]);
+    expect(drawn('inBase', [{ x: 10, y: 20, base: 100, fill: 'red' }])).toEqual([['L0', 10, 96, '#111']]);
+  });
+
+  it('follows a sideways bar, and a bar going down from its base', () => {
+    expect(drawn('outEnd', [{ x: 80, y: 20, base: 10, horizontal: true }])).toEqual([['L0', 84, 20, '#111']]);
+    expect(drawn('inEnd', [{ x: 80, y: 20, base: 10, horizontal: true }])).toEqual([['L0', 76, 20, '#111']]);
+    expect(drawn('outEnd', [{ x: 10, y: 120, base: 100 }])).toEqual([['L0', 10, 124, '#111']]);
+  });
+
+  it('puts a slice’s label inside it or beyond its edge', () => {
+    const slice = { x: 100, y: 100, startAngle: 0, endAngle: 0, innerRadius: 0, outerRadius: 40 };
+    expect(drawn('ctr', [slice])).toEqual([['L0', 120, 100, '#111']]);
+    expect(drawn('outEnd', [slice])).toEqual([['L0', 146, 100, '#111']]);
+    expect(drawn('outEnd', [{ ...slice, startAngle: Math.PI, endAngle: Math.PI }])).toEqual([['L0', 54, 100, '#111']]);
+  });
+
+  it('puts a point’s label beside, above or below it, and skips what has no label or place', () => {
+    const point = { x: 50, y: 50 };
+    expect(drawn('t', [point])).toEqual([['L0', 50, 44, '#111']]);
+    expect(drawn('b', [point])).toEqual([['L0', 50, 56, '#111']]);
+    expect(drawn('l', [point])).toEqual([['L0', 44, 50, '#111']]);
+    expect(drawn('r', [point])).toEqual([['L0', 56, 50, '#111']]);
+    expect(drawn('ctr', [point])).toEqual([['L0', 50, 50, '#111']]);
+    expect(drawn('r', [point, { x: NaN, y: 1 }], ['L0', 'L1'])).toEqual([['L0', 56, 50, '#111']]);
+    expect(drawn('r', [point], [undefined as unknown as string])).toEqual([]);
+    expect(drawn('r', [point], ['L0'], true)).toEqual([]);
   });
 });
