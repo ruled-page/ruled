@@ -169,7 +169,8 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
 
   const opened = open ? items[open.index] : undefined;
   return (
-    <div ref={root} onContextMenu={(e) => e.preventDefault()}>
+    // No box of its own: a menu opened from a toolbar button would otherwise be a flex item there, its gap moving the buttons.
+    <div ref={root} style={{ display: 'contents' }} onContextMenu={(e) => e.preventDefault()}>
       <div className="wbe-context-menu" role="menu" aria-label={label} ref={menu} style={pos} onKeyDown={onMenuKey}>
         {render(items, true)}
       </div>
