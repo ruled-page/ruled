@@ -16,9 +16,15 @@ before 1.0.0, a minor version may change the API.
   last values; it can be saved only as a new `.xlsx`, never over the Sheet.
   Its code loads when its menu first opens, so a host's bundle carries only
   a small entry.
-- A plugin's file source can give a notice with a file, shown in the
-  editor's banner when it opens, and can fetch a file again by its origin,
-  for lists of recent files.
+- More for plugins: a file source can give a notice with a file, shown in
+  the editor's banner when it opens; can fetch a file again by its origin
+  (`fetch`, and `files.fetch` for any source's), for lists of recent files;
+  and can offer files by name (`items`), which make its Open entry a
+  submenu. `files.current()` says what is open, from where, with its bytes
+  as opened. A dialog's body can close it, `commands.refresh()` re-reads
+  commands' state, `storage` takes typed values, and panels and dialogs are
+  drawn again when the language changes. The `wbe-input` class has the
+  editor's field style.
 - Plugins: `plugins` in the options (and the element's `options`) takes
   objects written against `@ruled/sheet/plugin`, which add commands to the
   toolbar, More and the cell menu, side panels, dialogs, and file sources.
