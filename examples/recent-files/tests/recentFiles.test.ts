@@ -115,7 +115,7 @@ describe('recent files', () => {
     await handle.open(BUDGET, 'from-the-host.xlsx');
     await settled();
 
-    expect(kept().map((f) => f.name)).toEqual(['forecast.xlsx', 'budget.xlsx']);
+    expect(kept().map((f) => f.origin.name)).toEqual(['forecast.xlsx', 'budget.xlsx']);
     expect(atob(kept()[1].bytes!).length).toBe(BUDGET.byteLength);
     // The open panel is drawn again as the list changes.
     expect(body.all('li').map((li) => li.text())).toEqual(['forecast.xlsx This device ×', 'budget.xlsx This device ×']);
@@ -127,7 +127,7 @@ describe('recent files', () => {
     await openFromDevice(store, 'budget.xlsx', BUDGET);
     await openFromDevice(store, 'kitchen-sink.xlsx', sample('kitchen-sink.xlsx'));
     await openFromDevice(store, 'forecast.xlsx', FORECAST);
-    expect(kept().map((f) => f.name)).toEqual(['forecast.xlsx']);
+    expect(kept().map((f) => f.origin.name)).toEqual(['forecast.xlsx']);
     store.dispose();
   });
 
@@ -144,7 +144,7 @@ describe('recent files', () => {
     expect(store.origin).toMatchObject({ source: 'recent', location: 'This device' });
     // Saving downloads, as it did when the file was first opened.
     expect(store.saveTarget).toBe('download');
-    expect(kept().map((f) => f.name)).toEqual(['budget.xlsx', 'forecast.xlsx']);
+    expect(kept().map((f) => f.origin.name)).toEqual(['budget.xlsx', 'forecast.xlsx']);
     store.dispose();
   });
 
@@ -153,7 +153,7 @@ describe('recent files', () => {
     const { store, host, showPanel } = await editor({}, [drive.plugin]);
     await host.openFrom(host.sources.find((s) => s.id === 'drive')!);
     await settled();
-    expect(kept()).toEqual([expect.objectContaining({ id: 'drive:{"item":7}', name: 'forecast.xlsx', origin: expect.objectContaining({ version: '1' }) })]);
+    expect(kept()).toEqual([expect.objectContaining({ id: 'drive:{"item":7}', origin: expect.objectContaining({ name: 'forecast.xlsx', version: '1' }) })]);
     expect(kept()[0].bytes).toBeUndefined();
 
     await openFromDevice(store, 'budget.xlsx', BUDGET);
@@ -166,32 +166,37 @@ describe('recent files', () => {
     store.dispose();
   });
 
-  it('is a source in the Open menu, choosing in a dialog', async () => {
-    const { store, host, source } = await editor();
+  it('offers the files as a submenu of Open, opening them through their sources', async () => {
+    const drive = fakeDrive();
+    const { store, host, source } = await editor({}, [drive.plugin]);
+    await host.openFrom(host.sources.find((s) => s.id === 'drive')!);
     await openFromDevice(store, 'budget.xlsx', BUDGET);
-    await openFromDevice(store, 'forecast.xlsx', FORECAST);
 
-    const opening = host.openFrom(source);
-    await vi.waitFor(() => expect(store.pluginDialog).toBeDefined());
-    const body = new FakeElement('div');
-    const cleanup = store.pluginDialog!.render(body as unknown as HTMLElement, store.pluginDialog!.resolve);
-    // No ×: the dialog only chooses.
-    expect(body.all('button').map((b) => b.text())).toEqual(['forecast.xlsx This device', 'budget.xlsx This device']);
-    body.all('button')[1].click();
-    if (typeof cleanup === 'function') cleanup();
-    expect(await opening).toBe(true);
-    expect(store.fileName).toBe('budget.xlsx');
+    const items = host.items(source);
+    expect(items).toEqual([
+      { source: 'recent', name: 'budget.xlsx', ref: 'device:budget.xlsx', location: 'This device' },
+      expect.objectContaining({ source: 'drive', name: 'forecast.xlsx', location: 'Shared/forecast.xlsx' }),
+    ]);
+    // No Browse…: there's nothing to pick.
+    expect(source.pick).toBeUndefined();
+
+    expect(await host.openItem(items[1])).toBe(true);
+    expect(store.origin).toMatchObject({ source: 'drive', version: '2' });
+    expect(await host.openItem(items[0])).toBe(true);
+    expect(store.origin).toMatchObject({ source: 'recent', name: 'budget.xlsx' });
     store.dispose();
   });
 
-  it('opens nothing when the dialog is closed', async () => {
+  it('says so when a file from this device is no longer kept', async () => {
     const { store, host, source } = await editor();
     await openFromDevice(store, 'budget.xlsx', BUDGET);
-    const opening = host.openFrom(source);
-    await vi.waitFor(() => expect(store.pluginDialog).toBeDefined());
-    store.pluginDialog!.resolve(null);
-    expect(await opening).toBe(false);
+    const [item] = host.items(source);
+    stored.clear();
+    const again = await editor();
+    expect(await again.host.openItem(item)).toBe(false);
+    expect(again.store.t.text(again.store.toasts.at(-1)!.text)).toBe('budget.xlsx is no longer kept in this browser. Open it again from this device.');
     store.dispose();
+    again.store.dispose();
   });
 
   it('forgets a file, or clears the list after asking, the command enabled only while there is one', async () => {
@@ -205,7 +210,7 @@ describe('recent files', () => {
     const forget = body.all('button').find((b) => b.getAttribute('aria-label') === 'Remove forecast.xlsx from the list')!;
     forget.click();
     await settled();
-    expect(kept().map((f) => f.name)).toEqual(['budget.xlsx']);
+    expect(kept().map((f) => f.origin.name)).toEqual(['budget.xlsx']);
 
     host.run(clear, {});
     await vi.waitFor(() => expect(store.confirmRequest).toBeDefined());
