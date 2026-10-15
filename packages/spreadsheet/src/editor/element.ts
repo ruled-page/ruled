@@ -47,14 +47,15 @@ export interface WorkbookEditorEventMap extends HTMLElementEventMap {
 /** The <workbook-editor> element: what hosts can set, call and listen to. */
 export interface WorkbookEditorElement extends HTMLElement {
   /**
-   * Editor options. Changing the theme, language, user or schemas of a
-   * connected element applies them as it is; changing anything else
-   * re-creates the editor, closing the workbook.
+   * Editor options, `plugins` among them, as objects can't be attributes.
+   * Changing the theme, language, user or schemas of a connected element
+   * applies them as it is; changing anything else re-creates the editor,
+   * closing the workbook.
    */
   options: StoreOptions;
   /** Opens a workbook or CSV file: true once open, false when the user kept the one already open; rejects saying why it can't. */
   open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<boolean>;
-  /** Runs the save flow (schema checks, then the `save` event or a download), resolving with what happened. */
+  /** Runs the Save button's save (schema checks, then the `save` event; or writing back to a plugin's source, or a download), resolving with what happened. */
   save(): Promise<SaveResult>;
   /** Downloads a copy as .xlsx without saving it to the host. */
   downloadCopy(): Promise<void>;
@@ -74,6 +75,8 @@ export interface WorkbookEditorElement extends HTMLElement {
   setCustomLists(lists: string[][] | undefined): void;
   readonly status: EditorHandle['status'];
   readonly fileName: string;
+  /** Where the open workbook came from, when a plugin's file source opened it. */
+  readonly origin: EditorHandle['origin'];
   readonly unsaved: boolean;
   readonly editedCount: number;
   addEventListener<K extends keyof WorkbookEditorEventMap>(type: K, listener: (this: WorkbookEditorElement, ev: WorkbookEditorEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
@@ -316,6 +319,10 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     get unsaved(): boolean {
       return this.handle?.unsaved ?? false;
+    }
+
+    get origin(): EditorHandle['origin'] {
+      return this.handle?.origin;
     }
 
     get editedCount(): number {

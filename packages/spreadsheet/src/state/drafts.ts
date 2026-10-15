@@ -1,5 +1,6 @@
 import type { WorkbookOp } from '../core/sheetRules';
 import type { EditOp } from '../core/types';
+import type { FileOrigin } from '../plugin/types';
 
 /** One step of a draft: a cell edit, or a structural change (to where cells are, or to the sheets). */
 export type DraftOp = EditOp | { type: 'structure'; op: WorkbookOp };
@@ -15,6 +16,8 @@ export interface Draft {
   updatedAt: number;
   editedCount: number;
   ops: DraftOp[];
+  /** Where the file came from, when a plugin's source opened it, so saving still knows where to go. Never a token. */
+  origin?: FileOrigin;
 }
 
 const DB_NAME = 'workbook-editor-drafts';

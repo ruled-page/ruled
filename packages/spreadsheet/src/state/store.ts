@@ -94,6 +94,9 @@ import {
   type Translator,
 } from '../i18n';
 import { isNarrow } from './viewport';
+import type { PluginHost, RegisteredSource } from './plugins';
+import type { EditorHandle } from '../editor/handle';
+import type { CommandSelection, FileOrigin, PluginDialog, RuledPlugin } from '../plugin/types';
 
 export interface Toast {
   id: number;
@@ -140,6 +143,20 @@ export interface HistoryItem extends Omit<HistoryEntry, 'action'> {
 
 const SAVE_CONFLICT = 'Someone else saved a newer version of this workbook.';
 
+const isConflict = (err: unknown) => (err as Error | undefined)?.name === 'SaveConflictError';
+
+/** The host's translations with each plugin's messages added under `plugin.<id>.`, the host's wording winning. */
+function withPluginMessages(plugins: readonly RuledPlugin[] = [], host: Translations = {}): Translations {
+  const out: Record<string, Record<string, string>> = {};
+  for (const p of plugins) {
+    for (const [lng, messages] of Object.entries(p?.translations ?? {})) {
+      for (const [key, text] of Object.entries(messages)) (out[lng] ??= {})[`plugin.${p.id}.${key}`] = text;
+    }
+  }
+  for (const [lng, messages] of Object.entries(host)) out[lng] = { ...out[lng], ...messages };
+  return out;
+}
+
 /**
  * Throw from onSave when the stored file changed since it was opened. The
  * editor keeps the user's changes and offers to download them as a copy.
@@ -177,6 +194,8 @@ export interface SavedWorkbook extends WorkbookReaders {
    * file is next opened; until then, don't rely on their values.
    */
   outOfDate: { sheet: string; ref: string }[];
+  /** Where the workbook was opened from, when a plugin's file source opened it; undefined for files from the host or this device. */
+  origin?: FileOrigin;
 }
 
 /**
@@ -236,6 +255,12 @@ export interface EditorFeatures {
    * entries above and below it in its column. Default true.
    */
   autoComplete: boolean;
+  /**
+   * Writing to plugins' file sources: "Save to <source>" for a workbook
+   * opened from one, and copies to sources in "Save a copy". Off for apps
+   * where files must only go to the app. Default true.
+   */
+  sourceSave: boolean;
 }
 
 export interface StoreOptions {
@@ -330,6 +355,13 @@ export interface StoreOptions {
    * called. Return (or resolve) true to have the editor ask and open it after all.
    */
   onLinkClick?: (link: LinkClick) => boolean | void | Promise<boolean | void>;
+  /**
+   * Plugins, such as file sources for cloud drives (see `@ruled/sheet/plugin`).
+   * Each is set up once, as soon as the editor is made and the code that
+   * runs plugins has loaded (it loads only for an editor given some).
+   * Plugins are trusted code, running on the page as any other dependency does.
+   */
+  plugins?: RuledPlugin[];
 }
 
 /**
@@ -343,7 +375,11 @@ export type EditorEvent =
   | { type: 'calculated'; ms: number; formulas: number; live: number; notCalculated: number }
   | { type: 'saved'; result: SaveResult; ms: number; editedCount: number }
   /** An error the editor showed the user. */
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  /** A plugin threw, or was refused; it is named by its id (empty when it has none). */
+  | { type: 'pluginError'; plugin: string; message: string }
+  /** The workbook was written to a plugin's file source: saved back over its file, or as a copy. */
+  | { type: 'savedToSource'; source: string; name: string; ms: number };
 
 /** Default for StoreOptions.workerTimeout. */
 const WORKER_TIMEOUT = 120_000;
@@ -359,7 +395,11 @@ export interface SchemaMismatch {
   tried: number;
 }
 
-export type Panel = 'issues' | 'changes' | 'report' | 'pivot';
+/** A side panel: the editor's own, or a plugin's (`plugin:` and its key). */
+export type Panel = 'issues' | 'changes' | 'report' | 'pivot' | `plugin:${string}`;
+
+/** Where the primary Save button saves: to the host, back to the file's source, a copy to its source, or a download. */
+export type SaveTarget = 'host' | 'source' | 'copy' | 'download';
 
 /** The dialog that defines a name, or edits the one `from` identifies, as it opens. */
 export interface NameDialog {
@@ -645,7 +685,11 @@ export class WorkbookStore {
   /** The draft being written, which reopening waits for. */
   private draftWrite?: Promise<unknown>;
   /** The file as opened, to open again if the worker fails. */
-  private source?: { fileName: string; bytes: ArrayBuffer; password?: string };
+  private source?: { fileName: string; bytes: ArrayBuffer; password?: string; origin?: FileOrigin };
+  /** Where the open workbook came from, when a plugin's file source opened it. */
+  origin?: FileOrigin;
+  /** A plugin's dialog, while open. */
+  pluginDialog?: PluginDialog & { plugin: string; resolve: (action: string | null) => void };
 
   /** A password-protected workbook waiting for its password: whether the last one tried was wrong, and where the answer goes (undefined: cancelled). */
   passwordRequest?: { fileName: string; wrong: boolean; resolve: (password: string | undefined) => void };
@@ -683,11 +727,29 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, ...options.features };
-    this.i18n = createI18n(options.language ?? this.locale, options.translations);
+    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, sourceSave: true, ...options.features };
+    this.i18n = createI18n(options.language ?? this.locale, withPluginMessages(options.plugins, options.translations));
     this.t = translator(this.i18n);
   }
 
+  /** The plugins the host gave, and what they added, once they are loaded and started. */
+  plugins?: PluginHost;
+  private pluginStart?: Promise<void>;
+  private disposed = false;
+
+  /**
+   * Starts the host's plugins, once the editor's handle is made: the code
+   * that runs them loads only for an editor that has some.
+   */
+  startPlugins(handle: EditorHandle): Promise<void> {
+    return (this.pluginStart ??= this.options.plugins?.length
+      ? import('./plugins').then(({ PluginHost }) => {
+          if (this.disposed) return;
+          this.plugins = new PluginHost(this, this.options.plugins);
+          this.plugins.start(handle);
+        })
+      : Promise.resolve());
+  }
   /** The editor's own i18next instance. */
   readonly i18n: I18n;
   /** Translation functions, in the editor's current language. */
@@ -778,6 +840,8 @@ export class WorkbookStore {
 
   /** Stops the worker and releases the workbook. */
   dispose(): void {
+    this.disposed = true;
+    this.plugins?.stop();
     this.stopWorker(new Error('Superseded'));
     this.listeners.clear();
   }
@@ -1004,7 +1068,7 @@ export class WorkbookStore {
     this.stopWorker(error);
     if (this.draftKey && this.draftOps.length) {
       clearTimeout(this.draftTimer);
-      this.draftWrite = saveDraft({ key: this.draftKey, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps }).catch(() => undefined);
+      this.draftWrite = saveDraft({ key: this.draftKey, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin }).catch(() => undefined);
     }
     this.reopenWithoutRecalc = calculating;
     Object.assign(this, { status: 'error', error: reason, busy: false, stage: '' });
@@ -1022,7 +1086,7 @@ export class WorkbookStore {
   async reopen(): Promise<void> {
     if (!this.canReopen || !this.source) return;
     await this.draftWrite;
-    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined, this.source.password);
+    await this.load(this.source.fileName, this.source.bytes, this.reopenWithoutRecalc ? 'off' : undefined, this.source.password, this.source.origin);
   }
 
   // ---------------------------------------------------------------------------
@@ -1033,9 +1097,9 @@ export class WorkbookStore {
    * opened, or why not. The user can decline to discard edits to the workbook
    * already open; a file that can't be read leaves the editor showing why.
    * `csv: false` refuses CSV files (the editor's own Open button and drop
-   * pass the `csv` feature).
+   * pass the `csv` feature); `origin` is where a plugin's source fetched it from.
    */
-  async open(fileName: string, bytes: ArrayBuffer, { csv = true }: { csv?: boolean } = {}): Promise<OpenResult> {
+  async open(fileName: string, bytes: ArrayBuffer, { csv = true, origin }: { csv?: boolean; origin?: FileOrigin } = {}): Promise<OpenResult> {
     if (this.editedCount > 0 && !(await this.confirm({
       title: msg('store.open.discardTitle'),
       body: msg('store.open.discardBody', { fileName: this.fileName }),
@@ -1049,11 +1113,11 @@ export class WorkbookStore {
       return { opened: false, error };
     }
     if (this.draftKey && this.editedCount > 0) void deleteDraft(this.draftKey);
-    return this.load(fileName, bytes);
+    return this.load(fileName, bytes, undefined, undefined, origin);
   }
 
   /** Opens a file in a fresh worker; `recalc` overrides the option, for reopening after the engine failed; `password` opens a protected workbook. */
-  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc'], password?: string): Promise<OpenResult> {
+  private async load(fileName: string, bytes: ArrayBuffer, recalc?: OpenOptions['recalc'], password?: string, origin?: FileOrigin): Promise<OpenResult> {
     // Hash before the bytes move to the worker; the hash identifies this file's drafts.
     const started = performance.now();
     const key = this.options.drafts === false ? undefined : await fileKey(bytes).catch(() => undefined);
@@ -1061,7 +1125,9 @@ export class WorkbookStore {
     // A fresh worker per file releases the previous workbook's memory.
     this.worker = this.startWorker();
     // The worker gets a copy, leaving the caller's buffer intact and one to reopen from.
-    this.source = { fileName, bytes, password };
+    this.source = { fileName, bytes, password, origin };
+    this.origin = origin;
+    this.sourceSavedSeq = this.changeSeq;
     this.reopenWithoutRecalc = false;
     Object.assign(this, {
       status: 'loading',
@@ -1132,7 +1198,7 @@ export class WorkbookStore {
       const reason = errorText(err);
       if (isMessage(reason) && (reason.key === 'core.open.passwordNeeded' || reason.key === 'core.open.passwordWrong')) {
         const next = await this.askPassword(fileName, reason.key === 'core.open.passwordWrong');
-        if (next !== undefined) return this.load(fileName, bytes, recalc, next);
+        if (next !== undefined) return this.load(fileName, bytes, recalc, next, origin);
       }
       // A failed worker has already said so.
       if (this.status !== 'error') {
@@ -1167,6 +1233,8 @@ export class WorkbookStore {
       void deleteDraft(key);
       return;
     }
+    // The same file opened some other way: saving goes back to where the draft's came from, while its source is here.
+    if (!this.origin && draft.origin && this.plugins?.source(draft.origin.source)) this.origin = draft.origin;
     // Cell edits replay as batches between structural changes, which replay on their own.
     let batch: EditOp[] = [];
     const flush = async () => {
@@ -1191,7 +1259,7 @@ export class WorkbookStore {
       const key = this.draftKey;
       if (!key) return;
       if (this.editedCount === 0) void deleteDraft(key);
-      else void saveDraft({ key, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps });
+      else void saveDraft({ key, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin });
     }, 400);
   }
 
@@ -1225,6 +1293,7 @@ export class WorkbookStore {
         history: this.history.map((h) => ({ ...h, action: this.t.text(h.action) })),
         editedCount: this.editedCount,
         outOfDate: outOfDateCells(this.sheets),
+        origin: this.origin,
         ...(ctl && summary
           ? {
               schema: { id: ctl.schema.id, name: this.t.localized(ctl.schema.name), version: ctl.schema.version, errors: summary.errors, warnings: summary.warnings },
@@ -1326,19 +1395,8 @@ export class WorkbookStore {
         this.toast('info', msg('store.save.saved', { fileName: saved.fileName }));
         return 'saved';
       } catch (err) {
-        if (err instanceof SaveConflictError || (err as Error)?.name === 'SaveConflictError') {
-          const own = (err as Error).message;
-          const answer = await this.ask({
-            title: msg('store.conflict.title'),
-            body: msg('store.conflict.body', { reason: !own || own === SAVE_CONFLICT ? msg('store.conflict.reason') : own }),
-            confirmLabel: msg('store.conflict.download'),
-            cancelLabel: msg('store.conflict.keepEditing'),
-            danger: false,
-          });
-          if (answer === 'confirm') {
-            const [, name, extension] = /^(.*?)(\.xls[xm])?$/i.exec(saved.fileName)!;
-            this.downloadFile({ ...saved, fileName: this.t('store.conflict.copyName', { name, extension: extension ?? '' }) });
-          }
+        if (isConflict(err)) {
+          await this.conflict(err as Error, saved);
         } else {
           this.toast('error', msg('store.save.notSaved', { reason: errorText(err) }));
         }
@@ -1359,6 +1417,79 @@ export class WorkbookStore {
     return 'downloaded';
   }
 
+  /** The stored file changed since it was opened: the changes stay, and can be downloaded as a copy. */
+  async conflict(err: Error, saved: SavedWorkbook): Promise<void> {
+    const own = err.message;
+    const answer = await this.ask({
+      title: msg('store.conflict.title'),
+      body: msg('store.conflict.body', { reason: !own || own === SAVE_CONFLICT ? msg('store.conflict.reason') : own }),
+      confirmLabel: msg('store.conflict.download'),
+      cancelLabel: msg('store.conflict.keepEditing'),
+      danger: false,
+    });
+    if (answer === 'confirm') {
+      const [, name, extension] = /^(.*?)(\.xls[xm])?$/i.exec(saved.fileName)!;
+      this.downloadFile({ ...saved, fileName: this.t('store.conflict.copyName', { name, extension: extension ?? '' }) });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Saving to plugins' file sources
+
+  /** The source the open workbook came from, while its plugin is running. */
+  get originSource(): RegisteredSource | undefined {
+    return this.origin && this.plugins?.source(this.origin.source);
+  }
+
+  /** "Save to <source>": the workbook came from a source that can write it back, and the host allows it. */
+  get canSaveToSource(): boolean {
+    return this.features.save && this.features.sourceSave && this.origin?.writable !== false && !!this.originSource?.save;
+  }
+
+  /** Sources that "Save a copy" can write a new file to. */
+  get copySources(): RegisteredSource[] {
+    return (this.features.save && this.features.sourceSave && this.plugins?.sources.filter((s) => s.saveAs)) || [];
+  }
+
+  /**
+   * What the primary Save button (and Cmd/Ctrl+S) does: the host's Save when
+   * there is one; else writing back to the file's source; else, for a file
+   * that can't be written back, a copy to its source; else a download.
+   */
+  get saveTarget(): SaveTarget {
+    if (this.hasSaveHandler) return 'host';
+    if (this.canSaveToSource) return 'source';
+    const source = this.originSource;
+    if (source && this.copySources.includes(source)) return 'copy';
+    return 'download';
+  }
+
+  /** A source's name, as shown. */
+  sourceLabel(source: RegisteredSource): string {
+    return this.t.text(source.label as Text);
+  }
+
+  /** There are changes not yet written back to the file's source, where "Save to <source>" can write them. */
+  get sourceUnsaved(): boolean {
+    return this.canSaveToSource && this.changeSeq !== this.sourceSavedSeq;
+  }
+
+  /** The workbook was written back to its source, which now has this origin for it. */
+  savedToSource(origin: FileOrigin): void {
+    this.origin = origin;
+    this.fileName = origin.name;
+    if (this.source) this.source.origin = origin;
+    this.sourceSavedSeq = this.changeSeq;
+  }
+
+  /** Runs the primary Save, as its button does. */
+  savePrimary(): Promise<SaveResult> {
+    const target = this.saveTarget;
+    if (target === 'source') return this.plugins!.saveToSource();
+    if (target === 'copy') return this.plugins!.saveCopyTo(this.originSource!);
+    return this.save();
+  }
+
   private downloadFile(saved: SavedWorkbook): void {
     const type = /\.xlsm$/i.test(saved.fileName)
       ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
@@ -1367,7 +1498,7 @@ export class WorkbookStore {
   }
 
   /** Once saved, the draft for this file is no longer needed. */
-  private afterSave(): void {
+  afterSave(): void {
     clearTimeout(this.draftTimer);
     if (this.draftKey) void deleteDraft(this.draftKey);
     this.savedSeq = this.changeSeq;
@@ -1376,6 +1507,8 @@ export class WorkbookStore {
   /** Bumped by every change; compared with savedSeq to know whether there is anything unsaved. */
   private changeSeq = 0;
   private savedSeq = 0;
+  /** changeSeq when the workbook was last written back to its source, or opened. */
+  private sourceSavedSeq = 0;
 
   /** There are changes the host (or a download) hasn't received yet. */
   get unsaved(): boolean {
@@ -4318,12 +4451,41 @@ export class WorkbookStore {
     this.announce(msg('store.announce.problems', { ref: toA1(at.row, at.col), problems }));
   }
 
-  private emit(event: EditorEvent): void {
+  /** Tells the host's onEvent, and the plugins, what the editor did. */
+  emit(event: EditorEvent): void {
     try {
       this.options.onEvent?.(event);
     } catch {
       // The host's logging mustn't break the editor.
     }
+    this.plugins?.dispatch(event);
+  }
+
+  /** Shows a plugin's dialog, resolving with the action chosen or null; one already open is closed first. */
+  showPluginDialog(plugin: string, dialog: PluginDialog): Promise<string | null> {
+    return new Promise((resolve) => {
+      this.pluginDialog?.resolve(null);
+      this.pluginDialog = {
+        ...dialog,
+        plugin,
+        resolve: (action) => {
+          if (this.pluginDialog?.resolve !== entry.resolve) return;
+          this.pluginDialog = undefined;
+          this.notify();
+          resolve(action);
+        },
+      };
+      const entry = this.pluginDialog;
+      this.notify();
+    });
+  }
+
+  /** The selection, as cell-menu commands receive it. */
+  commandSelection(): CommandSelection | undefined {
+    const view = this.view;
+    if (!view) return undefined;
+    const sel = this.selection;
+    return { sheet: view.info.name, active: toA1(sel.row, sel.col), ranges: sel.rects.map(rangeLabel) };
   }
 
   dismissToast(id: number): void {

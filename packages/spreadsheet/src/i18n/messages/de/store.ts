@@ -10,6 +10,17 @@ export const store: Record<keyof typeof en, string> = {
   'store.open.notExcel': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) können geöffnet werden.',
   'store.open.notSupported': 'Nur Excel-Arbeitsmappen (.xlsx oder .xlsm) und CSV-Dateien (.csv, .tsv oder .txt) können geöffnet werden.',
   'store.open.reading': '{{fileName}} wird gelesen…',
+  'store.open.badRemote': 'Ein Plugin hat dem Editor eine Datei übergeben, die er nicht öffnen kann: Er braucht den Inhalt der Datei und ihre Herkunft.',
+
+  'store.source.saved': '{{fileName}} in {{source}} gespeichert.',
+  'store.source.copied': 'Kopie {{fileName}} in {{source}} gespeichert.',
+  'store.source.notSaved': 'Nicht in {{source}} gespeichert: {{reason}} Ihre Änderungen sind noch vorhanden.',
+  'store.source.withErrorsTitle': 'Mit Fehlern speichern?',
+  'store.source.withErrorsBody_one': 'Diese Arbeitsmappe hat {{count, number}} Fehler. Trotzdem in {{source}} speichern? Sie können ihn später beheben.',
+  'store.source.withErrorsBody_other': 'Diese Arbeitsmappe hat {{count, number}} Fehler. Trotzdem in {{source}} speichern? Sie können sie später beheben.',
+  'store.source.withErrorsConfirm': 'Trotzdem speichern',
+
+  'store.plugin.failed': 'Das Plugin {{plugin}} ist fehlgeschlagen: {{reason}}',
 
   'store.draft.title': 'Nicht gespeicherte Änderungen wiederherstellen?',
   'store.draft.body_one':

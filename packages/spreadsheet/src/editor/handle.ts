@@ -1,4 +1,5 @@
 import type { CsvOptions } from '../core/csv';
+import type { FileOrigin } from '../plugin/types';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
 import type { EditorTheme } from './theme';
@@ -17,7 +18,11 @@ export interface EditorHandle {
    * shows the reason too. The bytes are copied, so the caller's stay usable.
    */
   open(bytes: ArrayBuffer | Uint8Array, fileName: string): Promise<boolean>;
-  /** Runs the same save as the Save button (schema checks, then onSave or a download), resolving with what happened. */
+  /**
+   * Runs the same save as the Save button, resolving with what happened:
+   * schema checks then onSave, or without onSave, writing back to the
+   * plugin source the workbook came from, or a download.
+   */
   save(): Promise<SaveResult>;
   /** Downloads a copy as .xlsx without saving it to the host. */
   downloadCopy(): Promise<void>;
@@ -52,6 +57,8 @@ export interface EditorHandle {
   readonly editedCount: number;
   /** There are changes the host hasn't received through a save. */
   readonly unsaved: boolean;
+  /** Where the open workbook came from, when a plugin's file source opened it; undefined for files from the host or this device. */
+  readonly origin: FileOrigin | undefined;
   /** Calls `listener` whenever the editor's state changes; returns an unsubscribe function. */
   subscribe(listener: () => void): () => void;
   /** Stops the editor's worker; mountWorkbookEditor's handle unmounts the editor as well. */
@@ -76,7 +83,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
       if ('cancelled' in r) return false;
       throw new Error(store.t.text(r.error));
     },
-    save: () => store.save(),
+    save: () => store.savePrimary(),
     downloadCopy: () => store.exportCopy(),
     getWorkbook: () => store.snapshot(),
     downloadCsv: (options) => store.exportCsv(options),
@@ -100,10 +107,14 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     get unsaved() {
       return store.unsaved;
     },
+    get origin() {
+      return store.origin;
+    },
     subscribe: (listener) => store.subscribe(listener),
     destroy,
   };
   stores.set(handle, store);
+  void store.startPlugins(handle);
   return handle;
 }
 

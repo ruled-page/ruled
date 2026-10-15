@@ -8,6 +8,17 @@ export const store = {
   'store.open.notExcel': 'Only Excel workbooks (.xlsx or .xlsm) can be opened.',
   'store.open.notSupported': 'Only Excel workbooks (.xlsx or .xlsm) and CSV files (.csv, .tsv or .txt) can be opened.',
   'store.open.reading': 'Reading {{fileName}}…',
+  'store.open.badRemote': "A plugin gave the editor a file it can't open: it needs the file's bytes and where it came from.",
+
+  'store.source.saved': 'Saved {{fileName}} to {{source}}.',
+  'store.source.copied': 'Saved a copy, {{fileName}}, to {{source}}.',
+  'store.source.notSaved': 'Not saved to {{source}}: {{reason}} Your changes are still here.',
+  'store.source.withErrorsTitle': 'Save with errors?',
+  'store.source.withErrorsBody_one': 'This workbook has {{count, number}} error. Save it to {{source}} anyway? You can fix it later.',
+  'store.source.withErrorsBody_other': 'This workbook has {{count, number}} errors. Save it to {{source}} anyway? You can fix them later.',
+  'store.source.withErrorsConfirm': 'Save anyway',
+
+  'store.plugin.failed': 'The plugin {{plugin}} failed: {{reason}}',
 
   'store.draft.title': 'Restore unsaved changes?',
   'store.draft.body_one': 'This file was edited on {{when}} and not saved ({{count, number}} changed cell). Restore those changes?',
