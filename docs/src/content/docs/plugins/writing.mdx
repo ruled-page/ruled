@@ -1,0 +1,339 @@
+---
+title: Writing a plugin
+description: The plugin contract, built around a complete Recent files plugin, with commands, file sources, saving, dialogs and panels, language, errors and storage.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import recentFiles from '../../../../../examples/recent-files/src/recentFiles.ts?raw';
+
+A plugin is a plain object with an id, the version of the contract it was written for, and a `setup` function. `setup` gets a context: the editor's handle, and places to add commands, file sources, dialogs and panels.
+
+This page builds one plugin as it goes, **Recent files**, which lists the workbooks opened lately so they open again in a click. It uses most of the contract:
+
+- a **file source**, "Recent files" in the Open menu, that asks which file in a **dialog**;
+- a **panel** listing the files, each with a button to forget it;
+- a **command** in More that clears the list, enabled only while there is one;
+- **storage** for the list, **events** to hear what was opened, and the editor's **language**.
+
+[The whole plugin](#the-whole-plugin) is at the end of the page. It is in the repository, with its tests, under `examples/recent-files`.
+
+## The contract
+
+Plugins are written against `@ruled/sheet/plugin`. It holds the contract's types, so a plugin imports only types from it and never brings a second copy of the editor:
+
+```ts
+import type { PluginContext, RuledPlugin } from '@ruled/sheet/plugin';
+
+export function recentFiles(options: RecentFilesOptions = {}): RuledPlugin {
+  return {
+    id: 'com.example.recent-files',
+    apiVersion: 1,
+    translations,
+    setup: (ctx) => setup(ctx, options),
+  };
+}
+```
+
+| Field | What it is |
+| --- | --- |
+| `id` | Unique, reverse-DNS style. Commands, sources, panels, messages and storage are kept under it. |
+| `apiVersion` | `1`, the contract this page describes. An editor that doesn't know a plugin's version doesn't start it, and says why. |
+| `translations` | The plugin's messages, by language. See [Language](#language). |
+| `setup(ctx)` | Called once, a moment after the editor is made (the code that runs plugins loads first). It may return a function to clean up, called when the editor is destroyed. |
+
+A plugin is usually a function that takes options and returns the object, as `recentFiles()` and `oneDrive()` do. `definePlugin(plugin)`, the one thing the module exports at run time, returns its argument unchanged and only helps TypeScript infer it; `satisfies RuledPlugin` does the same with no import.
+
+To publish one, give it its own package, with `@ruled/sheet` as a peer dependency.
+
+### The context
+
+| Member | What it is |
+| --- | --- |
+| `editor` | The same [handle](/guides/events-and-handle/) your app has: `open`, `save`, `getWorkbook`, `goTo`, `status`, `fileName`, `origin`, `subscribe`… |
+| `signal` | Aborted when the editor is destroyed, or the plugin is stopped after failing. Pass it to `fetch` and `addEventListener`. |
+| `on(listener)` | What the editor does, as `onEvent` hears it: `opened`, `saved`, `savedToSource`… Returns a function that stops listening. |
+| `commands` | `register(command)` and `refresh()`. See [Commands](#commands). |
+| `files` | `registerSource`, `open`, `fetch` and `current`. See [File sources](#file-sources). |
+| `ui` | `toast`, `confirm`, `dialog` and `registerPanel`. See [Dialogs and panels](#dialogs-and-panels). |
+| `text(text)` | A plugin's text in the editor's language as it is now, for DOM the plugin draws. |
+| `limits` | `{ maxFileBytes }`: the largest file the editor opens, so a source can refuse one before downloading it. |
+| `storage` | Small values kept in this browser. See [Storage](#storage). |
+
+`register`, `registerSource` and `registerPanel` each return a function that removes what they added. Everything a plugin added goes when the editor is destroyed.
+
+## Commands
+
+A command is an action with a label, put on the toolbar, in More, or in the cell menu:
+
+```ts
+ctx.commands.register({
+  id: 'clear',
+  label: msg('clear'),
+  where: 'more',
+  enabled: () => list.length > 0,
+  async run() {
+    if (await ctx.ui.confirm({ title: msg('clear'), body: msg('clearBody'), confirmLabel: msg('clearConfirm') })) await changed([]);
+  },
+});
+```
+
+| Field | What it is |
+| --- | --- |
+| `id` | Unique within the plugin. |
+| `label` | Its text: see [Language](#language). |
+| `icon` | SVG path data on a 24×24 grid, drawn with the text colour, as the `icons` option takes. |
+| `where` | `'toolbar'`, in the toolbar's row; `'more'`, with the editor's less used controls, in the row on wide screens and behind More on phones; or `'cellMenu'`. |
+| `run(context)` | What it does. It runs inside the click, so a popup it opens straight away isn't blocked. |
+| `enabled(context)`, `visible(context)` | Read again whenever the editor's state changes. |
+| `preload()` | Called when the menu holding the command opens, or the pointer rests on it: load an SDK here. |
+
+**State of the plugin's own.** `enabled` and `visible` are read when the editor's state changes. When they depend on something the plugin keeps, such as Recent files' list, call `ctx.commands.refresh()` after it changes.
+
+**Popups.** Browsers allow a popup only during a click. A `run` that first awaits `import('some-sdk')` has lost the click by the time it opens one. Load the SDK in `preload`, or at idle time after `setup`, and open the popup before any other `await` in `run`.
+
+**The cell menu.** A `cellMenu` command appears after the editor's own entries: on right-click, on the menu key or Shift+F10, and in the phone's cell menu. Its `run`, `enabled` and `visible` get the selection: the sheet's name, the active cell and the selected ranges, in A1 style.
+
+```ts
+ctx.commands.register({
+  id: 'sum',
+  label: 'Show the total',
+  where: 'cellMenu',
+  // Only for one range of more than one cell.
+  visible: ({ selection }) => selection?.ranges.length === 1 && selection.ranges[0].includes(':'),
+  async run({ selection }) {
+    const workbook = await ctx.editor.getWorkbook();
+    // …work it out from workbook.bytes, then:
+    ctx.ui.toast('info', `Total of ${selection!.ranges[0]} on ${selection!.sheet}: …`);
+  },
+});
+```
+
+## File sources
+
+A file source is somewhere workbooks are opened from, and may be saved to: a cloud drive, your app's own file store, or Recent files. With one registered, the editor's Open button becomes a menu: **This device**, then each source.
+
+```ts
+ctx.files.registerSource({
+  id: 'recent',
+  label: msg('title'),
+  icon: ICON,
+  async pick() {
+    await loaded;
+    const chosen = await ctx.ui.dialog({
+      title: msg('choose'),
+      render: (body, close) => show(() => drawList(body, (entry) => close(entry.id))),
+    });
+    const entry = list.find((f) => f.id === chosen);
+    return entry ? load(entry) : null;
+  },
+});
+```
+
+| Field | What it is |
+| --- | --- |
+| `id` | Unique among every plugin's sources. A workbook's `origin.source` names it. |
+| `label`, `icon` | Shown in the Open menu, as **Save to *label*** and in **Save a copy**. |
+| `preload()` | Called when a menu holding the source opens: load an SDK here, so `pick` can open a popup inside the click. |
+| `pick()` | Lets the person choose a file, and fetches it: a `RemoteFile`, or `null` when they cancel. It is called inside the click. |
+| `save(file, origin)` | Optional. Writes the workbook back over the file it came from. See [Saving](#saving). |
+| `saveAs(file)` | Optional. Writes the workbook as a new file. |
+| `fetch(origin)` | Optional. Fetches the file an origin names again, as it is now, for opening it without `pick`, as Recent files does. |
+
+A `RemoteFile` is the file's bytes and its **origin**: where it came from. The editor keeps the origin while the workbook is open, hands it back to `save`, shows its name and location, and never writes it into the file.
+
+| `FileOrigin` field | What it is |
+| --- | --- |
+| `source` | The source's id. |
+| `name` | The file's name, shown as the workbook's. |
+| `ref` | The source's own identity for the file, such as a drive and an item id. Any JSON. |
+| `version` | Its version as opened, such as an ETag, so `save` can tell when someone else saved it since. |
+| `writable` | `false` when saving back isn't possible or wise. Only **Save a copy** is offered then. |
+| `location` | Where the file is, such as `Shared/Finance/prices.xlsx`, shown when the pointer rests on its name. |
+
+### Files found some other way
+
+Three more functions are for plugins that find files without a picker:
+
+- `files.open(file)` opens a `RemoteFile`, as if a source had picked it. Unsaved changes are asked about first, and it resolves whether the file opened.
+- `files.fetch(origin)` asks the source an origin names, which may be another plugin's, to fetch the file again. It resolves `null` when the person cancels, or when no source here can: the editor then says why.
+- `files.current()` is the workbook open now, as it was opened: its `name`, its `origin`, its `size`, `bytes()` (a copy, made when asked for), and `from`, which says whether it came from this device (the Open button, or a dropped file), your app's code, or a source.
+
+Recent files uses all three. When the editor says it opened a file, the plugin reads `current()` and keeps it: a file from a source as its origin, and a small file from this device with its bytes, since a browser can't open a local file again by itself. Files the host opened aren't listed: reopening them is the host's business.
+
+```ts
+ctx.on((event) => {
+  if (event.type === 'opened') void remember();
+});
+
+async function remember() {
+  const file = ctx.files.current();
+  if (!file || file.from === 'host') return;
+  // …a source's file as its origin; one from this device with file.bytes(), if it's small
+}
+```
+
+To open one again, a file from a source is fetched through it, which signs in when it needs to. That runs inside the click on the list, so a sign-in popup isn't blocked:
+
+```ts
+async function load(entry: RecentFile): Promise<RemoteFile | null> {
+  if (entry.origin) return ctx.files.fetch(entry.origin);
+  const origin: FileOrigin = { source: SOURCE_ID, name: entry.name, ref: entry.id, location: ctx.text(msg('thisDevice')) };
+  return { bytes: fromBase64(entry.bytes ?? ''), origin };
+}
+```
+
+The OneDrive file comes back with its current version as its origin, so **Save to OneDrive** works as if it had been picked. A file from this device comes back with Recent files' own origin, which has no `save`, so saving downloads it as it did the first time.
+
+## Saving
+
+The editor has three ways to save, each with its own meaning and button:
+
+| Action | What it does | Shown when |
+| --- | --- | --- |
+| **Save**, the host's | Runs the schema's checks, then the host's `onSave`. | The host gives `onSave`. |
+| **Save to *source*** | Calls the source's `save` with the workbook and the origin it was opened with. | The workbook came from a source with `save`, its origin isn't `writable: false`, and the host hasn't set `features.sourceSave: false`. |
+| **Save a copy** | A menu: **This device** (a download), and each source with `saveAs`. | Downloads are on, or a source has `saveAs`. |
+
+The primary button, and Ctrl+S (⌘S), is the host's Save when there is one, then **Save to *source*** for a writable origin, then **Save a copy** to the origin's source when it can't be written back, and otherwise a download. `editor.save()` runs the primary one.
+
+A source's part:
+
+- **`save(file, origin)`** writes `file.bytes` over the file `origin` names, and resolves with its origin as now saved: a new `version`, and a new `name` if it changed. The editor keeps that origin, so the next save is checked against the version just written.
+- **When the file changed since it was opened,** throw an error whose `name` is `'SaveConflictError'` (`SaveConflictError` from `@ruled/sheet` is one, but you needn't import it). The editor keeps the changes and offers to download them, as for a conflict from `onSave`. With an empty message, the editor explains it in its own words.
+- **`saveAs(file)`** lets the person choose where, writes a new file, and resolves with its origin, or `null` when they cancel. The workbook stays the one it came from; the copy isn't opened in its place.
+- **Schema errors** don't stop a save to a source: the editor asks first, and the person may carry on.
+- **Any other error** keeps the changes, and the editor says the save failed, with the error's [text](#errors).
+- **Popups.** `save` and `saveAs` are called once the editor has written the workbook, which takes a moment. A popup opened then relies on the browser still counting the click as recent: about five seconds in Chrome and Firefox, less in Safari. When one is blocked, ask with `ui.confirm` and open it on that click, as the OneDrive connector does.
+
+`file` is a [`SavedWorkbook`](/reference/api/ruled/sheet/interfaces/savedworkbook/): the `.xlsx` bytes, the file name, the schema's values, and its `origin`.
+
+## Dialogs and panels
+
+Plugins draw their own UI in plain DOM, in the editor's frames. That keeps them free of any framework; a React plugin can `createRoot` into the element it's given.
+
+| Function | What it shows |
+| --- | --- |
+| `ui.toast(kind, text)` | A short message, `'info'` or `'error'`. |
+| `ui.confirm({ title, body, confirmLabel })` | A question with a confirm and a cancel button. Resolves `true` when confirmed. |
+| `ui.dialog({ title, render, actions })` | A dialog in the editor's frame, with its title, buttons and focus handling. Resolves with the id of the action chosen, or `null` when it's closed. |
+| `ui.registerPanel({ id, title, icon, render })` | A side panel beside Issues and Changes, with a button that shows and hides it. |
+
+`render(body, close)` fills `body` with the plugin's DOM, and may return a function to clean up when the dialog or panel closes. A dialog's `close(action)` ends it from inside the body, as choosing a file from Recent files' list does. Without `actions`, a dialog has a Close button. `render` is called again, after cleaning up, when the editor's language changes. To show new content meanwhile, change the body's DOM yourself: Recent files keeps a set of the lists on screen and draws each again when its list changes.
+
+```ts
+ctx.ui.registerPanel({
+  id: 'list',
+  title: msg('title'),
+  icon: ICON,
+  render: (body) => show(() => drawList(body, (entry) => void reopen(entry), true)),
+});
+
+/** Shows the list, drawn again whenever it changes, until it's cleaned up. */
+function show(draw: () => void): () => void {
+  draw();
+  views.add(draw);
+  return () => void views.delete(draw);
+}
+```
+
+### Looking like the editor
+
+The editor's styles are scoped to it, and plugin DOM is drawn inside it, so it can use them:
+
+- The classes `wbe-btn` (a button) and `wbe-input` (a text field) are stable for plugins.
+- The [theme tokens](/guides/theming/#the-tokens) are CSS custom properties, so DOM that uses them follows the host's theme and dark mode. The ones plugins need most:
+
+| Token | What it is |
+| --- | --- |
+| `--wbe-text`, `--wbe-text-muted`, `--wbe-text-subtle` | Text, and quieter text. |
+| `--wbe-surface`, `--wbe-surface-alt` | Backgrounds. |
+| `--wbe-border` | Lines between things. |
+| `--wbe-accent`, `--wbe-on-accent` | The accent colour, and text on it. |
+| `--wbe-danger` | Errors. |
+| `--wbe-font`, `--wbe-font-size`, `--wbe-font-size-sm`, `--wbe-font-size-xs` | Type. |
+| `--wbe-radius`, `--wbe-radius-sm` | Corners. |
+
+Other classes the editor uses may change between versions. Give your own elements classes of your own, outside the `wbe-` prefix.
+
+## Language
+
+A plugin's text is one of three things:
+
+- written text, `'Show the total'`, shown as it is;
+- text in several languages, `{ en: 'Recent files', de: 'Zuletzt geöffnet' }`, shown in the editor's language, or English;
+- one of its own messages, `{ key: 'plugin.<id>.<key>', params }`, from its `translations`.
+
+Messages are the way to go for anything a host might reword. The editor keeps a plugin's `translations` under `plugin.<id>.`, so its keys can't collide with the editor's or another plugin's, and the host's [`translations`](/guides/languages/) can reword them. They use the editor's placeholders, `{{name}}`. A small helper makes them:
+
+```ts
+export const translations = {
+  en: { title: 'Recent files', forget: 'Remove {{name}} from the list' /* … */ },
+  de: { title: 'Zuletzt geöffnet', forget: '{{name}} aus der Liste entfernen' /* … */ },
+};
+
+const msg = (key: keyof (typeof translations)['en'], params?: Record<string, unknown>): PluginText => ({
+  key: `plugin.${RECENT_FILES_ID}.${key}`,
+  params,
+});
+```
+
+Labels, toasts, confirms and dialog titles take a plugin's text and translate it. For DOM the plugin draws, `ctx.text(text)` gives it in the editor's language as it is now:
+
+```ts
+empty.textContent = ctx.text(msg('empty'));
+```
+
+Ship English at least. Ruled's own plugins also ship German, as the editor does.
+
+## Errors
+
+Every call into a plugin is caught: `setup`, `run`, `enabled` and `visible`, `pick`, `save`, `saveAs`, `fetch`, `render`, cleanups and event listeners. When one throws, or a promise it returns rejects:
+
+- the editor shows a message naming the plugin, with the error's text;
+- the host's `onEvent` hears `{ type: 'pluginError', plugin, message }`;
+- a throw from `setup` stops the plugin, removing what it added, and the editor carries on without it;
+- a command whose `enabled` or `visible` throws is hidden from then on;
+- a failed `save` or `saveAs` keeps the changes.
+
+An error's `message` is shown as it is. To show text in the editor's language, give the error a `text`, any plugin text:
+
+```ts
+throw Object.assign(new Error('Drive refused the request (403)'), { text: msg('refused', { status: 403 }) });
+```
+
+Your DOM's own event listeners are yours: the editor doesn't call them, so it can't catch what they throw. Catch there, and show it with `ui.toast('error', …)`.
+
+## Storage
+
+`ctx.storage` keeps small values in this browser, for this plugin: `get(key)`, `set(key, value)` and `delete(key)`, each returning a promise. Values are anything JSON can hold.
+
+```ts
+const loaded = ctx.storage.get<RecentFile[]>('files').then((kept) => {
+  if (Array.isArray(kept)) list = kept;
+});
+await ctx.storage.set('files', list);
+```
+
+It is `localStorage`, under `ruled-plugin:<id>`, which a page shares and browsers cap at about 5 MB. It may be unavailable (some private windows) or full: then nothing is kept, without an error, so don't rely on a value being there.
+
+That is why Recent files keeps the bytes only of files from this device, only up to 100 kB each (a typical template is 10 to 50 kB), and only 8 files. Larger files from this device aren't listed. Files from a source are kept as their origin, a few hundred bytes, and fetched again.
+
+Keep sign-in tokens out of it: they belong in the provider's library, as MSAL keeps OneDrive's in `sessionStorage`.
+
+## Testing
+
+A plugin is a function of its context, so it can be tested with a fake one: an object with the members it uses, recording what it registers and shows. The OneDrive connector's tests work that way, with `fetch` stubbed. Recent files' tests run it in the editor's own state with a few elements standing in for the DOM, under `examples/recent-files/tests`.
+
+## The whole plugin
+
+<Code code={recentFiles} lang="ts" title="recentFiles.ts" />
+
+Use it as any other plugin:
+
+```ts
+import { recentFiles } from './recentFiles';
+
+createWorkbookEditor({ plugins: [recentFiles({ max: 10 })] });
+```

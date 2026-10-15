@@ -2,7 +2,7 @@
 title: OneDrive and SharePoint
 description: Open workbooks from OneDrive and SharePoint, save them back, and save copies there, with the @ruled/plugin/onedrive connector.
 sidebar:
-  order: 1
+  order: 3
 ---
 
 `@ruled/plugin/onedrive` connects the editor to Microsoft's cloud storage: a person's own OneDrive (personal, or work and school), and SharePoint document libraries. With it:
@@ -13,7 +13,7 @@ sidebar:
 
 Everything runs in the browser: the person signs in with Microsoft in a popup, and the editor talks to Microsoft Graph directly. Your server never sees the file or a token. The file is `.xlsx` at both ends, so nothing is converted.
 
-Plugins are trusted code running on your page, like any other dependency.
+Plugins are [trusted code](/plugins/using/#plugins-are-trusted-code) running on your page, like any other dependency.
 
 ## Install
 
@@ -132,7 +132,7 @@ Browsers allow a popup only straight after a click. When signing in has used up 
 
 **Saving a copy.** **Save a copy › OneDrive** opens the picker on folders. The copy takes the workbook's name. If the folder already has a file by that name, the connector asks for another rather than overwriting it. The workbook open in the editor stays the one it came from.
 
-How these sit beside your app's own Save is covered in [Opening and saving](/guides/opening-and-saving/): Save to OneDrive is separate from your `onSave`, and `features.sourceSave: false` turns writing to OneDrive off.
+How these sit beside your app's own Save is covered in [Using plugins](/plugins/using/#saving-with-a-source): Save to OneDrive is separate from your `onSave`, and `features.sourceSave: false` turns writing to OneDrive off.
 
 ## Content Security Policy
 

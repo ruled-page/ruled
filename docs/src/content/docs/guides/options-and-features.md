@@ -13,6 +13,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | --- | --- |
 | `schemas` | [Schemas](/schemas/overview/) to try, in order, against each workbook opened. |
 | `onSave` | Receives the workbook when people save. Without it, saving downloads the file. |
+| `plugins` | [Plugins](/plugins/using/): places to open and save files, such as OneDrive, and buttons, panels and dialogs of their own. Read when the editor is made. |
 | `saveLabel` | The Save button's label, such as "Submit price list", in one language or several. |
 | `drafts` | Keep unsaved edits in the browser and offer them back; never for a password-protected workbook. Default `true`. |
 | `warnOnUnload` | Ask before leaving the page with unsaved changes. Default `true`. |
@@ -64,7 +65,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 
 | Feature | What it is |
 | --- | --- |
-| `open` | The Open button, the file picker and dropping files. Turn it off when your app chooses the file. |
+| `open` | The Open button (or menu, with [plugins](/plugins/using/)), the file picker and dropping files. Turn it off when your app chooses the file. |
 | `save` | The Save button and Ctrl+S (⌘S). |
 | `download` | With `onSave`, a separate button to download a copy. |
 | `schemas` | The schema designer's button. |
@@ -73,6 +74,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `format` | The format bar: fonts, colours, borders, alignment and number formats. Turn it off where people only fill in values. |
 | `csv` | Opening CSV files, and a button to download the sheet as CSV. |
 | `autoComplete` | Finishing text as it's typed from the entries above and below, as Excel's AutoComplete does. |
+| `sourceSave` | Writing to [plugins' file sources](/plugins/using/#saving-with-a-source): **Save to *source*** and the sources in **Save a copy**. Turn it off where files must only go to your app. |
 
 A supplier filling in a template might get:
 
