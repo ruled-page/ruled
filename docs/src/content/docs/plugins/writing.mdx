@@ -12,7 +12,7 @@ A plugin is a plain object with an id, the version of the contract it was writte
 
 This page builds one plugin as it goes, **Recent files**, which lists the workbooks opened lately so they open again in a click. It uses most of the contract:
 
-- a **file source**, "Recent files" in the Open menu, that asks which file in a **dialog**;
+- a **file source**, "Recent files", whose files are a submenu of the Open menu;
 - a **panel** listing the files, each with a button to forget it;
 - a **command** in More that clears the list, enabled only while there is one;
 - **storage** for the list, **events** to hear what was opened, and the editor's **language**.
@@ -114,19 +114,23 @@ ctx.commands.register({
 
 A file source is somewhere workbooks are opened from, and may be saved to: a cloud drive, your app's own file store, or Recent files. With one registered, the editor's Open button becomes a menu: **This device**, then each source.
 
+A source offers files in one of two ways, or both. `pick` lets the person choose, in a picker of its own: OneDrive's opens Microsoft's. `items` names files to choose straight from the menu: the source's entry becomes a submenu of them, followed by **Browse…** for `pick` when it has one. Recent files has only `items`:
+
 ```ts
 ctx.files.registerSource({
   id: 'recent',
   label: msg('title'),
   icon: ICON,
-  async pick() {
-    await loaded;
-    const chosen = await ctx.ui.dialog({
-      title: msg('choose'),
-      render: (body, close) => show(() => drawList(body, (entry) => close(entry.id))),
-    });
-    const entry = list.find((f) => f.id === chosen);
-    return entry ? load(entry) : null;
+  // A submenu of Open; choosing one fetches it through the source its origin names.
+  items: () => list.map((f) => shown(f.origin)),
+  // The files from this device, from the bytes kept.
+  async fetch(origin) {
+    const entry = list.find((f) => f.id === origin.ref);
+    if (!entry?.bytes) {
+      ctx.ui.toast('error', msg('gone', { name: origin.name }));
+      return null;
+    }
+    return { bytes: fromBase64(entry.bytes), origin: shown(entry.origin) };
   },
 });
 ```
@@ -136,10 +140,11 @@ ctx.files.registerSource({
 | `id` | Unique among every plugin's sources. A workbook's `origin.source` names it. |
 | `label`, `icon` | Shown in the Open menu, as **Save to *label*** and in **Save a copy**. |
 | `preload()` | Called when a menu holding the source opens: load an SDK here, so `pick` can open a popup inside the click. |
-| `pick()` | Lets the person choose a file, and fetches it: a `RemoteFile`, or `null` when they cancel. It is called inside the click. |
+| `items()` | Optional. Files to offer by name, as origins: read each time the Open menu opens, and shown as a submenu, each with its `location` on hover. Choosing one fetches it with the `fetch` of the source its origin names, inside the click. |
+| `pick()` | Optional. Lets the person choose a file, and fetches it: a `RemoteFile`, or `null` when they cancel. It is called inside the click. A source needs `items` or `pick`. |
 | `save(file, origin)` | Optional. Writes the workbook back over the file it came from. See [Saving](#saving). |
 | `saveAs(file)` | Optional. Writes the workbook as a new file. |
-| `fetch(origin)` | Optional. Fetches the file an origin names again, as it is now, for opening it without `pick`, as Recent files does. |
+| `fetch(origin)` | Optional. Fetches the file an origin names again, as it is now, for opening it without `pick`: from `items`, or from another plugin, as Recent files opens OneDrive's files. |
 
 A `RemoteFile` is the file's bytes and its **origin**: where it came from. The editor keeps the origin while the workbook is open, hands it back to `save`, shows its name and location, and never writes it into the file.
 
@@ -160,7 +165,7 @@ Three more functions are for plugins that find files without a picker:
 - `files.fetch(origin)` asks the source an origin names, which may be another plugin's, to fetch the file again. It resolves `null` when the person cancels, or when no source here can: the editor then says why.
 - `files.current()` is the workbook open now, as it was opened: its `name`, its `origin`, its `size`, `bytes()` (a copy, made when asked for), and `from`, which says whether it came from this device (the Open button, or a dropped file), your app's code, or a source.
 
-Recent files uses all three. When the editor says it opened a file, the plugin reads `current()` and keeps it: a file from a source as its origin, and a small file from this device with its bytes, since a browser can't open a local file again by itself. Files the host opened aren't listed: reopening them is the host's business.
+Recent files uses all three. When the editor says it opened a file, the plugin reads `current()` and keeps its origin. A small file from this device has no origin, so the plugin makes one of its own and keeps the bytes too, since a browser can't open a local file again by itself. Files the host opened aren't listed: reopening them is the host's business.
 
 ```ts
 ctx.on((event) => {
@@ -170,17 +175,16 @@ ctx.on((event) => {
 async function remember() {
   const file = ctx.files.current();
   if (!file || file.from === 'host') return;
-  // …a source's file as its origin; one from this device with file.bytes(), if it's small
+  // …a source's file as its origin; one from this device with an origin of the plugin's and file.bytes(), if it's small
 }
 ```
 
-To open one again, a file from a source is fetched through it, which signs in when it needs to. That runs inside the click on the list, so a sign-in popup isn't blocked:
+Every file in the list is then an origin, so opening one again is the same for all of them: from the submenu, the editor fetches it; from the panel, the plugin does. The source the origin names fetches it: OneDrive for its files, signing in when it needs to, and Recent files itself for files from this device. Both run inside the click, so a sign-in popup isn't blocked:
 
 ```ts
-async function load(entry: RecentFile): Promise<RemoteFile | null> {
-  if (entry.origin) return ctx.files.fetch(entry.origin);
-  const origin: FileOrigin = { source: SOURCE_ID, name: entry.name, ref: entry.id, location: ctx.text(msg('thisDevice')) };
-  return { bytes: fromBase64(entry.bytes ?? ''), origin };
+async function reopen(entry: RecentFile) {
+  const file = await ctx.files.fetch(entry.origin);
+  if (file) await ctx.files.open(file);
 }
 ```
 
@@ -220,22 +224,38 @@ Plugins draw their own UI in plain DOM, in the editor's frames. That keeps them 
 | `ui.dialog({ title, render, actions })` | A dialog in the editor's frame, with its title, buttons and focus handling. Resolves with the id of the action chosen, or `null` when it's closed. |
 | `ui.registerPanel({ id, title, icon, render })` | A side panel beside Issues and Changes, with a button that shows and hides it. |
 
-`render(body, close)` fills `body` with the plugin's DOM, and may return a function to clean up when the dialog or panel closes. A dialog's `close(action)` ends it from inside the body, as choosing a file from Recent files' list does. Without `actions`, a dialog has a Close button. `render` is called again, after cleaning up, when the editor's language changes. To show new content meanwhile, change the body's DOM yourself: Recent files keeps a set of the lists on screen and draws each again when its list changes.
+`render(body, close)` fills `body` with the plugin's DOM, and may return a function to clean up when the dialog or panel closes. Without `actions`, a dialog has a Close button. `render` is called again, after cleaning up, when the editor's language changes. To show new content meanwhile, change the body's DOM yourself: Recent files keeps the panels on screen in a set, and draws each again when its list changes.
 
 ```ts
 ctx.ui.registerPanel({
   id: 'list',
   title: msg('title'),
   icon: ICON,
-  render: (body) => show(() => drawList(body, (entry) => void reopen(entry), true)),
+  // Drawn again whenever the list changes, until the panel closes.
+  render: (body) => {
+    const draw = () => drawList(body);
+    draw();
+    views.add(draw);
+    return () => void views.delete(draw);
+  },
 });
+```
 
-/** Shows the list, drawn again whenever it changes, until it's cleaned up. */
-function show(draw: () => void): () => void {
-  draw();
-  views.add(draw);
-  return () => void views.delete(draw);
-}
+A dialog's `close(action)` ends it from inside the body, resolving `dialog` with that action, for a choice that isn't a button under it:
+
+```ts
+const colour = await ctx.ui.dialog({
+  title: 'Choose a colour',
+  render(body, close) {
+    for (const name of ['Red', 'Green', 'Blue']) {
+      const button = document.createElement('button');
+      button.className = 'wbe-btn';
+      button.textContent = name;
+      button.addEventListener('click', () => close(name));
+      body.append(button);
+    }
+  },
+});
 ```
 
 ### Looking like the editor
@@ -289,7 +309,7 @@ Ship English at least. Ruled's own plugins also ship German, as the editor does.
 
 ## Errors
 
-Every call into a plugin is caught: `setup`, `run`, `enabled` and `visible`, `pick`, `save`, `saveAs`, `fetch`, `render`, cleanups and event listeners. When one throws, or a promise it returns rejects:
+Every call into a plugin is caught: `setup`, `run`, `enabled` and `visible`, `items`, `pick`, `save`, `saveAs`, `fetch`, `render`, cleanups and event listeners. When one throws, or a promise it returns rejects:
 
 - the editor shows a message naming the plugin, with the error's text;
 - the host's `onEvent` hears `{ type: 'pluginError', plugin, message }`;
@@ -304,6 +324,8 @@ throw Object.assign(new Error('Drive refused the request (403)'), { text: msg('r
 ```
 
 Your DOM's own event listeners are yours: the editor doesn't call them, so it can't catch what they throw. Catch there, and show it with `ui.toast('error', …)`.
+
+Not everything that goes wrong is a fault. When a file Recent files lists is no longer kept, its `fetch` says so with `ui.toast` and resolves `null`, rather than throwing and being reported as a failing plugin.
 
 ## Storage
 

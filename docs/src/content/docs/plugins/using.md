@@ -41,7 +41,7 @@ The code that runs plugins is loaded only for an editor given some, so an editor
 
 | Where | What |
 | --- | --- |
-| **Open** | With a plugin's file source, the Open button becomes a menu: **This device**, then each source. `features.open: false` hides the menu as it hides the button. |
+| **Open** | With a plugin's file source, the Open button becomes a menu: **This device**, then each source. A source that names files, such as recent ones, has them in a submenu. `features.open: false` hides the menu as it hides the button. |
 | **Save to *source*** | Writes a workbook opened from a source back over its file. |
 | **Save a copy** | A menu with **This device** (a download) and each source that can save new files. |
 | **Toolbar and More** | Buttons. On phones, the ones meant for More sit behind it. |
