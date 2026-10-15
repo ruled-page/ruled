@@ -449,6 +449,21 @@
   color: var(--wbe-warning-text);
 }
 
+/* On "Save to <source>": changes not yet written back there. */
+.wbe .wbe-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* What a plugin draws in its dialog or panel. */
+.wbe .wbe-plugin-body {
+  min-height: 0;
+  overflow: auto;
+}
+
 .wbe .wbe-toolbar-actions {
   display: flex;
   align-items: center;

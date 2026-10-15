@@ -8,6 +8,7 @@ import { BrandMark, Icon } from './icons';
 import { RichText } from './RichText';
 import { RenameSheetDialog, SheetMenu, sheetNamed, sheetSteps, UnhideSheetDialog, type AfterSheetChange } from './SheetDialogs';
 import { mod, shortcutsKey } from './keys';
+import { pluginParts } from './lazyPlugins';
 import { useT } from '../i18n/react';
 
 function SchemaChip({ store }: { store: WorkbookStore }) {
@@ -113,6 +114,9 @@ function useFolding(): RefObject<HTMLDivElement | null> {
 
 export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen: () => void; extra?: ReactNode }) {
   const t = useT();
+  const Plugins = pluginParts.useModule(!!store.plugins?.active);
+  const save = store.saveTarget;
+  const source = store.originSource;
   const bar = useFolding();
   const ready = store.status === 'ready';
   const notable = store.findings.filter((f) => f.severity === 'warn').length;
@@ -155,7 +159,11 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           <BrandMark />
         </span>
         <span className="wbe-brand-name">{t('toolbar.brand')}</span>
-        {store.fileName && <span className="wbe-file-name">{store.fileName}</span>}
+        {store.fileName && (
+          <span className="wbe-file-name" title={store.origin?.location}>
+            {store.fileName}
+          </span>
+        )}
         {store.editedCount > 0 && (
           <button
             className="wbe-badge wbe-badge-edit"
@@ -170,11 +178,14 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         {store.busy && <span className="wbe-spinner" role="status" aria-label={t('toolbar.working')} />}
       </div>
       <div className="wbe-toolbar-actions">
-        {store.features.open && (
-          <button className="wbe-btn" onClick={onOpen} title={t('toolbar.openTitle')} aria-label={t('toolbar.open')}>
-            <Icon name="open" /> <span className="wbe-label">{t('toolbar.open')}</span>
-          </button>
-        )}
+        {store.features.open &&
+          (Plugins && store.plugins?.sources.length ? (
+            <Plugins.OpenMenu store={store} onOpen={onOpen} />
+          ) : (
+            <button className="wbe-btn" onClick={onOpen} title={t('toolbar.openTitle')} aria-label={t('toolbar.open')}>
+              <Icon name="open" /> <span className="wbe-label">{t('toolbar.open')}</span>
+            </button>
+          ))}
         <div className="wbe-btn-group">
           {/* Marked unavailable rather than disabled, so undoing the last step doesn't drop the focus. */}
           <button className="wbe-btn wbe-icon" aria-disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
@@ -206,6 +217,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             </button>
           </div>
         )}
+        {Plugins && <Plugins.CommandButtons store={store} where="toolbar" />}
         <div
           className="wbe-toolbar-more"
           id={moreId}
@@ -267,6 +279,8 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             {notable > 0 && <span className="wbe-count">{t.number(notable)}</span>}
           </button>
         )}
+        {Plugins && <Plugins.PanelButtons store={store} />}
+        {Plugins && <Plugins.CommandButtons store={store} where="more" />}
         <button className="wbe-btn wbe-icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
           <Icon name="keyboard" /> <span className="wbe-more-label">{t('toolbar.shortcuts')}</span>
         </button>
@@ -283,7 +297,8 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
             <Icon name="download" /> {t('toolbar.csv')}
           </button>
         )}
-        {store.features.save && store.hasSaveHandler && store.features.download && (
+        {store.features.save && Plugins && <Plugins.OtherSaves store={store} />}
+        {store.features.save && save !== 'download' && store.features.download && !store.copySources.length && (
           <button
             className="wbe-btn wbe-icon"
             disabled={!ready}
@@ -309,10 +324,24 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
         </button>
         {store.features.save && (
           // Busy for a moment while saving, without taking the focus away from the button.
-          <button className="wbe-btn wbe-primary" disabled={!ready} aria-disabled={store.busy} onClick={() => !store.busy && void store.save()} title={t('toolbar.saveTitle', { key: mod(t, 'S') })}>
-            <Icon name={store.hasSaveHandler ? 'check' : 'download'} />{' '}
-            {store.hasSaveHandler ? (
-              store.saveLabel
+          <button
+            className="wbe-btn wbe-primary"
+            disabled={!ready}
+            aria-disabled={store.busy}
+            onClick={() => !store.busy && void store.savePrimary()}
+            title={t('toolbar.saveTitle', { key: mod(t, 'S') })}
+            aria-label={save === 'source' && store.sourceUnsaved ? t('toolbar.saveToUnsaved', { source: store.sourceLabel(source!) }) : undefined}
+          >
+            <Icon name={save === 'host' ? 'check' : save === 'download' ? 'download' : 'upload'} />{' '}
+            {save !== 'download' ? (
+              save === 'host' ? (
+                store.saveLabel
+              ) : (
+                <>
+                  {t(save === 'source' ? 'toolbar.saveTo' : 'toolbar.saveCopyTo', { source: store.sourceLabel(source!) })}
+                  {save === 'source' && store.sourceUnsaved && <span className="wbe-dot" aria-hidden="true" />}
+                </>
+              )
             ) : (
               <>
                 <span className="wbe-save-long">{store.saveLabel}</span>

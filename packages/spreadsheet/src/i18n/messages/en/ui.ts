@@ -62,6 +62,13 @@ export const ui = {
   'toolbar.saveTitle': 'Save ({{key}})',
   'toolbar.save': 'Save',
   'toolbar.saveAsExcel': 'Save as Excel',
+  'toolbar.openMenu': 'Open from',
+  'toolbar.thisDevice': 'This device',
+  'toolbar.saveTo': 'Save to {{source}}',
+  'toolbar.saveToTitle': 'Write your changes back to {{fileName}} in {{source}}',
+  'toolbar.saveToUnsaved': 'Save to {{source}} (changes not saved there yet)',
+  'toolbar.saveCopy': 'Save a copy',
+  'toolbar.saveCopyTo': 'Save a copy to {{source}}',
 
   'banner.mismatchNamed': "This file doesn't match the <b>{{name}}</b> schema, so it's open as a plain spreadsheet with no schema checks.",
   'banner.mismatch_one': "This file doesn't match the registered schema, so it's open as a plain spreadsheet with no schema checks.",
@@ -741,6 +748,7 @@ export const ui = {
 
   'dialog.ok': 'OK',
   'dialog.cancel': 'Cancel',
+  'dialog.close': 'Close',
   'dialog.empty': '(empty)',
   'dialog.more_one': '…and {{count, number}} more.',
   'dialog.more_other': '…and {{count, number}} more.',

@@ -60,6 +60,13 @@ export const ui: Record<keyof typeof en, string> = {
   'toolbar.saveTitle': 'Speichern ({{key}})',
   'toolbar.save': 'Speichern',
   'toolbar.saveAsExcel': 'Als Excel speichern',
+  'toolbar.openMenu': 'Öffnen aus',
+  'toolbar.thisDevice': 'Dieses Gerät',
+  'toolbar.saveTo': 'In {{source}} speichern',
+  'toolbar.saveToTitle': 'Ihre Änderungen in {{fileName}} in {{source}} zurückschreiben',
+  'toolbar.saveToUnsaved': 'In {{source}} speichern (Änderungen dort noch nicht gespeichert)',
+  'toolbar.saveCopy': 'Kopie speichern',
+  'toolbar.saveCopyTo': 'Kopie in {{source}} speichern',
 
   'banner.mismatchNamed': 'Diese Datei passt nicht zum Schema <b>{{name}}</b> und ist daher als normale Arbeitsmappe ohne Schemaprüfungen geöffnet.',
   'banner.mismatch_one': 'Diese Datei passt nicht zum registrierten Schema und ist daher als normale Arbeitsmappe ohne Schemaprüfungen geöffnet.',
@@ -736,6 +743,7 @@ export const ui: Record<keyof typeof en, string> = {
 
   'dialog.ok': 'OK',
   'dialog.cancel': 'Abbrechen',
+  'dialog.close': 'Schließen',
   'dialog.empty': '(leer)',
   'dialog.more_one': '…und {{count, number}} weitere.',
   'dialog.more_other': '…und {{count, number}} weitere.',

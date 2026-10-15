@@ -5,6 +5,17 @@ semantic versioning; before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Plugins: `plugins` in the options (and the element's `options`) takes
+  objects written against `@ruled/sheet/plugin`, which add commands to the
+  toolbar, More and the cell menu, side panels, dialogs, and file sources.
+  With a source, Open is a menu, a workbook opened from it can be saved back
+  with "Save to <source>" (kept apart from the host's Save, with its own
+  unsaved state and conflicts), and "Save a copy" can write to it. A plugin
+  that throws is reported, by a message and a `pluginError` event, and never
+  stops the editor. The code that runs plugins loads only for an editor that
+  has some. `EditorHandle.origin` and `SavedWorkbook.origin` say where a
+  workbook came from, `features.sourceSave` turns writing to sources off,
+  and `savedToSource` events report writes.
 - Both packages have a README on npm, and keywords to find them by.
 - Typing straight after ⌘F (Ctrl+F) goes into the Find box. In Safari, soon after a
   workbook opened, it could go into the selected cell, as the box was still loading.

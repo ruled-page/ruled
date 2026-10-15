@@ -1,5 +1,7 @@
 import { MAX_COLS, MAX_ROWS, toA1 } from '@ruled/formula/refs';
+import { useEffect } from 'react';
 import type { WorkbookStore } from '../state/store';
+import type { Text } from '../i18n/message';
 import { outlineDepth } from '../state/outline';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { APPLE, mod } from './keys';
@@ -16,6 +18,12 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
   const t = useT();
   const menu = store.menu;
   const view = store.view;
+  const plugins = store.plugins;
+  const commands = plugins?.commands.filter((c) => c.where === 'cellMenu') ?? [];
+  // Plugins load what their commands need as the menu opens, so a popup a command opens isn't blocked.
+  useEffect(() => {
+    if (menu) plugins?.preload(plugins.commands.filter((c) => c.where === 'cellMenu'));
+  }, [plugins, menu]);
   if (!menu || !view) return null;
   const sel = store.selection;
   const rect = sel.rects[0] ?? { r1: sel.row, r2: sel.row, c1: sel.col, c2: sel.col };
@@ -222,5 +230,12 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     { separator: true },
     { label: t('menu.find'), hint: mod(t, 'F'), onSelect: () => store.set('findOpen', true) },
   ];
+  // Plugins' commands, in a group after the editor's own, given the selection.
+  const context = { selection: store.commandSelection() };
+  const added = commands.flatMap((c): MenuItem[] => {
+    const state = plugins!.commandState(c, context);
+    return state.visible ? [{ label: t.text(c.label as Text), onSelect: () => plugins!.run(c, context), disabled: !state.enabled }] : [];
+  });
+  if (added.length) items.push({ separator: true }, ...added);
   return <ContextMenu x={menu.x} y={menu.y} items={items} label={t('menu.label')} onClose={() => store.set('menu', undefined)} />;
 }

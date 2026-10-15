@@ -7,8 +7,9 @@ import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { RichText } from './RichText';
 import { lazyModule } from './lazyModule';
+import { pluginParts } from './lazyPlugins';
 import { Tabs } from './Tabs';
-import type { Translator } from '../i18n';
+import type { Text, Translator } from '../i18n';
 import { useT } from '../i18n/react';
 
 function IssuesBody({ store }: { store: WorkbookStore }) {
@@ -213,7 +214,10 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
   const panel = store.panel;
   const Report = report.useModule(panel === 'report');
   const Pivot = pivotPanel.useModule(panel === 'pivot');
-  if (!panel || (panel === 'report' && !store.features.report)) return null;
+  const Plugins = pluginParts.useModule(!!store.plugins?.active);
+  const panels = store.plugins?.panels ?? [];
+  const own = panels.find((p) => panel === `plugin:${p.key}`);
+  if (!panel || (panel === 'report' && !store.features.report) || (panel.startsWith('plugin:') && !own)) return null;
   return (
     <aside className="wbe-report" aria-label={t('panel.label')}>
       <Tabs
@@ -223,6 +227,7 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           ...(store.features.report ? [{ id: 'report' as const, label: t('panel.report') }] : []),
           // Excel's field list, there while a pivot table's cell is active or it is open.
           ...(store.activePivot || panel === 'pivot' ? [{ id: 'pivot' as const, label: t('panel.pivot') }] : []),
+          ...panels.map((p) => ({ id: `plugin:${p.key}` as const, label: t.text(p.title as Text) })),
         ]}
         value={panel}
         onChange={(id) => store.set('panel', id)}
@@ -248,6 +253,8 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
           <ChangesBody store={store} />
         ) : panel === 'pivot' ? (
           Pivot && <Pivot.PivotFieldsBody store={store} />
+        ) : own ? (
+          Plugins && <Plugins.PanelBody key={own.key} store={store} panel={own} />
         ) : (
           Report && <Report.ReportBody store={store} />
         )}

@@ -7,6 +7,7 @@ import { FindPanel } from '../ui/FindPanel';
 import { FormatBar } from '../ui/FormatBar';
 import { FormulaBar } from '../ui/FormulaBar';
 import { lazyModule } from '../ui/lazyModule';
+import { pluginParts } from '../ui/lazyPlugins';
 import { PORTAL_ID } from '../grid/contract';
 import { standIn } from '../grid/standInFonts';
 import { Icon, IconContext } from '../ui/icons';
@@ -194,7 +195,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
       // for another: ⌘R still reloads, ⌘D still bookmarks, ⌘G still finds the next match.
       if (key === 's' && store.features.save) {
         e.preventDefault();
-        void store.save();
+        void store.savePrimary();
       } else if (key === 'f' && !store.designerOpen) {
         e.preventDefault();
         store.set('findOpen', true);
@@ -209,7 +210,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
       }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (store.warnOnUnload && store.unsaved) e.preventDefault();
+      if (store.warnOnUnload && (store.unsaved || store.sourceUnsaved)) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -271,6 +272,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
   const Menu = gridMenu.useModule(!!store.menu);
   const Filter = filterPicker.useModule(!!store.filterPicker);
   const Condition = conditionDialog.useModule(!!store.conditionDialog);
+  const Plugins = pluginParts.useModule(!!store.plugins?.active);
   const Keys = keyDialogs.useModule(store.shortcutsOpen || store.columnWidthFor !== undefined || store.rowHeightFor !== undefined || !!store.cellsDialog);
   // Once a workbook is open, they load while the page has nothing else to do.
   const opened = !!ready;
@@ -403,6 +405,7 @@ function EditorApp({ store, emptyState, toolbarEnd }: Omit<WorkbookEditorProps, 
       {ready && store.cfDialog && Cf && <Cf.CfDialog store={store} />}
       {ready && store.cfGallery && Cf && <Cf.CfGallery store={store} />}
       {Keys && <Keys.ShortcutsDialog store={store} />}
+      {store.pluginDialog && Plugins && <Plugins.PluginDialogView store={store} />}
       <ConfirmDialog store={store} />
       <Toasts store={store} />
     </div>
