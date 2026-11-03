@@ -978,7 +978,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
 
   // A finger held still on a cell for half a second opens the cell menu, as a right-click does; iOS doesn't say so itself.
   const longPress = useRef<{ timer: number; x: number; y: number } | undefined>(undefined);
-  const longPressed = useRef(0);
+  // When a long press last opened the menu; never, at first, so a right-click in the page's first second still opens it.
+  const longPressed = useRef(-Infinity);
   const endLongPress = () => {
     clearTimeout(longPress.current?.timer);
     longPress.current = undefined;

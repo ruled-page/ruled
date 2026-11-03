@@ -6,6 +6,9 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- A right-click on the grid in the first second after the page loaded
+  opened no menu: it was taken for the right-click that follows a long press
+  on a touch screen.
 - `handle.freeze({ rows, cols, sheet? })` (and `freeze(...)` on
   `<workbook-editor>`) freezes rows and columns for viewing only, on the
   active sheet or a named one: no undo step, the workbook isn't marked
