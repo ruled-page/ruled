@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Axis, colAxis, rowAxis } from '../src/grid/axis';
 import { Painter, type PaintInput } from '../src/grid/draw';
-import { contentScroll, Layout, SCROLL_LIMIT, scrollerPosition, scrollLength, type LayoutSpec } from '../src/grid/layout';
+import { contentScroll, firstShown, Layout, SCROLL_LIMIT, scrollerPosition, scrollLength, type LayoutSpec } from '../src/grid/layout';
 import { CellFlag, VT } from '../src/core/types';
 import type { WorkbookStore } from '../src/state/store';
 import { DEFAULT_PALETTE } from '../src/ui/gridPalette';
@@ -121,6 +121,62 @@ describe('where the grid puts things', () => {
     expect(contentScroll(end, long, 500)).toBeCloseTo(long - 500);
     expect(scrollerPosition(long - 500, long, 500)).toBeCloseTo(end);
     expect(scrollerPosition(contentScroll(1234, long, 500), long, 500)).toBeCloseTo(1234);
+  });
+});
+
+describe('scrolling a cell to the top left', () => {
+  let store: WorkbookStore;
+  afterEach(() => store?.dispose());
+
+  it('finds the grid line of a sheet line, or of the first shown after a hidden one', () => {
+    const order = Int32Array.from([0, 1, 4, 5, 9]);
+    expect([0, 1, 2, 4, 6, 9, 10].map((line) => firstShown(order, line))).toEqual([0, 1, 2, 2, 4, 4, 5]);
+  });
+
+  it('scrolls a line to be the first past the frozen ones, and frozen lines not at all', () => {
+    const l = new Layout({ width: 400, height: 300, rows: new Axis(100, 20, [[3, 50]]), cols: new Axis(50, 64, [[2, 10]]), frozenRows: 2, frozenCols: 1, numbers: 40, letters: 24, scrollX: 0, scrollY: 0 });
+    expect(l.scrollFor(4, 3)).toEqual({ x: 10 + 64, y: 20 + 50 });
+    expect(l.scrollFor(1, 0)).toEqual({ x: 0, y: 0 });
+    const scrolled = new Layout({ ...l.spec, scrollX: 74, scrollY: 70 });
+    expect([scrolled.rowRun.first, scrolled.colRun.first]).toEqual([4, 3]);
+  });
+
+  it('shows the sheet row asked for first, past custom heights, hidden rows and a collapsed group, and reads it back', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet');
+    for (let r = 1; r <= 40; r++) ws.getCell(r, 1).value = r;
+    ws.getRow(5).height = 45;
+    ws.getRow(8).hidden = true;
+    ws.getRow(9).hidden = true;
+    for (const r of [12, 13, 14]) {
+      ws.getRow(r).outlineLevel = 1;
+      ws.getRow(r).hidden = true;
+    }
+    ws.getColumn(3).hidden = true;
+    ws.getColumn(2).width = 30;
+    ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 2 }];
+    store = await testStore();
+    await opened(store, new Uint8Array(await wb.xlsx.writeBuffer()), 'scroll.xlsx');
+    const view = store.view!;
+    const spec: LayoutSpec = { width: 500, height: 300, rows: rowAxis(view), cols: colAxis(view), frozenRows: 2, frozenCols: 1, numbers: 40, letters: 24, scrollX: 0, scrollY: 0 };
+    /** The sheet row and column first past the frozen panes once scrolled to the sheet's `row` and `col`, as the grid does. */
+    const corner = (row: number, col: number) => {
+      const at = new Layout(spec).scrollFor(firstShown(view.visibleRows, row), firstShown(view.visibleCols, col));
+      const l = new Layout({ ...spec, scrollX: at.x, scrollY: at.y });
+      return [view.visibleRows[l.rowRun.first], view.visibleCols[l.colRun.first]];
+    };
+    // Rows and columns from 0: row 6 is after the tall row 5, row 10 after the hidden 8 and 9, row 15 after the collapsed group.
+    expect(corner(5, 1)).toEqual([5, 1]);
+    expect(corner(9, 3)).toEqual([9, 3]);
+    expect(corner(14, 3)).toEqual([14, 3]);
+    // Hidden rows and columns scroll to the first shown after them.
+    expect(corner(7, 2)).toEqual([9, 3]);
+    expect(corner(11, 1)).toEqual([14, 1]);
+    // A frozen row doesn't scroll.
+    expect(corner(1, 0)).toEqual([2, 1]);
+    // Scrolled part way into a row, that row is still the first shown.
+    const into = new Layout({ ...spec, scrollY: new Layout(spec).scrollFor(firstShown(view.visibleRows, 9), 1).y + 7 });
+    expect(view.visibleRows[into.rowRun.first]).toBe(9);
   });
 });
 

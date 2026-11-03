@@ -6,6 +6,20 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- Hosts can follow where an editor is without reading its page: the
+  handle's `selection` gives the sheet shown, the active cell and the
+  selected ranges in A1 style, and `viewport` the first row and column in
+  view past any frozen panes, right with rows of their own height, hidden
+  rows and collapsed groups. Both stay the same object until they change,
+  and `subscribe` listeners hear of each change, the viewport's at most once
+  a frame while scrolling. The `<workbook-editor>` element has them too,
+  with `selectionchange` and `viewportchange` events.
+- `scrollTo(ref)` scrolls a cell to the top left of the part of the sheet
+  that scrolls, leaving the selection and the focus as they are (on the
+  element it is `scrollToCell(ref)`), and `goTo(ref, { focus: false })`
+  selects and shows a cell without taking the focus. Together they let two
+  editors follow each other's scrolling and selection.
+
 ## 0.3.0 (2026-10-15)
 
 - Pressing another cell, a row number, a column letter or the corner while

@@ -41,7 +41,7 @@ The standalone build defines a `<workbook-editor>` element. Set its `options`, g
 
 ## Properties and methods
 
-The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, and `status`, `fileName`, `unsaved` and `editedCount`.
+The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
 
 Setting `options` on a connected element applies a new theme, language, user, schemas or custom lists as they are; changing any other option re-creates the editor, closing the workbook.
 
@@ -54,6 +54,8 @@ Setting `options` on a connected element applies a new theme, language, user, sc
 | `change` | `{ editedCount, unsaved }`, as the edits change. |
 | `save` | The saved workbook, with `waitUntil(promise)`, when `save-handler="event"`. |
 | `editorerror` | `{ message }`, when the workbook from `src` couldn't be opened or the editor stopped working. |
+| `selectionchange` | The new `selection`, when the selection changes or another sheet is shown. |
+| `viewportchange` | The new `viewport`, when the sheet scrolls or another is shown; at most once a frame. |
 
 Moving the element elsewhere in the page keeps the editor as it is.
 

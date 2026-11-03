@@ -3,7 +3,7 @@ import { WorkbookStore, type StoreOptions } from '../state/store';
 import { handleFor, type EditorHandle } from './handle';
 import { WorkbookEditor } from './WorkbookEditor';
 
-export type { EditorHandle } from './handle';
+export type { EditorHandle, EditorSelection, EditorViewport } from './handle';
 
 /**
  * Renders the editor into `element` without needing React in the host page.

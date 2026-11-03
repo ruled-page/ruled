@@ -2,7 +2,7 @@ import { applyLiveOptions, changedOptions, LIVE_OPTIONS } from './liveOptions';
 import type { CsvOptions } from '../core/csv';
 import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
-import type { EditorHandle } from './mount';
+import type { EditorHandle, EditorSelection, EditorViewport } from './mount';
 import type { EditorTheme } from './theme';
 
 type Mount = (element: HTMLElement, options?: StoreOptions) => EditorHandle;
@@ -42,6 +42,10 @@ export interface WorkbookEditorEventMap extends HTMLElementEventMap {
   save: CustomEvent<SaveEventDetail>;
   /** The workbook from `src` couldn't be loaded or opened, or the editor stopped working. */
   editorerror: CustomEvent<EditorErrorEventDetail>;
+  /** The selection changed, or another sheet was shown (detail: the selection, as the `selection` property gives it). */
+  selectionchange: CustomEvent<EditorSelection | undefined>;
+  /** The sheet scrolled, or another was shown; at most once a frame (detail: the viewport, as the `viewport` property gives it). */
+  viewportchange: CustomEvent<EditorViewport | undefined>;
 }
 
 /** The <workbook-editor> element: what hosts can set, call and listen to. */
@@ -65,8 +69,18 @@ export interface WorkbookEditorElement extends HTMLElement {
   downloadCsv(options?: CsvOptions): Promise<void>;
   /** The sheet shown as CSV text; undefined when it isn't a worksheet. */
   getCsv(options?: CsvOptions): Promise<string | undefined>;
-  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it. */
-  goTo(ref: string): void;
+  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it; the grid takes the focus unless `focus` is false. */
+  goTo(ref: string, options?: { focus?: boolean }): void;
+  /**
+   * The handle's scrollTo: scrolls a cell to the top left of the part of the
+   * sheet that scrolls, keeping the selection and the focus. Named apart
+   * from the element's own scrollTo, which scrolls the element.
+   */
+  scrollToCell(ref: string): boolean;
+  /** The sheet shown, its active cell and selected ranges. */
+  readonly selection: EditorSelection | undefined;
+  /** The first row and column in view below and right of any frozen panes. */
+  readonly viewport: EditorViewport | undefined;
   registerSchema(schema: WorkbookSchema): void;
   removeSchema(id: string): void;
   setTheme(theme: EditorTheme | undefined): void;
@@ -99,12 +113,13 @@ declare global {
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
- * you store it), and `editorerror` (detail: { message }) when a workbook from
- * `src` can't be loaded or opened, or the editor stops working.
+ * you store it), `editorerror` (detail: { message }) when a workbook from
+ * `src` can't be loaded or opened, or the editor stops working, and
+ * `selectionchange` and `viewportchange` (detail: the new `selection` or `viewport`).
  */
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
@@ -117,6 +132,8 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     private lastEdited = 0;
     private lastUnsaved = false;
     private lastOpened = '';
+    private lastSelection: EditorSelection | undefined;
+    private lastViewport: EditorViewport | undefined;
     /** A removal that ends the editor unless the element is put back first (moved elsewhere in the page). */
     private teardown?: ReturnType<typeof setTimeout>;
     /** The `src` being fetched, cancelled when another replaces it. */
@@ -185,6 +202,15 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
           this.lastOpened = handle.fileName;
           this.dispatchEvent(new CustomEvent<OpenedEventDetail>('opened', { detail: { fileName: handle.fileName } }));
         } else if (handle.status !== 'ready') this.lastOpened = '';
+        const { selection, viewport } = handle;
+        if (selection !== this.lastSelection) {
+          this.lastSelection = selection;
+          this.dispatchEvent(new CustomEvent('selectionchange', { detail: selection }));
+        }
+        if (viewport !== this.lastViewport) {
+          this.lastViewport = viewport;
+          this.dispatchEvent(new CustomEvent('viewportchange', { detail: viewport }));
+        }
         const edited = handle.editedCount;
         const unsaved = handle.unsaved;
         if (edited === this.lastEdited && unsaved === this.lastUnsaved) return;
@@ -272,8 +298,20 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       return this.handle?.getCsv(options) ?? Promise.resolve(undefined);
     }
 
-    goTo(ref: string): void {
-      this.handle?.goTo(ref);
+    goTo(ref: string, options?: { focus?: boolean }): void {
+      this.handle?.goTo(ref, options);
+    }
+
+    scrollToCell(ref: string): boolean {
+      return this.handle?.scrollTo(ref) ?? false;
+    }
+
+    get selection(): EditorSelection | undefined {
+      return this.handle?.selection;
+    }
+
+    get viewport(): EditorViewport | undefined {
+      return this.handle?.viewport;
     }
 
     registerSchema(schema: WorkbookSchema): void {

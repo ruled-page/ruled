@@ -161,6 +161,15 @@ export class Layout {
     return { area, row, col };
   }
 
+  /** How far to scroll for grid row `row` and column `col` to be the first shown past the frozen ones; none for frozen lines. */
+  scrollFor(row: number, col: number): { x: number; y: number } {
+    const { rows, cols } = this.spec;
+    return {
+      x: Math.max(0, cols.start(col) - cols.start(this.frozenColRun.last + 1)),
+      y: Math.max(0, rows.start(row) - rows.start(this.frozenRowRun.last + 1)),
+    };
+  }
+
   /** The line at a distance along an axis: among the frozen lines before `body`, else among those scrolled. */
   private lineAt(axis: Axis, at: number, start: number, body: number, frozen: Run, rest: Run, scroll: number): number {
     if (at < body && frozen.last >= 0) return Math.min(axis.at(at - start), frozen.last);
@@ -174,6 +183,18 @@ function run(axis: Axis, first: number, scroll: number, room: number): Run {
   if (first >= axis.count || room <= 0) return { first, last: first - 1 };
   const from = axis.start(first) + scroll;
   return { first: Math.max(first, axis.at(from)), last: axis.at(from + room - 1) };
+}
+
+/** The grid line of `line` in `order`, a sheet's shown lines in order; for a hidden line, that of the first shown after it. */
+export function firstShown(order: Int32Array, line: number): number {
+  let lo = 0;
+  let hi = order.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (order[mid] < line) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /**

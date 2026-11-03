@@ -913,6 +913,48 @@ export class WorkbookStore {
     if (view.extendTo(row, col)) this.notify();
   }
 
+  /** The first row and column the grid shows past any frozen panes, in sheet coordinates, as it last drew; and on which sheet. */
+  viewport: { sheet: number; row: number; col: number } | undefined;
+  private viewportListeners = new Set<() => void>();
+
+  /** Calls `fn` when the viewport changes: at most once a frame while scrolling, and without a notify, so nothing re-renders. */
+  subscribeViewport = (fn: () => void) => {
+    this.viewportListeners.add(fn);
+    return () => this.viewportListeners.delete(fn);
+  };
+
+  /** The grid drew `view` with `row` and `col` the first shown past its frozen panes. */
+  viewed(view: SheetView, row: number, col: number): void {
+    const sheet = this.sheets.indexOf(view);
+    const was = this.viewport;
+    if (sheet < 0 || (was && was.sheet === sheet && was.row === row && was.col === col)) return;
+    this.viewport = { sheet, row, col };
+    for (const fn of this.viewportListeners) fn();
+  }
+
+  /** A cell for the grid to scroll to the top left of its scrolling pane, taken once it has. */
+  scrollTarget: { row: number; col: number } | undefined;
+  /** Bumped with each scrollTarget. */
+  scrollSeq = 0;
+
+  /**
+   * Scrolls a cell, such as "B4" or "Prices!B4", to the top left of the
+   * part of the sheet that scrolls, switching sheet if needed, without
+   * changing the selection or taking the focus. False when the text names no
+   * cell on a sheet shown.
+   */
+  scrollTo(text: string): boolean {
+    const to = this.placeOf(text);
+    if (!to || !this.shows(to.sheet)) return false;
+    if (to.sheet !== this.active) this.setActive(to.sheet);
+    const { r1: row, c1: col } = to.rects[0];
+    this.view?.extendTo(row, col);
+    this.scrollTarget = { row, col };
+    this.scrollSeq++;
+    this.notify();
+    return true;
+  }
+
   /**
    * Selects whole rows (or columns), as clicking their numbers (or letters)
    * does: each range is a first and last line, and `active` is the active
@@ -3090,15 +3132,16 @@ export class WorkbookStore {
   /**
    * Goes to a reference typed in the name box, as Excel does: a cell or range,
    * on another sheet with "Prices!B4", or the range a defined name refers
-   * to. The grid takes the focus, so typing goes into the cell. False when
-   * the text is neither, or names something other than a range.
+   * to. The grid takes the focus, so typing goes into the cell, unless
+   * `focus` is false. False when the text is neither, or names something
+   * other than a range.
    */
-  goTo(text: string): boolean {
+  goTo(text: string, { focus = true }: { focus?: boolean } = {}): boolean {
     const to = this.placeOf(text);
     // As in Excel, a hidden sheet's cells can't be gone to until the sheet is shown.
     if (!to || !this.shows(to.sheet)) return false;
     if (to.sheet !== this.active) this.setActive(to.sheet);
-    this.revealFocus = true;
+    if (focus) this.revealFocus = true;
     this.revealSeq++;
     this.setSelection({ row: to.rects[0].r1, col: to.rects[0].c1, rects: to.rects });
     return true;

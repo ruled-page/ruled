@@ -19,7 +19,7 @@ import { AccessTable } from './AccessTable';
 import { CellEditorBox, type Edit } from './CellEditing';
 import { colAxis, rowAxis } from './axis';
 import { Painter, type PaintInput } from './draw';
-import { contentScroll, Layout, scrollerPosition, scrollLength } from './layout';
+import { contentScroll, firstShown, Layout, scrollerPosition, scrollLength } from './layout';
 import { onStandInLoaded } from './standInFonts';
 
 /** The height of the column letters. */
@@ -192,6 +192,7 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     const lastRow = layout.rowRun.last;
     const lastCol = layout.colRun.last;
     if (lastRow + 50 >= rowCount || lastCol + 3 >= colCount) store.scrolledTo(view, view.visibleRows[Math.max(0, lastRow)] ?? 0, view.visibleCols[Math.max(0, lastCol)] ?? 0);
+    store.viewed(view, view.visibleRows[layout.rowRun.first] ?? 0, view.visibleCols[layout.colRun.first] ?? 0);
     clearTimeout(tableTimer.current);
     tableTimer.current = window.setTimeout(() => settle.current(), 120);
     for (const fn of listeners.current) fn();
@@ -345,6 +346,28 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
     },
     [view, layoutNow, contentHeight, contentWidth, rtl],
   );
+  /** Scrolls a cell, or the first shown after it when it is hidden, to the top left of the scrolling pane. */
+  const scrollToCorner = useCallback(
+    (row: number, col: number) => {
+      const layout = layoutNow();
+      const sc = scroller.current;
+      if (!layout || !sc) return;
+      const { x, y } = layout.scrollFor(Math.min(firstShown(view.visibleRows, row), rowCount - 1), Math.min(firstShown(view.visibleCols, col), colCount - 1));
+      sc.scrollTop = scrollerPosition(y, contentHeight, layout.spec.height);
+      sc.scrollLeft = (rtl ? -1 : 1) * scrollerPosition(x, contentWidth, layout.spec.width);
+    },
+    [view, layoutNow, rowCount, colCount, contentHeight, contentWidth, rtl],
+  );
+  // The host's scrollTo: once the grid has the rows and columns it may have added.
+  const scrollSeq = store.scrollSeq;
+  useEffect(() => {
+    const to = store.scrollTarget;
+    if (!scrollSeq || !to) return;
+    store.scrollTarget = undefined;
+    scrollToCorner(to.row, to.col);
+    redraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollSeq]);
   /** A cell to bring into view once the grid has drawn the rows and columns it may have added. */
   const pending = useRef<{ row: number; col: number }>(undefined);
   const wantFocus = useRef(false);

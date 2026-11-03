@@ -1,8 +1,31 @@
+import { toA1 } from '@ruled/formula/refs';
 import type { CsvOptions } from '../core/csv';
 import type { FileOrigin } from '../plugin/types';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
 import type { EditorTheme } from './theme';
+
+/** The selection, as `handle.selection` gives it. */
+export interface EditorSelection {
+  /** The name of the sheet shown. */
+  sheet: string;
+  /** The active cell, such as "B4". */
+  active: string;
+  /** The selected ranges, such as "A1:C3" or "B4"; whole rows or columns reach the end of the sheet's used range. */
+  ranges: string[];
+}
+
+/** Where a sheet is scrolled to, as `handle.viewport` gives it. */
+export interface EditorViewport {
+  /** The name of the sheet shown. */
+  sheet: string;
+  /** The first row shown, wholly or in part, below any frozen rows: its number, as in A1 (row 1 is 1). Hidden rows are never it. */
+  row: number;
+  /** The first column shown, wholly or in part, right of any frozen columns: its number (column A is 1). */
+  col: number;
+  /** The cell at `row` and `col`, such as "C10": what to pass to another editor's scrollTo. */
+  cell: string;
+}
 
 /**
  * What a host controls an editor through, whichever way it shows it: with
@@ -36,8 +59,33 @@ export interface EditorHandle {
   downloadCsv(options?: CsvOptions): Promise<void>;
   /** The sheet shown as CSV text, as downloadCsv writes it but without the byte order mark; undefined when it isn't a worksheet. */
   getCsv(options?: CsvOptions): Promise<string | undefined>;
-  /** Selects a cell or range, such as "B4" or "Prices!A1:C3", or the range a defined name refers to, and shows it. */
-  goTo(ref: string): void;
+  /**
+   * Selects a cell or range, such as "B4" or "Prices!A1:C3", or the range a
+   * defined name refers to, and shows it. The grid takes the keyboard focus,
+   * as after the name box, unless `focus` is false.
+   */
+  goTo(ref: string, options?: { focus?: boolean }): void;
+  /**
+   * Scrolls a cell, such as "C10" or "Prices!C10", to the top left of the
+   * part of the sheet that scrolls (below and right of any frozen panes),
+   * switching sheet if needed, as far as the sheet scrolls. The selection
+   * and the focus stay where they are. A hidden cell scrolls to the first
+   * shown after it. False when `ref` names no cell on a sheet shown.
+   */
+  scrollTo(ref: string): boolean;
+  /**
+   * The sheet shown, its active cell and its selected ranges; undefined until
+   * a workbook is open. The same object until the selection changes, so a
+   * `subscribe` listener can tell it changed by comparing it with the last.
+   */
+  readonly selection: EditorSelection | undefined;
+  /**
+   * The first row and column the sheet shown has in view below and right
+   * of any frozen panes; undefined until the grid has drawn it. The same
+   * object until it changes. `subscribe` listeners are called when it does,
+   * at most once a frame while scrolling.
+   */
+  readonly viewport: EditorViewport | undefined;
   /** Adds or replaces a schema and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void;
   removeSchema(id: string): void;
@@ -59,7 +107,7 @@ export interface EditorHandle {
   readonly unsaved: boolean;
   /** Where the open workbook came from, when a plugin's file source opened it; undefined for files from the host or this device. */
   readonly origin: FileOrigin | undefined;
-  /** Calls `listener` whenever the editor's state changes; returns an unsubscribe function. */
+  /** Calls `listener` whenever the editor's state changes, the selection and the viewport included; returns an unsubscribe function. */
   subscribe(listener: () => void): () => void;
   /** Stops the editor's worker; mountWorkbookEditor's handle unmounts the editor as well. */
   destroy(): void;
@@ -76,6 +124,9 @@ export function storeOf(handle: EditorHandle): WorkbookStore {
 
 /** A handle over an existing store. */
 export function handleFor(store: WorkbookStore, destroy: () => void = () => store.dispose()): EditorHandle {
+  // Kept until they change, so listeners can compare.
+  let selection: EditorSelection | undefined;
+  let viewport: EditorViewport | undefined;
   const handle: EditorHandle = {
     async open(bytes, fileName) {
       const r = await store.open(fileName, bytes instanceof Uint8Array ? (bytes.slice().buffer as ArrayBuffer) : bytes.slice(0));
@@ -88,7 +139,21 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     getWorkbook: () => store.snapshot(),
     downloadCsv: (options) => store.exportCsv(options),
     getCsv: async (options) => (await store.csv(options))?.text,
-    goTo: (ref) => void store.goTo(ref),
+    goTo: (ref, options) => void store.goTo(ref, options),
+    scrollTo: (ref) => store.scrollTo(ref),
+    get selection() {
+      const now = store.status === 'ready' ? store.commandSelection() : undefined;
+      if (!now) return (selection = undefined);
+      if (selection && selection.sheet === now.sheet && selection.active === now.active && selection.ranges.join() === now.ranges.join()) return selection;
+      return (selection = now);
+    },
+    get viewport() {
+      const at = store.status === 'ready' ? store.viewport : undefined;
+      const sheet = at && at.sheet === store.active ? store.view?.info.name : undefined;
+      if (!at || sheet === undefined) return (viewport = undefined);
+      if (viewport && viewport.sheet === sheet && viewport.row === at.row + 1 && viewport.col === at.col + 1) return viewport;
+      return (viewport = { sheet, row: at.row + 1, col: at.col + 1, cell: toA1(at.row, at.col) });
+    },
     registerSchema: (schema) => store.registerSchema(schema),
     removeSchema: (id) => store.removeSchema(id),
     setTheme: (theme) => store.setTheme(theme),
@@ -110,7 +175,14 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     get origin() {
       return store.origin;
     },
-    subscribe: (listener) => store.subscribe(listener),
+    subscribe: (listener) => {
+      const stop = store.subscribe(listener);
+      const stopViewport = store.subscribeViewport(listener);
+      return () => {
+        stop();
+        stopViewport();
+      };
+    },
     destroy,
   };
   stores.set(handle, store);

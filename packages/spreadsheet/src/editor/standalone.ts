@@ -33,7 +33,7 @@ export {
   type WorkbookEditorElement,
   type WorkbookEditorEventMap,
 } from './element';
-export type { EditorHandle } from './handle';
+export type { EditorHandle, EditorSelection, EditorViewport } from './handle';
 export { SaveConflictError } from '../state/store';
 export { de, en, msg, type Localized, type Message, type Text, type Translations } from '../i18n';
 export type { EditorFeatures, HistoryEntry, SavedWorkbook, SaveResult, StoreOptions as EditorOptions } from '../state/store';
