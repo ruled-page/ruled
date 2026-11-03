@@ -41,7 +41,7 @@ export function recentFiles(options: RecentFilesOptions = {}): RuledPlugin {
 | `id` | Unique, reverse-DNS style. Commands, sources, panels, messages and storage are kept under it. |
 | `apiVersion` | `1`, the contract this page describes. An editor that doesn't know a plugin's version doesn't start it, and says why. |
 | `translations` | The plugin's messages, by language. See [Language](#language). |
-| `setup(ctx)` | Called once, a moment after the editor is made (the code that runs plugins loads first). It may return a function to clean up, called when the editor is destroyed. |
+| `setup(ctx)` | Called once, a moment after the editor is made (the code that runs plugins loads first). It may return a function to clean up, called when the editor is destroyed, or a promise of one. See [When `setup` runs](#when-setup-runs). |
 
 A plugin is usually a function that takes options and returns the object, as `recentFiles()` and `oneDrive()` do. `definePlugin(plugin)`, the one thing the module exports at run time, returns its argument unchanged and only helps TypeScript infer it; `satisfies RuledPlugin` does the same with no import.
 
@@ -313,7 +313,19 @@ Ship English at least. Ruled's own plugins also ship German, as the editor does.
 
 `setup` runs once the code that runs plugins has loaded, a moment after the editor is made. That does not depend on the editor having rendered: the toolbar and its elements may not exist yet, and an editor with no workbook open has run `setup` too. Register commands, sources and panels; the editor draws them whenever it renders, so don't look for the editor's DOM from `setup`.
 
-To know when every plugin is set up and the editor can draw what they added, wait for the handle's `ready` promise (`await editor.ready`), or `await element.whenReady()` on `<workbook-editor>`; the element's `ready` event only says the editor was made. `ready` resolves at once when there are no plugins and never rejects: a `setup` that throws or rejects is reported as a `pluginError` and does not hold it back. A `setup` that returns a promise isn't waited for beyond its synchronous part. If the editor is destroyed first, `ready` resolves and the plugins never start.
+To know when every plugin is set up and the editor can draw what they added, wait for the handle's `ready` promise (`await editor.ready`), or `await element.whenReady()` on `<workbook-editor>`; the element's `ready` event only says the editor was made. `ready` resolves at once when there are no plugins and never rejects: a `setup` that throws or rejects is reported as a `pluginError`, and the rest still count. If the editor is destroyed first, `ready` resolves and the plugins never start.
+
+`setup` may be async, for a plugin that has to load something before it can register its commands or sources. `ready` waits for the promise it returns, and the promise may resolve to the plugin's cleanup:
+
+```ts
+async setup(ctx) {
+  const sdk = await import('some-sdk');
+  ctx.commands.register({ id: 'share', label: msg('share'), where: 'toolbar', run: () => sdk.share() });
+  return () => sdk.close();
+}
+```
+
+There is no timeout: a `setup` that never settles holds `ready` back until the editor is destroyed, which resolves it. If the plugin is stopped before its promise settles (the editor destroyed, or the plugin failed), `ctx.signal` is already aborted, anything it registers is ignored, and the cleanup it resolves to runs at once. Keep the wait short, as hosts may hold their own UI back until `ready`; an SDK only needed when a command runs is better loaded in `preload`.
 
 ## Errors
 
@@ -321,7 +333,7 @@ Every call into a plugin is caught: `setup`, `run`, `enabled` and `visible`, `it
 
 - the editor shows a message naming the plugin, with the error's text;
 - the host's `onEvent` hears `{ type: 'pluginError', plugin, message }`;
-- a throw from `setup` stops the plugin, removing what it added, and the editor carries on without it;
+- a throw from `setup`, or a rejection of the promise it returned, stops the plugin, removing what it added, and the editor carries on without it;
 - a command whose `enabled` or `visible` throws is hidden from then on;
 - a failed `save` or `saveAs` keeps the changes.
 

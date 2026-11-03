@@ -61,6 +61,14 @@ export class PluginHost {
   private readonly refused: { plugin: string; reason: string }[] = [];
   private readonly running = new Map<string, { abort: AbortController; cleanup?: () => void }>();
   private readonly listeners = new Set<{ plugin: string; fn: (event: EditorEvent) => void }>();
+  /**
+   * Resolves once every setup that returned a promise has settled, whether
+   * or not it rejected, or the plugins are stopped. There is no timeout: a
+   * setup that never settles holds it until the editor is destroyed.
+   */
+  setUp: Promise<void> = Promise.resolve();
+  private halt!: () => void;
+  private readonly stopped = new Promise<void>((resolve) => (this.halt = resolve));
   /** Set while plugins hear an event, or a plugin's failure is reported: events then aren't passed to plugins. */
   private dispatching = false;
 
@@ -86,6 +94,7 @@ export class PluginHost {
 
   /** Starts each plugin, once the editor's handle is made. */
   start(editor: EditorHandle): void {
+    const setups: Promise<void>[] = [];
     for (const { plugin, reason } of this.refused) this.fail(plugin, new Error(reason));
     for (const [id, plugin] of this.accepted) {
       const abort = new AbortController();
@@ -94,18 +103,35 @@ export class PluginHost {
       try {
         const result: unknown = plugin.setup(this.context(id, editor, abort.signal));
         if (typeof result === 'function') entry.cleanup = result as () => void;
-        // An async setup that rejects ends the plugin as one that throws does.
-        else if (result instanceof Promise) result.catch((err: unknown) => this.fail(id, err, true));
+        else if (typeof (result as PromiseLike<unknown> | undefined)?.then === 'function') setups.push(this.settle(id, entry, result as PromiseLike<unknown>));
       } catch (err) {
         this.fail(id, err, true);
       }
     }
     this.store.notify();
+    this.setUp = Promise.race([Promise.all(setups).then(() => undefined), this.stopped]);
+  }
+
+  /**
+   * Waits for an async setup: its cleanup is kept, or run at once if the
+   * plugin was stopped meanwhile; a rejection ends the plugin as a throw does.
+   */
+  private async settle(id: string, entry: { cleanup?: () => void }, setup: PromiseLike<unknown>): Promise<void> {
+    const live = () => this.running.get(id) === entry;
+    try {
+      const cleanup = await setup;
+      if (typeof cleanup !== 'function') return;
+      if (live()) entry.cleanup = cleanup as () => void;
+      else this.call(id, cleanup as () => void, undefined);
+    } catch (err) {
+      if (live()) this.fail(id, err, true);
+    }
   }
 
   /** Ends every plugin, when the editor is destroyed. */
   stop(): void {
     for (const id of this.running.keys()) this.stopPlugin(id);
+    this.halt();
   }
 
   /**

@@ -125,10 +125,12 @@ export interface EditorHandle {
   /** Stops the editor's worker; mountWorkbookEditor's handle unmounts the editor as well. */
   destroy(): void;
   /**
-   * Resolves once every plugin's `setup` has run and the editor can draw what
-   * they added; at once for an editor without plugins. It never rejects: a
-   * plugin that throws is reported as a `pluginError` and the rest still count.
-   * If the editor is destroyed first it resolves without starting the plugins.
+   * Resolves once every plugin's `setup` has run, including any promise it
+   * returned, and the editor can draw what they added; at once for an editor
+   * without plugins. It never rejects: a plugin that throws or rejects is
+   * reported as a `pluginError` and the rest still count. There is no timeout:
+   * a setup that never settles holds it until the editor is destroyed, which
+   * resolves it, without starting the plugins if they hadn't started yet.
    */
   readonly ready: Promise<void>;
 }
@@ -212,10 +214,10 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     },
   };
   stores.set(handle, store);
-  // Plugins start once their code has loaded, whether or not the editor has rendered; their parts are drawn from a module loaded after that.
+  // Plugins start once their code has loaded, whether or not the editor has rendered; their parts are drawn from a module loaded meanwhile.
   ready = store
     .startPlugins(handle)
-    .then(() => (store.plugins?.active ? pluginParts.load() : undefined))
+    .then(() => Promise.all([store.plugins?.setUp, store.plugins?.active ? pluginParts.load() : undefined]))
     .then(
       () => undefined,
       () => undefined,

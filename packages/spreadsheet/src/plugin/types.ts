@@ -26,8 +26,11 @@ export interface RuledPlugin {
   apiVersion: 1;
   /** Messages by language, keyed as the plugin uses them; the editor shows them as `plugin.<id>.<key>`. */
   translations?: Translations;
-  /** Called once, as soon as the editor is made and the code that runs plugins has loaded. Return a function to clean up, or nothing. */
-  setup(ctx: PluginContext): void | (() => void);
+  /**
+   * Called once, as soon as the editor is made and the code that runs plugins has loaded. Return a function to clean up, or nothing; or a promise
+   * of either, which the handle's `ready` waits for. A cleanup it resolves to after the plugin was stopped runs at once.
+   */
+  setup(ctx: PluginContext): void | (() => void) | Promise<void | (() => void)>;
 }
 
 export interface PluginContext {

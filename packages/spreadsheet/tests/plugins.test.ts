@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { forecastSchema } from '@ruled/demo/schemas';
-import { handleFor, type EditorHandle } from '../src/editor/handle';
+import { handleFor, storeOf, type EditorHandle } from '../src/editor/handle';
 import { english } from '../src/i18n';
 import type { FileOrigin, FileSource, PluginContext, RuledPlugin } from '../src/plugin/types';
 import { definePlugin } from '../src/plugin';
@@ -21,7 +21,7 @@ async function editor(options: StoreOptions = {}): Promise<{ store: WorkbookStor
 }
 
 /** A plugin that runs `setup` with its context. */
-const plugin = (setup: (ctx: PluginContext) => void | (() => void), extra: Partial<RuledPlugin> = {}): RuledPlugin =>
+const plugin = (setup: RuledPlugin['setup'], extra: Partial<RuledPlugin> = {}): RuledPlugin =>
   definePlugin({ id: 'test.plugin', apiVersion: 1, setup, ...extra });
 
 /** Answers the dialog the store is about to show. */
@@ -279,7 +279,7 @@ describe('refusing and containing plugins', () => {
             late = ctx;
             ctx.commands.register({ id: 'b', label: 'B', where: 'toolbar', run: () => undefined });
             ctx.ui.registerPanel({ id: 'p', title: 'P', render: () => undefined });
-            return new Promise((_, reject) => setTimeout(() => reject(new Error('later')))) as unknown as void;
+            return new Promise((_, reject) => setTimeout(() => reject(new Error('later'))));
           },
           { id: 'async.plugin' },
         ),
@@ -643,6 +643,78 @@ describe('the ready promise', () => {
     expect(ran).toEqual(['ok']);
     expect(events.some((e) => e.type === 'pluginError' && e.plugin === 'test.bad')).toBe(true);
     handle.destroy();
+  });
+
+  it('waits for a setup that returns a promise, keeping the cleanup it resolves to', async () => {
+    const cleanup = vi.fn();
+    let settled = false;
+    const handle = handleFor(
+      await testStore({
+        plugins: [
+          plugin(async (ctx) => {
+            await new Promise((r) => setTimeout(r, 20));
+            ctx.commands.register({ id: 'late', label: 'Late', where: 'toolbar', run: () => undefined });
+            return cleanup;
+          }),
+        ],
+      }),
+    );
+    void handle.ready.then(() => (settled = true));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(settled).toBe(false);
+    await handle.ready;
+    expect(storeOf(handle).plugins!.commands.map((c) => c.key)).toEqual(['test.plugin/late']);
+    expect(cleanup).not.toHaveBeenCalled();
+    handle.destroy();
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('resolves, not rejects, once an async setup rejects, and reports it', async () => {
+    const events: EditorEvent[] = [];
+    const handle = handleFor(
+      await testStore({
+        onEvent: (e) => void events.push(e),
+        plugins: [
+          plugin(async (ctx) => {
+            ctx.commands.register({ id: 'a', label: 'A', where: 'toolbar', run: () => undefined });
+            await new Promise((r) => setTimeout(r, 10));
+            throw new Error('sdk failed');
+          }),
+        ],
+      }),
+    );
+    await expect(handle.ready).resolves.toBeUndefined();
+    expect(events.filter((e) => e.type === 'pluginError').map((e) => e.type === 'pluginError' && [e.plugin, e.message])).toEqual([['test.plugin', 'sdk failed']]);
+    expect(storeOf(handle).plugins!.active).toBe(false);
+    expect(storeOf(handle).plugins!.commands).toEqual([]);
+    handle.destroy();
+  });
+
+  it('resolves when the editor is destroyed during a setup that never settles, or one still pending, whose cleanup then runs once', async () => {
+    const cleanup = vi.fn();
+    let finish!: () => void;
+    let signal: AbortSignal | undefined;
+    const handle = handleFor(
+      await testStore({
+        plugins: [
+          plugin(() => new Promise(() => undefined), { id: 'test.never' }),
+          plugin(
+            (ctx) => {
+              signal = ctx.signal;
+              return new Promise((resolve) => (finish = () => resolve(cleanup)));
+            },
+            { id: 'test.pending' },
+          ),
+        ],
+      }),
+    );
+    await storeOf(handle).startPlugins(handle);
+    handle.destroy();
+    await expect(handle.ready).resolves.toBeUndefined();
+    expect(signal!.aborted).toBe(true);
+    finish();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 
   it('resolves without starting plugins when the editor is destroyed first', async () => {

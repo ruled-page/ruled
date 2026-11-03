@@ -22,10 +22,13 @@ before 1.0.0, a minor version may change the API.
 - The issues list no longer redraws on selection changes that leave the
   issues as they were.
 - The handle's `ready` promise (and `whenReady()` on `<workbook-editor>`)
-  resolves once every plugin's `setup` has run and the editor can draw what
-  they added, so hosts needn't wait on a timer. It resolves at once without
-  plugins, never rejects when a plugin throws, and resolves with the plugins
-  not started if the editor is destroyed first. The docs now say when
+  resolves once every plugin's `setup` has run, including any promise it
+  returned, and the editor can draw what they added, so hosts needn't wait on
+  a timer. It resolves at once without plugins, never rejects when a plugin
+  throws or rejects, and resolves with the plugins not started if the editor
+  is destroyed first. There is no timeout: a setup that never settles holds
+  it until the editor is destroyed. `setup` may now be typed async, and may
+  resolve to its cleanup, which runs even if the plugin stopped meanwhile. The docs now say when
   `setup` runs: after the plugin code loads, independent of rendering.
 - Hosts can delete a file's stored draft without touching the editor's
   database: the handle's `discardDraft()` (on the element too) deletes the
