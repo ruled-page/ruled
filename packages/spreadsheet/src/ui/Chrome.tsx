@@ -33,6 +33,18 @@ function SchemaChip({ store }: { store: WorkbookStore }) {
         ? t('schemaChip.checking')
         : t('schemaChip.allPass');
   const name = t.localized(ctl.schema.name);
+  if (!store.features.issuesPanel) {
+    // Nothing to open: the status alone.
+    return (
+      <span className={`wbe-chip ${tone}`} title={t('schemaChip.title', { name })} role="status" aria-label={t('schemaChip.label', { name, status })}>
+        <Icon name={errors || warnings ? 'warn' : 'check'} size={14} />
+        <span className="wbe-label">{name}</span>
+        <span className="wbe-chip-status">
+          {pending > 0 && <span className="wbe-spinner wbe-small" />} {status}
+        </span>
+      </span>
+    );
+  }
   return (
     <button
       className={`wbe-chip ${tone}`}

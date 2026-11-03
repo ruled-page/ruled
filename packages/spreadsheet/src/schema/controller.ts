@@ -235,6 +235,10 @@ function regex(source: string): RegExp {
  * can be edited, prepares typed input, runs the schema's hooks and plans
  * record inserts and deletes.
  */
+function sameIssue(a: Issue, b: Issue): boolean {
+  return a.severity === b.severity && a.sheet === b.sheet && a.sheetName === b.sheetName && a.row === b.row && a.col === b.col && a.source === b.source && JSON.stringify(a.message) === JSON.stringify(b.message);
+}
+
 export class SchemaController {
   private syncIssues: Issue[] = [];
   private readonly hookResults = new Map<string, Issue[]>();
@@ -834,6 +838,17 @@ export class SchemaController {
 
   /** Every current issue, errors first. */
   issues(): Issue[] {
+    const next = this.collected().sort((a, b) => (a.severity === b.severity ? a.sheet - b.sheet || (a.row ?? -1) - (b.row ?? -1) || (a.col ?? -1) - (b.col ?? -1) : a.severity === 'error' ? -1 : 1));
+    // The same array while nothing changed, so what draws the list can tell.
+    const last = this.lastIssues;
+    const same = last && last.length === next.length && next.every((n, i) => sameIssue(n, last[i]));
+    return same ? last : (this.lastIssues = next);
+  }
+
+  private lastIssues?: Issue[];
+
+  /** The current issues in no particular order. */
+  private collected(): Issue[] {
     const out = [...this.syncIssues];
     for (const list of this.hookResults.values()) out.push(...list);
     for (const [id, e] of this.fieldChecks) {
@@ -841,7 +856,7 @@ export class SchemaController {
       const [sheet, row, col] = id.split(':').map(Number);
       out.push({ ...e.issue, sheet, sheetName: this.boundSheet(sheet)?.name ?? '', row, col, source: 'field' });
     }
-    return out.sort((a, b) => (a.severity === b.severity ? a.sheet - b.sheet || (a.row ?? -1) - (b.row ?? -1) || (a.col ?? -1) - (b.col ?? -1) : a.severity === 'error' ? -1 : 1));
+    return out;
   }
 
   cellIssues(sheet: number, row: number, col: number): Issue[] {
@@ -853,7 +868,7 @@ export class SchemaController {
   }
 
   summary(): { errors: number; warnings: number; pending: number } {
-    const all = this.issues();
+    const all = this.collected();
     let pending = this.pendingHooks.size;
     for (const e of this.fieldChecks.values()) if (e.pending) pending++;
     return { errors: all.filter((i) => i.severity === 'error').length, warnings: all.filter((i) => i.severity === 'warning').length, pending };

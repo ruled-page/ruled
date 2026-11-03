@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import { nameProblem } from '../core/names';
 import { parseA1, quoteSheetName, toA1 } from '@ruled/formula/refs';
 import type { CellChange } from '../core/types';
-import type { Issue } from '../schema/controller';
+import type { Issue, SchemaController } from '../schema/controller';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { RichText } from './RichText';
@@ -12,27 +12,59 @@ import { Tabs } from './Tabs';
 import type { Text, Translator } from '../i18n';
 import { useT } from '../i18n/react';
 
+const FindingList = memo(function FindingList({ issues, go }: { issues: Issue[]; go: (i: Issue) => void }) {
+  const t = useT();
+  return (
+    <ul className="wbe-findings">
+      {issues.map((i, n) => (
+        <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
+          <button className="wbe-finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
+            {/* Said as well as coloured. */}
+            <span className="wbe-finding-title">{t(i.severity === 'error' ? 'issue.error' : 'issue.warning', { message: t.text(i.message) })}</span>
+            {i.sheetName && (
+              <span className="wbe-finding-where">
+                {i.sheetName}
+                {i.row !== undefined && i.col !== undefined ? ` · ${toA1(i.row, i.col)}` : ''}
+              </span>
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+});
+
 function IssuesBody({ store }: { store: WorkbookStore }) {
   const t = useT();
   const ctl = store.schema;
-  if (!ctl) {
-    return (
-      <div className="wbe-report-body">
-        <p className="wbe-muted">{t('checks.noSchema')}</p>
-        <button className="wbe-btn" onClick={() => store.set('designerOpen', true)}>
-          <Icon name="schema" /> {t('checks.openDesigner')}
-        </button>
-      </div>
-    );
-  }
-  const issues = ctl.issues();
-  const { errors, warnings, pending } = ctl.summary();
-  const go = (i: Issue) => {
-    if (i.sheet < 0 || i.row === undefined || i.col === undefined) return;
-    store.reveal(i.sheet, i.row, i.col);
-    // On a phone the panel covers the sheet: get out of the way of the cell.
-    if (store.narrow) store.set('panel', null);
-  };
+  if (ctl) return <IssuesReport store={store} ctl={ctl} />;
+  return (
+    <div className="wbe-report-body">
+      <p className="wbe-muted">{t('checks.noSchema')}</p>
+      <button className="wbe-btn" onClick={() => store.set('designerOpen', true)}>
+        <Icon name="schema" /> {t('checks.openDesigner')}
+      </button>
+    </div>
+  );
+}
+
+function IssuesReport({ store, ctl }: { store: WorkbookStore; ctl: SchemaController }) {
+  const t = useT();
+  // Only a change to the issues, not each selection or edit elsewhere, rebuilds the list.
+  const { issues, errors, warnings, pending } = useMemo(() => {
+    const issues = ctl.issues();
+    return { issues, errors: issues.filter((i) => i.severity === 'error').length, warnings: issues.filter((i) => i.severity === 'warning').length, pending: ctl.summary().pending };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctl, store.schemaVersion]);
+  const go = useCallback(
+    (i: Issue) => {
+      if (i.sheet < 0 || i.row === undefined || i.col === undefined) return;
+      store.reveal(i.sheet, i.row, i.col);
+      // On a phone the panel covers the sheet: get out of the way of the cell.
+      if (store.narrow) store.set('panel', null);
+    },
+    [store],
+  );
   return (
     <div className="wbe-report-body">
       <p className="wbe-report-lede wbe-schema-lede">
@@ -58,22 +90,7 @@ function IssuesBody({ store }: { store: WorkbookStore }) {
           <Icon name="check" /> {t('checks.allClear')}
         </p>
       )}
-      <ul className="wbe-findings">
-        {issues.map((i, n) => (
-          <li key={n} className={`wbe-finding wbe-sev-${i.severity === 'error' ? 'error' : 'warn'}`}>
-            <button className="wbe-finding-main" onClick={() => go(i)} disabled={i.row === undefined}>
-              {/* Said as well as coloured. */}
-              <span className="wbe-finding-title">{t(i.severity === 'error' ? 'issue.error' : 'issue.warning', { message: t.text(i.message) })}</span>
-              {i.sheetName && (
-                <span className="wbe-finding-where">
-                  {i.sheetName}
-                  {i.row !== undefined && i.col !== undefined ? ` · ${toA1(i.row, i.col)}` : ''}
-                </span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <FindingList issues={issues} go={go} />
       <section>
         <h3>{t('checks.markers')}</h3>
         <ul className="wbe-legend">
@@ -217,12 +234,12 @@ export function SidePanel({ store }: { store: WorkbookStore }) {
   const Plugins = pluginParts.useModule(!!store.plugins?.active);
   const panels = store.plugins?.panels ?? [];
   const own = panels.find((p) => panel === `plugin:${p.key}`);
-  if (!panel || (panel === 'report' && !store.features.report) || (panel.startsWith('plugin:') && !own)) return null;
+  if (!panel || (panel === 'issues' && !store.features.issuesPanel) || (panel === 'report' && !store.features.report) || (panel.startsWith('plugin:') && !own)) return null;
   return (
     <aside className="wbe-report" aria-label={t('panel.label')}>
       <Tabs
         tabs={[
-          { id: 'issues', label: t('panel.checks') },
+          ...(store.features.issuesPanel ? [{ id: 'issues' as const, label: t('panel.checks') }] : []),
           { id: 'changes', label: t('panel.changes') },
           ...(store.features.report ? [{ id: 'report' as const, label: t('panel.report') }] : []),
           // Excel's field list, there while a pivot table's cell is active or it is open.

@@ -15,6 +15,12 @@ before 1.0.0, a minor version may change the API.
   `undoButtons`, `recordButtons`, `exactNumbers`, `highlightEdits`,
   `schemaLabels` and `shortcuts`. All are on by default, and they apply in the
   phone layout, where **More** goes when nothing is left behind it.
+- `features.issuesPanel: false` keeps the schema issues panel shut: it no
+  longer opens when a workbook has errors or a save is blocked, the schema
+  chip becomes a plain status, and the Checks tab is hidden. Checks still run
+  and their counts still reach the host with each save.
+- The issues list no longer redraws on selection changes that leave the
+  issues as they were.
 - The handle's `ready` promise (and `whenReady()` on `<workbook-editor>`)
   resolves once every plugin's `setup` has run and the editor can draw what
   they added, so hosts needn't wait on a timer. It resolves at once without

@@ -16,6 +16,30 @@ test.describe('a workbook checked by a schema', () => {
     await expect(chip).toContainText('2 errors');
   });
 
+  test('does not redraw the issues list when only the selection changes', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /^Price list/ })).toContainText('4 errors');
+    const panel = page.getByRole('tabpanel');
+    await expect(panel.locator('.wbe-finding')).toHaveCount(4);
+    // The list is drawn by mapping the issues to rows; count the maps over the four issues.
+    await page.evaluate(() => {
+      const w = window as unknown as { __issueDraws: number };
+      w.__issueDraws = 0;
+      const map = Array.prototype.map;
+      Array.prototype.map = function (this: unknown[], ...args: Parameters<typeof map>) {
+        const first = this[0] as { severity?: string; sheetName?: string } | undefined;
+        if (this.length === 4 && first && typeof first === 'object' && 'severity' in first && 'sheetName' in first) w.__issueDraws++;
+        return map.apply(this, args);
+      } as typeof map;
+    });
+    const draws = () => page.evaluate(() => (window as unknown as { __issueDraws: number }).__issueDraws);
+    for (const ref of ['A1', 'B2', 'C3', 'D4']) await goTo(page, ref);
+    expect(await draws()).toBe(0);
+    // An edit that changes the issues does redraw it.
+    await setCell(page, 'B11', 'Cable glands');
+    await expect(page.getByRole('button', { name: /^Price list/ })).toContainText('3 errors');
+    await expect.poll(draws).toBeGreaterThan(0);
+  });
+
   test('keeps what was typed and flags it when it is the wrong type', async ({ page }) => {
     const chip = page.getByRole('button', { name: /^Price list/ });
     await expect(chip).toContainText('4 errors');

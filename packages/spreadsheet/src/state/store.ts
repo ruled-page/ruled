@@ -298,6 +298,14 @@ export interface EditorFeatures {
   schemaLabels: boolean;
   /** The list of keyboard shortcuts: its toolbar button and Cmd/Ctrl+/. Default true. */
   shortcuts: boolean;
+  /**
+   * The schema issues panel ("Checks") and the schema chip's button that
+   * opens it. Off, the panel never opens, by itself or from the editor's own
+   * controls; the checks still run, mark cells, block or confirm a save, and
+   * their counts reach the host with each save. Hosts that list the issues
+   * themselves can turn it off. Default true.
+   */
+  issuesPanel: boolean;
 }
 
 export interface StoreOptions {
@@ -800,6 +808,7 @@ export class WorkbookStore {
       highlightEdits: true,
       schemaLabels: true,
       shortcuts: true,
+      issuesPanel: true,
       ...options.features,
     };
     this.i18n = createI18n(options.language ?? this.locale, withPluginMessages(options.plugins, options.translations));
@@ -4470,7 +4479,7 @@ export class WorkbookStore {
     });
     ctl.validate();
     // On a phone the panel would cover the sheet; the schema chip opens it.
-    if (ctl.summary().errors && !this.narrow) this.panel = 'issues';
+    if (ctl.summary().errors && !this.narrow && this.features.issuesPanel) this.panel = 'issues';
     this.notify();
   }
 
@@ -4704,6 +4713,8 @@ export class WorkbookStore {
     key: K,
     value: WorkbookStore[K],
   ): void {
+    // The issues panel stays shut when the host turned it off.
+    if (key === 'panel' && value === 'issues' && !this.features.issuesPanel) return;
     (this as unknown as Record<string, unknown>)[key] = value;
     this.notify();
   }

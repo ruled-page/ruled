@@ -99,6 +99,7 @@ describe('editor state', () => {
       highlightEdits: true,
       schemaLabels: true,
       shortcuts: true,
+      issuesPanel: true,
     });
     expect(new WorkbookStore({ features: { charts: false } }).features.charts).toBe(false);
     expect(store.warnOnUnload).toBe(true);
