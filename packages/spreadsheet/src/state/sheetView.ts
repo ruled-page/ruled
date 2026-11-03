@@ -39,6 +39,8 @@ export class SheetView {
   /** Extra read-only rules, e.g. from a schema. */
   constraint?: (row: number, col: number) => Text | undefined;
   version = 0;
+  /** The panes the file has, while `info` shows a host's view-only freeze instead. */
+  private fileFrozen: { rows: number; cols: number } | undefined;
 
   constructor(info: SheetInfo, grid: SheetGrid | null) {
     this.info = info;
@@ -81,6 +83,24 @@ export class SheetView {
     }
   }
 
+  /** Freezes `rows` and `cols` for viewing only, leaving the file's panes as they are; undefined shows the file's panes again. */
+  viewFreeze(frozen: { rows: number; cols: number } | undefined): void {
+    const info = this.info;
+    const file = this.fileFrozen ?? { rows: info.frozenRows, cols: info.frozenCols };
+    const [rows, cols] = frozen ? [frozen.rows, frozen.cols] : [file.rows, file.cols];
+    this.fileFrozen = frozen && (rows !== file.rows || cols !== file.cols) ? file : undefined;
+    if (rows === info.frozenRows && cols === info.frozenCols) return;
+    info.frozenRows = rows;
+    info.frozenCols = cols;
+    this.layoutVersion++;
+    this.version++;
+  }
+
+  /** The view-only freeze in place, if any. */
+  get viewFrozen(): { rows: number; cols: number } | undefined {
+    return this.fileFrozen && { rows: this.info.frozenRows, cols: this.info.frozenCols };
+  }
+
   /** Bumped when sizes, hidden rows and columns, frozen panes or merges change. */
   layoutVersion = 0;
 
@@ -117,6 +137,8 @@ export class SheetView {
         break;
       }
       case 'freeze':
+        // A change to the file's panes replaces a view-only freeze.
+        this.fileFrozen = undefined;
         info.frozenRows = op.rows;
         info.frozenCols = op.cols;
         break;

@@ -2038,7 +2038,14 @@ export class WorkbookStore {
       this.active = sheets.active;
     }
     this.structureLocked = !!r.structureLocked;
+    const freezes = new Map<number, { rows: number; cols: number }>();
+    this.sheets.forEach((v, i) => {
+      const f = v.viewFrozen;
+      const to = sheets ? sheets.map[i] : i;
+      if (f && to != null) freezes.set(to, f);
+    });
     this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
+    for (const [i, f] of freezes) this.sheets[i]?.viewFreeze(f);
     for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
     this.names = r.names;
     this.styles = r.styles;
@@ -2294,6 +2301,22 @@ export class WorkbookStore {
   // ---------------------------------------------------------------------------
   // Layout: sizes, hidden rows and columns, frozen panes and merged cells
 
+  /**
+   * Freezes `rows` and `cols` of a sheet (the active one by default, or one
+   * named) for viewing only: not a change to the file, so no undo step, no
+   * unsaved mark and nothing saved. 0 and 0 shows the file's own panes.
+   * False when there is no such sheet. Lasts until the file is closed, or
+   * the sheet's panes are changed from the menu.
+   */
+  freezeView(rows: number, cols: number, sheet?: string): boolean {
+    const view = sheet === undefined ? this.view : this.sheets.find((v) => v.info.name.toLowerCase() === sheet.toLowerCase());
+    if (!view) return false;
+    const n = (x: number) => Math.max(0, Math.min(Math.floor(x) || 0, 16384));
+    view.viewFreeze(rows || cols ? { rows: n(rows), cols: n(cols) } : undefined);
+    this.notify();
+    return true;
+  }
+
   /** Changes the active sheet's layout as one undoable step, after `before` (edits to cells that go with it). */
   private changeLayout(op: LayoutOp, label: Text, before: EditOp[] = [], announce?: Text): Promise<EditResult | undefined> {
     const ops: EditOp[] = [...before, { type: 'layout', sheet: this.active, op }];
@@ -2359,6 +2382,8 @@ export class WorkbookStore {
    * row, or the first column, so they stay in view; "none" unfreezes.
    */
   async freezePanes(at: 'cell' | 'topRow' | 'firstColumn' | 'none'): Promise<void> {
+    // A change to the file's panes replaces a host's view-only freeze on the sheet.
+    this.view?.viewFreeze(undefined);
     const { row, col } = this.selection;
     const [rows, cols] = at === 'cell' ? [row, col] : at === 'topRow' ? [1, 0] : at === 'firstColumn' ? [0, 1] : [0, 0];
     await this.changeLayout({ kind: 'freeze', rows, cols }, msg(rows || cols ? 'store.history.freeze' : 'store.history.unfreeze'));

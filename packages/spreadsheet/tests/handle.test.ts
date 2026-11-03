@@ -186,6 +186,20 @@ describe('following an editor’s selection and scroll position', () => {
     expect([editor.scrollTo('Nowhere!A1'), editor.scrollTo('not a cell')]).toEqual([false, false]);
   });
 
+  it('freezes panes for viewing only, on the active sheet or a named one', async () => {
+    await create();
+    expect(editor.freeze({ rows: 1, cols: 0 })).toBe(false);
+    await editor.open(two, 'two.xlsx');
+    const store = storeOf(editor);
+    expect(editor.freeze({ rows: 1, cols: 2 })).toBe(true);
+    expect([store.view!.info.frozenRows, store.view!.info.frozenCols, editor.unsaved, store.history.length]).toEqual([1, 2, false, 0]);
+    expect(editor.freeze({ rows: 3, cols: 0, sheet: 'Big Prices' })).toBe(true);
+    expect(store.sheets[1].info.frozenRows).toBe(3);
+    expect(editor.freeze({ rows: 1, cols: 0, sheet: 'Nowhere' })).toBe(false);
+    expect(editor.freeze({ rows: 0, cols: 0 })).toBe(true);
+    expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([0, 0]);
+  });
+
   it('reads the viewport the grid drew, telling subscribers without re-rendering', async () => {
     await create();
     await editor.open(two, 'two.xlsx');

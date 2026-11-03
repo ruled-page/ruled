@@ -76,6 +76,17 @@ export interface EditorHandle {
    */
   scrollTo(ref: string): boolean;
   /**
+   * Freezes the top `rows` and left `cols` of a sheet for viewing only: the
+   * active sheet, or the one named by `sheet`. It is not a change to the file:
+   * no undo step, the workbook isn't marked unsaved, and saving writes the
+   * file's own panes. `{ rows: 0, cols: 0 }` shows the file's own panes again.
+   * It lasts until the file is opened again, or until the user freezes or
+   * unfreezes panes from the menu, which changes the file and replaces it for
+   * that sheet. `viewport` takes it into account. False when no workbook is
+   * open or `sheet` names none.
+   */
+  freeze(panes: { rows: number; cols: number; sheet?: string }): boolean;
+  /**
    * The sheet shown, its active cell and its selected ranges; undefined until
    * a workbook is open. The same object until the selection changes, so a
    * `subscribe` listener can tell it changed by comparing it with the last.
@@ -165,6 +176,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     getCsv: async (options) => (await store.csv(options))?.text,
     goTo: (ref, options) => void store.goTo(ref, options),
     scrollTo: (ref) => store.scrollTo(ref),
+    freeze: ({ rows, cols, sheet }) => store.status === 'ready' && store.freezeView(rows, cols, sheet),
     discardDraft: () => store.discardDraft(),
     get selection() {
       const now = store.status === 'ready' ? store.commandSelection() : undefined;

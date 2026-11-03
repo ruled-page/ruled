@@ -244,4 +244,46 @@ describe('layout changes and inserted rows', () => {
     expect(store.view!.gridRow(3)).toBe(-1);
     expect(store.view!.info.frozenRows).toBe(1);
   });
+
+  describe('a host’s view-only freeze', () => {
+    it('shows the panes without an undo step, an unsaved mark or a change to the saved file', async () => {
+      await open();
+      const unsaved = store.unsaved;
+      expect(store.freezeView(2, 1)).toBe(true);
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([2, 1]);
+      expect([store.history.length, store.unsaved]).toEqual([0, unsaved]);
+      const info = await saved();
+      expect([info.frozenRows, info.frozenCols]).toEqual([0, 0]);
+      expect(store.freezeView(0, 0)).toBe(true);
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([0, 0]);
+    });
+
+    it('names a sheet, and says when there is none', async () => {
+      await open();
+      expect(store.freezeView(1, 0, 'locked')).toBe(true);
+      expect(store.sheets[1].info.frozenRows).toBe(1);
+      expect(store.view!.info.frozenRows).toBe(0);
+      expect(store.freezeView(1, 0, 'Nowhere')).toBe(false);
+    });
+
+    it('goes back to the file’s own panes, and is replaced by a freeze from the menu', async () => {
+      await open();
+      await store.freezePanes('topRow');
+      expect(store.freezeView(3, 2)).toBe(true);
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([3, 2]);
+      expect(store.freezeView(0, 0)).toBe(true);
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([1, 0]);
+      store.freezeView(3, 2);
+      select(rect(2, 1));
+      await store.freezePanes('cell');
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([2, 1]);
+      expect(store.view!.viewFrozen).toBeUndefined();
+      const info = await saved();
+      expect([info.frozenRows, info.frozenCols]).toEqual([2, 1]);
+      // The file's own panes survive the host's freeze, and an edit to them.
+      store.freezeView(5, 5);
+      await store.undo();
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([1, 0]);
+    });
+  });
 });
