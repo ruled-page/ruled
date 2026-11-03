@@ -263,6 +263,41 @@ export interface EditorFeatures {
    * where files must only go to the app. Default true.
    */
   sourceSave: boolean;
+  /**
+   * The title bar at the start of the toolbar: the editor's name and mark,
+   * the file's name, the count of changes (which opens the list of them), the
+   * schema's chip and the working spinner. Default true.
+   */
+  titleBar: boolean;
+  /**
+   * The status bar: whether formulas recalculate live, circular references,
+   * filtering, and the count, sum and average of the selection. Default true.
+   */
+  statusBar: boolean;
+  /** The buttons beside the sheet tabs: add a sheet, and the shown sheet's menu. Default true. */
+  sheetTabButtons: boolean;
+  /**
+   * Changing sheets from their tabs: the tab menu (insert, rename, delete,
+   * move, colour, hide and unhide), renaming by double-click or F2, moving by
+   * dragging or Alt+Shift+arrows, and unhiding from the hidden-sheets note.
+   * Off, a tab still shows its sheet when clicked, and the keyboard still
+   * moves between sheets. Default true.
+   */
+  sheetMenus: boolean;
+  /** The note under the formula bar that a selected cell is locked or its sheet protected. Default true. */
+  lockNotes: boolean;
+  /** The toolbar's Undo and Redo buttons; the keys for undo and redo work either way. Default true. */
+  undoButtons: boolean;
+  /** The toolbar's Insert and Delete row (or column) buttons for a schema's tables that can grow. Default true. */
+  recordButtons: boolean;
+  /** The toolbar's "Exact numbers" switch. Default true. */
+  exactNumbers: boolean;
+  /** The toolbar's "Highlight changes" switch. Default true. */
+  highlightEdits: boolean;
+  /** The toolbar's "Mark schema labels" switch, shown while a schema matches. Default true. */
+  schemaLabels: boolean;
+  /** The list of keyboard shortcuts: its toolbar button and Cmd/Ctrl+/. Default true. */
+  shortcuts: boolean;
 }
 
 export interface StoreOptions {
@@ -743,7 +778,30 @@ export class WorkbookStore {
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = { open: true, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, sourceSave: true, ...options.features };
+    this.features = {
+      open: true,
+      save: true,
+      download: true,
+      schemas: true,
+      report: true,
+      charts: true,
+      format: true,
+      csv: true,
+      autoComplete: true,
+      sourceSave: true,
+      titleBar: true,
+      statusBar: true,
+      sheetTabButtons: true,
+      sheetMenus: true,
+      lockNotes: true,
+      undoButtons: true,
+      recordButtons: true,
+      exactNumbers: true,
+      highlightEdits: true,
+      schemaLabels: true,
+      shortcuts: true,
+      ...options.features,
+    };
     this.i18n = createI18n(options.language ?? this.locale, withPluginMessages(options.plugins, options.translations));
     this.t = translator(this.i18n);
   }

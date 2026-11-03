@@ -77,7 +77,29 @@ describe('editor state', () => {
 
   it('turns on the features a host does not hide', () => {
     store = new WorkbookStore({ drafts: false, features: { open: false } });
-    expect(store.features).toEqual({ open: false, save: true, download: true, schemas: true, report: true, charts: true, format: true, csv: true, autoComplete: true, sourceSave: true });
+    expect(store.features).toEqual({
+      open: false,
+      save: true,
+      download: true,
+      schemas: true,
+      report: true,
+      charts: true,
+      format: true,
+      csv: true,
+      autoComplete: true,
+      sourceSave: true,
+      titleBar: true,
+      statusBar: true,
+      sheetTabButtons: true,
+      sheetMenus: true,
+      lockNotes: true,
+      undoButtons: true,
+      recordButtons: true,
+      exactNumbers: true,
+      highlightEdits: true,
+      schemaLabels: true,
+      shortcuts: true,
+    });
     expect(new WorkbookStore({ features: { charts: false } }).features.charts).toBe(false);
     expect(store.warnOnUnload).toBe(true);
     expect(new WorkbookStore({ warnOnUnload: false }).warnOnUnload).toBe(false);

@@ -41,7 +41,7 @@ Write with `defineSchema({...})` for types. Shape: `{ id, name, version?, sheets
 
 - `theme: { accent, surface, font, gridHeaderBg, ... }` (tokens are CSS custom properties `--wbe-*` on `.wbe`); `colorScheme: 'dark'` for dark themes.
 - `language` ('en', 'de' built in; others via `translations`), `locale` for dates and numbers.
-- `features`: `open`, `save`, `download`, `schemas`, `report`, `charts`, `format`, `csv`, `autoComplete`, `sourceSave`, each on unless `false`.
+- `features`: `open`, `save`, `download`, `schemas`, `report`, `charts`, `format`, `csv`, `autoComplete`, `sourceSave`, `titleBar`, `statusBar`, `sheetTabButtons`, `sheetMenus` (tab menu, rename, drag, unhide; tabs still select), `lockNotes`, `undoButtons`, `recordButtons`, `exactNumbers`, `highlightEdits`, `schemaLabels`, `shortcuts`, each on unless `false`; read once, when the editor is made.
 - `menus: { cell?, header?, shortcuts? }` keeps only the listed entries of the cell and heading menus by id (the label's message key, such as `menu.insertRowsAbove`; same in every language; plugin commands `pluginId/commandId`); a dropped entry's shortcut is off unless `shortcuts` lists it. `MENU_COMMANDS` lists every id with `edits`. Live. Docs: {{SITE}}/guides/menus-and-shortcuts.md
 
 ## Plugins

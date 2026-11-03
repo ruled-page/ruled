@@ -6,6 +6,15 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- More of the editor's interface can be turned off with `features`, so
+  hosts needn't hide it with CSS or block its events: `titleBar`,
+  `statusBar`, `sheetTabButtons` (New sheet and the sheet menu button),
+  `sheetMenus` (the tab menu, renaming, dragging and unhiding from the tabs;
+  clicking a tab still shows its sheet), `lockNotes` (the formula bar's note
+  that a cell is locked), and a flag for every toolbar action that had none:
+  `undoButtons`, `recordButtons`, `exactNumbers`, `highlightEdits`,
+  `schemaLabels` and `shortcuts`. All are on by default, and they apply in the
+  phone layout, where **More** goes when nothing is left behind it.
 - The handle's `ready` promise (and `whenReady()` on `<workbook-editor>`)
   resolves once every plugin's `setup` has run and the editor can draw what
   they added, so hosts needn't wait on a timer. It resolves at once without

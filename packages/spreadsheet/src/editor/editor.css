@@ -471,6 +471,8 @@
   flex-wrap: nowrap;
   flex: 0 1 auto;
   min-width: 0;
+  /* At the end, with or without the title bar before it. */
+  margin-inline-start: auto;
   /* Scrolls sideways rather than wrapping when there still isn't room; the padding keeps focus rings clear. */
   overflow-x: auto;
   padding: 2px;
@@ -3785,6 +3787,11 @@
 
 .wbe .wbe-btn.wbe-toolbar-more-btn {
     display: inline-flex;
+  }
+
+/* Nothing behind it when the host turns those controls off. */
+.wbe .wbe-toolbar-more:empty + .wbe-btn.wbe-toolbar-more-btn {
+    display: none;
   }
 
 .wbe .wbe-toolbar-more {

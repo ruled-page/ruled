@@ -121,7 +121,7 @@ export const FOR_APPS: { what: string; note: string; href: string }[] = [
   { what: 'Drafts', note: 'Unsaved edits are kept in the browser and offered back.', href: '/guides/opening-and-saving/#drafts' },
   { what: 'Theming and icons', note: 'Design tokens for every colour, font, size and corner, and replacement icons.', href: '/guides/theming/' },
   { what: 'Languages and locales', note: 'English and German built in, your own added, dates and numbers in the user’s locale.', href: '/guides/languages/' },
-  { what: 'Turning parts off', note: 'Hide opening, saving, the designer, the report, charts or the format bar.', href: '/guides/options-and-features/' },
+  { what: 'Turning parts off', note: 'Hide opening, saving, the designer, the report, charts, the format bar, the title and status bars, toolbar actions or the sheet tab menus.', href: '/guides/options-and-features/' },
   { what: 'Events and logging', note: 'What the editor does and how long it took, and when it stops working.', href: '/guides/events-and-handle/' },
   { what: 'Accessibility', note: 'Excel’s keys, screen reader support, forced colours and touch.', href: '/guides/keyboard-and-accessibility/' },
 ];

@@ -127,6 +127,7 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   const across = (target?.table ?? growable[0])?.byRow === false;
   const outside = across ? t('toolbar.selectColumnFirst') : t('toolbar.selectRowFirst');
   const exact = store.numbers.display === 'full';
+  const features = store.features;
   // On a phone the less used controls are behind "More", in a panel under the toolbar.
   const [more, setMore] = useState(false);
   const moreId = useId();
@@ -155,29 +156,31 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
   return (
     // Not a <header>: a page that embeds the editor has its own banner landmark.
     <div className="wbe-toolbar" ref={bar}>
-      <div className="wbe-brand">
-        <span className="wbe-brand-mark" aria-hidden="true">
-          <BrandMark />
-        </span>
-        <span className="wbe-brand-name">{t('toolbar.brand')}</span>
-        {store.fileName && (
-          <span className="wbe-file-name" title={store.origin?.location}>
-            {store.fileName}
+      {features.titleBar && (
+        <div className="wbe-brand">
+          <span className="wbe-brand-mark" aria-hidden="true">
+            <BrandMark />
           </span>
-        )}
-        {store.editedCount > 0 && (
-          <button
-            className="wbe-badge wbe-badge-edit"
-            onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')}
-            title={t('toolbar.changesTitle')}
-            aria-expanded={store.panel === 'changes'}
-          >
-            {t('toolbar.changes', { count: store.editedCount })}
-          </button>
-        )}
-        {ready && <SchemaChip store={store} />}
-        {store.busy && <span className="wbe-spinner" role="status" aria-label={t('toolbar.working')} />}
-      </div>
+          <span className="wbe-brand-name">{t('toolbar.brand')}</span>
+          {store.fileName && (
+            <span className="wbe-file-name" title={store.origin?.location}>
+              {store.fileName}
+            </span>
+          )}
+          {store.editedCount > 0 && (
+            <button
+              className="wbe-badge wbe-badge-edit"
+              onClick={() => store.set('panel', store.panel === 'changes' ? null : 'changes')}
+              title={t('toolbar.changesTitle')}
+              aria-expanded={store.panel === 'changes'}
+            >
+              {t('toolbar.changes', { count: store.editedCount })}
+            </button>
+          )}
+          {ready && <SchemaChip store={store} />}
+          {store.busy && <span className="wbe-spinner" role="status" aria-label={t('toolbar.working')} />}
+        </div>
+      )}
       <div className="wbe-toolbar-actions">
         {store.features.open &&
           (Plugins && store.plugins?.sources.length ? (
@@ -187,16 +190,30 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
               <Icon name="open" /> <span className="wbe-label">{t('toolbar.open')}</span>
             </button>
           ))}
-        <div className="wbe-btn-group">
-          {/* Marked unavailable rather than disabled, so undoing the last step doesn't drop the focus. */}
-          <button className="wbe-btn wbe-icon" aria-disabled={!store.undoStack.length} onClick={() => void store.undo()} title={t('toolbar.undoTitle', { key: mod(t, 'Z') })} aria-label={t('toolbar.undo')}>
-            <Icon name="undo" />
-          </button>
-          <button className="wbe-btn wbe-icon" aria-disabled={!store.redoStack.length} onClick={() => void store.redo()} title={t('toolbar.redoTitle', { key: mod(t, 'Y') })} aria-label={t('toolbar.redo')}>
-            <Icon name="redo" />
-          </button>
-        </div>
-        {growable.length > 0 && (
+        {features.undoButtons && (
+          <div className="wbe-btn-group">
+            {/* Marked unavailable rather than disabled, so undoing the last step doesn't drop the focus. */}
+            <button
+              className="wbe-btn wbe-icon"
+              aria-disabled={!store.undoStack.length}
+              onClick={() => void store.undo()}
+              title={t('toolbar.undoTitle', { key: mod(t, 'Z') })}
+              aria-label={t('toolbar.undo')}
+            >
+              <Icon name="undo" />
+            </button>
+            <button
+              className="wbe-btn wbe-icon"
+              aria-disabled={!store.redoStack.length}
+              onClick={() => void store.redo()}
+              title={t('toolbar.redoTitle', { key: mod(t, 'Y') })}
+              aria-label={t('toolbar.redo')}
+            >
+              <Icon name="redo" />
+            </button>
+          </div>
+        )}
+        {features.recordButtons && growable.length > 0 && (
           <div className="wbe-btn-group">
             <button
               className="wbe-btn"
@@ -233,84 +250,100 @@ export function Toolbar({ store, onOpen, extra }: { store: WorkbookStore; onOpen
           // A button done with closes the panel; toggles and pickers keep it open.
           onClick={(e) => (e.target as Element).closest('button') && setMore(false)}
         >
-        <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.exactTitle')}>
-          <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
-          <span className="wbe-toggle-long">{t('toolbar.exact')}</span>
-          <span className="wbe-toggle-short" aria-hidden="true">
-            {t('toolbar.exactShort')}
-          </span>
-        </label>
-        <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.highlightTitle')}>
-          <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
-          <span className="wbe-toggle-long">{t('toolbar.highlight')}</span>
-          <span className="wbe-toggle-short" aria-hidden="true">
-            {t('toolbar.highlightShort')}
-          </span>
-        </label>
-        {store.schema && (
-          <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.labelsTitle')}>
-            <input type="checkbox" checked={store.showLabels} disabled={!ready} onChange={(e) => store.set('showLabels', e.target.checked)} />
-            <span className="wbe-toggle-long">{t('toolbar.labels')}</span>
-            <span className="wbe-toggle-short" aria-hidden="true">
-              {t('toolbar.labelsShort')}
-            </span>
-          </label>
-        )}
-        {ready && store.features.format && (
-          <label className="wbe-toggle wbe-phone-only">
-            <input type="checkbox" checked={store.formatBarShown} onChange={(e) => store.set('formatBarShown', e.target.checked)} />
-            <span className="wbe-toggle-long">{t('toolbar.formatBar')}</span>
-          </label>
-        )}
-        {store.features.schemas && (
-          <button className={`wbe-btn ${store.designerOpen ? 'wbe-active' : ''}`} onClick={() => store.set('designerOpen', true)} title={t('toolbar.schemasTitle')} aria-label={t('toolbar.schemas')}>
-            <Icon name="schema" /> <span className="wbe-label">{t('toolbar.schemas')}</span>
-          </button>
-        )}
-        {store.features.report && (
-          <button
-            className={`wbe-btn ${store.panel === 'report' ? 'wbe-active' : ''}`}
-            disabled={!ready}
-            aria-expanded={store.panel === 'report'}
-            onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
-            title={t('toolbar.report')}
-            aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
-          >
-            <Icon name="info" /> <span className="wbe-label">{t('toolbar.report')}</span>
-            {notable > 0 && <span className="wbe-count">{t.number(notable)}</span>}
-          </button>
-        )}
-        {Plugins && <Plugins.PanelButtons store={store} />}
-        {Plugins && <Plugins.CommandButtons store={store} where="more" />}
-        <button className="wbe-btn wbe-icon" onClick={() => store.set('shortcutsOpen', true)} title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })} aria-label={t('toolbar.shortcuts')}>
-          <Icon name="keyboard" /> <span className="wbe-more-label">{t('toolbar.shortcuts')}</span>
-        </button>
-        {extra}
-        {store.features.csv && store.features.download && (
-          <button
-            className="wbe-btn"
-            disabled={!ready || store.view?.info.kind !== 'worksheet'}
-            aria-disabled={store.busy}
-            onClick={() => !store.busy && void store.exportCsv()}
-            title={t('toolbar.csvTitle')}
-            aria-label={t('toolbar.csvLabel')}
-          >
-            <Icon name="download" /> {t('toolbar.csv')}
-          </button>
-        )}
-        {store.features.save && Plugins && <Plugins.OtherSaves store={store} />}
-        {store.features.save && save !== 'download' && store.features.download && !store.copySources.length && (
-          <button
-            className="wbe-btn wbe-icon"
-            disabled={!ready}
-            aria-disabled={store.busy}
-            onClick={() => !store.busy && void store.exportCopy()}
-            title={t('toolbar.downloadTitle')}
-            aria-label={t('toolbar.download')}
-          >
-            <Icon name="download" /> <span className="wbe-more-label">{t('toolbar.download')}</span>
-          </button>
-        )}
+          {features.exactNumbers && (
+            <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.exactTitle')}>
+              <input type="checkbox" checked={exact} disabled={!ready} onChange={(e) => store.set('exactNumbers', e.target.checked)} />
+              <span className="wbe-toggle-long">{t('toolbar.exact')}</span>
+              <span className="wbe-toggle-short" aria-hidden="true">
+                {t('toolbar.exactShort')}
+              </span>
+            </label>
+          )}
+          {features.highlightEdits && (
+            <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.highlightTitle')}>
+              <input type="checkbox" checked={store.highlightEdits} disabled={!ready} onChange={(e) => store.set('highlightEdits', e.target.checked)} />
+              <span className="wbe-toggle-long">{t('toolbar.highlight')}</span>
+              <span className="wbe-toggle-short" aria-hidden="true">
+                {t('toolbar.highlightShort')}
+              </span>
+            </label>
+          )}
+          {features.schemaLabels && store.schema && (
+            <label className={`wbe-toggle ${!ready ? 'wbe-disabled' : ''}`} title={t('toolbar.labelsTitle')}>
+              <input type="checkbox" checked={store.showLabels} disabled={!ready} onChange={(e) => store.set('showLabels', e.target.checked)} />
+              <span className="wbe-toggle-long">{t('toolbar.labels')}</span>
+              <span className="wbe-toggle-short" aria-hidden="true">
+                {t('toolbar.labelsShort')}
+              </span>
+            </label>
+          )}
+          {ready && store.features.format && (
+            <label className="wbe-toggle wbe-phone-only">
+              <input type="checkbox" checked={store.formatBarShown} onChange={(e) => store.set('formatBarShown', e.target.checked)} />
+              <span className="wbe-toggle-long">{t('toolbar.formatBar')}</span>
+            </label>
+          )}
+          {store.features.schemas && (
+            <button
+              className={`wbe-btn ${store.designerOpen ? 'wbe-active' : ''}`}
+              onClick={() => store.set('designerOpen', true)}
+              title={t('toolbar.schemasTitle')}
+              aria-label={t('toolbar.schemas')}
+            >
+              <Icon name="schema" /> <span className="wbe-label">{t('toolbar.schemas')}</span>
+            </button>
+          )}
+          {store.features.report && (
+            <button
+              className={`wbe-btn ${store.panel === 'report' ? 'wbe-active' : ''}`}
+              disabled={!ready}
+              aria-expanded={store.panel === 'report'}
+              onClick={() => store.set('panel', store.panel === 'report' ? null : 'report')}
+              title={t('toolbar.report')}
+              aria-label={notable ? t('toolbar.reportNotable', { count: notable }) : t('toolbar.report')}
+            >
+              <Icon name="info" /> <span className="wbe-label">{t('toolbar.report')}</span>
+              {notable > 0 && <span className="wbe-count">{t.number(notable)}</span>}
+            </button>
+          )}
+          {Plugins && <Plugins.PanelButtons store={store} />}
+          {Plugins && <Plugins.CommandButtons store={store} where="more" />}
+          {features.shortcuts && (
+            <button
+              className="wbe-btn wbe-icon"
+              onClick={() => store.set('shortcutsOpen', true)}
+              title={t('toolbar.shortcutsTitle', { key: shortcutsKey(t) })}
+              aria-label={t('toolbar.shortcuts')}
+            >
+              <Icon name="keyboard" /> <span className="wbe-more-label">{t('toolbar.shortcuts')}</span>
+            </button>
+          )}
+          {extra}
+          {store.features.csv && store.features.download && (
+            <button
+              className="wbe-btn"
+              disabled={!ready || store.view?.info.kind !== 'worksheet'}
+              aria-disabled={store.busy}
+              onClick={() => !store.busy && void store.exportCsv()}
+              title={t('toolbar.csvTitle')}
+              aria-label={t('toolbar.csvLabel')}
+            >
+              <Icon name="download" /> {t('toolbar.csv')}
+            </button>
+          )}
+          {store.features.save && Plugins && <Plugins.OtherSaves store={store} />}
+          {store.features.save && save !== 'download' && store.features.download && !store.copySources.length && (
+            <button
+              className="wbe-btn wbe-icon"
+              disabled={!ready}
+              aria-disabled={store.busy}
+              onClick={() => !store.busy && void store.exportCopy()}
+              title={t('toolbar.downloadTitle')}
+              aria-label={t('toolbar.download')}
+            >
+              <Icon name="download" /> <span className="wbe-more-label">{t('toolbar.download')}</span>
+            </button>
+          )}
         </div>
         <button
           ref={moreButton}
@@ -544,6 +577,8 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
     setFocusTo(null);
   }, [focusTo]);
   const after: AfterSheetChange = (change, focus) => void change.then((made) => setFocusTo(focus(made)));
+  // Off, the tabs only show their sheets: no menu, renaming, moving or unhiding from here.
+  const menus = store.features.sheetMenus;
 
   const openMenu = (sheet: number, x: number, y: number) => store.set('sheetMenu', { sheet, x, y });
   // The arrow keys, Home and End move between sheets; Enter or Space shows the one with the focus.
@@ -554,17 +589,17 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
     const sheet = visible[at];
     const name = store.sheets[sheet].info.name;
     const arrow = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? left : 0;
-    if (arrow && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (menus && arrow && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       after(store.moveSheetBy(sheet, arrow), sheetNamed(store, name));
       return;
     }
-    if (e.key === 'F2') {
+    if (menus && e.key === 'F2') {
       e.preventDefault();
       store.set('renameSheetFor', sheet);
       return;
     }
-    if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+    if (menus && ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu')) {
       e.preventDefault();
       const r = tabs.current.get(sheet)!.getBoundingClientRect();
       openMenu(sheet, r.left, r.bottom);
@@ -623,12 +658,12 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
                 className={`wbe-tab ${i === store.active ? 'wbe-active' : ''} ${marker(i)}`}
                 style={s.info.tabColor ? { boxShadow: `inset 0 -3px 0 ${s.info.tabColor}` } : undefined}
                 onClick={() => store.setActive(i)}
-                onDoubleClick={() => store.set('renameSheetFor', i)}
+                onDoubleClick={menus ? () => store.set('renameSheetFor', i) : undefined}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  openMenu(i, e.clientX, e.clientY);
+                  if (menus) openMenu(i, e.clientX, e.clientY);
                 }}
-                draggable
+                draggable={menus}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move';
                   e.dataTransfer.setData('text/plain', s.info.name);
@@ -651,24 +686,33 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
             );
           })}
         </div>
-        <button className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn" onClick={() => after(store.addSheet(), () => store.active)} title={t('sheets.addTitle')} aria-label={t('sheets.add')}>
-          <Icon name="plus" size={14} />
-        </button>
+        {store.features.sheetTabButtons && (
+          <button
+            className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn"
+            onClick={() => after(store.addSheet(), () => store.active)}
+            title={t('sheets.addTitle')}
+            aria-label={t('sheets.add')}
+          >
+            <Icon name="plus" size={14} />
+          </button>
+        )}
         {/* The shown sheet's tab menu, for touch screens (and anyone who looks for it here). */}
-        <button
-          className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn"
-          aria-label={t('sheets.menuButton')}
-          title={t('sheets.menuButton')}
-          aria-haspopup="menu"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            openMenu(store.active, r.left, r.top);
-          }}
-        >
-          <Icon name="more" size={14} />
-        </button>
+        {store.features.sheetTabButtons && menus && (
+          <button
+            className="wbe-btn wbe-icon wbe-ghost wbe-tabs-btn"
+            aria-label={t('sheets.menuButton')}
+            title={t('sheets.menuButton')}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openMenu(store.active, r.left, r.top);
+            }}
+          >
+            <Icon name="more" size={14} />
+          </button>
+        )}
         {hidden > 0 &&
-          (store.hiddenSheets.length ? (
+          (menus && store.hiddenSheets.length ? (
             <button className="wbe-link wbe-tabs-note" aria-haspopup="dialog" onClick={() => store.set('unhideOpen', true)} title={t('sheets.unhideButtonTitle')}>
               {t('tabs.hidden', { count: hidden })}
             </button>
@@ -678,9 +722,13 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
             </span>
           ))}
       </nav>
-      <SheetMenu store={store} after={after} />
-      <RenameSheetDialog store={store} after={after} />
-      <UnhideSheetDialog store={store} after={after} />
+      {menus && (
+        <>
+          <SheetMenu store={store} after={after} />
+          <RenameSheetDialog store={store} after={after} />
+          <UnhideSheetDialog store={store} after={after} />
+        </>
+      )}
     </>
   );
 }
@@ -716,7 +764,9 @@ function EngineReadout({ store }: { store: WorkbookStore }) {
 
 export function StatusBar({ store, view, selection }: { store: WorkbookStore; view?: SheetView; selection?: Selection }) {
   const t = useT();
+  const shown = store.features.statusBar;
   const stats = useMemo(() => {
+    if (!shown) return null;
     if (!view || !selection) return null;
     const total = selection.rects.reduce((n, r) => n + (r.r2 - r.r1 + 1) * (r.c2 - r.c1 + 1), 0);
     if (total < 2 || total > 3_000_000) return null;
@@ -735,8 +785,9 @@ export function StatusBar({ store, view, selection }: { store: WorkbookStore; vi
     }
     return { count, nums, sum };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, view?.version, selection]);
+  }, [shown, view, view?.version, selection]);
 
+  if (!shown) return null;
   const calc = store.calc;
   const fmt = (n: number) => t.number(n, { maximumFractionDigits: store.numbers.display === 'full' ? 15 : 4 });
   return (

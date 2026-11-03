@@ -186,7 +186,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
       }
       if (!command) return;
       const key = shortcutKey(e);
-      if (key === '/') {
+      if (key === '/' && store.features.shortcuts) {
         e.preventDefault();
         store.set('shortcutsOpen', true);
         return;

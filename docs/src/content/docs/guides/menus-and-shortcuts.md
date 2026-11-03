@@ -48,7 +48,7 @@ A list left out keeps every entry of that menu, so its shortcuts too, but only f
 | Alt+F5, Ctrl+Alt+F5 | `pivot.menu.refresh`, `pivot.menu.refreshAll` |
 | Ctrl+F (⌘F) | `menu.find` |
 
-Shortcuts with no entry, such as undo, save and moving around, aren't changed. The list Ctrl+/ shows leaves out the shortcuts that are off.
+Shortcuts with no entry, such as undo, save and moving around, aren't changed. Toolbar actions aren't menu entries either: [`features`](/guides/options-and-features/#features) turns them off, with their shortcuts where they have one (`save` takes Ctrl+S, `shortcuts` takes Ctrl+/), and the sheet tab menu goes with `sheetMenus`. The list Ctrl+/ shows leaves out the shortcuts that are off.
 
 ## Which entries edit
 

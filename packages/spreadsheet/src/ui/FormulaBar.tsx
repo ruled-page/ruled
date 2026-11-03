@@ -32,8 +32,8 @@ function prompt(t: Translator, title: string | undefined, text: string): string 
   return title ? t('formulaBar.titledPrompt', { title, prompt: text }) : text;
 }
 
-function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
-  const readOnly = view.readOnlyReason(sel.row, sel.col);
+export function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
+  const readOnly = store.features.lockNotes && view.readOnlyReason(sel.row, sel.col);
   if (readOnly) return { tone: 'lock', text: t.text(readOnly) };
   const ctl = store.schema;
   const issues = ctl?.cellIssues(store.active, sel.row, sel.col) ?? [];

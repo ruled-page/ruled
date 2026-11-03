@@ -76,6 +76,23 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `csv` | Opening CSV files, and a button to download the sheet as CSV. |
 | `autoComplete` | Finishing text as it's typed from the entries above and below, as Excel's AutoComplete does. |
 | `sourceSave` | Writing to [plugins' file sources](/plugins/using/#saving-with-a-source): **Save to *source*** and the sources in **Save a copy**. Turn it off where files must only go to your app. |
+| `titleBar` | The title bar at the start of the toolbar: the editor's name and mark, the file's name, the count of changes, the schema's chip and the working spinner. |
+| `statusBar` | The status bar: live recalculation, circular references, filtering, and the count, sum and average of the selection. |
+| `sheetTabButtons` | The buttons beside the sheet tabs: **New sheet**, and the shown sheet's menu. |
+| `sheetMenus` | Changing sheets from their tabs: the tab menu (insert, rename, delete, move, colour, hide and unhide), renaming by double-click or F2, moving by dragging or Alt+Shift+arrows, and unhiding from the hidden-sheets note. Off, clicking a tab still shows its sheet, and the arrow keys, Home and End still move between the tabs. |
+| `lockNotes` | The note under the formula bar that the selected cell is locked or its sheet protected. Off, the cells stay read-only; the note just isn't shown. |
+| `undoButtons` | The toolbar's Undo and Redo buttons. Ctrl+Z and Ctrl+Y (⌘Z and ⇧⌘Z) work either way. |
+| `recordButtons` | The toolbar's **Insert row** and **Delete row** buttons (or column, for records across) for a [schema's](/schemas/overview/) tables that can grow. |
+| `exactNumbers` | The toolbar's **Exact numbers** switch. |
+| `highlightEdits` | The toolbar's **Highlight changes** switch. |
+| `schemaLabels` | The toolbar's **Mark schema labels** switch, shown while a schema matches. |
+| `shortcuts` | The list of keyboard shortcuts: its toolbar button and Ctrl+/ (⌘/). |
+
+Every toolbar action has a flag: **Open** is `open`; **Save** and **Save a copy** are `save`; downloading a copy is `download`, and as CSV `csv`; the phone's **Format bar** switch is `format`; **Schemas** is `schemas`; and **What's in this file** is `report`. Buttons that plugins add are theirs; leave out the plugin, or its command, to drop them. The flags apply in the phone layout too, where the less used actions are behind **More**; with all of those off, **More** goes as well.
+
+`features` and [`menus`](/guides/menus-and-shortcuts/) don't overlap. `menus` keeps entries of the cell and heading menus, and their shortcuts; the toolbar's actions and their shortcuts, such as Save with Ctrl+S, undo with Ctrl+Z and the shortcuts list with Ctrl+/, aren't menu entries, so only `features` turns them off. The sheet tab menu isn't one of the menus `menus` trims; `sheetMenus` turns it off whole.
+
+`features` is read when the editor is made; to change it, make the editor again.
 
 A supplier filling in a template might get:
 
