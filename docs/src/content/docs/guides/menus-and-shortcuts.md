@@ -63,6 +63,8 @@ createWorkbookEditor({ menus: { cell: reading, header: reading } });
 
 Edit note and Show comments count as reading: on a note or comment that can't be changed they only show it. Plugin commands aren't in `MENU_COMMANDS`.
 
+To stop the workbook being changed at all, not only from the menus, use [`readOnly`](/guides/options-and-features/#read-only-workbooks): it drops the same entries and their shortcuts, keeps plugins' commands, and refuses edits from everywhere else too. `menus` still applies on top of it.
+
 ## Every id
 
 An entry's id is the message key of its label in the [English catalogue](/guides/languages/). Labels below are the English ones; *n* and *cell* are filled in from the selection. **Menus** says whether the entry is in the cell menu, the heading menu, or both.

@@ -25,8 +25,13 @@ export function keepItems(items: MenuItem[], keep: readonly string[] | undefined
     const sub = keepItems(item.items, keep, listed(item));
     return sub.length ? [{ ...item, items: sub }] : [];
   });
+  return tidySeparators(kept);
+}
+
+/** Drops separators with nothing to separate: at the start or end, or after another. */
+export function tidySeparators(items: MenuItem[]): MenuItem[] {
   const tidy: MenuItem[] = [];
-  for (const item of kept) if (!('separator' in item) || (tidy.length && !('separator' in tidy.at(-1)!))) tidy.push(item);
+  for (const item of items) if (!('separator' in item) || (tidy.length && !('separator' in tidy.at(-1)!))) tidy.push(item);
   if (tidy.length && 'separator' in tidy.at(-1)!) tidy.pop();
   return tidy;
 }

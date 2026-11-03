@@ -434,7 +434,11 @@ export class SheetView {
   /** Whether a format leaves its cells unlocked on a protected sheet; the store knows the formats. */
   isUnlocked: (style: number) => boolean = () => false;
 
+  /** Whether the whole workbook is read-only; the store knows. */
+  workbookReadOnly: () => boolean = () => false;
+
   readOnlyReason(row: number, col: number): Text | undefined {
+    if (this.workbookReadOnly()) return msg('sheet.readOnly');
     if (this.info.kind !== 'worksheet') return msg('sheet.notWorksheet');
     if (this.info.protected && !this.isUnlocked(this.styleAt(row, col))) return msg('sheet.locked');
     const m = this.mergeAt(row, col);
@@ -449,6 +453,7 @@ export class SheetView {
    * cells keep theirs too.
    */
   commentReadOnlyReason(row: number, col: number): Text | undefined {
+    if (this.workbookReadOnly()) return msg('sheet.readOnly');
     if (this.info.kind !== 'worksheet') return msg('sheet.notWorksheet');
     if (this.info.protected && this.info.objectsLocked) return msg('core.reason.commentsLocked');
     const m = this.mergeAt(row, col);

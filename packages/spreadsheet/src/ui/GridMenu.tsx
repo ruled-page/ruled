@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import type { WorkbookStore } from '../state/store';
 import type { Text } from '../i18n/message';
 import { outlineDepth } from '../state/outline';
-import { ContextMenu, keepItems, type MenuItem } from './ContextMenu';
+import { ContextMenu, keepItems, tidySeparators, type MenuItem } from './ContextMenu';
+import { viewOnly } from './menuCommands';
 import { APPLE, mod } from './keys';
 import { openDefineName } from '../state/names';
 import { useT } from '../i18n/react';
@@ -17,6 +18,18 @@ const CHART_KINDS: NewChartKind[] = ['column', 'bar', 'line', 'area', 'pie', 'do
  * The grid's right-click menu: clipboard, notes and comments, rows and columns, sorting, filtering and find;
  * on a heading, its rows' or columns'. Each entry's id is in MENU_COMMANDS, and the `menus` option keeps some only.
  */
+/** The entries that don't edit the workbook, for a read-only one; a submenu stays with those of its entries that don't. */
+function viewOnlyItems(items: MenuItem[]): MenuItem[] {
+  const kept = items.flatMap((item): MenuItem[] => {
+    if ('separator' in item) return [item];
+    if (item.id && !viewOnly(item.id)) return [];
+    if (!('items' in item)) return [item];
+    const sub = viewOnlyItems(item.items);
+    return sub.length ? [{ ...item, items: sub }] : [];
+  });
+  return tidySeparators(kept);
+}
+
 export function GridMenu({ store }: { store: WorkbookStore }) {
   const t = useT();
   const menu = store.menu;
@@ -250,6 +263,6 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
     return state.visible ? [{ id: c.key, label: t.text(c.label as Text), onSelect: () => plugins!.run(c, context), disabled: !state.enabled }] : [];
   });
   if (added.length) items.push({ separator: true }, ...added);
-  const kept = keepItems(items, menu.kind === 'cell' ? store.menus?.cell : store.menus?.header);
+  const kept = keepItems(store.readOnly ? viewOnlyItems(items) : items, menu.kind === 'cell' ? store.menus?.cell : store.menus?.header);
   return <ContextMenu x={menu.x} y={menu.y} items={kept} label={t('menu.label')} onClose={() => store.set('menu', undefined)} />;
 }

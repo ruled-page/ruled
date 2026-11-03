@@ -22,6 +22,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `limits` | Size and complexity limits for files people open. See [Large workbooks](/guides/opening-and-saving/#large-workbooks). |
 | `macros` | Files with macros: `'keep'` them (the default), `'remove'` them when saving, or `'block'` such files. |
 | `activeContent` | ActiveX controls and embedded objects: `'keep'` (the default) or `'block'`. |
+| `readOnly` | Shows the workbook without letting it be changed. See [Read-only workbooks](#read-only-workbooks). Can change while the editor is open. |
 | `recalc` | Live recalculation: `'auto'` (the default) turns it off for workbooks with more than 200,000 formulas or 2 million cells, where people can turn it on; `'on'` and `'off'` force it. |
 
 ## People and language
@@ -94,6 +95,18 @@ Every toolbar action has a flag: **Open** is `open`; **Save** and **Save a copy*
 `features` and [`menus`](/guides/menus-and-shortcuts/) don't overlap. `menus` keeps entries of the cell and heading menus, and their shortcuts; the toolbar's actions and their shortcuts, such as Save with Ctrl+S, undo with Ctrl+Z and the shortcuts list with Ctrl+/, aren't menu entries, so only `features` turns them off. The sheet tab menu isn't one of the menus `menus` trims; `sheetMenus` turns it off whole.
 
 `features` is read when the editor is made; to change it, make the editor again.
+
+## Read-only workbooks
+
+`readOnly: true` shows a workbook as it is, for people who should look at a file but not change it, such as a customer's original. Every edit is refused: typing, pasting, cutting and moving cut cells, filling, dragging cells, inserting and deleting rows, columns and cells, sizes, hiding, grouping, freezing panes, merging, formats, notes and comments, links, sorting, filters, data validation, conditional formats, names, sheets (adding, renaming, deleting, moving, hiding and unhiding), charts, pivot tables, and undoing or redoing earlier edits.
+
+What would make them goes too: the cell and heading menus keep only the entries that don't edit (those whose [`edits`](/guides/menus-and-shortcuts/) is `false`, and plugins' commands), and the shortcuts of the others are off whatever `menus` keeps. The format bar, the schema designer, the buttons beside the sheet tabs, the tab menu, Undo and Redo, and the record buttons are hidden; Find has no Replace; the fill handle and the selection's border can't be dragged, column and row edges can't be resized, and charts, pictures and shapes can't be moved, deleted or edited. These come back when `readOnly` is turned off; `features` itself keeps what you passed.
+
+Selecting, copying, finding, following links, moving between sheets, reading notes and comments, and the switches that only change what is shown (**Exact numbers**, **Highlight changes**) still work. Opening and saving are as `features` has them. A refused edit isn't shown on screen, which would get in the way at every key pressed; screen readers are told the workbook is read-only, at most every few seconds.
+
+Nothing is marked unsaved and nothing is written to [drafts](/guides/opening-and-saving/#drafts), so saving gives back the workbook as it was opened (or, if it was edited before `readOnly` was turned on, as it was then). A draft left from editing the same file before isn't offered back while it is read-only, and is kept for when it isn't.
+
+`readOnly` can change while the editor is open: from `options` with React's hook, `setReadOnly(readOnly)` on the [handle](/guides/events-and-handle/), or the `read-only` attribute or `readOnly` property of [`<workbook-editor>`](/start/web-component/). Turning it on closes any menu or dialog that edits, and an edit being typed is refused when it is entered.
 
 A supplier filling in a template might get:
 

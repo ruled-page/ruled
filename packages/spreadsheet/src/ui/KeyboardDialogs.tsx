@@ -25,7 +25,7 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
               <Icon name="close" />
             </button>
           </div>
-          {shortcuts(t, undefined, (cmd) => shortcutOn(store.menus, cmd)).map((g) => (
+          {shortcuts(t, undefined, (cmd) => shortcutOn(store.menus, cmd, store.readOnly)).map((g) => (
             <table key={g.group}>
               <caption>{g.group}</caption>
               <tbody>

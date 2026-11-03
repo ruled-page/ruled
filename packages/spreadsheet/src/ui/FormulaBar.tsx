@@ -33,7 +33,8 @@ function prompt(t: Translator, title: string | undefined, text: string): string 
 }
 
 export function cellNote(t: Translator, store: WorkbookStore, view: SheetView, sel: Selection): { tone: Tone; text: string } | null {
-  const readOnly = store.features.lockNotes && view.readOnlyReason(sel.row, sel.col);
+  // A read-only workbook doesn't note it at every cell.
+  const readOnly = store.features.lockNotes && !store.readOnly && view.readOnlyReason(sel.row, sel.col);
   if (readOnly) return { tone: 'lock', text: t.text(readOnly) };
   const ctl = store.schema;
   const issues = ctl?.cellIssues(store.active, sel.row, sel.col) ?? [];

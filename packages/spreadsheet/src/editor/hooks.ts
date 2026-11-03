@@ -32,8 +32,8 @@ export interface WorkbookEditorHookOptions extends StoreOptions {
  *
  * - `file` is opened when the editor is ready, and again when it changes.
  *
- * - Theme, language, user, schemas and custom lists follow `options` as they
- *   change, without closing the workbook. A new array or object with the same
+ * - Theme, language, user, schemas, custom lists, menus and read-only mode
+ *   follow `options` as they change, without closing the workbook. A new array or object with the same
  *   entries isn't a change, so they can be written inline.
  * - `onSave`, `onEvent`, `onError` and `onLinkClick` can be new functions on
  *   every render: the editor calls the latest. Whether there's an `onSave` at

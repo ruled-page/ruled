@@ -223,4 +223,5 @@ export const store = {
   'sheet.notWorksheet': 'This sheet cannot be edited here.',
   'sheet.locked': 'This cell is locked: its sheet is protected in Excel.',
   'sheet.mergedPart': 'Part of a merged cell. Edit its top-left cell.',
+  'sheet.readOnly': 'This workbook is read-only.',
 } satisfies Record<string, string>;

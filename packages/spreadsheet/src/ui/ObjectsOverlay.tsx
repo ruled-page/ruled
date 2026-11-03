@@ -172,6 +172,7 @@ export function ObjectsOverlay({
   useEffect(() => handle.subscribe(() => setTick((n) => n + 1)), [handle]);
 
   const layoutVersion = view.layoutVersion;
+  const readOnly = store.readOnly;
   useLayoutEffect(() => {
     const el = host.current;
     const at = handle.view();
@@ -215,11 +216,11 @@ export function ObjectsOverlay({
         clipLeft: scrolls && !at.rtl ? Math.max(0, freezeX - left) : 0,
         clipRight: scrolls && at.rtl ? Math.max(0, left + size.width - freezeX) : 0,
         continued: obj.from.row < firstRow,
-        editable: objectEditable(view.info, obj),
+        editable: !readOnly && objectEditable(view.info, obj),
       });
     });
     setBoxes(out);
-  }, [view, layoutVersion, handle, pane, tick, colVersion]);
+  }, [view, layoutVersion, handle, pane, tick, colVersion, readOnly]);
 
   const selected = boxes.find((b) => b.id === store.selectedObject);
   // A newly selected object's frame takes the keyboard, in the pane that draws the object itself.

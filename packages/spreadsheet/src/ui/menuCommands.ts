@@ -192,8 +192,14 @@ export const SHORTCUT_COMMANDS = Object.keys(SHORTCUT_ENTRIES) as MenuCommandId[
 
 const keeps = (list: readonly string[] | undefined, id: string, within?: string) => !list || list.includes(id) || (!!within && list.includes(within));
 
-/** Whether the shortcut of a menu entry works with these menu options. */
-export function shortcutOn(menus: MenuOptions | undefined, id: MenuCommandId): boolean {
+/** Whether a menu entry stays in a read-only workbook: a built-in one that doesn't edit it, or a plugin's. */
+export function viewOnly(id: string): boolean {
+  return !(MENU_COMMANDS as Record<string, MenuCommandInfo>)[id]?.edits;
+}
+
+/** Whether the shortcut of a menu entry works with these menu options; in a read-only workbook, only those of entries that don't edit it do. */
+export function shortcutOn(menus: MenuOptions | undefined, id: MenuCommandId, readOnly = false): boolean {
+  if (readOnly && !viewOnly(id)) return false;
   const at = SHORTCUT_ENTRIES[id];
   if (!menus || !at) return true;
   return !!menus.shortcuts?.includes(id) || keeps(menus.cell, id, at.cell) || (at.header !== false && keeps(menus.header, id, at.header));

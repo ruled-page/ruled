@@ -122,6 +122,10 @@ export interface EditorHandle {
   setCustomLists(lists: string[][] | undefined): void;
   /** Changes which menu entries and shortcuts are kept, as the `menus` option gives them. */
   setMenus(menus: MenuOptions | undefined): void;
+  /** Makes the workbook read-only, or editable again, as the `readOnly` option does. */
+  setReadOnly(readOnly: boolean): void;
+  /** Whether the workbook is read-only. */
+  readonly readOnly: boolean;
   /** Whether a workbook is open, opening or couldn't be opened. */
   readonly status: 'empty' | 'loading' | 'ready' | 'error';
   /** The open workbook's file name. */
@@ -198,6 +202,10 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     setUser: (user) => store.setUser(user),
     setCustomLists: (lists) => store.setCustomLists(lists),
     setMenus: (menus) => store.setMenus(menus),
+    setReadOnly: (readOnly) => store.setReadOnly(readOnly),
+    get readOnly() {
+      return store.readOnly;
+    },
     get status() {
       return store.status;
     },

@@ -134,8 +134,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
   if (painter.current && cellsKey.some((k, i) => k !== lastKey.current[i])) painter.current.reset();
   lastKey.current = cellsKey;
 
-  /** Whether cells can be resized, filled and moved: not on a protected sheet. */
-  const editable = view.info.kind === 'worksheet' && !view.info.protected;
+  /** Whether cells can be resized, filled and moved: not on a protected sheet, nor in a read-only workbook. */
+  const editable = view.info.kind === 'worksheet' && !view.info.protected && !store.readOnly;
 
   /** What the painter draws from, as the grid now is. */
   const inputFor = (layout: Layout): PaintInput => {
@@ -454,6 +454,8 @@ export function SheetSurface({ store, view, dataVersion, schemaVersion, selectio
    * A cell that can't be edited says why instead.
    */
   const startEdit = (typed?: string) => {
+    // A read-only workbook doesn't say so on screen for every key typed.
+    if (store.refused()) return;
     const sel = store.selection;
     const m = view.mergeAt(sel.row, sel.col);
     const row = m?.r1 ?? sel.row;

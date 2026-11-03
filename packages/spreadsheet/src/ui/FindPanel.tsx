@@ -13,7 +13,9 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
   const t = useT();
   const [text, setText] = useState('');
   const [replacement, setReplacement] = useState('');
-  const [replacing, setReplacing] = useState(false);
+  const [replaceShown, setReplacing] = useState(false);
+  // Nothing is replaced in a read-only workbook.
+  const replacing = replaceShown && !store.readOnly;
   const [matchCase, setMatchCase] = useState(false);
   const [wholeCell, setWholeCell] = useState(false);
   const [lookIn, setLookIn] = useState<FindQuery['lookIn']>('values');
@@ -90,9 +92,11 @@ export function FindPanel({ store }: { store: WorkbookStore }) {
       }}
     >
       <div className="wbe-find-row">
-        <button className="wbe-btn wbe-icon wbe-small" onClick={() => setReplacing(!replacing)} aria-label={t(replacing ? 'find.hideReplace' : 'find.showReplace')} title={t('find.replace')}>
-          <Icon name={replacing ? 'minus' : 'plus'} size={14} />
-        </button>
+        {!store.readOnly && (
+          <button className="wbe-btn wbe-icon wbe-small" onClick={() => setReplacing(!replacing)} aria-label={t(replacing ? 'find.hideReplace' : 'find.showReplace')} title={t('find.replace')}>
+            <Icon name={replacing ? 'minus' : 'plus'} size={14} />
+          </button>
+        )}
         <input ref={input} placeholder={t('find.find')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('find.find')} />
         <span className="wbe-find-count" aria-live="polite">
           {text ? (hits.length ? t('find.position', { at: at >= 0 ? t.number(at + 1) : '–', total: hits.length }) : t('find.noMatches')) : ''}

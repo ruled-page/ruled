@@ -22,7 +22,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `freeze({ rows, cols, sheet? })` | Freezes the top `rows` and left `cols` of the active sheet, or of the sheet named by `sheet`, for viewing only. It is not a change to the file: no undo step, the workbook isn't marked unsaved, and saving writes the file's own panes. `{ rows: 0, cols: 0 }` shows the file's own panes again. It lasts until the file is opened again; freezing or unfreezing from the menu changes the file as usual and replaces it on that sheet. `viewport` follows it. `false` when no workbook is open or `sheet` names none. |
 | `discardDraft()` | Deletes the [draft](/guides/opening-and-saving/#drafts) kept in the browser for the open file, and changes nothing else: edits made afterwards are drafted as usual. |
 | `registerSchema(schema)`, `removeSchema(id)` | Add or remove a schema while the editor is open. |
-| `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)`, `setMenus(menus)` | Change these without closing the workbook. |
+| `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)`, `setMenus(menus)`, `setReadOnly(readOnly)` | Change these without closing the workbook. |
 | `subscribe(listener)` | Calls `listener` when the properties below change, `selection` and `viewport` included. Returns a function that stops it. |
 | `destroy()` | Stops the editor and its worker. |
 
@@ -34,6 +34,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `fileName` | The open workbook's name. |
 | `editedCount` | How many cells differ from the file as opened. |
 | `unsaved` | Whether there are edits your app hasn't received through a save. |
+| `readOnly` | Whether the workbook is [read-only](/guides/options-and-features/#read-only-workbooks). |
 | `selection` | `{ sheet, active, ranges }`: the sheet shown, its active cell and its selected ranges in A1 style, such as `{ sheet: 'Prices', active: 'C4', ranges: ['B2:C4'] }`. |
 | `viewport` | `{ sheet, row, col, cell }`: the first row and column in view below and right of any frozen panes, wholly or in part, numbered as in A1 (row 1 is 1, column A is 1), and that cell, such as `'C10'`. |
 

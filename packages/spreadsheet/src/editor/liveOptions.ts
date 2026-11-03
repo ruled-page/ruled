@@ -2,7 +2,7 @@ import type { StoreOptions } from '../state/store';
 import type { EditorHandle } from './handle';
 
 /** Options an open editor takes as they change, without closing its workbook. */
-export const LIVE_OPTIONS: readonly (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas', 'customLists', 'menus'];
+export const LIVE_OPTIONS: readonly (keyof StoreOptions)[] = ['theme', 'language', 'user', 'schemas', 'customLists', 'menus', 'readOnly'];
 
 /** Equal, or arrays and plain objects whose entries are (lists in them one level deeper), so a new literal of the same values isn't a change. */
 function same(a: unknown, b: unknown, depth = 0): boolean {
@@ -21,8 +21,8 @@ export function changedOptions(before: StoreOptions, next: StoreOptions): (keyof
 }
 
 /**
- * Gives an open editor the theme, language, user, schemas, custom lists and
- * menus of `next` where they differ from `before`; schemas no longer listed are
+ * Gives an open editor the theme, language, user, schemas, custom lists,
+ * menus and read-only mode of `next` where they differ from `before`; schemas no longer listed are
  * removed. Other options aren't touched: they're read when an editor is made.
  */
 export function applyLiveOptions(handle: EditorHandle, before: StoreOptions, next: StoreOptions, changed = changedOptions(before, next)): void {
@@ -31,6 +31,7 @@ export function applyLiveOptions(handle: EditorHandle, before: StoreOptions, nex
   if (changed.includes('user')) handle.setUser(next.user);
   if (changed.includes('customLists')) handle.setCustomLists(next.customLists);
   if (changed.includes('menus')) handle.setMenus(next.menus);
+  if (changed.includes('readOnly')) handle.setReadOnly(!!next.readOnly);
   if (changed.includes('schemas')) {
     const ids = new Set((next.schemas ?? []).map((s) => s.id));
     for (const s of before.schemas ?? []) if (!ids.has(s.id)) handle.removeSchema(s.id);

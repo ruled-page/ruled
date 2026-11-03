@@ -197,7 +197,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
       if (key === 's' && store.features.save) {
         e.preventDefault();
         void store.savePrimary();
-      } else if (key === 'f' && !store.designerOpen && shortcutOn(store.menus, 'menu.find')) {
+      } else if (key === 'f' && !store.designerOpen && shortcutOn(store.menus, 'menu.find', store.readOnly)) {
         e.preventDefault();
         store.set('findOpen', true);
       } else if (!isTextField(e.target) && !store.confirmRequest && !store.designerOpen) {

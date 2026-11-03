@@ -24,7 +24,7 @@ export type FilterButton = NonNullable<WorkbookStore['filterPicker']>;
 export function editorKey(store: WorkbookStore, e: GridKey, filterButton: (row: number, col: number) => FilterButton | undefined): boolean {
   const sel = store.selection;
   // An entry's shortcut is off with the entry, as the `menus` option keeps it; the key is then the browser's.
-  const on = (id: MenuCommandId) => shortcutOn(store.menus, id);
+  const on = (id: MenuCommandId) => shortcutOn(store.menus, id, store.readOnly);
   const plain = !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
   // Space ticks or unticks the selection's checkboxes.
   if (e.key === ' ' && plain && store.checkboxAt(sel.row, sel.col) !== undefined) {

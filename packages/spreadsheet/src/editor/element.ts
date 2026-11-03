@@ -98,6 +98,8 @@ export interface WorkbookEditorElement extends HTMLElement {
   setUser(user: string | undefined): void;
   setCustomLists(lists: string[][] | undefined): void;
   setMenus(menus: MenuOptions | undefined): void;
+  /** Whether the workbook is read-only: the `read-only` attribute, or the `readOnly` option. Setting it changes the option without re-creating the editor. */
+  readOnly: boolean;
   readonly status: EditorHandle['status'];
   readonly fileName: string;
   /** Where the open workbook came from, when a plugin's file source opened it. */
@@ -121,9 +123,10 @@ declare global {
 /**
  * Defines <workbook-editor>, usable from any framework or plain HTML.
  *
- * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
+ * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`,
  * `save-handler="event"` to receive saves as `save` events instead of a
- * download. Properties: `options` (editor options).
+ * download, and `read-only` to show the workbook without letting it be
+ * changed. Properties: `options` (editor options) and `readOnly`.
  * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), freeze(), whenReady(), discardDraft(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
@@ -136,7 +139,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
   if (customElements.get(tagName)) return;
 
   class Editor extends HTMLElement implements WorkbookEditorElement {
-    static observedAttributes = ['src'];
+    static observedAttributes = ['src', 'read-only'];
     private opts: StoreOptions = {};
     private handle?: EditorHandle;
     private unsubscribe?: () => void;
@@ -181,6 +184,8 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       const changed = changedOptions(before, next);
       if (changed.every((k) => LIVE_OPTIONS.includes(k))) {
         applyLiveOptions(this.handle, before, next, changed);
+        // The `read-only` attribute keeps it read-only whatever the options say.
+        if (changed.includes('readOnly')) this.handle.setReadOnly(this.readOnly);
         return;
       }
       this.end();
@@ -199,6 +204,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
       const viaEvent = this.getAttribute('save-handler') === 'event';
       this.handle = mount(this.container, {
         ...this.opts,
+        readOnly: this.readOnly,
         onSave: viaEvent ? (file) => this.emitSave(file) : this.opts.onSave,
         onError: (error) => {
           this.fail(error.message);
@@ -252,6 +258,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     attributeChangedCallback(name: string, oldValue: string | null, value: string | null): void {
       if (name === 'src' && value && value !== oldValue && this.handle) void this.load(value);
+      if (name === 'read-only') this.handle?.setReadOnly(this.readOnly);
     }
 
     private fail(message: string): void {
@@ -375,6 +382,17 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     setMenus(menus: MenuOptions | undefined): void {
       this.opts = { ...this.opts, menus };
       this.handle?.setMenus(menus);
+    }
+
+    get readOnly(): boolean {
+      return this.hasAttribute('read-only') || !!this.opts.readOnly;
+    }
+
+    set readOnly(value: boolean) {
+      this.opts = { ...this.opts, readOnly: !!value };
+      // The attribute follows, so either can turn it off again.
+      if (!value && this.hasAttribute('read-only')) this.removeAttribute('read-only');
+      else this.handle?.setReadOnly(!!value);
     }
 
     get status(): EditorHandle['status'] {

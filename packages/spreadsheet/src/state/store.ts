@@ -415,6 +415,16 @@ export interface StoreOptions {
    * Can change while the editor is open.
    */
   menus?: MenuOptions;
+  /**
+   * Shows the workbook without letting it be changed: typing, pasting,
+   * cutting, filling, dragging cells, formats, notes, rows and columns,
+   * sheets, charts, pivot tables, filters and undoing earlier edits are all
+   * refused, and the menu entries, toolbar buttons and shortcuts that would
+   * make them are gone. Selecting, copying, finding and moving around still
+   * work, and saving gives back the workbook unchanged. Refused edits are
+   * said to screen readers, not shown. Can change while the editor is open.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -433,6 +443,33 @@ export type EditorEvent =
   | { type: 'pluginError'; plugin: string; message: string }
   /** The workbook was written to a plugin's file source: saved back over its file, or as a copy. */
   | { type: 'savedToSource'; source: string; name: string; ms: number };
+
+/** The store's dialogs, menus and modes that edit the workbook, which don't open while it is read-only. */
+const EDITING_UI = [
+  'filterPicker',
+  'conditionDialog',
+  'touchFill',
+  'columnWidthFor',
+  'rowHeightFor',
+  'sheetMenu',
+  'renameSheetFor',
+  'unhideOpen',
+  'nameDialog',
+  'nameManagerOpen',
+  'linkDialog',
+  'seriesDialog',
+  'cfDialog',
+  'cfManager',
+  'cfGallery',
+  'validationDialog',
+  'sortDialog',
+  'chartDialog',
+  'pivotDialog',
+  'numberFormatOpen',
+  'cellsDialog',
+  'designerOpen',
+  'schemaDraft',
+] as const;
 
 /** Default for StoreOptions.workerTimeout. */
 const WORKER_TIMEOUT = 120_000;
@@ -779,14 +816,68 @@ export class WorkbookStore {
   /** Bumped whenever cell values change, so formula-based lists are re-evaluated. */
   private dataVersion = 0;
 
-  readonly features: EditorFeatures;
+  /** The `features` option, with every one left out on. */
+  private readonly hostFeatures: EditorFeatures;
+  private readOnlyFeatures?: EditorFeatures;
+
+  /** The parts of the UI shown: the `features` option, less those that edit while the workbook is read-only. */
+  get features(): EditorFeatures {
+    if (!this.readOnly) return this.hostFeatures;
+    return (this.readOnlyFeatures ??= {
+      ...this.hostFeatures,
+      format: false,
+      schemas: false,
+      sheetTabButtons: false,
+      sheetMenus: false,
+      undoButtons: false,
+      recordButtons: false,
+    });
+  }
+
+  /** Whether the workbook can't be changed, as the `readOnly` option says. */
+  get readOnly(): boolean {
+    return !!this.options.readOnly;
+  }
+
+  /** Makes the workbook read-only, or editable again, while it is open. */
+  setReadOnly(readOnly: boolean): void {
+    if (readOnly === this.readOnly) return;
+    this.options.readOnly = readOnly;
+    if (readOnly) {
+      // Nothing cut can be moved any more, and the menus and dialogs that edit close.
+      if (this.clip?.cut) this.clip = undefined;
+      this.menu = undefined;
+      const self = this as unknown as Record<string, unknown>;
+      for (const key of EDITING_UI) self[key] = typeof self[key] === 'boolean' ? false : undefined;
+      if (this.panel === 'pivot') this.panel = null;
+    }
+    this.notify();
+  }
+
+  /** When a refused edit was last said, so holding a key down doesn't say it for every press. */
+  private refusedAt = 0;
+
+  /**
+   * Whether an edit is refused because the workbook is read-only. It is said
+   * to screen readers, at most every few seconds; a message on screen for
+   * each key pressed would only get in the way of reading.
+   */
+  refused(): boolean {
+    if (!this.readOnly) return false;
+    const now = Date.now();
+    if (now - this.refusedAt > 3000) {
+      this.refusedAt = now;
+      this.announce(msg('sheet.readOnly'));
+    }
+    return true;
+  }
 
   constructor(options: StoreOptions = {}) {
     // A copy: changing the theme or user later doesn't touch the host's object.
     this.options = { ...options };
     this.schemas = [...(options.schemas ?? [])];
     for (const s of this.schemas) this.hostSchemas.set(s.id, s);
-    this.features = {
+    this.hostFeatures = {
       open: true,
       save: true,
       download: true,
@@ -1333,7 +1424,10 @@ export class WorkbookStore {
       for (const url of this.pictures.values()) void url.then((u) => u && URL.revokeObjectURL(u));
       this.pictures = new Map();
       this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
-      for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+      for (const v of this.sheets) {
+      v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+      v.workbookReadOnly = () => this.readOnly;
+    }
       this.names = r.names;
       this.styles = r.styles;
       this.findings = r.findings;
@@ -1373,7 +1467,8 @@ export class WorkbookStore {
       return { opened: false, error };
     }
     this.emit({ type: 'opened', fileName, ms: Math.round(performance.now() - started), sheets: this.sheets.length });
-    if (key && this.draftKey === key) await this.offerDraft(key);
+    // A read-only workbook is shown as it was opened; its draft is kept for when it isn't.
+    if (key && this.draftKey === key && !this.readOnly) await this.offerDraft(key);
     return { opened: true };
   }
 
@@ -1754,6 +1849,7 @@ export class WorkbookStore {
     record: 'undo' | 'none' | 'merge' = 'undo',
     opts: { label?: Text; replay?: boolean; announce?: Text; history?: false } = {},
   ): Promise<EditResult | undefined> {
+    if (this.refused()) return Promise.resolve(undefined);
     const run = async () => {
       this.busy = true;
       this.notify();
@@ -1901,6 +1997,7 @@ export class WorkbookStore {
   }
 
   async undo(): Promise<void> {
+    if (this.refused()) return;
     await this.queue;
     const entry = this.undoStack.pop();
     if (!entry) return;
@@ -1924,6 +2021,7 @@ export class WorkbookStore {
   }
 
   async redo(): Promise<void> {
+    if (this.refused()) return;
     await this.queue;
     const entry = this.redoStack.pop();
     if (!entry) return;
@@ -1955,6 +2053,7 @@ export class WorkbookStore {
    * was refused.
    */
   restructure(op: WorkbookOp, opts: { replay?: boolean } = {}): Promise<boolean> {
+    if (this.refused()) return Promise.resolve(false);
     const run = async () => {
       if (this.status !== 'ready') return false;
       this.busy = true;
@@ -2046,7 +2145,10 @@ export class WorkbookStore {
     });
     this.sheets = r.sheets.map((info, i) => new SheetView(info, r.grids[i]));
     for (const [i, f] of freezes) this.sheets[i]?.viewFreeze(f);
-    for (const v of this.sheets) v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+    for (const v of this.sheets) {
+      v.isUnlocked = (style) => !!this.styles[style]?.unlocked;
+      v.workbookReadOnly = () => this.readOnly;
+    }
     this.names = r.names;
     this.styles = r.styles;
     this.date1904 = r.date1904;
@@ -2186,6 +2288,7 @@ export class WorkbookStore {
    * others move.
    */
   changeCells(kind: 'insert' | 'delete'): void {
+    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     if (view.info.protected) return this.toast('warn', msg('core.reason.protected'));
@@ -2239,6 +2342,7 @@ export class WorkbookStore {
 
   /** Makes a change to the sheets, or shows why it can't be made. */
   private changeSheets(op: SheetOp): Promise<boolean> {
+    if (this.refused()) return Promise.resolve(false);
     const problem = this.sheetProblem(op);
     if (!problem) return this.restructure(op);
     this.toast('error', problem);
@@ -2257,6 +2361,7 @@ export class WorkbookStore {
 
   /** Deletes a sheet, asking first unless it is empty, as Excel does. */
   async deleteSheet(sheet: number): Promise<boolean> {
+    if (this.refused()) return false;
     const op: SheetOp = { type: 'deleteSheet', sheet };
     const problem = this.sheetProblem(op);
     if (problem) {
@@ -2341,6 +2446,7 @@ export class WorkbookStore {
 
   /** Hides the selected rows or columns. */
   async hideLines(axis: 'rows' | 'cols'): Promise<void> {
+    if (this.refused()) return;
     const lines = this.selectedLines(axis);
     const op: LayoutOp = { kind: 'hidden', axis, lines: Object.fromEntries(lines.map((l) => [l, true])) };
     await this.changeLayout(op, msg(axis === 'rows' ? 'store.history.hideRows' : 'store.history.hideColumns', { count: lines.length }));
@@ -2352,6 +2458,7 @@ export class WorkbookStore {
    * can't be selected around, can still be shown.
    */
   async unhideLines(axis: 'rows' | 'cols'): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const hidden = new Set(axis === 'rows' ? view.info.hiddenRows : view.info.hiddenCols);
@@ -2382,6 +2489,7 @@ export class WorkbookStore {
    * row, or the first column, so they stay in view; "none" unfreezes.
    */
   async freezePanes(at: 'cell' | 'topRow' | 'firstColumn' | 'none'): Promise<void> {
+    if (this.refused()) return;
     // A change to the file's panes replaces a host's view-only freeze on the sheet.
     this.view?.viewFreeze(undefined);
     const { row, col } = this.selection;
@@ -2413,6 +2521,7 @@ export class WorkbookStore {
    * cell's value stays, so it asks first when others hold something.
    */
   async mergeCells(): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const rect = this.mergeTarget();
     if (!view || !rect || (rect.r1 === rect.r2 && rect.c1 === rect.c2)) return;
@@ -2433,6 +2542,7 @@ export class WorkbookStore {
 
   /** Splits merged cells in the selection back into their cells. */
   async unmergeCells(): Promise<void> {
+    if (this.refused()) return;
     const remove = this.mergesInSelection();
     if (remove.length) await this.changeLayout({ kind: 'merges', add: [], remove }, msg('store.history.unmerge'));
   }
@@ -2443,11 +2553,12 @@ export class WorkbookStore {
   /** Whether the active sheet's rows (or columns) can't be grouped, hidden or shown: Excel's protection doesn't let them be formatted. */
   outlineLocked(axis: Axis): boolean {
     const info = this.view?.info;
-    return !info || info.kind !== 'worksheet' || (info.protected && !info.formatAllowed?.[axis]);
+    return this.readOnly || !info || info.kind !== 'worksheet' || (info.protected && !info.formatAllowed?.[axis]);
   }
 
   /** Makes a change to the active sheet's outline as one undoable step, then keeps the active cell where it shows. */
   private async changeOutline(axis: Axis, change: OutlineChange | { refused: Text }, label: Text, near?: number): Promise<void> {
+    if (this.refused()) return;
     if ('refused' in change) return this.toast('warn', change.refused);
     // A group that ends the sheet has no line after it to mark.
     const last = axis === 'rows' ? MAX_ROWS : MAX_COLS;
@@ -2525,6 +2636,7 @@ export class WorkbookStore {
 
   /** Collapses a group if any of it shows, else expands it, as its button does. */
   async toggleGroup(axis: Axis, g: OutlineGroup): Promise<void> {
+    if (this.refused()) return;
     const o = this.view?.info.outline?.[axis];
     const open = this.groupShown(axis, g);
     const change = open ? collapseGroup(o, this.hiddenLines(axis), g) : expandGroup(o, this.hiddenLines(axis), g);
@@ -2541,17 +2653,20 @@ export class WorkbookStore {
 
   /** Collapses (or expands) the group at the active cell, as Excel's Hide detail and Show detail do. */
   async showDetail(axis: Axis, show: boolean): Promise<void> {
+    if (this.refused()) return;
     const g = this.detailGroup(axis, show);
     if (g) await this.toggleGroup(axis, g);
   }
 
   /** Shows the active sheet's outline to level n, as Excel's level buttons do. */
   async showOutlineLevel(axis: Axis, level: number): Promise<void> {
+    if (this.refused()) return;
     await this.changeOutline(axis, showLevel(this.view?.info.outline?.[axis], this.hiddenLines(axis), level), msg('outline.history.level', { level }));
   }
 
   /** Takes every row (or column) of the active sheet out of its groups. */
   async clearOutline(axis: Axis): Promise<void> {
+    if (this.refused()) return;
     await this.changeOutline(axis, clearOutline(this.view?.info.outline?.[axis]), msg('outline.history.clear'));
   }
 
@@ -2567,6 +2682,7 @@ export class WorkbookStore {
 
   /** Changes the selected cells' formats, as one undoable step. */
   async formatCells(change: FormatChange, opts: { borders?: { where: BorderPlacement; edge?: BorderEdge }; clear?: boolean } = {}): Promise<void> {
+    if (this.refused()) return;
     if (!this.view) return;
     const rects = this.selection.rects.length ? this.selection.rects : [{ r1: this.selection.row, c1: this.selection.col, r2: this.selection.row, c2: this.selection.col }];
     const label = msg(opts.clear ? 'store.history.clearFormats' : 'store.history.format');
@@ -2650,6 +2766,7 @@ export class WorkbookStore {
    * cells take its Hyperlink look.
    */
   async setLink(link: LinkFields, text?: string): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const rects = this.linkRects();
@@ -2674,6 +2791,7 @@ export class WorkbookStore {
    * a link lose its look.
    */
   async removeLinks(): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const rects = this.linkRects();
     const change = view && replaceLinks(view.info.links, rects);
@@ -2787,6 +2905,7 @@ export class WorkbookStore {
    * selected, only when it looks like headings, as Excel judges it.
    */
   sort(descending: boolean, col = this.selection.col): Promise<EditResult | undefined> {
+    if (this.refused()) return Promise.resolve(undefined);
     const rect = this.dataRegion();
     if (!rect || rect.r2 <= rect.r1) {
       this.toast('info', msg('store.sort.noData'));
@@ -2845,12 +2964,14 @@ export class WorkbookStore {
 
   /** Opens Excel's Sort dialog for the block around the selection, if there is one. */
   openSortDialog(): void {
+    if (this.refused()) return;
     const setup = this.sortSetup();
     if (setup) this.set('sortDialog', setup);
   }
 
   /** Sorts as Excel's Sort dialog does: by one level after another, down the rows or across the columns. */
   sortBy(sort: { rect: Rect; keys: SortKey[]; header: boolean; caseSensitive: boolean; across: boolean }): Promise<EditResult | undefined> {
+    if (this.refused()) return Promise.resolve(undefined);
     return this.edit({ type: 'sort', sheet: this.active, ...sort, header: sort.header && !sort.across });
   }
 
@@ -3033,6 +3154,7 @@ export class WorkbookStore {
   }
 
   private async filterColumn(rect: Rect, col: number, pick: { values: Set<string> } | { condition: FilterCondition } | undefined): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
@@ -3076,6 +3198,7 @@ export class WorkbookStore {
 
   /** Shows every row again, as Excel's Clear does, keeping the filter's buttons. */
   async clearFilter(): Promise<void> {
+    if (this.refused()) return;
     const f = this.view?.filter;
     if (!f || f.kept || !this.view?.filtering) return;
     const filter: FilterState = { rect: f.rect, columns: {}, ...(f.table ? { table: f.table } : {}) };
@@ -3088,6 +3211,7 @@ export class WorkbookStore {
    * has them, off again with every row shown. A table keeps its own buttons.
    */
   async toggleFilter(): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     const { row, col } = this.selection;
@@ -3135,6 +3259,7 @@ export class WorkbookStore {
 
   /** Replaces the search text in matching cells' contents (formulas included). Resolves to how many cells changed. */
   async replace(q: FindQuery, replacement: string, only?: { sheet: number; row: number; col: number }): Promise<number> {
+    if (this.refused()) return 0;
     const hits = only ? [only] : this.find({ ...q, lookIn: 'formulas' });
     const pattern = parsePattern(q.matchCase ? q.text : q.text.toLowerCase());
     /** Every match in the text replaced, left to right, as the search finds them. */
@@ -3198,6 +3323,7 @@ export class WorkbookStore {
 
   /** Sets a column's width, in characters, and the other selected columns' if it is one of them. */
   async setColumnWidth(col: number, chars: number): Promise<void> {
+    if (this.refused()) return;
     if (!this.view || !(chars >= 0)) return;
     await this.resizeLines('cols', col, Math.min(2000, Math.round(chars * 7)));
   }
@@ -3209,6 +3335,7 @@ export class WorkbookStore {
 
   /** Sets a row's height, in points, and the other selected rows' if it is one of them. */
   async setRowHeight(row: number, points: number): Promise<void> {
+    if (this.refused()) return;
     if (!this.view || !(points >= 0)) return;
     await this.resizeLines('rows', row, Math.min(546, Math.round((points * 4) / 3)));
   }
@@ -3218,6 +3345,7 @@ export class WorkbookStore {
    * grid shows it already. The other selected columns take it too.
    */
   resizedColumn(col: number, px: number): Promise<void> {
+    if (this.refused()) return Promise.resolve();
     return this.resizeLines('cols', col, Math.round(px));
   }
 
@@ -3230,6 +3358,7 @@ export class WorkbookStore {
    * otherwise just `line`; the selected lines without one.
    */
   async autofit(axis: 'rows' | 'cols', line?: number): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const selected = this.selectedLines(axis);
@@ -3253,6 +3382,7 @@ export class WorkbookStore {
 
   /** Sets a row's height, and the other selected rows', dragged to in the grid. */
   resizedRow(row: number, px: number): Promise<void> {
+    if (this.refused()) return Promise.resolve();
     return this.resizeLines('rows', row, Math.min(546, Math.round(px)));
   }
 
@@ -3309,6 +3439,7 @@ export class WorkbookStore {
 
   /** Adds, changes or deletes a defined name, as one step to undo. */
   changeName(change: NameChange, label: Text): Promise<EditResult | undefined> {
+    if (this.refused()) return Promise.resolve(undefined);
     return this.edit({ type: 'name', change }, 'undo', { label });
   }
 
@@ -3379,6 +3510,7 @@ export class WorkbookStore {
 
   /** Pastes from the menu. Browsers ask permission to read the clipboard this way; the keyboard doesn't need it. */
   async pasteFromClipboard(): Promise<void> {
+    if (this.refused()) return;
     const sel = this.selection;
     const rect = sel.rects[0] ?? { r1: sel.row, c1: sel.col, r2: sel.row, c2: sel.col };
     let text: string | undefined;
@@ -3403,6 +3535,7 @@ export class WorkbookStore {
    * and turning on its side are what can be pasted from there.
    */
   async pasteSpecial(what: PastePart, transpose = false): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const clip = this.clip;
     const sel = this.selection;
@@ -3507,6 +3640,7 @@ export class WorkbookStore {
    * something, as Excel does. Resolves true if the cells were moved or copied.
    */
   async dragSelection(row: number, col: number, copy: boolean): Promise<boolean> {
+    if (this.refused()) return false;
     const view = this.view;
     const src = this.selection.rects[0];
     if (!view || !src || this.selection.rects.length !== 1 || (row === src.r1 && col === src.c1)) return false;
@@ -3532,6 +3666,7 @@ export class WorkbookStore {
    * right) make room for them, and the cells after where they were close up.
    */
   dragInsert(row: number, col: number, shift: 'down' | 'right'): Promise<boolean> {
+    if (this.refused()) return Promise.resolve(false);
     const src = this.selection.rects[0];
     if (!src || this.selection.rects.length !== 1) return Promise.resolve(false);
     // Dropped on the edge they already have, nothing moves.
@@ -3560,6 +3695,7 @@ export class WorkbookStore {
   }
 
   private async typed(row: number, col: number, text: string): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const reason = view.readOnlyReason(row, col);
@@ -3588,6 +3724,7 @@ export class WorkbookStore {
   }
 
   async clear(rects: Rect[]): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     // Excel's Delete unticks ticked checkboxes first; with none ticked, it takes the checkboxes away too.
@@ -3617,6 +3754,7 @@ export class WorkbookStore {
 
   /** Excel's Refresh (the active sheet's pivot tables) or Refresh All (every sheet's): each worked out again from its source, as one step. */
   async refreshPivots(all = false): Promise<void> {
+    if (this.refused()) return;
     await this.edit({ type: 'refreshPivots', ...(!all && { sheet: this.active }) }, 'undo', { label: msg('store.history.refreshPivots') });
   }
 
@@ -3637,6 +3775,7 @@ export class WorkbookStore {
 
   /** Opens Insert PivotTable over the table the active cell is in, the cells selected, or the data around the active cell. */
   openInsertPivot(): void {
+    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     const { row, col } = this.selection;
@@ -3655,6 +3794,7 @@ export class WorkbookStore {
    * pane opens beside it. Resolves false if it wasn't inserted.
    */
   async insertPivot(source: string, location?: string): Promise<boolean> {
+    if (this.refused()) return false;
     let at = { row: 2, col: 0 };
     if (location === undefined) {
       if (!(await this.addSheet(this.active))) return false;
@@ -3683,11 +3823,13 @@ export class WorkbookStore {
 
   /** Excel's Show Field List: the PivotTable Fields pane, beside the sheet. */
   showFieldList(): void {
+    if (this.refused()) return;
     this.set('panel', 'pivot');
   }
 
   /** Sets a pivot table's fields, as Excel's PivotTable Fields pane does, and lays it out again. One undoable step. */
   async setPivotFields(path: string, setup: PivotSetup): Promise<void> {
+    if (this.refused()) return;
     const pivot = this.view?.info.pivots?.find((p) => p.path === path);
     if (!pivot || pivot.kept) return;
     await this.changeLayout({ kind: 'pivot', path, setup }, msg('pivot.history.fields', { name: pivot.name }));
@@ -3702,6 +3844,7 @@ export class WorkbookStore {
    * right of the data, level with its top. One undoable step.
    */
   async insertChart(kind: NewChartKind): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     const sel = this.selection.rects[0];
@@ -3728,7 +3871,7 @@ export class WorkbookStore {
   /** The active sheet's objects that can be moved, resized and deleted, in the order Tab goes through them. */
   editableObjects(): SheetObject[] {
     const view = this.view;
-    return view ? view.info.objects.filter((o) => objectEditable(view.info, o)) : [];
+    return view && !this.readOnly ? view.info.objects.filter((o) => objectEditable(view.info, o)) : [];
   }
 
   /**
@@ -3736,6 +3879,7 @@ export class WorkbookStore {
    * as dragging it or one of its handles does in Excel. One undoable step.
    */
   async placeObject(key: string, edges: { left: number; top: number; right: number; bottom: number }): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const objects = view?.info.objects ?? [];
     const i = objects.findIndex((o) => objectKey(o) === key);
@@ -3756,6 +3900,7 @@ export class WorkbookStore {
 
   /** Changes a chart as Excel's Change Chart Type, Select Data and chart elements do. One undoable step. */
   async editChart(key: string, edit: ChartEdit): Promise<void> {
+    if (this.refused()) return;
     const obj = this.view?.info.objects.find((o) => objectKey(o) === key);
     if (!obj || !Object.keys(edit).length) return;
     await this.changeLayout({ kind: 'editChart', key, edit, title: this.t('charts.placeholderTitle') }, msg('charts.history.edit', { name: obj.name }));
@@ -3763,6 +3908,7 @@ export class WorkbookStore {
 
   /** Deletes an object, as Delete does with one selected in Excel. One undoable step. */
   async deleteObject(key: string): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const objects = view?.info.objects ?? [];
     const obj = objects.find((o) => objectKey(o) === key);
@@ -3816,6 +3962,7 @@ export class WorkbookStore {
    * the active cell's. False when the cell isn't a checkbox.
    */
   async toggleCheckboxes(at?: { row: number; col: number }): Promise<boolean> {
+    if (this.refused()) return false;
     const view = this.view;
     if (!view) return false;
     const from = at ?? { row: this.selection.row, col: this.selection.col };
@@ -3838,6 +3985,7 @@ export class WorkbookStore {
    * cells gets the format only.
    */
   async insertCheckboxes(): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const s = this.selection;
@@ -3869,7 +4017,8 @@ export class WorkbookStore {
     const style = rec ? (this.styles[rec.style] ?? this.styles[0]) : undefined;
     const raw = rec && style && this.numbers.copy === 'raw' ? exactText(rec, style, false, this.locale) : undefined;
     const first = rec && style ? (raw ?? displayText(rec, style, this.date1904, false, this.locale).text) : '';
-    this.clip = { sheet: this.active, rect, first, cut };
+    // Cells cut from a read-only workbook are only copied: they can't be moved.
+    this.clip = { sheet: this.active, rect, first, cut: cut && !this.readOnly };
     this.notify();
   }
 
@@ -3891,6 +4040,7 @@ export class WorkbookStore {
     exact?: readonly (readonly (number | null)[])[],
     formats?: readonly (readonly (FormatChange | null)[])[],
   ): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const clip = this.clip;
     if (!view || (!values.length && !(ownClipboard && clip))) return;
@@ -4011,6 +4161,7 @@ export class WorkbookStore {
    * above (to the left). Formulas adjust as if copied; series don't extend.
    */
   async fillDown(across = false): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     const rect = this.selection.rects[0];
     if (!view || !rect) return;
@@ -4029,6 +4180,7 @@ export class WorkbookStore {
   }
 
   async fill(src: Rect, dst: Rect): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const h = src.r2 - src.r1 + 1;
@@ -4063,6 +4215,7 @@ export class WorkbookStore {
    * dragging leaves them.
    */
   async fillSeries(series: SeriesOptions): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const sel = this.selection;
@@ -4249,6 +4402,7 @@ export class WorkbookStore {
 
   /** Makes a change to a note or thread on the active sheet, as a step of its own; resolves whether it was made. */
   private async changeComment(row: number, col: number, change: CommentChange, label: MessageKey): Promise<boolean> {
+    if (this.refused()) return false;
     const view = this.view;
     if (!view || this.status !== 'ready') return false;
     const reason = view.commentReadOnlyReason(row, col);
@@ -4343,6 +4497,7 @@ export class WorkbookStore {
    * if so, or a rule and cells without one, taking the rule to them too.
    */
   async openValidationDialog(): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     if (view.info.protected) return this.toast('warn', msg('core.reason.protected'));
@@ -4369,6 +4524,7 @@ export class WorkbookStore {
    * cells keep theirs.
    */
   async setValidation(rects: Rect[], rule: ListValidation | RuleValidation | undefined): Promise<void> {
+    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const cut = <T extends { rects: Rect[] }>(list: T[]) => list.map((v) => ({ ...v, rects: withoutRects(v.rects, rects) })).filter((v) => v.rects.length);
@@ -4392,6 +4548,7 @@ export class WorkbookStore {
 
   /** Opens one of Excel's quick conditional formatting dialogs (Greater Than, Top 10 Items, New Formatting Rule…) for the selection. */
   openCfDialog(kind: CfQuick): void {
+    if (this.refused()) return;
     if (!this.cfLocked()) this.set('cfDialog', { kind, rects: this.selection.rects.map((r) => ({ ...r })) });
   }
 
@@ -4413,16 +4570,19 @@ export class WorkbookStore {
 
   /** Sets the sheet's conditional formatting rules, in order, as one step that undoes at once. */
   async setConditionalFormats(rules: CfRule[], label: Text = msg('cf.history.manage')): Promise<void> {
+    if (this.refused()) return;
     await this.changeLayout({ kind: 'conditionalFormats', rules: rules.map((r, i) => ({ ...r, priority: i + 1 })) }, label);
   }
 
   /** Opens the gallery of Excel's data bars, color scales and icon sets, for the selection. */
   openCfGallery(): void {
+    if (this.refused()) return;
     if (!this.cfLocked()) this.set('cfGallery', { rects: this.selection.rects.map((r) => ({ ...r })) });
   }
 
   /** Opens Excel's Conditional Formatting Rules Manager on the sheet's rules. */
   openCfManager(): void {
+    if (this.refused()) return;
     const view = this.view;
     if (view && !this.cfLocked()) this.set('cfManager', { rules: [...view.info.conditionalFormats] });
   }
@@ -4562,6 +4722,7 @@ export class WorkbookStore {
   }
 
   async insertRecord(): Promise<void> {
+    if (this.refused()) return;
     const target = this.recordTarget;
     if (!target || !this.schema) return;
     const op = this.schema.insertRecord(target.table, target.record);
@@ -4570,6 +4731,7 @@ export class WorkbookStore {
   }
 
   async deleteRecords(): Promise<void> {
+    if (this.refused()) return;
     const target = this.recordTarget;
     if (!target || !this.schema) return;
     const t = target.table;
@@ -4752,6 +4914,8 @@ export class WorkbookStore {
   ): void {
     // The issues panel stays shut when the host turned it off.
     if (key === 'panel' && value === 'issues' && !this.features.issuesPanel) return;
+    // Nothing that edits opens in a read-only workbook.
+    if (value !== undefined && value !== null && value !== false && this.readOnly && (EDITING_UI as readonly string[]).includes(key)) return;
     (this as unknown as Record<string, unknown>)[key] = value;
     this.notify();
   }

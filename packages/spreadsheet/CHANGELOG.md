@@ -12,6 +12,18 @@ before 1.0.0, a minor version may change the API.
   unsaved, and the file keeps its own panes when saved. `{ rows: 0, cols: 0 }`
   shows the file's panes again. Freezing from the menu changes the file as
   before and replaces the view-only freeze on that sheet.
+- `readOnly: true` shows a workbook without letting it be changed. Every
+  edit is refused (typing, paste, cut, fill, dragging cells, rows and
+  columns, formats, notes, links, sorting and filters, sheets, charts, pivot
+  tables, and undo and redo of earlier edits); the cell and heading menus
+  keep only the entries whose `edits` is false, the other entries' shortcuts
+  are off, and the format bar, schema designer, sheet tab buttons and menus,
+  Undo and Redo and the record buttons are hidden, without changing
+  `features`. Selecting, copying, finding and moving around still work.
+  Refused edits are said to screen readers, not shown; nothing is marked
+  unsaved or drafted. It can change while the editor is open: through
+  `options`, `handle.setReadOnly()`, and on `<workbook-editor>` the
+  `read-only` attribute or `readOnly` property.
 - More of the editor's interface can be turned off with `features`, so
   hosts needn't hide it with CSS or block its events: `titleBar`,
   `statusBar`, `sheetTabButtons` (New sheet and the sheet menu button),

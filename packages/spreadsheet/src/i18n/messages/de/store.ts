@@ -230,4 +230,5 @@ export const store: Record<keyof typeof en, string> = {
   'sheet.notWorksheet': 'Dieses Blatt kann hier nicht bearbeitet werden.',
   'sheet.locked': 'Diese Zelle ist gesperrt: Ihr Tabellenblatt ist in Excel geschützt.',
   'sheet.mergedPart': 'Teil einer verbundenen Zelle. Bearbeiten Sie die Zelle oben links.',
+  'sheet.readOnly': 'Diese Arbeitsmappe ist schreibgeschützt.',
 };

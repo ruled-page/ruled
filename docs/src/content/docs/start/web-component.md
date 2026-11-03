@@ -38,12 +38,15 @@ The standalone build defines a `<workbook-editor>` element. Set its `options`, g
 | --- | --- |
 | `src` | A workbook's URL. The element fetches and opens it, and opens it again when it changes. |
 | `save-handler="event"` | Saving fires a `save` event with the workbook, instead of downloading the file. |
+| `read-only` | Shows the workbook without letting it be changed, as the [`readOnly` option](/guides/options-and-features/#read-only-workbooks) does. Adding or removing it takes effect at once. |
 
 ## Properties and methods
 
 The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `freeze({ rows, cols, sheet? })`, `discardDraft()`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, `setMenus()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. `whenReady()` returns the handle's `ready` promise, resolving once the plugins are set up and the editor can draw what they add (waiting for the element to be connected first); an element that re-creates its editor gives the new one's. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
 
-Setting `options` on a connected element applies a new theme, language, user, schemas or custom lists as they are; changing any other option re-creates the editor, closing the workbook.
+The `readOnly` property is true while the `read-only` attribute is there or the `readOnly` option is set; setting it changes the option without re-creating the editor, and setting it to `false` removes the attribute too.
+
+Setting `options` on a connected element applies a new theme, language, user, schemas, custom lists, menus or `readOnly` as they are; changing any other option re-creates the editor, closing the workbook.
 
 ## Events
 
