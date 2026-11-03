@@ -22,6 +22,7 @@ import { useT } from '../i18n/react';
 import { ConfirmDialog, Toasts } from '../ui/Overlays';
 import { SheetArea } from '../ui/SheetArea';
 import { SidePanel } from '../ui/SidePanel';
+import { shortcutOn } from '../ui/menuCommands';
 import './editor.css';
 
 function isTextField(el: EventTarget | null): boolean {
@@ -196,7 +197,7 @@ export function WorkbookEditor({ editor, emptyState, toolbarEnd, className }: Wo
       if (key === 's' && store.features.save) {
         e.preventDefault();
         void store.savePrimary();
-      } else if (key === 'f' && !store.designerOpen) {
+      } else if (key === 'f' && !store.designerOpen && shortcutOn(store.menus, 'menu.find')) {
         e.preventDefault();
         store.set('findOpen', true);
       } else if (!isTextField(e.target) && !store.confirmRequest && !store.designerOpen) {

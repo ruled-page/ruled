@@ -1,6 +1,7 @@
 import type { WorkbookStore } from '../state/store';
 import { APPLE, commandKey } from '../ui/keys';
 import { objectKey } from '../ui/objectGeometry';
+import { shortcutOn, type MenuCommandId } from '../ui/menuCommands';
 
 /** A key pressed on the grid. */
 export interface GridKey {
@@ -22,6 +23,8 @@ export type FilterButton = NonNullable<WorkbookStore['filterPicker']>;
  */
 export function editorKey(store: WorkbookStore, e: GridKey, filterButton: (row: number, col: number) => FilterButton | undefined): boolean {
   const sel = store.selection;
+  // An entry's shortcut is off with the entry, as the `menus` option keeps it; the key is then the browser's.
+  const on = (id: MenuCommandId) => shortcutOn(store.menus, id);
   const plain = !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey;
   // Space ticks or unticks the selection's checkboxes.
   if (e.key === ' ' && plain && store.checkboxAt(sel.row, sel.col) !== undefined) {
@@ -29,12 +32,20 @@ export function editorKey(store: WorkbookStore, e: GridKey, filterButton: (row: 
     return true;
   }
   // Ctrl+Enter (⌘Enter on a Mac) follows the active cell's link, as Ctrl+click does.
-  if (e.key === 'Enter' && commandKey(e) && !e.shiftKey && !e.altKey) {
+  if (e.key === 'Enter' && commandKey(e) && !e.shiftKey && !e.altKey && on('links.menu.open')) {
     void store.followLink();
     return true;
   }
   // Alt+Shift+Right and Left group and ungroup the selection.
-  if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+  const group = e.key === 'ArrowRight';
+  if (
+    (e.key === 'ArrowRight' || e.key === 'ArrowLeft') &&
+    e.altKey &&
+    e.shiftKey &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    (on(group ? 'outline.menu.groupRows' : 'outline.menu.ungroupRows') || on(group ? 'outline.menu.groupColumns' : 'outline.menu.ungroupColumns'))
+  ) {
     void store.groupSelection(e.key === 'ArrowRight' ? 1 : -1);
     return true;
   }
@@ -65,24 +76,28 @@ export function editorKey(store: WorkbookStore, e: GridKey, filterButton: (row: 
     }
   }
   // Alt+F5 refreshes the sheet's pivot tables and Ctrl+Alt+F5 every sheet's.
-  if (e.key === 'F5' && e.altKey && !e.metaKey && !e.shiftKey) {
+  if (e.key === 'F5' && e.altKey && !e.metaKey && !e.shiftKey && on(e.ctrlKey ? 'pivot.menu.refreshAll' : 'pivot.menu.refresh')) {
     void store.refreshPivots(e.ctrlKey);
     return true;
   }
   // Alt+F1 inserts a column chart of the data.
-  if (e.key === 'F1' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && store.features.charts) {
+  if (e.key === 'F1' && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && store.features.charts && on('core.chartType.column')) {
     void store.insertChart('column');
     return true;
   }
   // Ctrl+Shift+L, or ⇧⌘F on a Mac, turns the filter buttons on or off.
   const letter = e.key.toLowerCase();
-  if (commandKey(e) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f'))) {
+  if (commandKey(e) && e.shiftKey && !e.altKey && (letter === 'l' || (APPLE && letter === 'f')) && on('menu.filterOn')) {
     void store.toggleFilter();
     return true;
   }
   // Ctrl++ (Ctrl+Shift+= on a US keyboard) inserts and Ctrl+- deletes, in place of the browser's zoom.
   const insert = e.key === '+' || (e.key === '=' && e.shiftKey);
-  if ((insert || e.key === '-') && commandKey(e) && !e.altKey) {
+  // On whole rows or columns they insert and delete those, as the heading menu's entries do.
+  const lines = sel.lines === 'cols' ? 'cols' : sel.lines ? 'rows' : undefined;
+  const change: MenuCommandId =
+    lines === 'rows' ? (insert ? 'menu.insertRowsAbove' : 'menu.deleteRows') : lines ? (insert ? 'menu.insertColumnsLeft' : 'menu.deleteColumns') : insert ? 'menu.insertCells' : 'menu.deleteCells';
+  if ((insert || e.key === '-') && commandKey(e) && !e.altKey && on(change)) {
     store.changeCells(insert ? 'insert' : 'delete');
     return true;
   }

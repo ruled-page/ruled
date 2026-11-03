@@ -19,7 +19,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `goTo(ref, { focus }?)` | Selects and shows a cell, a range or a name: `'B4'`, `'Prices!A1:C3'`. The grid takes the keyboard focus, as after the name box, unless `focus` is `false`. |
 | `scrollTo(ref)` | Scrolls a cell to the top left of the part of the sheet that scrolls, below and right of any frozen panes, keeping the selection and the focus. `false` when `ref` names no cell on a sheet shown. |
 | `registerSchema(schema)`, `removeSchema(id)` | Add or remove a schema while the editor is open. |
-| `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)` | Change these without closing the workbook. |
+| `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)`, `setMenus(menus)` | Change these without closing the workbook. |
 | `subscribe(listener)` | Calls `listener` when the properties below change, `selection` and `viewport` included. Returns a function that stops it. |
 | `destroy()` | Stops the editor and its worker. |
 

@@ -1,11 +1,35 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
+/**
+ * An entry's `id` names it whatever its label, for keeping some entries only
+ * (see keepItems); `within` is the submenu it stands in for when shown outside it.
+ */
 export type MenuItem =
   /** An item; `checked` makes it one of a set of choices, with whether it's the one chosen, and `sample` shows what it gives. */
-  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean; checked?: boolean; sample?: ReactNode; title?: string }
+  | { id?: string; within?: string; label: string; onSelect: () => void; disabled?: boolean; hint?: string; danger?: boolean; checked?: boolean; sample?: ReactNode; title?: string }
   /** A submenu, opened by hovering it, or with the arrow key towards it, Enter or Space. */
-  | { label: string; items: MenuItem[]; disabled?: boolean }
+  | { id?: string; within?: string; label: string; items: MenuItem[]; disabled?: boolean }
   | { separator: true };
+
+/**
+ * The entries `keep` lists by id, or all of them without a list. A submenu
+ * listed keeps all of it, one not listed keeps the entries of it that are;
+ * submenus left empty go, and so do separators with nothing to separate.
+ */
+export function keepItems(items: MenuItem[], keep: readonly string[] | undefined, all = false): MenuItem[] {
+  if (!keep) return items;
+  const listed = (item: { id?: string; within?: string }) => all || (!!item.id && keep.includes(item.id)) || (!!item.within && keep.includes(item.within));
+  const kept = items.flatMap((item): MenuItem[] => {
+    if ('separator' in item) return [item];
+    if (!('items' in item)) return listed(item) ? [item] : [];
+    const sub = keepItems(item.items, keep, listed(item));
+    return sub.length ? [{ ...item, items: sub }] : [];
+  });
+  const tidy: MenuItem[] = [];
+  for (const item of kept) if (!('separator' in item) || (tidy.length && !('separator' in tidy.at(-1)!))) tidy.push(item);
+  if (tidy.length && 'separator' in tidy.at(-1)!) tidy.pop();
+  return tidy;
+}
 
 const enabled = (menu: HTMLElement | null) => [...(menu?.querySelectorAll<HTMLButtonElement>(':scope > button:not(:disabled)') ?? [])];
 const rtl = (el: Element) => getComputedStyle(el).direction === 'rtl';
@@ -50,6 +74,11 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
     }
     if (open.focus) enabled(el)[0]?.focus();
   }, [open]);
+
+  // Nothing to choose: close at once, so the grid doesn't wait on a menu that isn't there.
+  useLayoutEffect(() => {
+    if (!items.length) onClose();
+  }, [items.length, onClose]);
 
   useEffect(() => {
     const away = (e: Event) => {
@@ -168,6 +197,7 @@ export function ContextMenu({ x, y, items, onClose, label }: { x: number; y: num
     );
 
   const opened = open ? items[open.index] : undefined;
+  if (!items.length) return null;
   return (
     // No box of its own: a menu opened from a toolbar button would otherwise be a flex item there, its gap moving the buttons.
     <div ref={root} style={{ display: 'contents' }} onContextMenu={(e) => e.preventDefault()}>

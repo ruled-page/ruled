@@ -19,6 +19,16 @@ before 1.0.0, a minor version may change the API.
   element it is `scrollToCell(ref)`), and `goTo(ref, { focus: false })`
   selects and shows a cell without taking the focus. Together they let two
   editors follow each other's scrolling and selection.
+- Every entry of the cell menu and the row and column headings' menu has
+  a stable id, the same in every language and whatever its label shows,
+  such as `menu.insertRowsAbove`. The new `menus` option keeps only the
+  entries it lists, for each menu, dropping separators left with nothing
+  to separate; plugin commands are kept by `pluginId/commandId`. A dropped
+  entry's shortcut (Ctrl+C for Copy, Ctrl+F for Find) is off too unless
+  `menus.shortcuts` lists it, and the shortcut list leaves it out.
+  `MENU_COMMANDS` lists every id, with the menus it's in and whether it
+  edits the workbook. The option can change while the editor is open, and
+  the handle has `setMenus`.
 
 ## 0.3.0 (2026-10-15)
 

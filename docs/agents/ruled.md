@@ -4,7 +4,7 @@ A spreadsheet editor embedded in web apps. It opens real Excel files (.xlsx, .xl
 
 ## Embedding
 
-- React: `const editor = useWorkbookEditor({ ...options, file })` (null on the first render; `file` is `{ name, bytes }`, opened when ready and again when it's another file), `{editor && <WorkbookEditor editor={editor} />}`, and `import '@ruled/sheet/style.css'`. The hook destroys the editor on unmount; theme, language, user, schemas and customLists follow `options` live; callbacks may be inline; other options are read once (change them with a new `key`). `useEditorState(editor)` gives `{ status, fileName, editedCount, unsaved }` as React state. Never make an editor with `useMemo` or during render: use the hook, or `createWorkbookEditor` in an effect with `destroy()` in its cleanup.
+- React: `const editor = useWorkbookEditor({ ...options, file })` (null on the first render; `file` is `{ name, bytes }`, opened when ready and again when it's another file), `{editor && <WorkbookEditor editor={editor} />}`, and `import '@ruled/sheet/style.css'`. The hook destroys the editor on unmount; theme, language, user, schemas, customLists and menus follow `options` live; callbacks may be inline; other options are read once (change them with a new `key`). `useEditorState(editor)` gives `{ status, fileName, editedCount, unsaved }` as React state. Never make an editor with `useMemo` or during render: use the hook, or `createWorkbookEditor` in an effect with `destroy()` in its cleanup.
 - React Server Components (Next.js App Router): the package is `'use client'`. A Server Component renders `<Workbook file={{ name, bytes }} onSave={serverAction} {...plainOptions} />` and imports `@ruled/sheet/style.css` in the root layout. `onSave` gets `SavedWorkbookData` (no `cell`/`range`) and answers `{ error }` or `{ conflict: true | message }` rather than throwing. Options that are functions (onEvent, onError, onLinkClick, createWorker, schemas with hooks) go in the host's own `'use client'` component wrapping `<Workbook>`.
 - Anything else: `import '@ruled/sheet/standalone'` (defines `<workbook-editor>`, styles and worker included). Set `element.options = {...}`, use `src="/file.xlsx"`, and `save-handler="event"` to get a `save` event whose `detail.waitUntil(promise)` keeps the save pending.
 - Or `mountWorkbookEditor(element, options)` from the standalone build, which returns the handle.
@@ -42,6 +42,7 @@ Write with `defineSchema({...})` for types. Shape: `{ id, name, version?, sheets
 - `theme: { accent, surface, font, gridHeaderBg, ... }` (tokens are CSS custom properties `--wbe-*` on `.wbe`); `colorScheme: 'dark'` for dark themes.
 - `language` ('en', 'de' built in; others via `translations`), `locale` for dates and numbers.
 - `features`: `open`, `save`, `download`, `schemas`, `report`, `charts`, `format`, `csv`, `autoComplete`, `sourceSave`, each on unless `false`.
+- `menus: { cell?, header?, shortcuts? }` keeps only the listed entries of the cell and heading menus by id (the label's message key, such as `menu.insertRowsAbove`; same in every language; plugin commands `pluginId/commandId`); a dropped entry's shortcut is off unless `shortcuts` lists it. `MENU_COMMANDS` lists every id with `edits`. Live. Docs: {{SITE}}/guides/menus-and-shortcuts.md
 
 ## Plugins
 

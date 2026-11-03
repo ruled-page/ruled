@@ -4,6 +4,7 @@ import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
 import type { EditorHandle, EditorSelection, EditorViewport } from './mount';
 import type { EditorTheme } from './theme';
+import type { MenuOptions } from '../ui/menuCommands';
 
 type Mount = (element: HTMLElement, options?: StoreOptions) => EditorHandle;
 
@@ -87,6 +88,7 @@ export interface WorkbookEditorElement extends HTMLElement {
   setLanguage(language: string): void;
   setUser(user: string | undefined): void;
   setCustomLists(lists: string[][] | undefined): void;
+  setMenus(menus: MenuOptions | undefined): void;
   readonly status: EditorHandle['status'];
   readonly fileName: string;
   /** Where the open workbook came from, when a plugin's file source opened it. */
@@ -113,7 +115,7 @@ declare global {
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -345,6 +347,12 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     setCustomLists(lists: string[][] | undefined): void {
       this.opts = { ...this.opts, customLists: lists };
       this.handle?.setCustomLists(lists);
+    }
+
+    /** Changes which menu entries and shortcuts are kept without re-creating the editor. */
+    setMenus(menus: MenuOptions | undefined): void {
+      this.opts = { ...this.opts, menus };
+      this.handle?.setMenus(menus);
     }
 
     get status(): EditorHandle['status'] {

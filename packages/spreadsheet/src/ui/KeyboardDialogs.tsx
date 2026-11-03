@@ -3,6 +3,7 @@ import { colToLetters } from '@ruled/formula/refs';
 import type { WorkbookStore } from '../state/store';
 import { Icon } from './icons';
 import { shortcuts } from './shortcuts';
+import { shortcutOn } from './menuCommands';
 import { useDialog } from './useDialog';
 import { useT } from '../i18n/react';
 
@@ -24,7 +25,7 @@ export function ShortcutsDialog({ store }: { store: WorkbookStore }) {
               <Icon name="close" />
             </button>
           </div>
-          {shortcuts(t).map((g) => (
+          {shortcuts(t, undefined, (cmd) => shortcutOn(store.menus, cmd)).map((g) => (
             <table key={g.group}>
               <caption>{g.group}</caption>
               <tbody>

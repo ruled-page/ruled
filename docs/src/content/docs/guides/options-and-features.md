@@ -41,6 +41,7 @@ The same options go to `useWorkbookEditor`, `createWorkbookEditor`, `mountWorkbo
 | `theme` | Theme tokens: colours, fonts, sizes, corners and shadows. See [Theming](/guides/theming/). |
 | `icons` | Replacement icons by name: SVG path data on a 24×24 grid, or, in React, an element. |
 | `features` | Parts of the interface to show (below). |
+| `menus` | Which entries of the cell and heading menus to keep, by id, and with them their shortcuts. Can change while the editor is open. See [Menus and shortcuts](/guides/menus-and-shortcuts/). |
 
 ## Links
 

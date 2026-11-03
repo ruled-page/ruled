@@ -4,6 +4,7 @@ import type { FileOrigin } from '../plugin/types';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
 import type { EditorTheme } from './theme';
+import type { MenuOptions } from '../ui/menuCommands';
 
 /** The selection, as `handle.selection` gives it. */
 export interface EditorSelection {
@@ -97,6 +98,8 @@ export interface EditorHandle {
   setUser(user: string | undefined): void;
   /** Changes the lists that filling continues, as the `customLists` option gives them. */
   setCustomLists(lists: string[][] | undefined): void;
+  /** Changes which menu entries and shortcuts are kept, as the `menus` option gives them. */
+  setMenus(menus: MenuOptions | undefined): void;
   /** Whether a workbook is open, opening or couldn't be opened. */
   readonly status: 'empty' | 'loading' | 'ready' | 'error';
   /** The open workbook's file name. */
@@ -160,6 +163,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     setLanguage: (language) => store.setLanguage(language),
     setUser: (user) => store.setUser(user),
     setCustomLists: (lists) => store.setCustomLists(lists),
+    setMenus: (menus) => store.setMenus(menus),
     get status() {
       return store.status;
     },

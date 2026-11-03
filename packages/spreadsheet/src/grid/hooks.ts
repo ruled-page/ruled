@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { clipboardNumbers, parseClipboardText } from '../state/clipboard';
 import { clipboardFormats } from '../state/clipboardFormats';
 import type { WorkbookStore } from '../state/store';
+import { noteCommand, shortcutOn } from '../ui/menuCommands';
 import type { Box } from './contract';
 
 /**
@@ -33,6 +34,8 @@ export function useSheetEvents(store: WorkbookStore, host: RefObject<HTMLElement
       const first = store.selection.rects[0];
       if (!first || !e.clipboardData) return;
       e.preventDefault();
+      // Dropped from the menus with its shortcut: nothing is copied.
+      if (!shortcutOn(store.menus, cut ? 'menu.cut' : 'menu.copy')) return;
       e.clipboardData.setData('text/plain', store.selectionText(first));
       e.clipboardData.setData('text/html', store.selectionHtml(first));
       store.noteCopy(first, cut);
@@ -41,6 +44,7 @@ export function useSheetEvents(store: WorkbookStore, host: RefObject<HTMLElement
     const onCut = (e: ClipboardEvent) => write(e, true);
     const onPaste = (e: ClipboardEvent) => {
       if (!focused()) return;
+      if (!shortcutOn(store.menus, 'menu.paste')) return e.preventDefault();
       const text = e.clipboardData?.getData('text/plain');
       if (!text) return;
       e.preventDefault();
@@ -62,7 +66,7 @@ export function useSheetEvents(store: WorkbookStore, host: RefObject<HTMLElement
         const at = boxOf.current(sel.row, sel.col);
         if (at) store.set('menu', { x: at.x + Math.min(at.width, 24), y: at.y + at.height, kind: 'cell' });
       }
-      if (e.shiftKey && e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.shiftKey && e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && shortcutOn(store.menus, noteCommand(store, sel.row, sel.col))) {
         e.preventDefault();
         const at = boxOf.current(sel.row, sel.col);
         if (at) store.openComment(sel.row, sel.col, { x: at.x + at.width + 4, y: at.y });

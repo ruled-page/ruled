@@ -3,6 +3,7 @@ import { mergeEditResults } from '../core/editResult';
 import { moveInsertLanding } from '../core/refTransform';
 import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
+import type { MenuOptions } from '../ui/menuCommands';
 import { invertIndexMap, isSheetOp, nearestVisible, nextSheetName, sheetIndexMap, sheetOpProblem, type SheetOp, type WorkbookOp } from '../core/sheetRules';
 import { shiftFormula } from '@ruled/formula/formula';
 import { formulaReferences } from '../core/formulaAssist';
@@ -363,6 +364,14 @@ export interface StoreOptions {
    * Plugins are trusted code, running on the page as any other dependency does.
    */
   plugins?: RuledPlugin[];
+  /**
+   * Which entries of the cell menu and the row and column headings' menu to
+   * keep, by id, such as `menu.insertRowsAbove`, the same in every language;
+   * leave it out for every entry. Entries not kept have their shortcuts off
+   * too, unless `shortcuts` lists them. See MenuOptions and MENU_COMMANDS.
+   * Can change while the editor is open.
+   */
+  menus?: MenuOptions;
 }
 
 /**
@@ -793,6 +802,17 @@ export class WorkbookStore {
 
   /** Bumped when the theme changes, so the canvas grid reads its colours again. */
   themeVersion = 0;
+
+  /** The `menus` option: the menu entries, and their shortcuts, to keep. */
+  get menus(): MenuOptions | undefined {
+    return this.options.menus;
+  }
+
+  /** Changes which menu entries and shortcuts are kept, as the `menus` option gives them. */
+  setMenus(menus: MenuOptions | undefined): void {
+    this.options.menus = menus;
+    this.notify();
+  }
 
   /** Changes the theme while the editor is open. */
   /** Changes the name recorded against each action in the change history. */

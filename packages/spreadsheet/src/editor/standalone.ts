@@ -40,6 +40,7 @@ export type { EditorFeatures, HistoryEntry, SavedWorkbook, SaveResult, StoreOpti
 export type { CellChange } from '../core/types';
 export type { CsvOptions } from '../core/csv';
 export type { LinkClick } from '../state/links';
+export { MENU_COMMANDS, type MenuCommandId, type MenuCommandInfo, type MenuEntryId, type MenuOptions } from '../ui/menuCommands';
 export { defineSchema } from '../schema/types';
 export type * from '../schema/types';
 export { schemaFromJSON, schemaToJSON } from '../schema/json';

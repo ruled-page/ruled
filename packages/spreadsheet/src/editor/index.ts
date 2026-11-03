@@ -28,6 +28,8 @@ export type { CsvOptions } from '../core/csv';
 export type { LinkClick } from '../state/links';
 export { themeProperty, type EditorTheme, type ThemeToken } from './theme';
 export type { IconName, IconOverrides } from '../ui/icons';
+/** The ids of the cell and heading menus' entries, for the `menus` option, and which of them edit the workbook. */
+export { MENU_COMMANDS, type MenuCommandId, type MenuCommandInfo, type MenuEntryId, type MenuOptions } from '../ui/menuCommands';
 /**
  * Languages: `translations` in the options adds languages or rewords
  * messages, keyed like the built-in catalogues. Start a new language from

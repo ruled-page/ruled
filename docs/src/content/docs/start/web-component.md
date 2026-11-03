@@ -41,7 +41,7 @@ The standalone build defines a `<workbook-editor>` element. Set its `options`, g
 
 ## Properties and methods
 
-The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
+The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, `setMenus()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
 
 Setting `options` on a connected element applies a new theme, language, user, schemas or custom lists as they are; changing any other option re-creates the editor, closing the workbook.
 
