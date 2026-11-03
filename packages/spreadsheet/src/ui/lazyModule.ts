@@ -11,6 +11,8 @@ export function lazyModule<T>(load: () => Promise<T>) {
   const get = () => (loading ??= load().then((m) => (mod = m)));
   return {
     preload: () => void get().catch(() => (loading = undefined)),
+    /** The module, once it has loaded; rejects if it can't. */
+    load: get,
     /** The module, once loaded; asks for it while `wanted`, and renders again when it arrives. */
     useModule(wanted: boolean): T | undefined {
       const [, loaded] = useReducer((n: number) => n + 1, 0);

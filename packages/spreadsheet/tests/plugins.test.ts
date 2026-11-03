@@ -607,3 +607,49 @@ describe('saving to a plugin’s source', () => {
     store.dispose();
   });
 });
+
+describe('the ready promise', () => {
+  it('resolves at once without plugins', async () => {
+    const handle = handleFor(await testStore());
+    await expect(handle.ready).resolves.toBeUndefined();
+    handle.destroy();
+  });
+
+  it('resolves after every plugin has been set up', async () => {
+    const ran: string[] = [];
+    const handle = handleFor(
+      await testStore({
+        plugins: [plugin(() => void ran.push('a'), { id: 'test.a' }), plugin(() => void ran.push('b'), { id: 'test.b' })],
+      }),
+    );
+    await handle.ready;
+    expect(ran).toEqual(['a', 'b']);
+    handle.destroy();
+  });
+
+  it('resolves, not rejects, when a plugin throws, and reports it', async () => {
+    const events: EditorEvent[] = [];
+    const ran: string[] = [];
+    const handle = handleFor(
+      await testStore({
+        onEvent: (e) => void events.push(e),
+        plugins: [
+          plugin(() => { throw new Error('nope'); }, { id: 'test.bad' }),
+          plugin(() => void ran.push('ok'), { id: 'test.ok' }),
+        ],
+      }),
+    );
+    await expect(handle.ready).resolves.toBeUndefined();
+    expect(ran).toEqual(['ok']);
+    expect(events.some((e) => e.type === 'pluginError' && e.plugin === 'test.bad')).toBe(true);
+    handle.destroy();
+  });
+
+  it('resolves without starting plugins when the editor is destroyed first', async () => {
+    const setup = vi.fn();
+    const handle = handleFor(await testStore({ plugins: [plugin(setup)] }));
+    handle.destroy();
+    await expect(handle.ready).resolves.toBeUndefined();
+    expect(setup).not.toHaveBeenCalled();
+  });
+});

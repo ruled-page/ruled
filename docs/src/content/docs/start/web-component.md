@@ -41,7 +41,7 @@ The standalone build defines a `<workbook-editor>` element. Set its `options`, g
 
 ## Properties and methods
 
-The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, `setMenus()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
+The element has the same methods and properties as the [handle](/guides/events-and-handle/): `open(bytes, fileName)`, `save()`, `downloadCopy()`, `getWorkbook()`, `getCsv()`, `downloadCsv()`, `goTo(ref, { focus }?)`, `registerSchema()`, `removeSchema()`, `setTheme()`, `setLanguage()`, `setUser()`, `setCustomLists()`, `setMenus()`, and `status`, `fileName`, `unsaved`, `editedCount`, `selection` and `viewport`. `whenReady()` returns the handle's `ready` promise, resolving once the plugins are set up and the editor can draw what they add (waiting for the element to be connected first); an element that re-creates its editor gives the new one's. The handle's `scrollTo(ref)` is `scrollToCell(ref)` on the element, as `scrollTo` already scrolls the element itself.
 
 Setting `options` on a connected element applies a new theme, language, user, schemas or custom lists as they are; changing any other option re-creates the editor, closing the workbook.
 
@@ -49,7 +49,7 @@ Setting `options` on a connected element applies a new theme, language, user, sc
 
 | Event | `detail` |
 | --- | --- |
-| `ready` | The editor can take a workbook. |
+| `ready` | The editor is made and can take a workbook. Its plugins may not be set up yet: `await el.whenReady()` for that. |
 | `opened` | `{ fileName }`, once a workbook is open. |
 | `change` | `{ editedCount, unsaved }`, as the edits change. |
 | `save` | The saved workbook, with `waitUntil(promise)`, when `save-handler="event"`. |

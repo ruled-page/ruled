@@ -4,6 +4,7 @@ import type { FileOrigin } from '../plugin/types';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
 import type { EditorTheme } from './theme';
+import { pluginParts } from '../ui/lazyPlugins';
 import type { MenuOptions } from '../ui/menuCommands';
 
 /** The selection, as `handle.selection` gives it. */
@@ -114,6 +115,13 @@ export interface EditorHandle {
   subscribe(listener: () => void): () => void;
   /** Stops the editor's worker; mountWorkbookEditor's handle unmounts the editor as well. */
   destroy(): void;
+  /**
+   * Resolves once every plugin's `setup` has run and the editor can draw what
+   * they added; at once for an editor without plugins. It never rejects: a
+   * plugin that throws is reported as a `pluginError` and the rest still count.
+   * If the editor is destroyed first it resolves without starting the plugins.
+   */
+  readonly ready: Promise<void>;
 }
 
 const stores = new WeakMap<EditorHandle, WorkbookStore>();
@@ -130,6 +138,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
   // Kept until they change, so listeners can compare.
   let selection: EditorSelection | undefined;
   let viewport: EditorViewport | undefined;
+  let ready: Promise<void>;
   const handle: EditorHandle = {
     async open(bytes, fileName) {
       const r = await store.open(fileName, bytes instanceof Uint8Array ? (bytes.slice().buffer as ArrayBuffer) : bytes.slice(0));
@@ -188,9 +197,19 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
       };
     },
     destroy,
+    get ready() {
+      return ready;
+    },
   };
   stores.set(handle, store);
-  void store.startPlugins(handle);
+  // Plugins start once their code has loaded, whether or not the editor has rendered; their parts are drawn from a module loaded after that.
+  ready = store
+    .startPlugins(handle)
+    .then(() => (store.plugins?.active ? pluginParts.load() : undefined))
+    .then(
+      () => undefined,
+      () => undefined,
+    );
   return handle;
 }
 

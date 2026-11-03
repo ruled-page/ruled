@@ -6,6 +6,12 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- The handle's `ready` promise (and `whenReady()` on `<workbook-editor>`)
+  resolves once every plugin's `setup` has run and the editor can draw what
+  they added, so hosts needn't wait on a timer. It resolves at once without
+  plugins, never rejects when a plugin throws, and resolves with the plugins
+  not started if the editor is destroyed first. The docs now say when
+  `setup` runs: after the plugin code loads, independent of rendering.
 - Hosts can follow where an editor is without reading its page: the
   handle's `selection` gives the sheet shown, the active cell and the
   selected ranges in A1 style, and `viewport` the first row and column in

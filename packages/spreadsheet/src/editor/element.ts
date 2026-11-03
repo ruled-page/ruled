@@ -78,6 +78,11 @@ export interface WorkbookEditorElement extends HTMLElement {
    * from the element's own scrollTo, which scrolls the element.
    */
   scrollToCell(ref: string): boolean;
+  /**
+   * Resolves once the editor's plugins are set up and it can draw what they add (the handle's `ready`); the `ready` event comes first, when the editor is
+   * made. Waits for the element to be connected if it isn't yet.
+   */
+  whenReady(): Promise<void>;
   /** The sheet shown, its active cell and selected ranges. */
   readonly selection: EditorSelection | undefined;
   /** The first row and column in view below and right of any frozen panes. */
@@ -115,7 +120,7 @@ declare global {
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), whenReady(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -306,6 +311,11 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     scrollToCell(ref: string): boolean {
       return this.handle?.scrollTo(ref) ?? false;
+    }
+
+    whenReady(): Promise<void> {
+      if (this.handle) return this.handle.ready;
+      return new Promise((resolve) => this.addEventListener('ready', () => resolve(this.handle?.ready), { once: true }));
     }
 
     get selection(): EditorSelection | undefined {

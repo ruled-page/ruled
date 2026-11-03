@@ -309,6 +309,12 @@ empty.textContent = ctx.text(msg('empty'));
 
 Ship English at least. Ruled's own plugins also ship German, as the editor does.
 
+## When `setup` runs
+
+`setup` runs once the code that runs plugins has loaded, a moment after the editor is made. That does not depend on the editor having rendered: the toolbar and its elements may not exist yet, and an editor with no workbook open has run `setup` too. Register commands, sources and panels; the editor draws them whenever it renders, so don't look for the editor's DOM from `setup`.
+
+To know when every plugin is set up and the editor can draw what they added, wait for the handle's `ready` promise (`await editor.ready`), or `await element.whenReady()` on `<workbook-editor>`; the element's `ready` event only says the editor was made. `ready` resolves at once when there are no plugins and never rejects: a `setup` that throws or rejects is reported as a `pluginError` and does not hold it back. A `setup` that returns a promise isn't waited for beyond its synchronous part. If the editor is destroyed first, `ready` resolves and the plugins never start.
+
 ## Errors
 
 Every call into a plugin is caught: `setup`, `run`, `enabled` and `visible`, `items`, `pick`, `save`, `saveAs`, `fetch`, `render`, cleanups and event listeners. When one throws, or a promise it returns rejects:
