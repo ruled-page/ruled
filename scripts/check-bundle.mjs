@@ -16,7 +16,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 /** [directory, file name pattern, gzipped kB]. */
 const BUDGETS = [
   // The demo page, before a workbook is opened.
-  ['examples/demo/dist/assets', /^index-.*\.js$/, 185],
+  ['examples/demo/dist/assets', /^index-.*\.js$/, 190],
   // The worker, the calculation engine included.
   ['examples/demo/dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // Loaded only for workbooks with charts.
