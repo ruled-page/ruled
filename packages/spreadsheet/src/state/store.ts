@@ -1209,7 +1209,8 @@ export class WorkbookStore {
     this.stopWorker(error);
     if (this.draftKey && this.draftOps.length) {
       clearTimeout(this.draftTimer);
-      this.draftWrite = saveDraft({ key: this.draftKey, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin }).catch(() => undefined);
+      const draft = { key: this.draftKey, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin };
+      void this.queueDraftWrite(() => saveDraft(draft));
     }
     this.reopenWithoutRecalc = calculating;
     Object.assign(this, { status: 'error', error: reason, busy: false, stage: '' });
@@ -1417,9 +1418,22 @@ export class WorkbookStore {
     this.draftTimer = setTimeout(() => {
       const key = this.draftKey;
       if (!key) return;
-      if (this.editedCount === 0) void deleteDraft(key);
-      else void saveDraft({ key, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin });
+      if (this.editedCount === 0) void this.queueDraftWrite(() => deleteDraft(key));
+      else {
+        const draft = { key, fileName: this.fileName, updatedAt: Date.now(), editedCount: this.editedCount, ops: this.draftOps, origin: this.origin };
+        void this.queueDraftWrite(() => saveDraft(draft));
+      }
     }, 400);
+  }
+
+  /**
+   * Runs draft writes one after another. Each opens its own database
+   * connection, so two started together could land in either order.
+   */
+  private queueDraftWrite(write: () => Promise<void>): Promise<void> {
+    const next = Promise.resolve(this.draftWrite).then(write).catch(() => undefined);
+    this.draftWrite = next;
+    return next;
   }
 
   /** Re-reads the list of changed cells from the worker. */
@@ -1657,17 +1671,15 @@ export class WorkbookStore {
   }
 
   /**
-   * Deletes the stored draft of the open file. While the workbook has unsaved
-   * edits, no new draft is kept for it either (the next edit would otherwise
-   * write one) until it is opened again; saving it is unaffected.
+   * Deletes the stored draft of the open file, after any draft write already
+   * started. Edits made afterwards are drafted as usual: their write is
+   * queued behind the delete, so it can't remove them.
    */
   async discardDraft(): Promise<void> {
     const key = this.draftKey;
     if (!key) return;
     clearTimeout(this.draftTimer);
-    if (this.editedCount > 0) this.draftKey = undefined;
-    await this.draftWrite;
-    await deleteDraft(key);
+    await this.queueDraftWrite(() => deleteDraft(key));
   }
 
   /** Once saved, the draft for this file is no longer needed. */

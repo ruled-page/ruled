@@ -32,8 +32,9 @@ before 1.0.0, a minor version may change the API.
   `setup` runs: after the plugin code loads, independent of rendering.
 - Hosts can delete a file's stored draft without touching the editor's
   database: the handle's `discardDraft()` (on the element too) deletes the
-  open file's draft and, if the workbook has unsaved edits, keeps no new one
-  for them until it is opened again, and `discardDraft(bytes)`, from
+  open file's draft and changes nothing else, so later edits are drafted as
+  usual (`drafts: false` keeps none; opening the file again drops the
+  edits), and `discardDraft(bytes)`, from
   `@ruled/sheet/drafts` (also exported by the main and standalone entries,
   and free of the editor in a host's bundle), deletes the draft for a file
   that isn't open. `drafts: false` still keeps and offers none, and deletes

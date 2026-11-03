@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { discardDraft } from '../src/editor/drafts';
 import { handleFor } from '../src/editor/handle';
 import { english } from '../src/i18n';
-import { deleteDraft, fileKey, type Draft } from '../src/state/drafts';
+import { deleteDraft, fileKey, saveDraft, type Draft } from '../src/state/drafts';
 import type { Answer, ConfirmRequest, StoreOptions, WorkbookStore } from '../src/state/store';
 import { sample } from './helpers';
 import { testStore } from './storeHarness';
@@ -39,6 +39,7 @@ let store: WorkbookStore;
 beforeEach(() => {
   kept.clear();
   vi.mocked(deleteDraft).mockClear();
+  vi.mocked(saveDraft).mockClear();
 });
 afterEach(() => store?.dispose());
 
@@ -138,14 +139,41 @@ describe('drafts of unsaved changes', () => {
     expect(store.fileName).toBe('budget.xlsx');
   });
 
-  it("discardDraft() deletes the open file's stored draft, and later edits keep none", async () => {
+  it("discardDraft() deletes the open file's stored draft, and a later edit writes a fresh one", async () => {
     kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
     await open({}, 'confirm');
     await handleFor(store).discardDraft();
     expect(kept.has(key)).toBe(false);
     await store.input(2, 1, '9');
-    await new Promise((r) => setTimeout(r, 1500));
+    await vi.waitFor(() => expect(kept.get(key)?.ops.at(-1)).toMatchObject({ type: 'input', row: 2, col: 1, text: '9' }));
+  });
+
+  it('discardDraft() deletes a draft whose write was already under way', async () => {
+    await open();
+    vi.mocked(saveDraft).mockImplementationOnce(async (d: Draft) => {
+      await new Promise((r) => setTimeout(r, 200));
+      kept.set(d.key, structuredClone(d));
+    });
+    await store.input(1, 1, '7');
+    await new Promise((r) => setTimeout(r, 450));
+    expect(saveDraft).toHaveBeenCalled();
+    await handleFor(store).discardDraft();
+    await new Promise((r) => setTimeout(r, 250));
     expect(kept.has(key)).toBe(false);
+  });
+
+  it('discardDraft() never deletes a draft written for edits made while it runs', async () => {
+    await open();
+    vi.mocked(deleteDraft).mockImplementationOnce(async (k: string) => {
+      await new Promise((r) => setTimeout(r, 700));
+      kept.delete(k);
+    });
+    const discarding = handleFor(store).discardDraft();
+    await store.input(1, 1, '7');
+    await discarding;
+    await vi.waitFor(() => expect(kept.get(key)?.ops).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(kept.get(key)?.ops).toHaveLength(1);
   });
 
   it('discardDraft() with no unsaved edits leaves later edits drafted', async () => {
