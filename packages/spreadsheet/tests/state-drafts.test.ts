@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { discardDraft } from '../src/editor/drafts';
 import { deleteDraft, fileKey, loadDraft, saveDraft, type Draft } from '../src/state/drafts';
 import { NARROW, isNarrow } from '../src/state/viewport';
 
@@ -152,6 +153,28 @@ describe('keeping drafts in the browser', () => {
     await expect(loadDraft('k1')).resolves.toBeUndefined();
     await expect(deleteDraft('k1')).resolves.toBeUndefined();
     expect(log.closed).toBe(3);
+  });
+});
+
+describe('discarding a draft by the file\'s bytes', () => {
+  const bytes = new TextEncoder().encode('abc');
+
+  it('deletes only the draft of those bytes', async () => {
+    const { stores } = fakeIndexedDB();
+    const key = await fileKey(bytes.buffer as ArrayBuffer);
+    await saveDraft(draft(key));
+    await saveDraft(draft('other'));
+    await discardDraft(bytes);
+    expect(stores.get('drafts')?.rows.has(key)).toBe(false);
+    expect(await loadDraft('other')).toBeDefined();
+  });
+
+  it('resolves when storage is unavailable', async () => {
+    await expect(discardDraft(bytes)).resolves.toBeUndefined();
+    fakeIndexedDB({ open: true });
+    await expect(discardDraft(bytes)).resolves.toBeUndefined();
+    fakeIndexedDB({ requests: true });
+    await expect(discardDraft(bytes)).resolves.toBeUndefined();
   });
 });
 

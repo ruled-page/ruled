@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { discardDraft } from '../src/editor/drafts';
+import { handleFor } from '../src/editor/handle';
 import { english } from '../src/i18n';
 import { deleteDraft, fileKey, type Draft } from '../src/state/drafts';
 import type { Answer, ConfirmRequest, StoreOptions, WorkbookStore } from '../src/state/store';
@@ -134,5 +136,46 @@ describe('drafts of unsaved changes', () => {
     await opening;
     expect(deleteDraft).toHaveBeenCalledWith(key);
     expect(store.fileName).toBe('budget.xlsx');
+  });
+
+  it("discardDraft() deletes the open file's stored draft, and later edits keep none", async () => {
+    kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
+    await open({}, 'confirm');
+    await handleFor(store).discardDraft();
+    expect(kept.has(key)).toBe(false);
+    await store.input(2, 1, '9');
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(kept.has(key)).toBe(false);
+  });
+
+  it('discardDraft() with no unsaved edits leaves later edits drafted', async () => {
+    await open();
+    kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '9' }]));
+    await handleFor(store).discardDraft();
+    expect(kept.has(key)).toBe(false);
+    await store.input(1, 1, '7');
+    await vi.waitFor(() => expect(kept.get(key)?.ops).toHaveLength(1));
+  });
+
+  it('discardDraft() deletes nothing with drafts: false', async () => {
+    kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
+    await open({ drafts: false });
+    await handleFor(store).discardDraft();
+    expect(deleteDraft).not.toHaveBeenCalled();
+    expect(kept.has(key)).toBe(true);
+  });
+
+  it('discardDraft() resolves when nothing is open', async () => {
+    store = await testStore({ drafts: true });
+    await expect(handleFor(store).discardDraft()).resolves.toBeUndefined();
+  });
+
+  it('the exported discardDraft(bytes) deletes the draft of a file that is not open', async () => {
+    kept.set(key, draft([{ type: 'input', sheet: 0, row: 1, col: 1, text: '5' }]));
+    await discardDraft(bytes);
+    expect(kept.has(key)).toBe(false);
+    kept.set(key, draft([]));
+    await discardDraft(bytes.slice().buffer as ArrayBuffer);
+    expect(kept.has(key)).toBe(false);
   });
 });

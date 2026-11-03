@@ -19,6 +19,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `goTo(ref, { focus }?)` | Selects and shows a cell, a range or a name: `'B4'`, `'Prices!A1:C3'`. The grid takes the keyboard focus, as after the name box, unless `focus` is `false`. |
 | `ready` | A promise (a property, not a method) that resolves once every plugin's `setup` has run and the editor can draw what they added; at once when there are no plugins. It never rejects: a plugin that throws is reported as a `pluginError` event and the rest still count. If the editor is destroyed first it resolves with the plugins not started. See [when plugins start](/plugins/writing/#when-setup-runs). |
 | `scrollTo(ref)` | Scrolls a cell to the top left of the part of the sheet that scrolls, below and right of any frozen panes, keeping the selection and the focus. `false` when `ref` names no cell on a sheet shown. |
+| `discardDraft()` | Deletes the [draft](/guides/opening-and-saving/#drafts) kept in the browser for the open file. See Drafts for what happens to edits made afterwards. |
 | `registerSchema(schema)`, `removeSchema(id)` | Add or remove a schema while the editor is open. |
 | `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)`, `setMenus(menus)` | Change these without closing the workbook. |
 | `subscribe(listener)` | Calls `listener` when the properties below change, `selection` and `viewport` included. Returns a function that stops it. |

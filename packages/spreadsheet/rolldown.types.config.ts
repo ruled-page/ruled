@@ -21,11 +21,16 @@ const entry = (name: string, input: string, cleanDir = false) =>
 /** @ruled/sheet/plugin at run time: only definePlugin, as plugins import nothing else from the editor. */
 const plugin = defineConfig({ input: 'src/plugin/index.ts', output: { dir: 'dist/plugin', entryFileNames: 'index.js', cleanDir: true } });
 
+/** @ruled/sheet/drafts at run time: only discardDraft, for hosts that don't want the editor in their bundle. */
+const drafts = defineConfig({ input: 'src/editor/drafts.ts', output: { dir: 'dist/drafts', entryFileNames: 'index.js', cleanDir: true } });
+
 // The first clears what earlier builds left in dist/types.
 export default [
   entry('index', 'dist/declarations/editor/index.d.ts', true),
   entry('standalone', 'dist/declarations/editor/standalone.d.ts'),
   entry('node', 'dist/declarations/node/index.d.ts'),
   entry('plugin', 'dist/declarations/plugin/index.d.ts'),
+  entry('drafts', 'dist/declarations/editor/drafts.d.ts'),
   plugin,
+  drafts,
 ];

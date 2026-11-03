@@ -1589,6 +1589,20 @@ export class WorkbookStore {
     download(new Blob([saved.bytes as BlobPart], { type }), saved.fileName);
   }
 
+  /**
+   * Deletes the stored draft of the open file. While the workbook has unsaved
+   * edits, no new draft is kept for it either (the next edit would otherwise
+   * write one) until it is opened again; saving it is unaffected.
+   */
+  async discardDraft(): Promise<void> {
+    const key = this.draftKey;
+    if (!key) return;
+    clearTimeout(this.draftTimer);
+    if (this.editedCount > 0) this.draftKey = undefined;
+    await this.draftWrite;
+    await deleteDraft(key);
+  }
+
   /** Once saved, the draft for this file is no longer needed. */
   afterSave(): void {
     clearTimeout(this.draftTimer);

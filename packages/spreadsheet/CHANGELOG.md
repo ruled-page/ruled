@@ -12,6 +12,14 @@ before 1.0.0, a minor version may change the API.
   plugins, never rejects when a plugin throws, and resolves with the plugins
   not started if the editor is destroyed first. The docs now say when
   `setup` runs: after the plugin code loads, independent of rendering.
+- Hosts can delete a file's stored draft without touching the editor's
+  database: the handle's `discardDraft()` (on the element too) deletes the
+  open file's draft and, if the workbook has unsaved edits, keeps no new one
+  for them until it is opened again, and `discardDraft(bytes)`, from
+  `@ruled/sheet/drafts` (also exported by the main and standalone entries,
+  and free of the editor in a host's bundle), deletes the draft for a file
+  that isn't open. `drafts: false` still keeps and offers none, and deletes
+  nothing.
 - Hosts can follow where an editor is without reading its page: the
   handle's `selection` gives the sheet shown, the active cell and the
   selected ranges in A1 style, and `viewport` the first row and column in

@@ -120,3 +120,13 @@ The editor writes back only what changed. Everything it doesn't show (grouped sh
 ## Drafts
 
 Unsaved edits are kept in the browser, and offered back when the same file is opened again, so a closed tab or a crash doesn't lose work; not for a password-protected workbook. Turn it off with `drafts: false`. `warnOnUnload` (on by default) asks before people leave the page with unsaved changes.
+
+To delete a file's draft yourself, say after your app has stored the changes some other way, call `discardDraft()` on the handle (or the `<workbook-editor>` element) to delete the draft of the open file. If the workbook has unsaved edits then, no new draft is kept for them until it is opened again; with none, later edits are drafted as usual. It does nothing with `drafts: false` or for a password-protected workbook, which keep none. For a file you never open in the editor, import `discardDraft` and pass the file's bytes; it resolves once done, also when the file has no draft or the browser's storage is unavailable:
+
+```ts
+import { discardDraft } from '@ruled/sheet/drafts'; // also exported by '@ruled/sheet' and '@ruled/sheet/standalone'
+
+await discardDraft(bytes);
+```
+
+`@ruled/sheet/drafts` holds only this function, so it adds nothing of the editor to your bundle.

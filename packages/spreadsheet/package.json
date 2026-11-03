@@ -46,6 +46,11 @@
       "types": "./dist/types/standalone.d.ts",
       "import": "./dist/standalone/workbook-editor.js"
     },
+    "./drafts": {
+      "source": "./src/editor/drafts.ts",
+      "types": "./dist/types/drafts.d.ts",
+      "import": "./dist/drafts/index.js"
+    },
     "./plugin": {
       "source": "./src/plugin/index.ts",
       "types": "./dist/types/plugin.d.ts",
@@ -70,6 +75,7 @@
     "dist/standalone",
     "dist/node",
     "dist/plugin",
+    "dist/drafts",
     "dist/types",
     "CHANGELOG.md",
     "THIRD-PARTY-NOTICES.md"

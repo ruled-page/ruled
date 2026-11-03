@@ -83,6 +83,8 @@ export interface WorkbookEditorElement extends HTMLElement {
    * made. Waits for the element to be connected if it isn't yet.
    */
   whenReady(): Promise<void>;
+  /** Deletes the draft kept in this browser for the open file; see the handle's discardDraft(). */
+  discardDraft(): Promise<void>;
   /** The sheet shown, its active cell and selected ranges. */
   readonly selection: EditorSelection | undefined;
   /** The first row and column in view below and right of any frozen panes. */
@@ -120,7 +122,7 @@ declare global {
  * Attributes: `src` (URL of a workbook or CSV file to open), `file-name`, and
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download. Properties: `options` (editor options).
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), whenReady(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), whenReady(), discardDraft(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -316,6 +318,10 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     whenReady(): Promise<void> {
       if (this.handle) return this.handle.ready;
       return new Promise((resolve) => this.addEventListener('ready', () => resolve(this.handle?.ready), { once: true }));
+    }
+
+    discardDraft(): Promise<void> {
+      return this.handle?.discardDraft() ?? Promise.resolve();
     }
 
     get selection(): EditorSelection | undefined {

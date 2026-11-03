@@ -14,6 +14,7 @@ export type { SavedWorkbookData } from './plainData';
 export { createWorkbookEditor, type EditorHandle, type EditorSelection, type EditorViewport } from './handle';
 export { useEditorState, useWorkbookEditor, type EditorState, type WorkbookEditorHookOptions, type WorkbookFile } from './hooks';
 export { mountWorkbookEditor } from './mount';
+export { discardDraft } from './drafts';
 export {
   SaveConflictError,
   type EditorFeatures,

@@ -88,6 +88,15 @@ export interface EditorHandle {
    * at most once a frame while scrolling.
    */
   readonly viewport: EditorViewport | undefined;
+  /**
+   * Deletes the draft kept in this browser for the open file, so it isn't
+   * offered when the file is opened again. Does nothing with `drafts: false`
+   * or for a password-protected workbook, which keep none. If the workbook
+   * has unsaved edits, no new draft is kept for them either, until it is
+   * opened again. To delete the draft of a file that isn't open, use
+   * `discardDraft(bytes)`, exported by the package.
+   */
+  discardDraft(): Promise<void>;
   /** Adds or replaces a schema and re-checks the open workbook. */
   registerSchema(schema: WorkbookSchema): void;
   removeSchema(id: string): void;
@@ -153,6 +162,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     getCsv: async (options) => (await store.csv(options))?.text,
     goTo: (ref, options) => void store.goTo(ref, options),
     scrollTo: (ref) => store.scrollTo(ref),
+    discardDraft: () => store.discardDraft(),
     get selection() {
       const now = store.status === 'ready' ? store.commandSelection() : undefined;
       if (!now) return (selection = undefined);
