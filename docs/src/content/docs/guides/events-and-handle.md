@@ -42,6 +42,8 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 
 `selection`, `viewport` and `issues` stay the same object until they change, so a listener can tell what changed by comparing them with the last it saw. While the sheet scrolls, `viewport` changes at most once a frame. Rows of their own height, hidden rows and collapsed groups are all taken into account: a viewport row is always one shown.
 
+Read where the editor is from these properties, not from its page. The editor's elements, `wbe-` classes and scroll positions are not part of its API and change between versions. The table the grid keeps for screen readers is not a picture of what is in view: it always holds the active cell, which has the keyboard focus, even when that cell is scrolled away, and it is rebuilt shortly after scrolling stops rather than on every frame. Nor can rows be counted from the scroll position, since rows can have their own heights, be hidden or sit behind frozen panes.
+
 ## Following another editor
 
 Two editors side by side can follow each other with `selection`, `viewport`, `select(selection, { focus: false })` and `scrollTo(ref)`. Leave alone what already matches, so the two don't keep answering each other:
