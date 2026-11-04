@@ -40,8 +40,14 @@ test('the cell menu keeps only what does not edit, and the toolbar its viewing p
   await open(page);
   await goTo(page, 'B2');
   await page.keyboard.press('Shift+F10');
-  await expect.poll(() => entries(page)).toEqual(['Copy', '-', 'Find and replace…']);
+  await expect.poll(() => entries(page)).toEqual(['Copy', '-', 'Filter by values…', 'Add filter buttons', '-', 'Find and replace…']);
+  // Filtering stays, for viewing only: nothing is changed or marked unsaved.
+  await menu(page).getByRole('menuitem', { name: 'Add filter buttons' }).click();
+  await page.keyboard.press('Shift+F10');
+  await expect.poll(() => entries(page)).toContain('Remove filter buttons');
   await page.keyboard.press('Escape');
+  expect(await edited(page)).toEqual({ count: 0, unsaved: false });
+  await expect(page.locator('.wbe-toast')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Undo' })).toHaveCount(0);
   await expect(page.getByRole('toolbar', { name: 'Formatting' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add sheet' })).toHaveCount(0);
