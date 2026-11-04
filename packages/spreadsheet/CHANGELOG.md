@@ -6,6 +6,8 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+## 0.4.0 (2026-11-04)
+
 - `handle.select(selection, { focus }?)` (and `select(...)` on
   `<workbook-editor>`) selects exactly what `handle.selection` returns: the
   sheet, the ranges and the active cell, which is shown. Pass one editor's
