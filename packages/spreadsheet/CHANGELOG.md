@@ -22,12 +22,17 @@ before 1.0.0, a minor version may change the API.
   before and replaces the view-only freeze on that sheet.
 - `readOnly: true` shows a workbook without letting it be changed. Every
   edit is refused (typing, paste, cut, fill, dragging cells, rows and
-  columns, formats, notes, links, sorting and filters, sheets, charts, pivot
-  tables, and undo and redo of earlier edits); the cell and heading menus
-  keep only the entries whose `edits` is false, the other entries' shortcuts
-  are off, and the format bar, schema designer, sheet tab buttons and menus,
+  columns, formats, notes, links, sorting, sheets, charts, pivot tables, and
+  undo and redo of earlier edits); the cell and heading menus keep only the
+  entries whose `edits` is false or that have `view: true`, the other
+  entries' shortcuts are off, and the format bar, schema designer, sheet tab buttons and menus,
   Undo and Redo and the record buttons are hidden, without changing
   `features`. Selecting, copying, finding and moving around still work.
+  Filtering and collapsing or expanding outline groups work for viewing
+  only, starting from the file's filter: no undo step, nothing marked
+  unsaved or drafted, and saving writes the file's own filters and outline.
+  Turning `readOnly` off shows those again. `MENU_COMMANDS` marks the filter
+  and outline entries that read-only keeps with `view: true`.
   Refused edits are said to screen readers, not shown; nothing is marked
   unsaved or drafted. It can change while the editor is open: through
   `options`, `handle.setReadOnly()`, and on `<workbook-editor>` the

@@ -63,7 +63,9 @@ createWorkbookEditor({ menus: { cell: reading, header: reading } });
 
 Edit note and Show comments count as reading: on a note or comment that can't be changed they only show it. Plugin commands aren't in `MENU_COMMANDS`.
 
-To stop the workbook being changed at all, not only from the menus, use [`readOnly`](/guides/options-and-features/#read-only-workbooks): it drops the same entries and their shortcuts, keeps plugins' commands, and refuses edits from everywhere else too. `menus` still applies on top of it.
+Entries that edit only by changing which rows and columns show also have `view: true`: Filter, Filter on and off, Show all rows (`menu.filter`, `menu.filterOn`, `menu.clearFilter`), and Hide detail, Show detail and Show level (`outline.menu.hideDetail`, `outline.menu.showDetail`, `outline.menu.showLevel`). Excel saves filters and collapsed groups in the file, so they count as edits, but a read-only workbook keeps them.
+
+To stop the workbook being changed at all, not only from the menus, use [`readOnly`](/guides/options-and-features/#read-only-workbooks): it drops the entries that edit, except those with `view: true`, and their shortcuts, keeps plugins' commands, and refuses edits from everywhere else too. `menus` still applies on top of it.
 
 ## Every id
 

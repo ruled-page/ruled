@@ -446,8 +446,6 @@ export type EditorEvent =
 
 /** The store's dialogs, menus and modes that edit the workbook, which don't open while it is read-only. */
 const EDITING_UI = [
-  'filterPicker',
-  'conditionDialog',
   'touchFill',
   'columnWidthFor',
   'rowHeightFor',
@@ -843,6 +841,8 @@ export class WorkbookStore {
   setReadOnly(readOnly: boolean): void {
     if (readOnly === this.readOnly) return;
     this.options.readOnly = readOnly;
+    // Filtering and outline changes made while read-only were for viewing only; the file's own show again.
+    if (!readOnly) for (const v of this.sheets) v.dropViewLayout();
     if (readOnly) {
       // Nothing cut can be moved any more, and the menus and dialogs that edit close.
       if (this.clip?.cut) this.clip = undefined;
@@ -2552,13 +2552,22 @@ export class WorkbookStore {
 
   /** Whether the active sheet's rows (or columns) can't be grouped, hidden or shown: Excel's protection doesn't let them be formatted. */
   outlineLocked(axis: Axis): boolean {
-    const info = this.view?.info;
-    return this.readOnly || !info || info.kind !== 'worksheet' || (info.protected && !info.formatAllowed?.[axis]);
+    return this.readOnly || this.outlineViewLocked(axis);
   }
 
-  /** Makes a change to the active sheet's outline as one undoable step, then keeps the active cell where it shows. */
-  private async changeOutline(axis: Axis, change: OutlineChange | { refused: Text }, label: Text, near?: number): Promise<void> {
-    if (this.refused()) return;
+  /** Whether the active sheet's groups can't be collapsed or expanded; a read-only workbook can, for viewing only. */
+  outlineViewLocked(axis: Axis): boolean {
+    const info = this.view?.info;
+    return !info || info.kind !== 'worksheet' || (info.protected && !info.formatAllowed?.[axis]);
+  }
+
+  /**
+   * Makes a change to the active sheet's outline as one undoable step, then
+   * keeps the active cell where it shows. In a read-only workbook, a change
+   * that only collapses or expands groups (`view`) is shown for viewing only.
+   */
+  private async changeOutline(axis: Axis, change: OutlineChange | { refused: Text }, label: Text, near?: number, view = false): Promise<void> {
+    if (!view && this.refused()) return;
     if ('refused' in change) return this.toast('warn', change.refused);
     // A group that ends the sheet has no line after it to mark.
     const last = axis === 'rows' ? MAX_ROWS : MAX_COLS;
@@ -2569,7 +2578,10 @@ export class WorkbookStore {
       ops.push({ type: 'layout', sheet: this.active, op: { kind: 'outline', axis, levels: change.levels, collapsed: change.collapsed } });
     }
     if (!ops.length) return;
-    await this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label });
+    if (this.readOnly) {
+      for (const op of ops) if (op.type === 'layout' && (op.op.kind === 'hidden' || op.op.kind === 'outline')) this.view?.viewLayout(op.op);
+      this.notify();
+    } else await this.edit(ops.length === 1 ? ops[0] : { type: 'batch', ops }, 'undo', { label });
     this.keepActiveShown(axis, near);
   }
 
@@ -2636,11 +2648,10 @@ export class WorkbookStore {
 
   /** Collapses a group if any of it shows, else expands it, as its button does. */
   async toggleGroup(axis: Axis, g: OutlineGroup): Promise<void> {
-    if (this.refused()) return;
     const o = this.view?.info.outline?.[axis];
     const open = this.groupShown(axis, g);
     const change = open ? collapseGroup(o, this.hiddenLines(axis), g) : expandGroup(o, this.hiddenLines(axis), g);
-    await this.changeOutline(axis, change, msg(open ? 'outline.history.hideDetail' : 'outline.history.showDetail'), summaryLine(o, g));
+    await this.changeOutline(axis, change, msg(open ? 'outline.history.hideDetail' : 'outline.history.showDetail'), summaryLine(o, g), true);
   }
 
   /** The group that Hide detail (or Show detail) would act on at the active cell, if any. */
@@ -2653,15 +2664,13 @@ export class WorkbookStore {
 
   /** Collapses (or expands) the group at the active cell, as Excel's Hide detail and Show detail do. */
   async showDetail(axis: Axis, show: boolean): Promise<void> {
-    if (this.refused()) return;
     const g = this.detailGroup(axis, show);
     if (g) await this.toggleGroup(axis, g);
   }
 
   /** Shows the active sheet's outline to level n, as Excel's level buttons do. */
   async showOutlineLevel(axis: Axis, level: number): Promise<void> {
-    if (this.refused()) return;
-    await this.changeOutline(axis, showLevel(this.view?.info.outline?.[axis], this.hiddenLines(axis), level), msg('outline.history.level', { level }));
+    await this.changeOutline(axis, showLevel(this.view?.info.outline?.[axis], this.hiddenLines(axis), level), msg('outline.history.level', { level }), undefined, true);
   }
 
   /** Takes every row (or column) of the active sheet out of its groups. */
@@ -3154,7 +3163,6 @@ export class WorkbookStore {
   }
 
   private async filterColumn(rect: Rect, col: number, pick: { values: Set<string> } | { condition: FilterCondition } | undefined): Promise<void> {
-    if (this.refused()) return;
     const view = this.view;
     if (!view) return;
     const current = view.filter && sameRect(view.filter.rect, rect) ? view.filter : undefined;
@@ -3193,16 +3201,29 @@ export class WorkbookStore {
     };
     // How many rows the filter hides is said, as Excel's status bar shows how many it leaves.
     const hidden = msg(picked ? 'store.announce.filtered' : 'store.announce.filterCleared', { count: rows.length });
-    await this.changeLayout({ kind: 'filter', filter, rows }, msg(picked ? 'store.history.filter' : 'store.history.clearFilter'), [], hidden);
+    await this.changeFilter({ kind: 'filter', filter, rows }, msg(picked ? 'store.history.filter' : 'store.history.clearFilter'), hidden);
+  }
+
+  /**
+   * Shows a filter, or none, as one undoable step; in a read-only workbook,
+   * for viewing only, starting from the filter the file has.
+   */
+  private async changeFilter(op: Extract<LayoutOp, { kind: 'filter' }>, label: Text, announce: Text): Promise<void> {
+    if (!this.readOnly) {
+      await this.changeLayout(op, label, [], announce);
+      return;
+    }
+    this.view?.viewLayout(op);
+    this.announce(announce);
+    this.notify();
   }
 
   /** Shows every row again, as Excel's Clear does, keeping the filter's buttons. */
   async clearFilter(): Promise<void> {
-    if (this.refused()) return;
     const f = this.view?.filter;
     if (!f || f.kept || !this.view?.filtering) return;
     const filter: FilterState = { rect: f.rect, columns: {}, ...(f.table ? { table: f.table } : {}) };
-    await this.changeLayout({ kind: 'filter', filter, rows: [] }, msg('store.history.clearFilter'), [], msg('store.announce.filterCleared'));
+    await this.changeFilter({ kind: 'filter', filter, rows: [] }, msg('store.history.clearFilter'), msg('store.announce.filterCleared'));
   }
 
   /**
@@ -3211,18 +3232,17 @@ export class WorkbookStore {
    * has them, off again with every row shown. A table keeps its own buttons.
    */
   async toggleFilter(): Promise<void> {
-    if (this.refused()) return;
     const view = this.view;
     if (!view || view.info.kind !== 'worksheet') return;
     const { row, col } = this.selection;
     if (view.tableAt(row, col) || view.filter?.table) return this.toast('info', msg('store.filter.table'));
     if (view.filter) {
-      await this.changeLayout({ kind: 'filter', filter: null, rows: [] }, msg('store.history.filterOff'), [], msg('store.announce.filterOff'));
+      await this.changeFilter({ kind: 'filter', filter: null, rows: [] }, msg('store.history.filterOff'), msg('store.announce.filterOff'));
       return;
     }
     const rect = this.dataRegion();
     if (!rect) return this.toast('info', msg('filter.noData'));
-    await this.changeLayout({ kind: 'filter', filter: { rect, columns: {} }, rows: [] }, msg('store.history.filterOn'), [], msg('store.announce.filterOn'));
+    await this.changeFilter({ kind: 'filter', filter: { rect, columns: {} }, rows: [] }, msg('store.history.filterOn'), msg('store.announce.filterOn'));
   }
 
   // ---------------------------------------------------------------------------

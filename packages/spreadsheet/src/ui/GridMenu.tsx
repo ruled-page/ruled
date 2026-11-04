@@ -22,8 +22,7 @@ const CHART_KINDS: NewChartKind[] = ['column', 'bar', 'line', 'area', 'pie', 'do
 function viewOnlyItems(items: MenuItem[]): MenuItem[] {
   const kept = items.flatMap((item): MenuItem[] => {
     if ('separator' in item) return [item];
-    if (item.id && !viewOnly(item.id)) return [];
-    if (!('items' in item)) return [item];
+    if (!('items' in item)) return item.id && !viewOnly(item.id) ? [] : [item];
     const sub = viewOnlyItems(item.items);
     return sub.length ? [{ ...item, items: sub }] : [];
   });
@@ -62,12 +61,13 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
       ? ({ group: 'outline.menu.groupRows', ungroup: 'outline.menu.ungroupRows', clear: 'outline.menu.clearRows' } as const)
       : ({ group: 'outline.menu.groupColumns', ungroup: 'outline.menu.ungroupColumns', clear: 'outline.menu.clearColumns' } as const);
     const disabled = store.outlineLocked(axis);
+    const viewLocked = store.outlineViewLocked(axis);
     const depth = outlineDepth(view.info.outline?.[axis]);
     const levels = Array.from({ length: depth ? depth + 1 : 0 }, (_, i) => ({
       id: 'outline.menu.showLevel',
       label: t('outline.menu.showLevel', { level: i + 1 }),
       onSelect: () => void store.showOutlineLevel(axis, i + 1),
-      disabled,
+      disabled: viewLocked,
     }));
     return [
       { separator: true },
@@ -75,8 +75,8 @@ export function GridMenu({ store }: { store: WorkbookStore }) {
       ...(depth
         ? [
             { id: ids.ungroup, label: t(ids.ungroup), hint: APPLE ? '⌥⇧←' : t('outline.keys.ungroup'), onSelect: () => void store.groupLines(axis, -1), disabled },
-            ...(store.detailGroup(axis, false) ? [{ id: 'outline.menu.hideDetail', label: t('outline.menu.hideDetail'), onSelect: () => void store.showDetail(axis, false), disabled }] : []),
-            ...(store.detailGroup(axis, true) ? [{ id: 'outline.menu.showDetail', label: t('outline.menu.showDetail'), onSelect: () => void store.showDetail(axis, true), disabled }] : []),
+            ...(store.detailGroup(axis, false) ? [{ id: 'outline.menu.hideDetail', label: t('outline.menu.hideDetail'), onSelect: () => void store.showDetail(axis, false), disabled: viewLocked }] : []),
+            ...(store.detailGroup(axis, true) ? [{ id: 'outline.menu.showDetail', label: t('outline.menu.showDetail'), onSelect: () => void store.showDetail(axis, true), disabled: viewLocked }] : []),
             ...levels,
             { id: ids.clear, label: t(ids.clear), onSelect: () => void store.clearOutline(axis), disabled },
           ]

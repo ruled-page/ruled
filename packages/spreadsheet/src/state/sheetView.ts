@@ -101,6 +101,35 @@ export class SheetView {
     return this.fileFrozen && { rows: this.info.frozenRows, cols: this.info.frozenCols };
   }
 
+  /** The file's filter, hidden rows and columns and outline, while `info` shows view-only changes to them instead. */
+  private fileShown?: { filter?: ViewFilter; filteredOut: number[]; hiddenRows: number[]; hiddenCols: number[]; outline: SheetInfo['outline'] };
+
+  /** Filters, or hides or shows lines of the outline, for viewing only: `op` is shown as the worker would show it, and the file's state is kept to show again. */
+  viewLayout(op: Extract<LayoutOp, { kind: 'filter' | 'hidden' | 'outline' }>): void {
+    const info = this.info;
+    this.fileShown ??= { filter: this.filter, filteredOut: [...this.filteredOut], hiddenRows: info.hiddenRows, hiddenCols: info.hiddenCols, outline: info.outline };
+    this.applyLayout(op);
+  }
+
+  /** Whether view-only filtering or outline changes are shown. */
+  get viewChanged(): boolean {
+    return !!this.fileShown;
+  }
+
+  /** Shows the file's own filter, hidden rows and columns and outline again, in place of view-only changes. */
+  dropViewLayout(): void {
+    const was = this.fileShown;
+    if (!was) return;
+    this.fileShown = undefined;
+    Object.assign(this.info, { hiddenRows: was.hiddenRows, hiddenCols: was.hiddenCols, outline: was.outline });
+    this.filter = was.filter;
+    this.filteredOut.clear();
+    for (const row of was.filteredOut) this.filteredOut.add(row);
+    this.layout();
+    this.layoutVersion++;
+    this.version++;
+  }
+
   /** Bumped when sizes, hidden rows and columns, frozen panes or merges change. */
   layoutVersion = 0;
 

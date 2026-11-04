@@ -13,6 +13,13 @@ import type { WorkbookStore } from '../state/store';
 export interface MenuCommandInfo {
   menus: 'cell' | 'header' | 'both';
   edits: boolean;
+  /**
+   * For an entry that edits: whether all it changes is which rows and columns
+   * show, by filtering or by collapsing and expanding outline groups. A
+   * read-only workbook keeps these entries, and their change is for viewing
+   * only: never saved, with no undo step.
+   */
+  view?: true;
 }
 
 /**
@@ -69,9 +76,9 @@ export const MENU_COMMANDS = {
   'outline.menu.groupColumns': { menus: 'both', edits: true },
   'outline.menu.ungroupColumns': { menus: 'both', edits: true },
   'outline.menu.clearColumns': { menus: 'both', edits: true },
-  'outline.menu.hideDetail': { menus: 'both', edits: true },
-  'outline.menu.showDetail': { menus: 'both', edits: true },
-  'outline.menu.showLevel': { menus: 'both', edits: true },
+  'outline.menu.hideDetail': { menus: 'both', edits: true, view: true },
+  'outline.menu.showDetail': { menus: 'both', edits: true, view: true },
+  'outline.menu.showLevel': { menus: 'both', edits: true, view: true },
   'menu.merge': { menus: 'cell', edits: true },
   'menu.unmerge': { menus: 'cell', edits: true },
   // Freezing panes is saved with the workbook.
@@ -88,7 +95,7 @@ export const MENU_COMMANDS = {
   'menu.sortAscending': { menus: 'both', edits: true },
   'menu.sortDescending': { menus: 'both', edits: true },
   'sort.menu.custom': { menus: 'both', edits: true },
-  'menu.filter': { menus: 'both', edits: true },
+  'menu.filter': { menus: 'both', edits: true, view: true },
   'validation.menu': { menus: 'both', edits: true },
   'cf.menu': { menus: 'both', edits: true },
   'cf.quick.greaterThan': { menus: 'both', edits: true },
@@ -117,8 +124,8 @@ export const MENU_COMMANDS = {
   'core.chartType.doughnut': { menus: 'both', edits: true },
   'core.chartType.scatter': { menus: 'both', edits: true },
   'pivot.menu.insert': { menus: 'both', edits: true },
-  'menu.filterOn': { menus: 'both', edits: true },
-  'menu.clearFilter': { menus: 'both', edits: true },
+  'menu.filterOn': { menus: 'both', edits: true, view: true },
+  'menu.clearFilter': { menus: 'both', edits: true, view: true },
   // Links, in the cell menu only
   'links.menu.open': { menus: 'cell', edits: false },
   'links.menu.link': { menus: 'cell', edits: true },
@@ -192,9 +199,10 @@ export const SHORTCUT_COMMANDS = Object.keys(SHORTCUT_ENTRIES) as MenuCommandId[
 
 const keeps = (list: readonly string[] | undefined, id: string, within?: string) => !list || list.includes(id) || (!!within && list.includes(within));
 
-/** Whether a menu entry stays in a read-only workbook: a built-in one that doesn't edit it, or a plugin's. */
+/** Whether a menu entry stays in a read-only workbook: a built-in one that doesn't edit it or only changes what shows, or a plugin's. */
 export function viewOnly(id: string): boolean {
-  return !(MENU_COMMANDS as Record<string, MenuCommandInfo>)[id]?.edits;
+  const info = (MENU_COMMANDS as Record<string, MenuCommandInfo>)[id];
+  return !info?.edits || !!info.view;
 }
 
 /** Whether the shortcut of a menu entry works with these menu options; in a read-only workbook, only those of entries that don't edit it do. */

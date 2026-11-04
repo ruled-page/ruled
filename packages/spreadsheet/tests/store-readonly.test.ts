@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { english } from '../src/i18n';
@@ -10,7 +12,9 @@ import type { WorkerRequest } from '../src/worker/protocol';
 import { MENU_COMMANDS, SHORTCUT_COMMANDS, shortcutOn, viewOnly, type MenuCommandId } from '../src/ui/menuCommands';
 import { applyLiveOptions } from '../src/editor/liveOptions';
 import { handleFor } from '../src/editor/handle';
-import { testStore } from './storeHarness';
+import { WorkbookSession } from '../src/core/session';
+import { outlineGroups, type Axis } from '../src/state/outline';
+import { opened, testStore } from './storeHarness';
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -138,7 +142,6 @@ describe('a read-only workbook', () => {
       ['dragging a row edge', () => store.resizedRow(1, 60)],
       ['autofit', () => store.autofit('cols', 1)],
       ['group rows', () => store.groupLines('rows')],
-      ['outline level', () => store.showOutlineLevel('rows', 1)],
       ['freeze panes', () => store.freezePanes('cell')],
       ['merge', () => store.mergeCells()],
       ['unmerge', () => store.unmergeCells()],
@@ -154,9 +157,6 @@ describe('a read-only workbook', () => {
       ['remove links', () => store.removeLinks()],
       ['sort', () => store.sort(false)],
       ['custom sort', () => store.sortBy({ rect: { r1: 0, c1: 0, r2: 3, c2: 1 }, keys: [], header: true, caseSensitive: false, across: false })],
-      ['filter on', () => store.toggleFilter()],
-      ['filter a column', () => store.setFilter({ r1: 0, c1: 0, r2: 3, c2: 1 }, 0, new Set(['Bolts']))],
-      ['clear filter', () => store.clearFilter()],
       ['replace', () => store.replace({ text: 'Bolts', matchCase: false, wholeCell: false, lookIn: 'formulas', scope: 'workbook' }, 'Screws')],
       ['checkboxes', () => store.insertCheckboxes()],
       ['tick', () => store.toggleCheckboxes({ row: 1, col: 1 })],
@@ -221,18 +221,18 @@ describe('a read-only workbook', () => {
     store.openInsertPivot();
     store.showFieldList();
     await store.openValidationDialog();
-    store.set('filterPicker', { col: 0, rect: { r1: 0, c1: 0, r2: 3, c2: 1 }, x: 0, y: 0 });
     store.set('renameSheetFor', 0);
     store.set('cellsDialog', 'insert' as never);
-    expect([store.sortDialog, store.cfManager, store.cfGallery, store.cfDialog, store.pivotDialog, store.validationDialog, store.filterPicker, store.renameSheetFor, store.cellsDialog]).toEqual(
-      Array(9).fill(undefined),
-    );
+    expect([store.sortDialog, store.cfManager, store.cfGallery, store.cfDialog, store.pivotDialog, store.validationDialog, store.renameSheetFor, store.cellsDialog]).toEqual(Array(8).fill(undefined));
     expect(store.panel).not.toBe('pivot');
-    // Finding and the list of shortcuts still open.
+    // Finding, the list of shortcuts and filtering still open.
     store.set('findOpen', true);
     store.set('shortcutsOpen', true);
-    expect([store.findOpen, store.shortcutsOpen]).toEqual([true, true]);
-    expect(store.outlineLocked('rows')).toBe(true);
+    store.set('filterPicker', { col: 0, rect: { r1: 0, c1: 0, r2: 3, c2: 1 }, x: 0, y: 0 });
+    store.set('conditionDialog', { col: 1, rect: { r1: 0, c1: 0, r2: 3, c2: 1 }, mode: 'custom' });
+    expect([store.findOpen, store.shortcutsOpen, !!store.filterPicker, !!store.conditionDialog]).toEqual([true, true, true, true]);
+    // Groups collapse and expand, but aren't changed.
+    expect([store.outlineLocked('rows'), store.outlineViewLocked('rows')]).toEqual([true, false]);
     expect(store.editableObjects()).toEqual([]);
   });
 
@@ -294,19 +294,137 @@ describe('a read-only workbook', () => {
 });
 
 describe('menu entries and shortcuts in a read-only workbook', () => {
-  it('keeps only the entries that do not edit, and plugin commands', () => {
+  it('keeps only the entries that do not edit or only change what shows, and plugin commands', () => {
     const kept = (Object.keys(MENU_COMMANDS) as MenuCommandId[]).filter(viewOnly);
-    expect(kept).toEqual(['menu.copy', 'menu.editNote', 'menu.showComments', 'links.menu.open', 'menu.find']);
+    expect(kept).toEqual([
+      'menu.copy',
+      'menu.editNote',
+      'menu.showComments',
+      'outline.menu.hideDetail',
+      'outline.menu.showDetail',
+      'outline.menu.showLevel',
+      'menu.filter',
+      'menu.filterOn',
+      'menu.clearFilter',
+      'links.menu.open',
+      'menu.find',
+    ]);
     expect(viewOnly('menu.freezePanes')).toBe(false);
     expect(viewOnly('plugin/command')).toBe(true);
   });
 
   it('turns off the shortcuts of entries that edit, whatever the menus option keeps', () => {
     const on = SHORTCUT_COMMANDS.filter((id) => shortcutOn(undefined, id, true));
-    expect(on).toEqual(['menu.copy', 'menu.find', 'menu.editNote', 'menu.showComments', 'links.menu.open']);
+    expect(on).toEqual(['menu.copy', 'menu.find', 'menu.filterOn', 'menu.editNote', 'menu.showComments', 'links.menu.open']);
     expect(shortcutOn({ shortcuts: ['menu.paste'] }, 'menu.paste', true)).toBe(false);
     expect(shortcutOn({ cell: ['menu.copy'], header: [] }, 'menu.copy', true)).toBe(true);
     expect(shortcutOn({ cell: [], header: [] }, 'menu.copy', true)).toBe(false);
     expect(shortcutOn(undefined, 'menu.paste')).toBe(true);
+  });
+});
+
+describe('filtering and outlines in a read-only workbook', () => {
+  const data = { r1: 0, c1: 0, r2: 3, c2: 1 };
+  const shown = (axis: Axis, a: number, b: number) =>
+    Array.from({ length: b - a + 1 }, (_, i) => a + i).filter((l) => (axis === 'rows' ? store.view!.gridRow(l) : store.view!.gridCol(l)) >= 0);
+  /** Checks nothing was changed: no worker edit, undo step, unsaved mark or draft, and the saved file is the one opened. */
+  async function unchanged(sent: WorkerRequest['type'][], original: Uint8Array): Promise<void> {
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent).toEqual([]);
+    expect([store.undoStack.length, store.redoStack.length, store.editedCount]).toEqual([0, 0, 0]);
+    expect(kept.size).toBe(0);
+    const saved = (await store.snapshot())!;
+    expect(saved.changes).toEqual([]);
+    const sheets = (b: Uint8Array) => WorkbookSession.open(b, 'x.xlsx').loadResult().sheets.map((s) => ({ hiddenRows: s.hiddenRows, hiddenCols: s.hiddenCols, outline: s.outline, filter: s.filter, autoFilter: s.autoFilter }));
+    expect(sheets(saved.bytes)).toEqual(sheets(original));
+  }
+
+  it('filters by values and conditions, clears a column and the filter, for viewing only', async () => {
+    await open({ drafts: true });
+    const sent = readOnlyAndWatch();
+    select(1, 0);
+    await store.toggleFilter();
+    expect(store.view!.filter?.rect).toEqual(data);
+    await store.setFilter(data, 0, new Set(['Bolts', 'Total']));
+    expect(shown('rows', 0, 3)).toEqual([0, 1, 3]);
+    await store.setFilterCondition(data, 1, { kind: 'custom', and: true, rules: [{ operator: 'greaterThan', value: '1' }] });
+    expect(shown('rows', 0, 3)).toEqual([0, 1, 3]);
+    expect(store.view!.filteredCount).toBe(1);
+    // Clearing column A leaves column B's condition.
+    await store.setFilter(data, 0, undefined);
+    expect(shown('rows', 0, 3)).toEqual([0, 1, 3]);
+    // Show all, as the status bar's link and the menu's Clear do.
+    await store.clearFilter();
+    expect([store.view!.filtering, shown('rows', 0, 3)]).toEqual([false, [0, 1, 2, 3]]);
+    await store.setFilter(data, 0, new Set(['Nuts']));
+    expect(shown('rows', 0, 3)).toEqual([0, 2]);
+    expect(store.toasts).toEqual([]);
+    expect(store.spoken.map((s) => english.text(s.text))).not.toContain('This workbook is read-only.');
+    await unchanged(sent, bytes);
+    // Sorting is still refused.
+    await store.sortBy({ rect: data, keys: [{ col: 0, descending: true }], header: true, caseSensitive: false, across: false });
+    expect(store.view!.get(1, 0)?.s).toBe('Bolts');
+    await unchanged(sent, bytes);
+    // Turning the filter buttons off shows every row.
+    await store.toggleFilter();
+    expect([store.view!.filter, shown('rows', 0, 3)]).toEqual([undefined, [0, 1, 2, 3]]);
+  });
+
+  it("starts from the file's filter, and shows it again once the workbook can be edited", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Stock');
+    for (const row of [['Item', 'Qty'], ['Bolts', 3], ['Nuts', 5], ['Pins', 7]]) ws.addRow(row);
+    ws.autoFilter = 'A1:B4';
+    const original = new Uint8Array(await wb.xlsx.writeBuffer());
+    store = await testStore({ readOnly: true });
+    await store.open('stock.xlsx', original.slice().buffer as ArrayBuffer);
+    const sent = readOnlyAndWatch();
+    expect(store.view!.filter?.rect).toEqual(data);
+    await store.setFilter(data, 0, new Set(['Pins']));
+    expect(shown('rows', 0, 3)).toEqual([0, 3]);
+    // Filter off, then on again, from the menu.
+    await store.toggleFilter();
+    expect(store.view!.filter).toBeUndefined();
+    await unchanged(sent, original);
+    store.setReadOnly(false);
+    expect([store.view!.filter?.rect, store.view!.filtering, shown('rows', 0, 3)]).toEqual([data, false, [0, 1, 2, 3]]);
+    // Editable again, filtering is a change to the file.
+    await store.setFilter(data, 0, new Set(['Nuts']));
+    expect([store.undoStack.length, store.editedCount]).toEqual([1, 1]);
+  });
+
+  it('collapses and expands groups and shows levels for viewing only, and shows the file\'s outline again once editable', async () => {
+    const original = new Uint8Array(readFileSync(join(__dirname, 'corpus', 'outline.xlsx')));
+    store = await testStore({ drafts: true });
+    await opened(store, original, 'outline.xlsx');
+    const sent = readOnlyAndWatch();
+    const group = (axis: Axis, level: number, start: number) => outlineGroups(store.view!.info.outline?.[axis]).find((g) => g.level === level && g.start === start)!;
+    expect(shown('rows', 0, 7)).toEqual([0, 1, 2, 3, 6, 7]);
+    await store.toggleGroup('rows', group('rows', 1, 1));
+    expect(shown('rows', 0, 7)).toEqual([0, 7]);
+    await store.toggleGroup('rows', group('rows', 1, 1));
+    await store.toggleGroup('rows', group('rows', 2, 4));
+    expect(shown('rows', 0, 7)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    await store.showOutlineLevel('rows', 1);
+    expect(shown('rows', 0, 7)).toEqual([0, 7]);
+    await store.toggleGroup('cols', group('cols', 1, 5));
+    expect(shown('cols', 0, 9)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // Hide and Show Detail at the active cell.
+    select(0, 2);
+    await store.showDetail('cols', false);
+    expect(shown('cols', 0, 9)).toEqual([0, 4, 5, 6, 7, 8, 9]);
+    // Grouping and clearing the outline are still refused.
+    select(8, 0, 9, 0);
+    await store.groupLines('rows');
+    await store.clearOutline('rows');
+    expect(store.view!.info.outline!.rows.levels[8]).toBeUndefined();
+    expect(store.toasts).toEqual([]);
+    await unchanged(sent, original);
+    store.setReadOnly(false);
+    expect([shown('rows', 0, 7), shown('cols', 0, 9)]).toEqual([
+      [0, 1, 2, 3, 6, 7],
+      [0, 1, 2, 3, 4, 8, 9],
+    ]);
+    expect(store.view!.info.outline!.rows.collapsed).toEqual([6]);
   });
 });

@@ -188,15 +188,18 @@ export function FilterPicker({ store }: { store: WorkbookStore }) {
       <div id={`${id}-title`} className="wbe-filter-title">
         {heading ? t('filter.titleHeading', { heading }) : t('filter.titleColumn', { column: colToLetters(at.col) })}
       </div>
-      <div className="wbe-filter-sort">
-        <button className="wbe-btn wbe-ghost" onClick={() => sort(false)}>
-          {t(kind === 'number' ? 'sort.ascNumber' : kind === 'date' ? 'sort.ascDate' : 'sort.ascText')}
-        </button>
-        <button className="wbe-btn wbe-ghost" onClick={() => sort(true)}>
-          {t(kind === 'number' ? 'sort.descNumber' : kind === 'date' ? 'sort.descDate' : 'sort.descText')}
-        </button>
-      </div>
-      {byColor && (
+      {/* Sorting changes the file, which a read-only workbook refuses; filtering there is for viewing only. */}
+      {!store.readOnly && (
+        <div className="wbe-filter-sort">
+          <button className="wbe-btn wbe-ghost" onClick={() => sort(false)}>
+            {t(kind === 'number' ? 'sort.ascNumber' : kind === 'date' ? 'sort.ascDate' : 'sort.ascText')}
+          </button>
+          <button className="wbe-btn wbe-ghost" onClick={() => sort(true)}>
+            {t(kind === 'number' ? 'sort.descNumber' : kind === 'date' ? 'sort.descDate' : 'sort.descText')}
+          </button>
+        </div>
+      )}
+      {byColor && !store.readOnly && (
         <div className="wbe-filter-conditions">
           <button className="wbe-btn wbe-ghost" aria-expanded={sortColors} onClick={() => setSortColors(!sortColors)}>
             <span>{t('filter.sortByColor')}</span>

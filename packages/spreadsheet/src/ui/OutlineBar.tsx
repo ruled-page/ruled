@@ -190,7 +190,7 @@ export function OutlineBars({
   const bar = (axis: Axis) => {
     const rows = axis === 'rows';
     const o = view.info.outline?.[axis];
-    const disabled = store.outlineLocked(axis);
+    const disabled = store.outlineViewLocked(axis);
     const depth = outlineDepth(o);
     const strips = rows ? geo.rows : geo.cols ? [geo.cols] : [];
     const levelsAt = rows ? geo.rowLevelsAt : geo.colLevelsAt;
