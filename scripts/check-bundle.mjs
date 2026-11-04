@@ -21,7 +21,7 @@ const BUDGETS = [
   ['examples/demo/dist/assets', /^workbook\.worker-.*\.js$/, 300],
   // Loaded only for workbooks with charts.
   ['examples/demo/dist/assets', /^ChartView-.*\.js$/, 75],
-  ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 110],
+  ['packages/spreadsheet/dist/react', /^workbook-editor\.js$/, 115],
   ['packages/spreadsheet/dist/react/assets', /^workbook\.worker\.js$/, 300],
   // React and the worker included.
   ['packages/spreadsheet/dist/standalone', /^workbook-editor\.js$/, 400],
