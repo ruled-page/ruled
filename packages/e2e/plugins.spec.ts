@@ -8,7 +8,10 @@ test('opens from a plugin’s source, saves back, catches a conflict and saves a
   await page.goto(`${serverUrl('lib')}/packages/e2e/fixtures/plugins.html`);
 
   // With a source registered, Open is a menu: this device first, then the source.
-  await page.getByRole('button', { name: 'Open', exact: true }).click();
+  // Until the plugin parts load it is a plain button that opens the device's file picker.
+  const open = page.getByRole('button', { name: 'Open', exact: true });
+  await expect(open).toHaveAttribute('aria-haspopup', 'menu');
+  await open.click();
   const openMenu = page.getByRole('menu', { name: 'Open from' });
   await expect(openMenu.getByRole('menuitem')).toHaveText(['This device', 'Fixture Drive']);
   await openMenu.getByRole('menuitem', { name: 'Fixture Drive' }).click();
