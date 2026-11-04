@@ -23,7 +23,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `discardDraft()` | Deletes the [draft](/guides/opening-and-saving/#drafts) kept in the browser for the open file, and changes nothing else: edits made afterwards are drafted as usual. |
 | `registerSchema(schema)`, `removeSchema(id)` | Add or remove a schema while the editor is open. |
 | `setTheme(theme)`, `setLanguage(language)`, `setUser(user)`, `setCustomLists(lists)`, `setMenus(menus)`, `setReadOnly(readOnly)` | Change these without closing the workbook. |
-| `subscribe(listener)` | Calls `listener` when the properties below change, `selection` and `viewport` included. Returns a function that stops it. |
+| `subscribe(listener)` | Calls `listener` when the properties below change, `selection`, `viewport` and `issues` included. Returns a function that stops it. |
 | `destroy()` | Stops the editor and its worker. |
 
 ## Properties
@@ -36,9 +36,10 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `unsaved` | Whether there are edits your app hasn't received through a save. |
 | `readOnly` | Whether the workbook is [read-only](/guides/options-and-features/#read-only-workbooks). |
 | `selection` | `{ sheet, active, ranges }`: the sheet shown, its active cell and its selected ranges in A1 style, such as `{ sheet: 'Prices', active: 'C4', ranges: ['B2:C4'] }`. |
+| `issues` | The schema issues now, errors first, whether or not the issues panel is shown: `{ sheet?, cell?, rule, severity, message }`, such as `{ sheet: 'Prices', cell: 'B4', rule: 'schema.check.min', severity: 'error', message: 'Must be at least 0.' }`. `sheet` and `cell` are missing for an issue about the workbook or a sheet; `rule` is `'custom'` for a message the schema's author wrote; `message` is in the editor's current language. An empty array without a schema. |
 | `viewport` | `{ sheet, row, col, cell }`: the first row and column in view below and right of any frozen panes, wholly or in part, numbered as in A1 (row 1 is 1, column A is 1), and that cell, such as `'C10'`. |
 
-`selection` and `viewport` stay the same object until they change, so a listener can tell what changed by comparing them with the last it saw. While the sheet scrolls, `viewport` changes at most once a frame. Rows of their own height, hidden rows and collapsed groups are all taken into account: a viewport row is always one shown.
+`selection`, `viewport` and `issues` stay the same object until they change, so a listener can tell what changed by comparing them with the last it saw. While the sheet scrolls, `viewport` changes at most once a frame. Rows of their own height, hidden rows and collapsed groups are all taken into account: a viewport row is always one shown.
 
 ## Following another editor
 
@@ -98,4 +99,4 @@ The workbook lives in a worker. If the worker can't load, crashes, runs out of m
 
 ## The element's events
 
-The `<workbook-editor>` element also fires DOM events: `ready`, `opened`, `change`, `save`, `editorerror`, `selectionchange` and `viewportchange`. See [Web component and plain HTML](/start/web-component/#events).
+The `<workbook-editor>` element also fires DOM events: `ready`, `opened`, `change`, `save`, `editorerror`, `selectionchange`, `viewportchange` and `issueschange`. See [Web component and plain HTML](/start/web-component/#events).

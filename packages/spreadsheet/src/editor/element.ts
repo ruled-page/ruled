@@ -2,7 +2,7 @@ import { applyLiveOptions, changedOptions, LIVE_OPTIONS } from './liveOptions';
 import type { CsvOptions } from '../core/csv';
 import type { SavedWorkbook, SaveResult, StoreOptions } from '../state/store';
 import type { WorkbookSchema } from '../schema/types';
-import type { EditorHandle, EditorSelection, EditorViewport } from './mount';
+import type { EditorHandle, EditorSelection, EditorViewport, EditorIssue } from './mount';
 import type { EditorTheme } from './theme';
 import type { MenuOptions } from '../ui/menuCommands';
 
@@ -47,6 +47,8 @@ export interface WorkbookEditorEventMap extends HTMLElementEventMap {
   selectionchange: CustomEvent<EditorSelection | undefined>;
   /** The sheet scrolled, or another was shown; at most once a frame (detail: the viewport, as the `viewport` property gives it). */
   viewportchange: CustomEvent<EditorViewport | undefined>;
+  /** The schema issues changed (detail: the issues, as the `issues` property gives them). */
+  issueschange: CustomEvent<readonly EditorIssue[]>;
 }
 
 /** The <workbook-editor> element: what hosts can set, call and listen to. */
@@ -91,6 +93,8 @@ export interface WorkbookEditorElement extends HTMLElement {
   readonly selection: EditorSelection | undefined;
   /** The first row and column in view below and right of any frozen panes. */
   readonly viewport: EditorViewport | undefined;
+  /** The current schema issues; see the handle's `issues`. */
+  readonly issues: readonly EditorIssue[];
   registerSchema(schema: WorkbookSchema): void;
   removeSchema(id: string): void;
   setTheme(theme: EditorTheme | undefined): void;
@@ -133,7 +137,7 @@ declare global {
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
  * you store it), `editorerror` (detail: { message }) when a workbook from
  * `src` can't be loaded or opened, or the editor stops working, and
- * `selectionchange` and `viewportchange` (detail: the new `selection` or `viewport`).
+ * `selectionchange`, `viewportchange` and `issueschange` (detail: the new `selection`, `viewport` or `issues`).
  */
 export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-editor'): void {
   if (customElements.get(tagName)) return;
@@ -148,6 +152,7 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
     private lastOpened = '';
     private lastSelection: EditorSelection | undefined;
     private lastViewport: EditorViewport | undefined;
+    private lastIssues: readonly EditorIssue[] = [];
     /** A removal that ends the editor unless the element is put back first (moved elsewhere in the page). */
     private teardown?: ReturnType<typeof setTimeout>;
     /** The `src` being fetched, cancelled when another replaces it. */
@@ -227,6 +232,11 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
         if (viewport !== this.lastViewport) {
           this.lastViewport = viewport;
           this.dispatchEvent(new CustomEvent('viewportchange', { detail: viewport }));
+        }
+        const issues = handle.issues;
+        if (issues !== this.lastIssues) {
+          this.lastIssues = issues;
+          this.dispatchEvent(new CustomEvent('issueschange', { detail: issues }));
         }
         const edited = handle.editedCount;
         const unsaved = handle.unsaved;
@@ -343,6 +353,10 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     get viewport(): EditorViewport | undefined {
       return this.handle?.viewport;
+    }
+
+    get issues(): readonly EditorIssue[] {
+      return this.handle?.issues ?? [];
     }
 
     registerSchema(schema: WorkbookSchema): void {

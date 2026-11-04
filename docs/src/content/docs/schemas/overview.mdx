@@ -74,3 +74,7 @@ Add and remove schemas while the editor is open with `registerSchema(schema)` an
 ## Errors and warnings
 
 Every check reports an **error** unless it says `severity: 'warning'`. Errors stop the save; warnings are shown but never stop anything. Set `saveWithErrors: 'confirm'` to let people save with errors after confirming, as the budget above does.
+
+### Reading the issues from your app
+
+`handle.issues` (and `issues` on `<workbook-editor>`) lists the current issues, errors first, whether or not the **Checks** panel is shown: `{ sheet?, cell?, rule, severity, message }`. `sheet` and `cell` (such as `'B4'`) are left out for an issue about the workbook or a whole sheet; an issue is never on a range. `message` is in the editor's current language. `rule` is the key of the editor's own check, such as `'schema.check.min'`, or `'custom'` for a message you wrote in a hook or a check. The array stays the same until the issues or the language change, and `subscribe` (or the `issueschange` event) tells you when. Checks still running are not in it. See [Events and handle](/guides/events-and-handle/).

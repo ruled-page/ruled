@@ -1,5 +1,6 @@
 import { toA1 } from '@ruled/formula/refs';
 import type { CsvOptions } from '../core/csv';
+import { isMessage } from '../i18n/message';
 import type { FileOrigin } from '../plugin/types';
 import type { WorkbookSchema } from '../schema/types';
 import { WorkbookStore, type SavedWorkbook, type SaveResult, type StoreOptions } from '../state/store';
@@ -15,6 +16,22 @@ export interface EditorSelection {
   active: string;
   /** The selected ranges, such as "A1:C3" or "B4"; whole rows or columns reach the end of the sheet's used range. */
   ranges: string[];
+}
+
+/** A schema issue, as `handle.issues` lists it. */
+export interface EditorIssue {
+  /** The name of the sheet; undefined for an issue about the whole workbook. */
+  sheet?: string;
+  /** The cell the issue is on, such as "B4"; undefined for an issue about a sheet or the workbook. Issues are never on a range. */
+  cell?: string;
+  /**
+   * What found it: the key of the editor's own check, such as "schema.check.min", or "custom" for a message
+   * the schema's author wrote (a `validate`, `check`, or `onChange` hook, or a message set on a check).
+   */
+  rule: string;
+  severity: 'error' | 'warning';
+  /** In the editor's current language. */
+  message: string;
 }
 
 /** Where a sheet is scrolled to, as `handle.viewport` gives it. */
@@ -93,6 +110,14 @@ export interface EditorHandle {
    */
   readonly selection: EditorSelection | undefined;
   /**
+   * The schema issues the open workbook has now, errors first, as the issues
+   * panel lists them, whether or not the panel is shown; empty without a
+   * schema. Checks still running are not in it. The same array until the
+   * issues or the language change, so a `subscribe` listener can tell it
+   * changed by comparing it with the last.
+   */
+  readonly issues: readonly EditorIssue[];
+  /**
    * The first row and column the sheet shown has in view below and right
    * of any frozen panes; undefined until the grid has drawn it. The same
    * object until it changes. `subscribe` listeners are called when it does,
@@ -151,6 +176,8 @@ export interface EditorHandle {
   readonly ready: Promise<void>;
 }
 
+const NO_ISSUES: readonly EditorIssue[] = [];
+
 const stores = new WeakMap<EditorHandle, WorkbookStore>();
 
 /** The store behind a handle, for the editor's own components. Not part of the public API. */
@@ -165,6 +192,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
   // Kept until they change, so listeners can compare.
   let selection: EditorSelection | undefined;
   let viewport: EditorViewport | undefined;
+  let issues: { ctl: unknown; version: number; language: string; list: readonly EditorIssue[] } = { ctl: undefined, version: 0, language: '', list: NO_ISSUES };
   let ready: Promise<void>;
   const handle: EditorHandle = {
     async open(bytes, fileName) {
@@ -187,6 +215,24 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
       if (!now) return (selection = undefined);
       if (selection && selection.sheet === now.sheet && selection.active === now.active && selection.ranges.join() === now.ranges.join()) return selection;
       return (selection = now);
+    },
+    get issues() {
+      const ctl = store.status === 'ready' ? store.schema : undefined;
+      if (!ctl) return (issues = { ctl, version: 0, language: '', list: NO_ISSUES }).list;
+      const language = store.t.language;
+      if (issues.ctl === ctl && issues.version === store.schemaVersion && issues.language === language) return issues.list;
+      const list = ctl.issues().map((i): EditorIssue => {
+        return {
+          ...(i.sheet >= 0 && { sheet: i.sheetName }),
+          ...(i.row !== undefined && i.col !== undefined && { cell: toA1(i.row, i.col) }),
+          rule: isMessage(i.message) ? i.message.key : 'custom',
+          severity: i.severity,
+          message: store.t.text(i.message),
+        };
+      });
+      // Re-checks that find the same issues keep the array.
+      const same = issues.list.length === list.length && list.every((n, k) => JSON.stringify(n) === JSON.stringify(issues.list[k]));
+      return (issues = { ctl, version: store.schemaVersion, language, list: same ? issues.list : list.length ? list : NO_ISSUES }).list;
     },
     get viewport() {
       const at = store.status === 'ready' ? store.viewport : undefined;

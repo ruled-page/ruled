@@ -6,6 +6,11 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- `handle.issues` (and `issues` on `<workbook-editor>`) lists the current
+  schema issues as `{ sheet?, cell?, rule, severity, message }`, with the
+  message in the editor's language, whether or not the issues panel is
+  shown. It is the same array until the issues or the language change;
+  `subscribe` and the new `issueschange` event tell you when.
 - A right-click on the grid in the first second after the page loaded
   opened no menu: it was taken for the right-click that follows a long press
   on a touch screen.

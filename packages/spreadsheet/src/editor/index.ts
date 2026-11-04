@@ -11,7 +11,7 @@
 export { WorkbookEditor, type WorkbookEditorProps } from './WorkbookEditor';
 export { Workbook, type WorkbookProps } from './Workbook';
 export type { SavedWorkbookData } from './plainData';
-export { createWorkbookEditor, type EditorHandle, type EditorSelection, type EditorViewport } from './handle';
+export { createWorkbookEditor, type EditorHandle, type EditorSelection, type EditorViewport, type EditorIssue } from './handle';
 export { useEditorState, useWorkbookEditor, type EditorState, type WorkbookEditorHookOptions, type WorkbookFile } from './hooks';
 export { mountWorkbookEditor } from './mount';
 export { discardDraft } from './drafts';

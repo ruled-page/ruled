@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VT } from '../src/core/types';
+import { handleFor } from '../src/editor/handle';
 import { english } from '../src/i18n';
 import { schemaFromJSON, schemaToJSON } from '../src/schema/json';
 import type { WorkbookSchema } from '../src/schema/types';
@@ -221,6 +222,53 @@ describe('a file saved with another version of the schema', () => {
     store.setLanguage('de');
     expect(store.t.language).toBe('de');
     expect(store.t.text(store.schemaNote)).toMatch(/Bestellzeilen/);
+  });
+});
+
+describe('the issues on the handle', () => {
+  it('lists none without a schema, then follows edits and the language, keeping the array while only the selection moves', async () => {
+    await open({});
+    const editor = handleFor(store);
+    expect(editor.issues).toEqual([]);
+
+    store.registerSchema(schema());
+    await store.schema!.settled();
+    const before = editor.issues;
+    const listener = vi.fn();
+    const stop = editor.subscribe(listener);
+
+    await store.input(1, 1, '-1');
+    await store.schema!.settled();
+    const bad = editor.issues;
+    expect(bad).not.toBe(before);
+    expect(bad).toContainEqual({ sheet: 'Lines', cell: 'B2', rule: expect.stringMatching(/^schema\./), severity: 'error', message: expect.any(String) });
+    const message = bad.find((i) => i.cell === 'B2')!.message;
+    expect(listener).toHaveBeenCalled();
+
+    // Moving about changes the selection, not the issues.
+    store.setSelection({ row: 2, col: 0, rects: [rect(2, 0)] });
+    store.setSelection({ row: 3, col: 2, rects: [rect(3, 2)] });
+    expect(editor.issues).toBe(bad);
+
+    store.setLanguage('de');
+    const german = editor.issues;
+    expect(german).not.toBe(bad);
+    expect(german.find((i) => i.cell === 'B2')!.message).not.toBe(message);
+
+    await store.input(1, 1, '2');
+    await store.schema!.settled();
+    expect(editor.issues.find((i) => i.cell === 'B2')).toBeUndefined();
+    stop();
+    editor.destroy();
+  });
+
+  it('is there with the issues panel shut', async () => {
+    await open({ schemas: [schema()], features: { issuesPanel: false } });
+    const editor = handleFor(store);
+    await store.input(1, 1, '-1');
+    await store.schema!.settled();
+    expect(store.panel).toBeNull();
+    expect(editor.issues.some((i) => i.cell === 'B2')).toBe(true);
   });
 });
 

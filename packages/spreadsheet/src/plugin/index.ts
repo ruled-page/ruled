@@ -6,7 +6,7 @@
 import type { RuledPlugin } from './types';
 
 export type * from './types';
-export type { EditorHandle, EditorSelection, EditorViewport } from '../editor/handle';
+export type { EditorHandle, EditorSelection, EditorViewport, EditorIssue } from '../editor/handle';
 export type { EditorEvent, SavedWorkbook, SaveConflictError } from '../state/store';
 export type { Localized, Text } from '../i18n/message';
 export type { Translations } from '../i18n';
