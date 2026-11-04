@@ -22,7 +22,7 @@ vi.mock('../src/ui/ContextMenu', async (original) => ({
 }));
 // Read through a function, which TypeScript doesn't narrow after `shown.items = undefined`.
 const menuShown = () => shown.items;
-const { SheetTabs, StatusBar, Toolbar } = await import('../src/ui/Chrome');
+const { SheetTabs, StatusBar, Toolbar, sheetTabKey } = await import('../src/ui/Chrome');
 const { cellNote } = await import('../src/ui/FormulaBar');
 
 let sheets: Uint8Array;
@@ -111,6 +111,53 @@ describe('features', () => {
     // Choosing a tab still shows its sheet.
     off.setActive(1);
     expect(off.active).toBe(1);
+  });
+
+  describe('on the sheet tabs, keys', () => {
+    const key = (k: string, mods: { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {}) => ({
+      key: k,
+      altKey: false,
+      shiftKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      ...mods,
+    });
+    const steps = { at: 1, count: 3, left: -1 as const, right: 1 as const };
+
+    it('rename, move and open the menu with sheetMenus, and otherwise only move between tabs', () => {
+      const on = { ...steps, menus: true };
+      expect(sheetTabKey(key('F2'), on)).toEqual({ kind: 'rename' });
+      expect(sheetTabKey(key('ArrowRight', { altKey: true, shiftKey: true }), on)).toEqual({ kind: 'move', by: 1 });
+      expect(sheetTabKey(key('ArrowLeft', { altKey: true, shiftKey: true }), on)).toEqual({ kind: 'move', by: -1 });
+      expect(sheetTabKey(key('F10', { shiftKey: true }), on)).toEqual({ kind: 'menu' });
+      expect(sheetTabKey(key('ContextMenu'), on)).toEqual({ kind: 'menu' });
+
+      const off = { ...steps, menus: false };
+      expect(sheetTabKey(key('F2'), off)).toBeUndefined();
+      expect(sheetTabKey(key('ArrowRight', { altKey: true, shiftKey: true }), off)).toBeUndefined();
+      expect(sheetTabKey(key('F10', { shiftKey: true }), off)).toBeUndefined();
+      expect(sheetTabKey(key('ContextMenu'), off)).toBeUndefined();
+      // Arrows, Home and End still move between the tabs.
+      expect(sheetTabKey(key('ArrowRight'), off)).toEqual({ kind: 'focus', to: 2 });
+      expect(sheetTabKey(key('ArrowLeft'), off)).toEqual({ kind: 'focus', to: 0 });
+      expect(sheetTabKey(key('Home'), off)).toEqual({ kind: 'focus', to: 0 });
+      expect(sheetTabKey(key('End'), off)).toEqual({ kind: 'focus', to: 2 });
+      expect(sheetTabKey(key('ArrowRight'), { ...off, at: 2 })).toEqual({ kind: 'focus', to: 0 });
+    });
+
+    it('mirror the arrows where the editor is', () => {
+      expect(sheetTabKey(key('ArrowRight'), { ...steps, menus: false, left: 1, right: -1 })).toEqual({ kind: 'focus', to: 0 });
+    });
+  });
+
+  it('sheetTabButtons off still lets a tab show its sheet, with the sheet menus on', async () => {
+    const s = await store({ sheetTabButtons: false });
+    const markup = tabs(s);
+    expect(markup).not.toContain('aria-label="New sheet"');
+    expect(markup).not.toContain('aria-label="Sheet menu"');
+    expect(markup.match(/role="tab"/g)).toHaveLength(2);
+    s.setActive(1);
+    expect(s.active).toBe(1);
   });
 
   it('lockNotes leaves out the note that a cell is locked, going on to what else the cell has', async () => {

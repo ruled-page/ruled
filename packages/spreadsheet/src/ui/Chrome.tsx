@@ -571,6 +571,23 @@ export function RecalcBanner({ store }: { store: WorkbookStore }) {
   );
 }
 
+/** What a key does on a sheet tab: focus another tab, or (with the sheet menus on) move, rename or open the menu of its sheet. */
+export type SheetTabAction = { kind: 'focus'; to: number } | { kind: 'move'; by: -1 | 1 } | { kind: 'rename' } | { kind: 'menu' };
+
+export function sheetTabKey(
+  e: Pick<KeyboardEvent, 'key' | 'altKey' | 'shiftKey' | 'ctrlKey' | 'metaKey'>,
+  tabs: { menus: boolean; at: number; count: number; left: -1 | 1; right: -1 | 1 },
+): SheetTabAction | undefined {
+  const { menus, at, count, left, right } = tabs;
+  const arrow = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? left : 0;
+  if (menus && arrow && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) return { kind: 'move', by: arrow };
+  if (menus && e.key === 'F2') return { kind: 'rename' };
+  if (menus && ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu')) return { kind: 'menu' };
+  if (e.altKey || e.ctrlKey || e.metaKey) return undefined;
+  const to = e.key === 'Home' ? 0 : e.key === 'End' ? count - 1 : arrow ? (at + arrow + count) % count : -1;
+  return to < 0 ? undefined : { kind: 'focus', to };
+}
+
 export function SheetTabs({ store }: { store: WorkbookStore }) {
   const t = useT();
   const hidden = store.sheets.filter((s) => s.info.state !== 'visible').length;
@@ -600,28 +617,15 @@ export function SheetTabs({ store }: { store: WorkbookStore }) {
     if (at < 0) return;
     const sheet = visible[at];
     const name = store.sheets[sheet].info.name;
-    const arrow = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? left : 0;
-    if (menus && arrow && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      after(store.moveSheetBy(sheet, arrow), sheetNamed(store, name));
-      return;
-    }
-    if (menus && e.key === 'F2') {
-      e.preventDefault();
-      store.set('renameSheetFor', sheet);
-      return;
-    }
-    if (menus && ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu')) {
-      e.preventDefault();
+    const action = sheetTabKey(e, { menus, at, count: visible.length, left, right });
+    if (!action) return;
+    e.preventDefault();
+    if (action.kind === 'move') after(store.moveSheetBy(sheet, action.by), sheetNamed(store, name));
+    else if (action.kind === 'rename') store.set('renameSheetFor', sheet);
+    else if (action.kind === 'menu') {
       const r = tabs.current.get(sheet)!.getBoundingClientRect();
       openMenu(sheet, r.left, r.bottom);
-      return;
-    }
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const to = e.key === 'Home' ? 0 : e.key === 'End' ? visible.length - 1 : arrow ? (at + arrow + visible.length) % visible.length : -1;
-    if (to < 0) return;
-    e.preventDefault();
-    tabs.current.get(visible[to])?.focus();
+    } else tabs.current.get(visible[action.to])?.focus();
   };
 
   // Dragging a tab moves its sheet: the drop goes before the sheet at `before`, in workbook order.
