@@ -74,6 +74,8 @@ export interface WorkbookEditorElement extends HTMLElement {
   getCsv(options?: CsvOptions): Promise<string | undefined>;
   /** Selects a cell or range, such as "B4" or "Prices!A1:C3", and shows it; the grid takes the focus unless `focus` is false. */
   goTo(ref: string, options?: { focus?: boolean }): void;
+  /** The handle's select: selects what `selection` gives, so one editor can mirror another's; false, changing nothing, if it isn't a selection here. */
+  select(selection: EditorSelection, options?: { focus?: boolean }): boolean;
   /**
    * The handle's scrollTo: scrolls a cell to the top left of the part of the
    * sheet that scrolls, keeping the selection and the focus. Named apart
@@ -131,7 +133,7 @@ declare global {
  * `save-handler="event"` to receive saves as `save` events instead of a
  * download, and `read-only` to show the workbook without letting it be
  * changed. Properties: `options` (editor options) and `readOnly`.
- * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), scrollToCell(), freeze(), whenReady(), discardDraft(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
+ * Methods: open(), save(), downloadCopy(), getWorkbook(), downloadCsv(), getCsv(), goTo(), select(), scrollToCell(), freeze(), whenReady(), discardDraft(), registerSchema(), removeSchema(), setTheme(), setLanguage(), setUser(), setCustomLists(), setMenus().
  * Events: `ready`, `opened` (detail: { fileName }), `change` (detail: { editedCount, unsaved }),
  * `save` (detail: the saved workbook with its bytes, changes, values and
  * readers; call `detail.waitUntil(promise)` to keep the save pending while
@@ -328,6 +330,10 @@ export function defineWorkbookEditorElement(mount: Mount, tagName = 'workbook-ed
 
     goTo(ref: string, options?: { focus?: boolean }): void {
       this.handle?.goTo(ref, options);
+    }
+
+    select(selection: EditorSelection, options?: { focus?: boolean }): boolean {
+      return this.handle?.select(selection, options) ?? false;
     }
 
     scrollToCell(ref: string): boolean {

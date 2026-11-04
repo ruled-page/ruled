@@ -167,6 +167,82 @@ describe('following an editor’s selection and scroll position', () => {
     expect([store.revealSeq, store.revealFocus, editor.selection?.active]).toEqual([seq + 2, true, 'C8']);
   });
 
+  it('selects what selection gives: a cell, ranges, an active cell anywhere in them, another sheet', async () => {
+    await create();
+    expect(editor.select({ sheet: 'Lines', active: 'A1', ranges: ['A1'] })).toBe(false);
+    await editor.open(two, 'two.xlsx');
+    const store = storeOf(editor);
+    expect(editor.select({ sheet: 'Lines', active: 'C4', ranges: ['C4'] })).toBe(true);
+    expect(editor.selection).toEqual({ sheet: 'Lines', active: 'C4', ranges: ['C4'] });
+    expect(editor.select({ sheet: 'Lines', active: 'C3', ranges: ['B2:D4'] })).toBe(true);
+    expect(editor.selection).toEqual({ sheet: 'Lines', active: 'C3', ranges: ['B2:D4'] });
+    expect(editor.select({ sheet: 'Lines', active: 'D4', ranges: ['B2:C3', 'D4:E5', 'H1'] })).toBe(true);
+    expect(editor.selection).toEqual({ sheet: 'Lines', active: 'D4', ranges: ['B2:C3', 'D4:E5', 'H1'] });
+    expect(editor.select({ sheet: 'big prices', active: 'B2', ranges: ['A1:B2'] })).toBe(true);
+    expect(editor.selection).toEqual({ sheet: 'Big Prices', active: 'B2', ranges: ['A1:B2'] });
+    expect(store.active).toBe(1);
+  });
+
+  it('changes nothing when the selection is not one here', async () => {
+    await create();
+    await editor.open(two, 'two.xlsx');
+    editor.select({ sheet: 'Lines', active: 'B2', ranges: ['A1:C3'] });
+    const before = editor.selection;
+    const seq = storeOf(editor).revealSeq;
+    for (const bad of [
+      { sheet: 'Nowhere', active: 'B2', ranges: ['B2'] },
+      { sheet: 'Lines', active: 'not a cell', ranges: ['B2'] },
+      { sheet: 'Lines', active: 'B2', ranges: ['B2', 'zz zz'] },
+      { sheet: 'Lines', active: 'B2', ranges: [] },
+      { sheet: 'Lines', active: 'B2:C3', ranges: ['B2:C3'] },
+      { sheet: 'Lines', active: 'F9', ranges: ['A1:C3', 'E5'] },
+      { sheet: 'Lines', active: 'B2', ranges: ['Big Prices!B2'] },
+    ]) {
+      expect(editor.select(bad)).toBe(false);
+    }
+    expect(editor.selection).toBe(before);
+    expect(storeOf(editor).revealSeq).toBe(seq);
+  });
+
+  it('shows the active cell, taking the focus unless told not to', async () => {
+    await create();
+    await editor.open(two, 'two.xlsx');
+    const store = storeOf(editor);
+    const seq = store.revealSeq;
+    editor.select({ sheet: 'Lines', active: 'B7', ranges: ['A1:B7'] }, { focus: false });
+    expect([store.revealSeq, store.revealFocus]).toEqual([seq + 1, false]);
+    editor.select({ sheet: 'Lines', active: 'C8', ranges: ['C8'] });
+    expect([store.revealSeq, store.revealFocus]).toEqual([seq + 2, true]);
+  });
+
+  it('grows a range that cuts through a merged cell, as the mouse does', async () => {
+    await create();
+    await editor.open(two, 'two.xlsx');
+    storeOf(editor).view!.info.merges.push({ r1: 1, c1: 1, r2: 2, c2: 2 });
+    expect(editor.select({ sheet: 'Lines', active: 'A1', ranges: ['A1:B2'] })).toBe(true);
+    expect(editor.selection).toEqual({ sheet: 'Lines', active: 'A1', ranges: ['A1:C3'] });
+  });
+
+  it('mirrors a selection into another editor, ending with the same selection', async () => {
+    const left = await create();
+    const rightStore = await testStore();
+    const right = handleFor(rightStore);
+    try {
+      await left.open(two, 'two.xlsx');
+      await right.open(two, 'two.xlsx');
+      for (const sel of [
+        { sheet: 'Lines', active: 'C3', ranges: ['B2:D4', 'F6'] },
+        { sheet: 'Big Prices', active: 'A2', ranges: ['A1:B2'] },
+      ]) {
+        expect(left.select(sel, { focus: false })).toBe(true);
+        expect(right.select(left.selection!, { focus: false })).toBe(true);
+        expect(right.selection).toEqual(left.selection);
+      }
+    } finally {
+      right.destroy();
+    }
+  });
+
   it('scrolls a cell to the top left without changing the selection', async () => {
     await create();
     await editor.open(two, 'two.xlsx');

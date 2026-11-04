@@ -85,6 +85,13 @@ export interface EditorHandle {
    */
   goTo(ref: string, options?: { focus?: boolean }): void;
   /**
+   * Selects exactly what `selection` gives, so one editor can mirror another's: the sheet, the ranges and the active cell,
+   * which is shown. The grid takes the keyboard focus unless `focus` is false. Returns false, changing nothing, when the sheet
+   * or a range is unknown or badly written, or the active cell is in none of the ranges. A range that cuts through a merged
+   * cell grows to take it in, as when selected with the mouse.
+   */
+  select(selection: EditorSelection, options?: { focus?: boolean }): boolean;
+  /**
    * Scrolls a cell, such as "C10" or "Prices!C10", to the top left of the
    * part of the sheet that scrolls (below and right of any frozen panes),
    * switching sheet if needed, as far as the sheet scrolls. The selection
@@ -207,6 +214,7 @@ export function handleFor(store: WorkbookStore, destroy: () => void = () => stor
     downloadCsv: (options) => store.exportCsv(options),
     getCsv: async (options) => (await store.csv(options))?.text,
     goTo: (ref, options) => void store.goTo(ref, options),
+    select: (to, options) => store.select(to, options),
     scrollTo: (ref) => store.scrollTo(ref),
     freeze: ({ rows, cols, sheet }) => store.status === 'ready' && store.freezeView(rows, cols, sheet),
     discardDraft: () => store.discardDraft(),

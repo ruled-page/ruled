@@ -1,5 +1,6 @@
 import { notesFinding } from '../core/comments';
 import { mergeEditResults } from '../core/editResult';
+import { growOverMerges } from '../grid/navigation';
 import { moveInsertLanding } from '../core/refTransform';
 import type { EditorTheme } from '../editor/theme';
 import type { IconOverrides } from '../ui/icons';
@@ -3428,10 +3429,30 @@ export class WorkbookStore {
     const to = this.placeOf(text);
     // As in Excel, a hidden sheet's cells can't be gone to until the sheet is shown.
     if (!to || !this.shows(to.sheet)) return false;
-    if (to.sheet !== this.active) this.setActive(to.sheet);
+    this.show(to.sheet, to.rects[0].r1, to.rects[0].c1, to.rects, focus);
+    return true;
+  }
+
+  private show(sheet: number, row: number, col: number, rects: Rect[], focus = true): void {
+    if (sheet !== this.active) this.setActive(sheet);
     if (focus) this.revealFocus = true;
     this.revealSeq++;
-    this.setSelection({ row: to.rects[0].r1, col: to.rects[0].c1, rects: to.rects });
+    this.setSelection({ row, col, rects });
+  }
+
+  /**
+   * Selects what `commandSelection` gives: the ranges on a sheet, named as in `goTo`, with the active cell in one of them, and shows the
+   * active cell. Ranges that cut through a merged cell grow to take it in, as when selected with the mouse. False, changing nothing,
+   * when the sheet, a range or the active cell is not one here, or the active cell is in none of the ranges.
+   */
+  select({ sheet, active, ranges }: CommandSelection, options?: { focus?: boolean }): boolean {
+    const at = (ref: string) => this.referenceTo(`${quoteSheetName(sheet)}!${ref}`);
+    const to = at(active);
+    const cell = to?.rects[0];
+    const rects = ranges.map((r) => at(r)?.rects[0]);
+    if (!to || !this.shows(to.sheet) || cell!.r1 !== cell!.r2 || cell!.c1 !== cell!.c2 || !rects.some((r) => r && inRect(r, cell!.r1, cell!.c1)) || !rects.every((r) => r)) return false;
+    const merges = this.sheets[to.sheet].info.merges;
+    this.show(to.sheet, cell!.r1, cell!.c1, (rects as Rect[]).map((r) => growOverMerges(r, merges)), options?.focus);
     return true;
   }
 

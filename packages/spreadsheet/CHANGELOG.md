@@ -6,6 +6,12 @@ before 1.0.0, a minor version may change the API.
 
 ## Unreleased
 
+- `handle.select(selection, { focus }?)` (and `select(...)` on
+  `<workbook-editor>`) selects exactly what `handle.selection` returns: the
+  sheet, the ranges and the active cell, which is shown. Pass one editor's
+  `selection` to another to mirror it. It returns `false`, changing
+  nothing, for an unknown sheet, a bad reference or an active cell outside
+  every range.
 - `handle.issues` (and `issues` on `<workbook-editor>`) lists the current
   schema issues as `{ sheet?, cell?, rule, severity, message }`, with the
   message in the editor's language, whether or not the issues panel is

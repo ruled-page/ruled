@@ -16,6 +16,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 | `getWorkbook()` | The workbook as a save would hand it over, without the save's checks. |
 | `downloadCopy()` | Downloads the workbook as `.xlsx` without saving it to your app. |
 | `getCsv(options?)`, `downloadCsv(options?)` | The sheet shown, as CSV. |
+| `select(selection, { focus }?)` | Selects exactly what `selection` gives: its sheet, ranges and active cell, which is shown. `focus` works as for `goTo`. Returns `false`, changing nothing, if the sheet or a range is unknown or badly written, or the active cell is in none of the ranges. A range that cuts through a merged cell grows to take it in, as when selected with the mouse. |
 | `goTo(ref, { focus }?)` | Selects and shows a cell, a range or a name: `'B4'`, `'Prices!A1:C3'`. The grid takes the keyboard focus, as after the name box, unless `focus` is `false`. |
 | `ready` | A promise (a property, not a method) that resolves once every plugin's `setup` has run and the editor can draw what they added; at once when there are no plugins. It never rejects: a plugin that throws is reported as a `pluginError` event and the rest still count. If the editor is destroyed first it resolves with the plugins not started. See [when plugins start](/plugins/writing/#when-setup-runs). |
 | `scrollTo(ref)` | Scrolls a cell to the top left of the part of the sheet that scrolls, below and right of any frozen panes, keeping the selection and the focus. `false` when `ref` names no cell on a sheet shown. |
@@ -43,7 +44,7 @@ Every way of showing the editor gives you the same handle: `createWorkbookEditor
 
 ## Following another editor
 
-Two editors side by side can follow each other with `selection`, `viewport`, `goTo(ref, { focus: false })` and `scrollTo(ref)`. Leave alone what already matches, so the two don't keep answering each other:
+Two editors side by side can follow each other with `selection`, `viewport`, `select(selection, { focus: false })` and `scrollTo(ref)`. Leave alone what already matches, so the two don't keep answering each other:
 
 ```ts
 const quote = (sheet: string) => `'${sheet.replace(/'/g, "''")}'`;
@@ -55,7 +56,7 @@ function follow(from: EditorHandle, to: EditorHandle) {
     if (from.selection && from.selection !== selection) {
       selection = from.selection;
       const now = to.selection;
-      if (now?.sheet !== selection.sheet || now.ranges.join() !== selection.ranges.join()) to.goTo(`${quote(selection.sheet)}!${selection.ranges[0]}`, { focus: false });
+      if (now?.sheet !== selection.sheet || now.active !== selection.active || now.ranges.join() !== selection.ranges.join()) to.select(selection, { focus: false });
     }
     if (from.viewport && from.viewport !== viewport) {
       viewport = from.viewport;
