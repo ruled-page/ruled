@@ -808,6 +808,8 @@ export class WorkbookStore {
   private toastsHeld = false;
   /** What each undoable step did, said when it is undone or redone. */
   private readonly stepLabels = new WeakMap<object, Text>();
+  /** The host's view-only freeze a menu freeze replaced, brought back when that step is undone. */
+  private readonly replacedFreezes = new WeakMap<object, { sheet: number; frozen: { rows: number; cols: number } }>();
   /** The cell just typed in, until its checks have run: a problem with it is said at once. */
   private checking?: { sheet: number; row: number; col: number };
   private readonly listCache = new WeakMap<ListValidation, { version: number; options: string[] | undefined }>();
@@ -2016,6 +2018,8 @@ export class WorkbookStore {
     this.showSheet(entry.undo[0]?.sheet ?? entry.noteUndo?.[0]?.sheet ?? entry.layout?.undo[0]?.sheet);
     const notes = entry.noteUndo?.length ? { notes: entry.noteUndo } : {};
     await this.edit({ type: 'restore', cells: entry.undo, ...notes, layout: entry.layout?.undo, names: entry.names?.undo }, 'none', { label: msg('store.history.undo') });
+    const host = this.replacedFreezes.get(entry);
+    if (host) this.sheets[host.sheet]?.viewFreeze(host.frozen);
     this.redoStack.push(entry);
     this.announce(msg('store.announce.undone', { action: this.stepLabels.get(entry) ?? msg('store.history.edit') }));
     this.notify();
@@ -2491,11 +2495,16 @@ export class WorkbookStore {
    */
   async freezePanes(at: 'cell' | 'topRow' | 'firstColumn' | 'none'): Promise<void> {
     if (this.refused()) return;
-    // A change to the file's panes replaces a host's view-only freeze on the sheet.
+    // A change to the file's panes replaces a host's view-only freeze on the sheet; undoing it brings the freeze back.
+    const host = this.view?.viewFrozen;
+    const sheet = this.active;
+    const prev = this.undoStack[this.undoStack.length - 1];
     this.view?.viewFreeze(undefined);
     const { row, col } = this.selection;
     const [rows, cols] = at === 'cell' ? [row, col] : at === 'topRow' ? [1, 0] : at === 'firstColumn' ? [0, 1] : [0, 0];
     await this.changeLayout({ kind: 'freeze', rows, cols }, msg(rows || cols ? 'store.history.freeze' : 'store.history.unfreeze'));
+    const step = this.undoStack[this.undoStack.length - 1];
+    if (host && step && step !== prev) this.replacedFreezes.set(step, { sheet, frozen: host });
   }
 
   /** The selection, grown to take in any merged cells it covers part of, as Excel's selection does. */

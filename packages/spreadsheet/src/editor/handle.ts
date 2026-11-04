@@ -106,7 +106,8 @@ export interface EditorHandle {
    * file's own panes. `{ rows: 0, cols: 0 }` shows the file's own panes again.
    * It lasts until the file is opened again, or until the user freezes or
    * unfreezes panes from the menu, which changes the file and replaces it for
-   * that sheet. `viewport` takes it into account. False when no workbook is
+   * that sheet; undoing that menu step brings it back, redoing clears it
+   * again. `viewport` takes it into account. False when no workbook is
    * open or `sheet` names none.
    */
   freeze(panes: { rows: number; cols: number; sheet?: string }): boolean;

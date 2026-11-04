@@ -25,7 +25,8 @@ before 1.0.0, a minor version may change the API.
   active sheet or a named one: no undo step, the workbook isn't marked
   unsaved, and the file keeps its own panes when saved. `{ rows: 0, cols: 0 }`
   shows the file's panes again. Freezing from the menu changes the file as
-  before and replaces the view-only freeze on that sheet.
+  before and replaces the view-only freeze on that sheet; undoing that menu
+  step brings the view-only freeze back, and redoing it clears it again.
 - `readOnly: true` shows a workbook without letting it be changed. Every
   edit is refused (typing, paste, cut, fill, dragging cells, rows and
   columns, formats, notes, links, sorting, sheets, charts, pivot tables, and

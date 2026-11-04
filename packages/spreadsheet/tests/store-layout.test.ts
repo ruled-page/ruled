@@ -280,10 +280,58 @@ describe('layout changes and inserted rows', () => {
       expect(store.view!.viewFrozen).toBeUndefined();
       const info = await saved();
       expect([info.frozenRows, info.frozenCols]).toEqual([2, 1]);
-      // The file's own panes survive the host's freeze, and an edit to them.
+      // Undoing the menu freeze brings back the freeze it replaced, not a later one.
       store.freezeView(5, 5);
       await store.undo();
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([3, 2]);
+      store.freezeView(0, 0);
       expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([1, 0]);
+    });
+
+    it('comes back when the menu freeze that replaced it is undone, and goes again on redo', async () => {
+      await open();
+      const panes = () => [store.view!.info.frozenRows, store.view!.info.frozenCols];
+      store.freezeView(3, 2);
+      select(rect(2, 1));
+      await store.freezePanes('cell');
+      expect(panes()).toEqual([2, 1]);
+      await store.undo();
+      expect(panes()).toEqual([3, 2]);
+      expect(store.view!.viewFrozen).toEqual({ rows: 3, cols: 2 });
+      await store.redo();
+      expect(panes()).toEqual([2, 1]);
+      expect(store.view!.viewFrozen).toBeUndefined();
+      await store.undo();
+      expect(panes()).toEqual([3, 2]);
+      expect([store.history.length > 0, (await saved()).frozenRows]).toEqual([true, 0]);
+    });
+
+    it('is not invented by undo when there was none', async () => {
+      await open();
+      select(rect(2, 1));
+      await store.freezePanes('cell');
+      await store.undo();
+      expect(store.view!.viewFrozen).toBeUndefined();
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([0, 0]);
+      await store.redo();
+      expect([store.view!.info.frozenRows, store.view!.info.frozenCols]).toEqual([2, 1]);
+    });
+
+    it('comes back on a named sheet that is not the active one when undo runs', async () => {
+      await open();
+      store.freezeView(1, 0, 'locked');
+      store.setActive(1);
+      await store.freezePanes('none');
+      expect(store.sheets[1].info.frozenRows).toBe(0);
+      store.setActive(0);
+      await store.undo();
+      expect(store.active).toBe(1);
+      expect(store.sheets[1].info.frozenRows).toBe(1);
+      expect(store.sheets[1].viewFrozen).toEqual({ rows: 1, cols: 0 });
+      store.setActive(0);
+      await store.redo();
+      expect(store.sheets[1].viewFrozen).toBeUndefined();
+      expect(store.sheets[1].info.frozenRows).toBe(0);
     });
   });
 });
